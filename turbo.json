@@ -21,7 +21,10 @@
         "QUEUE_REDIS_URL",
         "WORKER_*",
         "STOREFRONT_PORT",
-        "ADMIN_PORT"
+        "ADMIN_PORT",
+        "CACHE_REDIS_URL",
+        "EMAIL_*",
+        "SMTP_*"
       ]
     },
     "lint": {
@@ -36,7 +39,15 @@
     "test:int": {
       "dependsOn": ["^build"],
       "cache": false,
-      "passThroughEnv": ["DATABASE_TEST_URL", "DATABASE_URL", "QUEUE_REDIS_URL", "APP_ENV"]
+      "passThroughEnv": [
+        "DATABASE_TEST_URL",
+        "DATABASE_URL",
+        "QUEUE_REDIS_URL",
+        "APP_ENV",
+        "SMTP_HOST",
+        "SMTP_PORT",
+        "MAILPIT_URL"
+      ]
     }
   }
 }

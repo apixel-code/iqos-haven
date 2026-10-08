@@ -29,10 +29,17 @@ jobs:
         options: >-
           --health-cmd "redis-cli ping"
           --health-interval 5s --health-timeout 3s --health-retries 20
+      # Local SMTP sink for email integration tests; nothing leaves the runner.
+      mailpit:
+        image: axllent/mailpit:v1.31.4@sha256:b68349e3a014b90c5610bfb26b2ae36f3892d7b8cf25ee140c6c71c98d2fcf48
+        ports: ["1025:1025", "8025:8025"]
     env:
       APP_ENV: test
       DATABASE_TEST_URL: postgres://ih_test:ih_test_ci@localhost:5432/iqos_haven_test
       QUEUE_REDIS_URL: redis://localhost:6379
+      SMTP_HOST: localhost
+      SMTP_PORT: "1025"
+      MAILPIT_URL: http://localhost:8025
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6

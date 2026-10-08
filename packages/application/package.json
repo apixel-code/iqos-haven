@@ -23,7 +23,8 @@
   },
   "dependencies": {
     "@ih/domain": "workspace:*",
-    "@ih/contracts": "workspace:*"
+    "@ih/contracts": "workspace:*",
+    "zod": "4.6.5"
   },
   "devDependencies": {}
 }

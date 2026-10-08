@@ -72,6 +72,75 @@ export const apiEnvSchema = baseEnvSchema
   })
   .superRefine(separateCacheRedis);
 export type ApiEnv = z.infer<typeof apiEnvSchema>;
+/** "true"/"false" only. Never Boolean(value): Boolean("false") is true. */
+const strictBoolean = z
+  .enum(["true", "false"])
+  .default("false")
+  .transform((value) => value === "true");
+/** Comma list of exact addresses or "@domain" entries, normalized to lower case. */
+const recipientAllowlist = z
+  .string()
+  .default("")
+  .transform((value) =>
+    value
+      .split(",")
+      .map((entry) => entry.trim().toLowerCase())
+      .filter(Boolean),
+  )
+  .refine(
+    (entries) =>
+      entries.every((entry) =>
+        /^(@[a-z0-9.-]+\.[a-z]{2,}|[^\s@,]+@[a-z0-9.-]+\.[a-z]{2,})$/.test(entry),
+      ),
+    "entries must be addresses or @domain",
+  );
+const LOCAL_SMTP_HOSTS = new Set(["localhost", "127.0.0.1", "::1", "[::1]", "mailpit"]);
+
+/**
+ * Email adapter configuration (roadmap step 25). Sending is off unless EMAIL_SEND_ENABLED is
+ * exactly "true". Provider, sender domain and recipients are business input BI-07.
+ */
+export const emailEnvFields = {
+  EMAIL_SEND_ENABLED: strictBoolean,
+  EMAIL_FROM: z.email().optional(),
+  SMTP_HOST: z.string().min(1).optional(),
+  SMTP_PORT: port.default(1025),
+  SMTP_SECURE: strictBoolean,
+  SMTP_USER: z.string().min(1).optional(),
+  SMTP_PASSWORD: z.string().min(1).optional(),
+  EMAIL_RECIPIENT_ALLOWLIST: recipientAllowlist,
+};
+const emailSafety = (
+  value: {
+    APP_ENV: DeploymentEnv;
+    EMAIL_SEND_ENABLED: boolean;
+    EMAIL_FROM?: string | undefined;
+    SMTP_HOST?: string | undefined;
+    SMTP_USER?: string | undefined;
+    SMTP_PASSWORD?: string | undefined;
+    EMAIL_RECIPIENT_ALLOWLIST: string[];
+  },
+  ctx: z.RefinementCtx,
+) => {
+  const issue = (path: string, message: string) =>
+    ctx.addIssue({ code: "custom", path: [path], message });
+  if (Boolean(value.SMTP_USER) !== Boolean(value.SMTP_PASSWORD))
+    issue("SMTP_PASSWORD", "SMTP_USER and SMTP_PASSWORD are set together");
+  if (!value.EMAIL_SEND_ENABLED) return;
+  if (!value.EMAIL_FROM) issue("EMAIL_FROM", "required when EMAIL_SEND_ENABLED=true");
+  if (!value.SMTP_HOST) issue("SMTP_HOST", "required when EMAIL_SEND_ENABLED=true");
+  // Local and test runs may only deliver to a local sink such as Mailpit.
+  if (
+    (value.APP_ENV === "development" || value.APP_ENV === "test") &&
+    value.SMTP_HOST &&
+    !LOCAL_SMTP_HOSTS.has(value.SMTP_HOST.toLowerCase())
+  )
+    issue("SMTP_HOST", "development/test may only send to a local SMTP sink");
+  // Staging never emails real customers: an explicit recipient allowlist is mandatory.
+  if (value.APP_ENV === "staging" && value.EMAIL_RECIPIENT_ALLOWLIST.length === 0)
+    issue("EMAIL_RECIPIENT_ALLOWLIST", "required in staging when sending is enabled");
+};
+
 export const workerEnvSchema = baseEnvSchema
   .extend({
     DATABASE_URL: postgresUrl,
@@ -80,8 +149,12 @@ export const workerEnvSchema = baseEnvSchema
     CACHE_REDIS_URL: redisUrl.optional(),
     WORKER_CONCURRENCY: z.coerce.number().int().min(1).max(32).default(4),
     WORKER_STARTUP_TIMEOUT_MS: z.coerce.number().int().min(1000).max(120000).default(15000),
+    ...emailEnvFields,
   })
-  .superRefine(separateCacheRedis);
+  .superRefine((value, ctx) => {
+    separateCacheRedis(value, ctx);
+    emailSafety(value, ctx);
+  });
 export type WorkerEnv = z.infer<typeof workerEnvSchema>;
 export const storefrontEnvSchema = baseEnvSchema.extend({
   STOREFRONT_PORT: port.default(3000),
@@ -93,6 +166,17 @@ export const adminEnvSchema = baseEnvSchema.extend({
 });
 export const migrationEnvSchema = baseEnvSchema.extend({ DATABASE_MIGRATION_URL: postgresUrl });
 export const integrationTestEnvSchema = z.object({ DATABASE_TEST_URL: postgresUrl });
+/** Email integration tests: a local SMTP sink and its HTTP API (Mailpit). Test-only. */
+export const emailIntegrationTestEnvSchema = z.object({
+  // Integration tests really send: only ever to a local sink, whatever a developer .env says.
+  SMTP_HOST: z
+    .string()
+    .min(1)
+    .default("localhost")
+    .refine((host) => LOCAL_SMTP_HOSTS.has(host.toLowerCase()), "must be a local SMTP sink"),
+  SMTP_PORT: port.default(1025),
+  MAILPIT_URL: httpUrl.default("http://localhost:8025"),
+});
 /** Worker integration tests also need the local/CI queue Redis (unique queue names per run). */
 export const queueIntegrationTestEnvSchema = integrationTestEnvSchema.extend({
   QUEUE_REDIS_URL: redisUrl,
