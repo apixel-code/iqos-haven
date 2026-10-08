@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { Queue, type JobsOptions, type WorkerOptions } from "bullmq";
 import Redis from "ioredis";
 import { effectQueueName, type EffectJobData } from "./queues";
@@ -8,15 +9,24 @@ import { effectQueueName, type EffectJobData } from "./queues";
  */
 export const QUEUE_PREFIX = "ih";
 
+/** Integration tests pass a unique prefix so they never touch (or obliterate) real queues. */
+export function testQueuePrefix(): string {
+  return "ih-test-" + randomUUID().slice(0, 12);
+}
+
 /** BullMQ blocking connections need `maxRetriesPerRequest: null`. */
 export function createQueueConnection(url: string, connectTimeout = 5000): Redis {
   return new Redis(url, { lazyConnect: true, maxRetriesPerRequest: null, connectTimeout });
 }
 
-export function workerOptions(connection: Redis, concurrency: number): WorkerOptions {
+export function workerOptions(
+  connection: Redis,
+  concurrency: number,
+  prefix = QUEUE_PREFIX,
+): WorkerOptions {
   return {
     connection,
-    prefix: QUEUE_PREFIX,
+    prefix,
     concurrency,
     autorun: false,
     // Stalled jobs are re-delivered once. A job still running at the 20 s shutdown deadline keeps
@@ -40,10 +50,10 @@ export const DEFAULT_JOB_OPTIONS: JobsOptions = {
 };
 
 /** Producers must use this so jobs land under QUEUE_PREFIX, where the worker listens. */
-export function createQueue(name: string, connection: Redis): Queue {
+export function createQueue(name: string, connection: Redis, prefix = QUEUE_PREFIX): Queue {
   return new Queue(name, {
     connection,
-    prefix: QUEUE_PREFIX,
+    prefix,
     defaultJobOptions: DEFAULT_JOB_OPTIONS,
   });
 }
@@ -51,13 +61,16 @@ export function createQueue(name: string, connection: Redis): Queue {
 /** Redis side of the relay: one lazily created queue per consumer, stable job IDs. */
 export class BullEffectEnqueuer {
   private readonly queues = new Map<string, Queue>();
-  constructor(private readonly connection: Redis) {}
+  constructor(
+    private readonly connection: Redis,
+    private readonly prefix = QUEUE_PREFIX,
+  ) {}
 
   async enqueue(data: EffectJobData, jobId: string, delayMs: number): Promise<void> {
     const name = effectQueueName(data.consumer);
     let queue = this.queues.get(name);
     if (!queue) {
-      queue = createQueue(name, this.connection);
+      queue = createQueue(name, this.connection, this.prefix);
       this.queues.set(name, queue);
     }
     await queue.add(data.consumer, data, { jobId, ...(delayMs > 0 ? { delay: delayMs } : {}) });

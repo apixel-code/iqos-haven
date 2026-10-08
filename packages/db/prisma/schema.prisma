@@ -13,7 +13,7 @@ datasource db {
 /// actor_id has no FK yet: staff_users arrives in step 27.
 model AuditLog {
   id         String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
-  occurredAt DateTime @default(now()) @map("occurred_at") @db.Timestamptz(6)
+  occurredAt DateTime @default(dbgenerated("statement_timestamp()")) @map("occurred_at") @db.Timestamptz(6)
   actorType  String   @map("actor_type") @db.VarChar(16)
   actorId    String?  @map("actor_id") @db.Uuid
   action     String   @db.VarChar(64)
@@ -40,7 +40,7 @@ model OutboxEvent {
   aggregateId      String           @map("aggregate_id") @db.VarChar(128)
   aggregateVersion BigInt?          @map("aggregate_version")
   payload          Json             @default("{}")
-  createdAt        DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdAt        DateTime         @default(dbgenerated("statement_timestamp()")) @map("created_at") @db.Timestamptz(6)
   leaseOwner       String?          @map("lease_owner") @db.VarChar(128)
   leaseExpiresAt   DateTime?        @map("lease_expires_at") @db.Timestamptz(6)
   dispatchAttempts Int              @default(0) @map("dispatch_attempts")
@@ -69,9 +69,9 @@ model ConsumerEffect {
   heartbeatAt     DateTime?   @map("heartbeat_at") @db.Timestamptz(6)
   queuedAt        DateTime?   @map("queued_at") @db.Timestamptz(6)
   replays         Int         @default(0)
-  dueAt           DateTime    @default(now()) @map("due_at") @db.Timestamptz(6)
-  createdAt       DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt       DateTime    @default(now()) @map("updated_at") @db.Timestamptz(6)
+  dueAt           DateTime    @default(dbgenerated("statement_timestamp()")) @map("due_at") @db.Timestamptz(6)
+  createdAt       DateTime    @default(dbgenerated("statement_timestamp()")) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime    @default(dbgenerated("statement_timestamp()")) @map("updated_at") @db.Timestamptz(6)
   completedAt     DateTime?   @map("completed_at") @db.Timestamptz(6)
   lastError       String?     @map("last_error") @db.VarChar(500)
   externalReceipt String?     @map("external_receipt") @db.VarChar(256)

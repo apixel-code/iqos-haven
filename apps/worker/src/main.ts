@@ -4,6 +4,7 @@ import { hostname } from "node:os";
 import { createDatabase, createPool } from "@ih/db";
 import { createLogger, errorSummary } from "@ih/logger";
 import { bounded } from "./lifecycle";
+import { EffectRunner, startEffectWorkers, systemProbeHandler } from "./effects";
 import { BullEffectEnqueuer, createQueueConnection } from "./queue";
 import { OutboxRelay } from "./relay";
 import { startWorker, type WorkerRuntime } from "./runtime";
@@ -21,13 +22,17 @@ async function main(): Promise<void> {
   const connection = createQueueConnection(env.QUEUE_REDIS_URL);
   connection.on("error", (error) => log.warn(errorSummary(error), "queue connection error"));
   const enqueuer = new BullEffectEnqueuer(connection);
-  // Lease owner identifies this process in outbox rows; no secrets or personal data.
-  const relay = new OutboxRelay({
+  // Lease owner identifies this process in outbox/effect rows; no secrets or personal data.
+  const owner = `${hostname()}:${process.pid}:${randomUUID().slice(0, 8)}`;
+  const relay = new OutboxRelay({ db: database, enqueuer, owner, log });
+  const runner = new EffectRunner({
     db: database,
-    enqueuer,
-    owner: `${hostname()}:${process.pid}:${randomUUID().slice(0, 8)}`,
+    owner,
     log,
+    handlers: [systemProbeHandler],
+    retries: enqueuer,
   });
+  let effectWorkers: { stop(): Promise<void> } | undefined;
   let runtime: WorkerRuntime | undefined;
   let starting: Promise<WorkerRuntime> | undefined;
   let closing: Promise<void> | undefined;
@@ -40,6 +45,8 @@ async function main(): Promise<void> {
         const started = await starting?.catch(() => undefined);
         // Relay first: finish the current pass so no claim is left half-marked.
         await relay.stop();
+        // Waits for active effect jobs; unfinished leases expire and are reclaimed.
+        await effectWorkers?.stop();
         await enqueuer.close();
         // Waits for active jobs; the shutdown deadline bounds it.
         await (runtime ?? started)?.stop();
@@ -82,7 +89,10 @@ async function main(): Promise<void> {
     });
     runtime = await starting;
     // A signal during startup already began closing resources; do not start on a closing pool.
-    if (!stopping) relay.start();
+    if (!stopping) {
+      effectWorkers = startEffectWorkers(runner, connection, env.WORKER_CONCURRENCY, log);
+      relay.start();
+    }
   } catch (error) {
     log.error(errorSummary(error), "worker startup failed");
     await bounded(closeResources(), 5000).catch(() => connection.disconnect());

@@ -18,7 +18,8 @@
     "@ih/logger": "workspace:*",
     "bullmq": "6.3.11",
     "ioredis": "6.0.0",
-    "@ih/contracts": "workspace:*"
+    "@ih/contracts": "workspace:*",
+    "@ih/application": "workspace:*"
   },
   "devDependencies": {
     "tsx": "4.23.15"

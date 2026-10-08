@@ -194,6 +194,9 @@ importers:
 
   apps/worker:
     dependencies:
+      '@ih/application':
+        specifier: workspace:*
+        version: link:../../packages/application
       '@ih/config':
         specifier: workspace:*
         version: link:../../packages/config

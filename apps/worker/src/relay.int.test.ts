@@ -16,7 +16,7 @@ import {
 import { applyMigrations } from "@ih/db/testing";
 import { createLogger } from "@ih/logger";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { BullEffectEnqueuer, createQueue, createQueueConnection } from "./queue";
+import { BullEffectEnqueuer, createQueue, createQueueConnection, testQueuePrefix } from "./queue";
 import { effectQueueName, type EffectJobData } from "./queues";
 import { OutboxRelay, type EffectEnqueuer } from "./relay";
 loadLocalEnvFile();
@@ -33,7 +33,8 @@ const db = createDatabase(pool, { schema: namespace });
 const log = createLogger({ service: "relay-int-test", level: "silent" });
 const writer = new PrismaOutboxWriter();
 const redis = createQueueConnection(env.QUEUE_REDIS_URL);
-const probeQueue = createQueue(effectQueueName("system_probe"), redis);
+const prefix = testQueuePrefix();
+const probeQueue = createQueue(effectQueueName("system_probe"), redis, prefix);
 
 async function publishProbe(): Promise<string> {
   const probeId = randomUUID();
@@ -96,7 +97,7 @@ describe("OutboxRelay (real PostgreSQL + Redis)", () => {
 
   it("enqueues IDs-only jobs with stable IDs and marks effects queued, event dispatched", async () => {
     const eventId = await publishProbe();
-    const enqueuer = new BullEffectEnqueuer(redis);
+    const enqueuer = new BullEffectEnqueuer(redis, prefix);
     try {
       expect(await relay(enqueuer).tick()).toEqual({ claimed: 1, dispatched: 1 });
     } finally {
@@ -142,7 +143,7 @@ describe("OutboxRelay (real PostgreSQL + Redis)", () => {
     const eventId = await publishProbe();
     // Relay A claims and enqueues, then "crashes" before marking dispatched.
     const [claim] = await claimDueEvents(db, "relay-a", 10, 200);
-    const enqueuer = new BullEffectEnqueuer(redis);
+    const enqueuer = new BullEffectEnqueuer(redis, prefix);
     try {
       const effect = claim!.effects[0]!;
       await enqueuer.enqueue(
