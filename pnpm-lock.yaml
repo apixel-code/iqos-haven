@@ -216,6 +216,9 @@ importers:
 
   packages/application:
     dependencies:
+      '@ih/contracts':
+        specifier: workspace:*
+        version: link:../contracts
       '@ih/domain':
         specifier: workspace:*
         version: link:../domain
@@ -240,6 +243,9 @@ importers:
       '@ih/config':
         specifier: workspace:*
         version: link:../config
+      '@ih/contracts':
+        specifier: workspace:*
+        version: link:../contracts
       '@ih/domain':
         specifier: workspace:*
         version: link:../domain
@@ -256,9 +262,6 @@ importers:
         specifier: 8.23.1
         version: 8.23.1
     devDependencies:
-      '@ih/contracts':
-        specifier: workspace:*
-        version: link:../contracts
       '@types/pg':
         specifier: 8.23.1
         version: 8.23.1

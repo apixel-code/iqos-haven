@@ -11,6 +11,7 @@
 - Unit/regression suites, isolated real-database harness, CI definition and generated implemented-health OpenAPI contract.
 - Step 18: append-only `audit_log` (first business migration; trigger rejects UPDATE/DELETE/TRUNCATE, runtime role revoked), domain diff redaction (secrets never revealable, personal fields redacted by default, oversize diffs truncated), `AuditWriter` port, `PrismaAuditWriter` usable only inside `withTransaction()`, write-only API `AuditService` with no HTTP routes. Audit reads/retention wait for RBAC (step 27+) and BI-08.
 - Step 19: `outbox_events` + `consumer_effects` with DB-enforced rules (immutable event identity/payload, unique (event, consumer) effect key, completion only after all required effects completed/skipped, skip needs reason, dead needs error and replays only to pending/retry with a counter, no lease on finished work, effects added only before completion, prune only completed). `@ih/contracts` event catalogue: 11 architecture events + `system.probe`, strict ID-only payloads, schema versions, required `consumers` (only implemented ones) vs documented `plannedConsumers`, `defineEvent()`, `effectJobId()`.
+- Step 20: `EventWriter` port, `PrismaOutboxWriter` (unit-of-work only; re-validates caller events against the catalogue; writes event + required effects in one insert; zero-consumer events complete at write) and API `OutboxService` in `ReliabilityModule` (with `AuditService`; no HTTP routes).
 - Uploaded architecture, ordered roadmap, corrected prototypes, derived requirements/design/acceptance/database/security/operational references.
 
 ## Partial or awaiting review
@@ -19,7 +20,7 @@ Milestone 0 documentation exists, but business inputs, final screen states/asset
 
 ## Not implemented
 
-The remaining 37 business tables; atomic outbox writer/effect relay/reconciler/scheduler; email/media adapters; bootstrap/auth/sessions/permissions/reset; gateway/CSRF/rate limits; catalogue/variants/inventory; Ed25519 age gate; private confirmation capabilities; tax/quote/coupons; transactional checkout/idempotency; operational orders/COD/returns; notifications/reviews/CMS/reports/SEO; production deployment, PITR and recovery drills.
+The remaining 37 business tables; leased relay/effect relay/reconciler/scheduler; email/media adapters; bootstrap/auth/sessions/permissions/reset; gateway/CSRF/rate limits; catalogue/variants/inventory; Ed25519 age gate; private confirmation capabilities; tax/quote/coupons; transactional checkout/idempotency; operational orders/COD/returns; notifications/reviews/CMS/reports/SEO; production deployment, PITR and recovery drills.
 
 No feature becomes complete because a document, exported primitive or demo screen exists. `packages/domain` money/order helpers are building blocks only. `packages/application` remains a use-case placeholder. Current frontend environment configuration does not imply that a gateway or API commerce integration has been implemented.
 

@@ -1,13 +1,16 @@
 import "reflect-metadata";
 import { MODULE_METADATA, METHOD_METADATA } from "@nestjs/common/constants";
 import { describe, expect, it } from "vitest";
-import { AuditModule } from "./audit.module";
+import { defineEvent } from "@ih/contracts";
 import { AuditService } from "./audit.service";
+import { OutboxService } from "./outbox.service";
+import { ReliabilityModule } from "./reliability.module";
 
-describe("AuditModule", () => {
+describe("ReliabilityModule", () => {
   it("exposes no HTTP controllers", () => {
-    expect(Reflect.getMetadata(MODULE_METADATA.CONTROLLERS, AuditModule) ?? []).toEqual([]);
+    expect(Reflect.getMetadata(MODULE_METADATA.CONTROLLERS, ReliabilityModule) ?? []).toEqual([]);
     expect(Reflect.getMetadata(METHOD_METADATA, AuditService.prototype.record)).toBeUndefined();
+    expect(Reflect.getMetadata(METHOD_METADATA, OutboxService.prototype.publish)).toBeUndefined();
   });
 
   it("refuses to write outside a unit of work before touching the database", async () => {
@@ -37,5 +40,14 @@ describe("AuditModule", () => {
         },
       ),
     ).rejects.toThrow(RangeError);
+  });
+
+  it("refuses to publish an event outside a unit of work", async () => {
+    const event = defineEvent("system.probe", "probe", {
+      probeId: "0199c4a2-7b1e-7c3a-9f00-1234567890ab",
+    });
+    await expect(new OutboxService().publish({} as never, event)).rejects.toMatchObject({
+      code: "OUTBOX_OUTSIDE_TRANSACTION",
+    });
   });
 });

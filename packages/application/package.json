@@ -22,7 +22,8 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
-    "@ih/domain": "workspace:*"
+    "@ih/domain": "workspace:*",
+    "@ih/contracts": "workspace:*"
   },
   "devDependencies": {}
 }

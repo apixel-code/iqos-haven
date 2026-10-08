@@ -2,7 +2,7 @@ import { Module, type DynamicModule } from "@nestjs/common";
 import type { ApiEnv } from "@ih/config";
 import { loggerOptions } from "@ih/logger";
 import { LoggerModule } from "nestjs-pino";
-import { AuditModule } from "./audit/audit.module";
+import { ReliabilityModule } from "./reliability/reliability.module";
 import { HealthModule } from "./health/health.module";
 import { InfraModule } from "./infra/infra.module";
 import { requestId } from "./http/request-id";
@@ -29,7 +29,7 @@ export class AppModule {
           },
         }),
         InfraModule.register(env),
-        AuditModule,
+        ReliabilityModule,
         HealthModule,
       ],
     };

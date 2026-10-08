@@ -34,11 +34,11 @@
     "@prisma/adapter-pg": "7.10.0",
     "@ih/logger": "workspace:*",
     "@ih/domain": "workspace:*",
-    "@ih/application": "workspace:*"
+    "@ih/application": "workspace:*",
+    "@ih/contracts": "workspace:*"
   },
   "devDependencies": {
     "@types/pg": "8.23.1",
-    "prisma": "7.10.0",
-    "@ih/contracts": "workspace:*"
+    "prisma": "7.10.0"
   }
 }

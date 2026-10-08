@@ -1,0 +1,53 @@
+import type { EventWriter } from "@ih/application";
+import { defineEvent, isEventType, type DomainEvent } from "@ih/contracts";
+import type { Tx } from "./client";
+import { isUnitOfWork } from "./transaction";
+
+export class OutboxOutsideTransactionError extends Error {
+  readonly code = "OUTBOX_OUTSIDE_TRANSACTION";
+}
+
+/**
+ * Writes an `outbox_events` row and one `consumer_effects` row per required consumer inside the
+ * caller's transaction (architecture §8: the business mutation and its required effect rows
+ * commit together). No network I/O here; the relay (step 22) dispatches after commit.
+ */
+export class PrismaOutboxWriter implements EventWriter<Tx> {
+  async publish(tx: Tx, event: DomainEvent): Promise<string> {
+    // A root client would commit the event independently of the mutation it describes.
+    if (!isUnitOfWork(tx))
+      throw new OutboxOutsideTransactionError("Events must be written inside withTransaction()");
+    // Never trust a caller-assembled event: rebuild it from the catalogue so the payload, schema
+    // version and required-consumer snapshot are exactly the current contract.
+    if (!isEventType(event.type)) throw new RangeError("Unknown event type");
+    const valid = defineEvent(event.type, event.aggregateId, event.payload, event.aggregateVersion);
+    // Consumer order is part of the catalogue contract, so an exact ordered comparison is intended.
+    if (
+      event.schemaVersion !== valid.schemaVersion ||
+      event.aggregateType !== valid.aggregateType ||
+      event.consumers.length !== valid.consumers.length ||
+      event.consumers.some((consumer, index) => consumer !== valid.consumers[index])
+    )
+      throw new RangeError("Event does not match the catalogue contract");
+    // No required consumers: nothing can be pending, so the event is complete at write time and
+    // the relay/reconciler (which select on completed_at IS NULL) never pick it up; dispatched_at
+    // stays NULL. One timestamp keeps completed_at from preceding created_at under clock skew.
+    const complete = valid.consumers.length === 0;
+    const now = complete ? new Date() : undefined;
+    const row = await tx.outboxEvent.create({
+      data: {
+        eventType: valid.type,
+        schemaVersion: valid.schemaVersion,
+        aggregateType: valid.aggregateType,
+        aggregateId: valid.aggregateId,
+        aggregateVersion:
+          valid.aggregateVersion === undefined ? null : BigInt(valid.aggregateVersion),
+        payload: valid.payload,
+        ...(now ? { createdAt: now, completedAt: now } : { completedAt: null }),
+        effects: { create: valid.consumers.map((consumer) => ({ consumer })) },
+      },
+      select: { id: true },
+    });
+    return row.id;
+  }
+}

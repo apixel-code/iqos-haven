@@ -15,3 +15,4 @@ export interface CommandContext {
   readonly commandId?: string;
 }
 export * from "./audit";
+export * from "./events";
