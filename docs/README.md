@@ -18,6 +18,7 @@
 | implementation-status.md   | Implemented, partial and pending scope                                 | Current handoff                              |
 | task-backlog.md            | Ordered 132-step tracker                                               | Suggested statuses, not an approval          |
 | provisioning.md            | Provider-specific staging/production requirements                      | BI-06 pending                                |
+| email-delivery.md          | Email adapter, delivery key, duplicate-risk and safety policy          | SMTP/Mailpit implemented; provider BI-07     |
 | verification.md            | Actual checks and unexecuted infrastructure checks                     | Archive evidence                             |
 | FIXES.md                   | Changes from uploaded foundation                                       | Audit response                               |
 | decisions/                 | Stack and subsequent decisions                                         | ADR 0002 superseded by 0003                  |

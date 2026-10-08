@@ -20,9 +20,11 @@
     "ioredis": "6.0.0",
     "@ih/contracts": "workspace:*",
     "@ih/application": "workspace:*",
-    "@ih/domain": "workspace:*"
+    "@ih/domain": "workspace:*",
+    "nodemailer": "10.0.16"
   },
   "devDependencies": {
-    "tsx": "4.23.15"
+    "tsx": "4.23.15",
+    "@types/nodemailer": "8.0.2"
   }
 }

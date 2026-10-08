@@ -4,6 +4,8 @@ import { hostname } from "node:os";
 import { createDatabase, createPool } from "@ih/db";
 import { createLogger, errorSummary } from "@ih/logger";
 import { bounded } from "./lifecycle";
+import { createEmailConsumer } from "@ih/application";
+import { createEmailAdapter } from "./email";
 import { EffectRunner, startEffectWorkers, systemProbeHandler } from "./effects";
 import { BullEffectEnqueuer, createQueueConnection } from "./queue";
 import { EffectReconciler } from "./reconciler";
@@ -27,11 +29,18 @@ async function main(): Promise<void> {
   // Lease owner identifies this process in outbox/effect rows; no secrets or personal data.
   const owner = `${hostname()}:${process.pid}:${randomUUID().slice(0, 8)}`;
   const relay = new OutboxRelay({ db: database, enqueuer, owner, log });
+  const email = createEmailAdapter(env, log);
+  // No event routes to email yet: planners arrive with their features (steps 78/92, BI-07).
+  const emailConsumer = createEmailConsumer({
+    adapter: email.adapter,
+    from: env.EMAIL_FROM ?? "no-reply@iqoshaven.local",
+    planners: {},
+  });
   const runner = new EffectRunner({
     db: database,
     owner,
     log,
-    handlers: [systemProbeHandler],
+    handlers: [systemProbeHandler, emailConsumer],
     retries: enqueuer,
   });
   const reconciler = new EffectReconciler({ db: database, enqueuer, log });
@@ -55,6 +64,7 @@ async function main(): Promise<void> {
         // Waits for active effect jobs; unfinished leases expire and are reclaimed.
         await effectWorkers?.stop();
         await enqueuer.close();
+        email.close();
         // Waits for active jobs; the shutdown deadline bounds it.
         await (runtime ?? started)?.stop();
       } finally {

@@ -4,13 +4,13 @@
 
 - Date: 2026-10-09
 - Milestone: M2 — shared reliability, communication and audit foundation (M0 review and M1 staging/fixtures still open)
-- Step: 24 done + known-issue fixes, all merged to `main` (PR #1 `dba7acd`, PR #2 `674f52a`); M2 gate condition demonstrated locally and in CI
-- Branch: `main` — start the next step from it (`step/25-email-adapter`)
+- Step: 25 (email adapter + template pipeline) — done, BI-07 parts deferred
+- Branch: `step/25-email-adapter` (from `main`)
 - See docs/verification.md for actual checks.
 
 ## Next action
 
-Run `/step 25`: email adapter + template pipeline (`EmailAdapter`, `EmailConsumer` as an `external` effect handler using Mailpit locally): stable delivery key (event/template/recipient), provider receipt stored via `external_receipt`, retries/duplicate-risk policy documented, `EMAIL_SEND_ENABLED` default off in tests/staging (add adapter env schema + boolean parsing in the same change). Real provider/sender/recipients wait for BI-07 — build behind config with Mailpit only. Do not wire `email` into any event's required consumers until its first real use (step 78/92) with a backfill decision. Use node@24 PATH; start Docker Desktop before `pnpm infra:up`.
+Run `/step 26`: object-storage adapter + private service-auth framework (S3-compatible client against local MinIO buckets `ih-quarantine`/`ih-media`/`ih-reports`; add S3_* env schema in the same change, move those variables from "reserved" in docs/environment.md; buckets private, short-lived signed URLs only, service credentials scoped per bucket; no public bucket policies). Add MinIO to CI if integration tests need it (Chainguard image pinned in infra/images.lock.json). Production provider is BI-06. Use node@24 PATH; start Docker Desktop before `pnpm infra:up`.
 
 ## Blockers
 
@@ -32,6 +32,7 @@ None closed. M2 gate condition (synthetic event processed by worker; duplicate d
 - 24 — EffectReconciler, dead listing + audited replay, scheduled_runs + Scheduler, colon-free job IDs; M2 gate demo — 7769a8f
 - fix — DB-clock completion for zero-consumer events, reconciler per-status query + indexes, loopback Redis guard (bug log in docs/verification.md) — 7e879c5
 - ci — actions/checkout v7, setup-node v7, pnpm/action-setup v6 (Node 24 runtimes) — b31ad60 (PR #2)
+- 25 — email pipeline (strict env, templates, delivery key, EmailConsumer, SMTP/disabled/allowlist adapters, Mailpit in CI) — uncommitted (commit `step(25)` follows this handoff)
 
 ## Known deviations
 
@@ -39,18 +40,19 @@ None closed. M2 gate condition (synthetic event processed by worker; duplicate d
 - Event `consumers` lists only implemented consumers (now `system_probe`); planned ones are documented with roadmap steps and move in with a backfill decision (architecture §8: adding a consumer must not redefine old completions).
 - `audit_log` migration revokes UPDATE/DELETE/TRUNCATE only from a role named `ih_app`; other runtime role names must be revoked at provisioning (trigger blocks mutations regardless).
 
-## Last session handoff (2026-10-09, merge + CI)
+## Last session handoff (2026-10-09, step 25)
 
-Done: remote `git@github-apixel:apixel-code/iqos-haven.git` (SSH alias for the apixel-code account; `gh` logged in as apixel-code). Repository made public by Marina because Actions created no runs while it was private. PR #1 (steps 18–24 + fixes) CI green → merged; PR #2 moved CI actions to Node 24 majors, CI green → merged; `main` push CI green at `674f52a`.
+Done: step 25; `invariant-reviewer`: no blockers; should-fixes applied (email test env refuses non-local SMTP, STARTTLS required for real relays, in-flight-send-after-lease-loss documented, partial rejection recorded in receipt) and nits (receipt keeps the full key, 530/535 retried, disabled-backlog documented). New deps: nodemailer 10.0.16 (+@types 8.0.2), zod in @ih/application. CI workflow gains a Mailpit service.
 
-Files: `.github/workflows/ci.yml`, `docs/verification.md`, `PROGRESS.md`.
+Files: `packages/config/src/{index,index.test}.ts`, `packages/application/src/email/*`, `packages/application/{package.json,src/index.ts}`, `apps/worker/src/{email,email.int.test,main}.ts`, `apps/worker/package.json`, `.github/workflows/ci.yml`, `turbo.json`, `.env.example`, `docs/{email-delivery,environment,README,verification,implementation-status,task-backlog}.md`, `PROGRESS.md`.
 
-Tests: CI on GitHub Actions — unit 98, integration 68 (PostgreSQL 18 + Redis services); every run so far succeeded.
+Tests: `pnpm verify -- --integration` PASS (unit 112, integration 73).
 
-Open notes: the repository is public (client architecture/docs visible) — confirm with the client or find a private-CI path; Vercel/Render/Netlify checks appear on commits (external apps on the account, not part of this project's pipeline); `ubuntu-latest` moves to Ubuntu 26 on 2026-10-19; merged step branches still exist on the remote.
+Unfinished: BI-07 (provider + idempotency, sender domain SPF/DKIM/DMARC, recipients, bounce/complaint webhooks); planners/templates arrive with their features (78, 92, 107; reset/invite with identity steps). Open notes from the previous session still apply (public repo, external deploy checks, Ubuntu 26 runner).
 
 ## History (summary)
 
+- 2026-10-09 merged PR #1 (steps 18–24 + fixes) and PR #2 (CI actions → Node 24) after green CI; PROGRESS PR #3.
 - 2026-10-08 known-issue fixes + bug log (7e879c5); first CI runs green.
 - 2026-10-08 step 24: reconciler, audited replay, durable scheduler, colon-free job IDs, M2 gate demo (7769a8f).
 - 2026-10-08 step 23: effect runner + DB-clock defaults (1781c95).
