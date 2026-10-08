@@ -4,13 +4,13 @@
 
 - Date: 2026-10-08
 - Milestone: M2 — shared reliability, communication and audit foundation (M0 review and M1 staging/fixtures still open)
-- Step: 21 (queue connection + worker lifecycle) — done
-- Branch: `step/21-worker-lifecycle` (stacked on steps 20 → 19 → 18; neither merged to `main` — no remote/CI yet)
+- Step: 22 (leased outbox relay) — done
+- Branch: `step/22-outbox-relay` (stacked on steps 21 → 20 → 19 → 18; neither merged to `main` — no remote/CI yet)
 - See docs/verification.md for actual checks.
 
 ## Next action
 
-Run `/step 22`: leased outbox relay in `apps/worker` — claim due events with short leases via `FOR UPDATE SKIP LOCKED` in a short transaction, commit, then enqueue one job per pending effect with `createQueue()` (prefix `ih`) and stable job ID `effectJobId(eventId, consumer)`; set `queued`/`queued_at` and `dispatched_at` after enqueue (never hold a DB transaction across Redis calls). Select only `completed_at IS NULL` (zero-consumer events complete at write). Use node@24 PATH; start Docker Desktop before `pnpm infra:up`.
+Run `/step 23`: `EffectRunner` in `apps/worker` consuming `ih-effect-<consumer>` queues (job data `{eventId, effectId, consumer}`). Claim the effect with a lease (accept status `pending` or `queued` — a job can run before the relay marks it queued; also `retry`), skip if completed/skipped, heartbeat long work, write the consumer's DB effect + effect completion in one transaction (lock order: effect row, then event), complete the parent event when all effects are completed/skipped, transient failure → `retry` with backoff `due_at`, permanent → `dead` with `last_error`. Implement the `system_probe` consumer. Duplicate jobs must be safe. Use node@24 PATH; start Docker Desktop before `pnpm infra:up`.
 
 ## Blockers
 
@@ -26,7 +26,8 @@ None. M0–M11 gates not claimed. M2 gate needs steps 19–24 (synthetic event p
 - 18 — append-only `audit_log`, redacted domain diff, `AuditWriter` port, `PrismaAuditWriter` (unit-of-work only), write-only API `AuditService` — 619b1fe
 - 19 — `outbox_events`/`consumer_effects` with DB-enforced completion/dead/replay/prune rules; contracts event catalogue + `defineEvent` — 702f11a
 - 20 — `EventWriter` port, `PrismaOutboxWriter`, API `OutboxService` (`ReliabilityModule`) — b220ca5
-- 21 — worker runtime/shutdown, INFO-based noeviction + memory monitor, BullMQ options/prefix, cache≠queue guard — uncommitted (commit `step(21)` follows this handoff)
+- 21 — worker runtime/shutdown, INFO-based noeviction + memory monitor, BullMQ options/prefix, cache≠queue guard — 0375223
+- 22 — leased outbox relay (SKIP LOCKED claim, enqueue outside tx, stable job IDs, backoff) — uncommitted (commit `step(22)` follows this handoff)
 
 ## Known deviations
 
@@ -34,18 +35,19 @@ None. M0–M11 gates not claimed. M2 gate needs steps 19–24 (synthetic event p
 - Event `consumers` lists only implemented consumers (now `system_probe`); planned ones are documented with roadmap steps and move in with a backfill decision (architecture §8: adding a consumer must not redefine old completions).
 - `audit_log` migration revokes UPDATE/DELETE/TRUNCATE only from a role named `ih_app`; other runtime role names must be revoked at provisioning (trigger blocks mutations regardless).
 
-## Last session handoff (2026-10-08, step 21)
+## Last session handoff (2026-10-08, step 22)
 
-Done: step 21; `invariant-reviewer`: no blockers; should-fixes applied (startup/signal race, startup failure logged, bounded non-overlapping monitor) plus nits (`createQueue`, jobName in logs, stall/retry comments, best-effort guard docs). BullMQ prefix is now `ih` (old `bull:` keys in local Redis are irrelevant, jobs are disposable).
+Done: step 22; `invariant-reviewer`: no blockers; should-fixes applied (5 s enqueue timeout, stop batch before lease margin, unknown consumer logged as error) plus nits (no relay start during shutdown, lock-order comment, ESLint ban of `@ih/db/testing` outside integration tests with probes). Added test-only pool `searchPath` and `@ih/db/testing` export (`applyMigrations`).
 
-Files: `apps/worker/src/{main,queue,queue-policy,queue-policy.test,runtime,runtime.int.test}.ts`, `apps/worker/{package.json,vitest.int.config.ts}`, `packages/config/src/{index,index.test}.ts`, `.env.example`, `docs/{environment,verification,implementation-status,task-backlog}.md`, `PROGRESS.md`.
+Files: `packages/db/src/{outbox-relay,client,test-schema,index}.ts`, `packages/db/package.json`, `apps/worker/src/{relay,relay.int.test,queue,queues,main}.ts`, `apps/worker/package.json`, `eslint.config.mjs`, `scripts/check-boundaries.mjs`, `docs/{verification,implementation-status,task-backlog}.md`, `PROGRESS.md`.
 
-Tests: `pnpm verify -- --integration` PASS (unit 91, integration 38).
+Tests: `pnpm verify -- --integration` PASS (unit 91, integration 46, boundary probes 12).
 
-Unfinished: relay (22), runner (23), reconciler/replay/schedules (24). M2 gate not yet demonstrable.
+Unfinished: effect runner (23), reconciler/replay/schedules (24). Local dev DB has one `manual-relay-check` probe effect in `queued` (a step-23 runner should complete it).
 
 ## History (summary)
 
+- 2026-10-08 step 21: worker runtime, INFO-based noeviction monitor, BullMQ prefix/options, cache≠queue guard (0375223).
 - 2026-10-08 step 20: atomic outbox writer + OutboxService in ReliabilityModule (b220ca5).
 - 2026-10-08 step 19: outbox/effect schema with DB-enforced completion/dead/replay/prune rules + contracts event catalogue (702f11a).
 - 2026-10-08 step 18: append-only audit log + AuditService (619b1fe); env setup, MinIO Chainguard images, turbo concurrency, db:migrate CLI fix.

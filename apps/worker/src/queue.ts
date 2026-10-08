@@ -1,5 +1,6 @@
 import { Queue, type JobsOptions, type WorkerOptions } from "bullmq";
 import Redis from "ioredis";
+import { effectQueueName, type EffectJobData } from "./queues";
 
 /**
  * Queue infrastructure shared by the worker and (from step 22) the relay. Jobs are disposable
@@ -45,4 +46,25 @@ export function createQueue(name: string, connection: Redis): Queue {
     prefix: QUEUE_PREFIX,
     defaultJobOptions: DEFAULT_JOB_OPTIONS,
   });
+}
+
+/** Redis side of the relay: one lazily created queue per consumer, stable job IDs. */
+export class BullEffectEnqueuer {
+  private readonly queues = new Map<string, Queue>();
+  constructor(private readonly connection: Redis) {}
+
+  async enqueue(data: EffectJobData, jobId: string, delayMs: number): Promise<void> {
+    const name = effectQueueName(data.consumer);
+    let queue = this.queues.get(name);
+    if (!queue) {
+      queue = createQueue(name, this.connection);
+      this.queues.set(name, queue);
+    }
+    await queue.add(data.consumer, data, { jobId, ...(delayMs > 0 ? { delay: delayMs } : {}) });
+  }
+
+  async close(): Promise<void> {
+    await Promise.all([...this.queues.values()].map((queue) => queue.close()));
+    this.queues.clear();
+  }
 }

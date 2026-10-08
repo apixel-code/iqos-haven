@@ -13,6 +13,7 @@
 - Step 19: `outbox_events` + `consumer_effects` with DB-enforced rules (immutable event identity/payload, unique (event, consumer) effect key, completion only after all required effects completed/skipped, skip needs reason, dead needs error and replays only to pending/retry with a counter, no lease on finished work, effects added only before completion, prune only completed). `@ih/contracts` event catalogue: 11 architecture events + `system.probe`, strict ID-only payloads, schema versions, required `consumers` (only implemented ones) vs documented `plannedConsumers`, `defineEvent()`, `effectJobId()`.
 - Step 20: `EventWriter` port, `PrismaOutboxWriter` (unit-of-work only; re-validates caller events against the catalogue; writes event + required effects in one insert; zero-consumer events complete at write) and API `OutboxService` in `ReliabilityModule` (with `AuditService`; no HTTP routes).
 - Step 21: worker `startWorker()`/`stop()` runtime; `noeviction` read via `INFO memory` (works on managed Redis), fatal outside dev/test at startup and on a 60 s monitor with memory-pressure warning at 80%; explicit BullMQ lock/stall/retention, `ih` prefix and `createQueue()`; startup-safe idempotent shutdown; optional `CACHE_REDIS_URL` rejected when it is the queue instance.
+- Step 22: leased outbox relay — `claimDueEvents` (short tx, `FOR UPDATE SKIP LOCKED`, lease + attempt), enqueue outside any transaction to per-consumer queues `ih-effect-<consumer>` with stable `effectJobId` and IDs-only data (5 s timeout, stops before lease margin), `markDispatched` (pending→queued, owner-guarded) or `recordDispatchFailure` (safe code, exponential backoff lease). Runs in the worker process; stops before the worker on shutdown.
 - Uploaded architecture, ordered roadmap, corrected prototypes, derived requirements/design/acceptance/database/security/operational references.
 
 ## Partial or awaiting review
@@ -21,7 +22,7 @@ Milestone 0 documentation exists, but business inputs, final screen states/asset
 
 ## Not implemented
 
-The remaining 37 business tables; leased relay/effect relay/reconciler/scheduler; email/media adapters; bootstrap/auth/sessions/permissions/reset; gateway/CSRF/rate limits; catalogue/variants/inventory; Ed25519 age gate; private confirmation capabilities; tax/quote/coupons; transactional checkout/idempotency; operational orders/COD/returns; notifications/reviews/CMS/reports/SEO; production deployment, PITR and recovery drills.
+The remaining 37 business tables; effect runner/effect relay/reconciler/scheduler; email/media adapters; bootstrap/auth/sessions/permissions/reset; gateway/CSRF/rate limits; catalogue/variants/inventory; Ed25519 age gate; private confirmation capabilities; tax/quote/coupons; transactional checkout/idempotency; operational orders/COD/returns; notifications/reviews/CMS/reports/SEO; production deployment, PITR and recovery drills.
 
 No feature becomes complete because a document, exported primitive or demo screen exists. `packages/domain` money/order helpers are building blocks only. `packages/application` remains a use-case placeholder. Current frontend environment configuration does not imply that a gateway or API commerce integration has been implemented.
 

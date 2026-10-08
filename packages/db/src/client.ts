@@ -12,6 +12,8 @@ export interface PoolOptions {
   connectionTimeoutMillis?: number;
   statementTimeoutMillis?: number;
   onBackgroundError?: (error: unknown) => void;
+  /** Integration tests only: isolated schema for unqualified raw SQL. Never from input. */
+  searchPath?: string;
 }
 export function createPool(options: PoolOptions): Pool {
   const pool = new Pool({
@@ -21,6 +23,9 @@ export function createPool(options: PoolOptions): Pool {
     connectionTimeoutMillis: options.connectionTimeoutMillis ?? 5000,
     statement_timeout: options.statementTimeoutMillis ?? 15000,
     idleTimeoutMillis: 30000,
+    ...(options.searchPath
+      ? { options: "-c search_path=" + testSchemaName(options.searchPath) }
+      : {}),
   });
   const logger = createLogger({ service: options.applicationName });
   pool.on("error", (error: Error) => {
@@ -28,6 +33,10 @@ export function createPool(options: PoolOptions): Pool {
     options.onBackgroundError?.(error);
   });
   return pool;
+}
+function testSchemaName(name: string): string {
+  if (!/^ih_test_[a-f0-9]{32}$/.test(name)) throw new Error("Unexpected test schema name");
+  return name;
 }
 /** `schema` is for isolated integration-test schemas; runtime uses the connection default. */
 export function createDatabase(pool: Pool, options: { schema?: string } = {}): Database {

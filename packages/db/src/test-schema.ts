@@ -3,7 +3,7 @@ import { join } from "node:path";
 import type { Pool } from "pg";
 
 /**
- * Integration tests only (not exported from the package): applies every reviewed migration,
+ * Integration tests only (exported as `@ih/db/testing`; ESLint forbids it elsewhere): applies every reviewed migration,
  * in order, into an isolated schema so tests exercise the real SQL, triggers and constraints.
  * `namespace` must be generated internally, never derived from input.
  */

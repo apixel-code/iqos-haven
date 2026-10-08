@@ -18,9 +18,13 @@ const infra = [
   "**/config/**",
   "**/logger/**",
 ];
+const testingOnly = { name: "@ih/db/testing", message: "Integration tests only." };
 const ban = (group) => [
   "error",
-  { patterns: [{ group, message: "Import crosses the permitted package boundary." }] },
+  {
+    paths: [testingOnly],
+    patterns: [{ group, message: "Import crosses the permitted package boundary." }],
+  },
 ];
 export default tseslint.config(
   {
@@ -54,6 +58,12 @@ export default tseslint.config(
       ],
       "no-console": ["error", { allow: ["error"] }],
     },
+  },
+  {
+    // The migration test helper is for integration tests only (packages get it via ban()).
+    files: ["apps/**/*.ts"],
+    ignores: ["**/*.int.test.ts"],
+    rules: { "no-restricted-imports": ["error", { paths: [testingOnly] }] },
   },
   {
     files: ["packages/**"],

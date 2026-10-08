@@ -1,8 +1,11 @@
 import { loadEnv, loadLocalEnvFile, workerEnvSchema, ConfigurationError } from "@ih/config";
-import { createPool } from "@ih/db";
+import { randomUUID } from "node:crypto";
+import { hostname } from "node:os";
+import { createDatabase, createPool } from "@ih/db";
 import { createLogger, errorSummary } from "@ih/logger";
 import { bounded } from "./lifecycle";
-import { createQueueConnection } from "./queue";
+import { BullEffectEnqueuer, createQueueConnection } from "./queue";
+import { OutboxRelay } from "./relay";
 import { startWorker, type WorkerRuntime } from "./runtime";
 const SHUTDOWN_TIMEOUT_MS = 20000;
 async function main(): Promise<void> {
@@ -14,8 +17,17 @@ async function main(): Promise<void> {
     max: env.DATABASE_POOL_MAX,
     applicationName: "ih-worker",
   });
+  const database = createDatabase(pool);
   const connection = createQueueConnection(env.QUEUE_REDIS_URL);
   connection.on("error", (error) => log.warn(errorSummary(error), "queue connection error"));
+  const enqueuer = new BullEffectEnqueuer(connection);
+  // Lease owner identifies this process in outbox rows; no secrets or personal data.
+  const relay = new OutboxRelay({
+    db: database,
+    enqueuer,
+    owner: `${hostname()}:${process.pid}:${randomUUID().slice(0, 8)}`,
+    log,
+  });
   let runtime: WorkerRuntime | undefined;
   let starting: Promise<WorkerRuntime> | undefined;
   let closing: Promise<void> | undefined;
@@ -26,10 +38,14 @@ async function main(): Promise<void> {
       try {
         // A signal during startup waits for it to settle so nothing half-started survives.
         const started = await starting?.catch(() => undefined);
+        // Relay first: finish the current pass so no claim is left half-marked.
+        await relay.stop();
+        await enqueuer.close();
         // Waits for active jobs; the shutdown deadline bounds it.
         await (runtime ?? started)?.stop();
       } finally {
         connection.disconnect();
+        await database.$disconnect();
         await pool.end();
       }
     })());
@@ -65,6 +81,8 @@ async function main(): Promise<void> {
       onFatal: (reason) => void shutdown(reason),
     });
     runtime = await starting;
+    // A signal during startup already began closing resources; do not start on a closing pool.
+    if (!stopping) relay.start();
   } catch (error) {
     log.error(errorSummary(error), "worker startup failed");
     await bounded(closeResources(), 5000).catch(() => connection.disconnect());

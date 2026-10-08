@@ -197,6 +197,9 @@ importers:
       '@ih/config':
         specifier: workspace:*
         version: link:../../packages/config
+      '@ih/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
       '@ih/db':
         specifier: workspace:*
         version: link:../../packages/db
