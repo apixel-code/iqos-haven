@@ -11,6 +11,7 @@
 | DATABASE_MIGRATION_URL                         | Migration wrapper/Prisma CLI configuration | Owner URL required for migrate; generation uses an inert URL if absent |
 | DATABASE_TEST_URL                              | Integration harness                        | Dedicated *_test DB; local ih_test role, isolated schema per run       |
 | QUEUE_REDIS_URL                                | API readiness/worker                       | Separate noeviction queue; not catalogue cache                         |
+| CACHE_REDIS_URL (optional)                     | API/worker schemas (guard only for now)    | Replicated profile only; best-effort reject if same host:port as queue |
 | API_PORT / API_HOST                            | API                                        | 4000 / 127.0.0.1 locally; container private bind 0.0.0.0               |
 | WORKER_CONCURRENCY / WORKER_STARTUP_TIMEOUT_MS | Worker                                     | 4 / 15000; bounded startup and 20s shutdown                            |
 | STOREFRONT_PORT / ADMIN_PORT                   | Next launchers                             | 3000 / 3001; changing example values now affects launch                |
@@ -28,4 +29,4 @@ Future signing/confirmation/session/gateway/cache/provider secrets must follow `
 
 Compose binds Postgres, queue Redis, MinIO and Mailpit host ports only to loopback. PostgreSQL 18 uses its version-specific Docker data layout and a new pg18-data volume; do not mount a PG17 volume into it or delete an old volume as an upgrade method. Use logical dump/restore or an approved major-upgrade procedure.
 
-`infra/images.lock.json` records pinned references. Postgres/Redis/Node/Mailpit digests were fetched from the registry; MinIO/mc use official versioned Quay references. Quay digest resolution and all Docker runtime checks are pending this environment's capabilities. All of these Compose credentials are local fixtures, never production credentials. Production storage is the selected approved UAE-region provider, not this dev MinIO instance.
+`infra/images.lock.json` records pinned references. Postgres/Redis/Node/Mailpit digests were fetched from the registry; MinIO/mc use digest-pinned Chainguard builds because official MinIO images are no longer publicly pullable; Docker runtime checks passed locally (see verification.md). All of these Compose credentials are local fixtures, never production credentials. Production storage is the selected approved UAE-region provider, not this dev MinIO instance.

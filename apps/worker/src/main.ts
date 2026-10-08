@@ -1,11 +1,9 @@
 import { loadEnv, loadLocalEnvFile, workerEnvSchema, ConfigurationError } from "@ih/config";
-import { createPool, pingDatabase } from "@ih/db";
+import { createPool } from "@ih/db";
 import { createLogger, errorSummary } from "@ih/logger";
-import { Worker } from "bullmq";
-import Redis from "ioredis";
-import { checkQueuePolicy } from "./queue-policy";
-import { QUEUES } from "./queues";
-import { bounded, handleSystemJob } from "./lifecycle";
+import { bounded } from "./lifecycle";
+import { createQueueConnection } from "./queue";
+import { startWorker, type WorkerRuntime } from "./runtime";
 const SHUTDOWN_TIMEOUT_MS = 20000;
 async function main(): Promise<void> {
   loadLocalEnvFile();
@@ -16,26 +14,29 @@ async function main(): Promise<void> {
     max: env.DATABASE_POOL_MAX,
     applicationName: "ih-worker",
   });
-  const connection = new Redis(env.QUEUE_REDIS_URL, {
-    lazyConnect: true,
-    maxRetriesPerRequest: null,
-    connectTimeout: 5000,
-  });
+  const connection = createQueueConnection(env.QUEUE_REDIS_URL);
   connection.on("error", (error) => log.warn(errorSummary(error), "queue connection error"));
-  let worker: Worker | undefined;
+  let runtime: WorkerRuntime | undefined;
+  let starting: Promise<WorkerRuntime> | undefined;
+  let closing: Promise<void> | undefined;
   let stopping = false;
-  const closeResources = async (): Promise<void> => {
-    try {
-      await worker?.close();
-    } finally {
-      connection.disconnect();
-      await pool.end();
-    }
-  };
-  const shutdown = async (signal: string): Promise<void> => {
+  // Idempotent: startup failure and a concurrent signal may both close resources.
+  const closeResources = (): Promise<void> =>
+    (closing ??= (async () => {
+      try {
+        // A signal during startup waits for it to settle so nothing half-started survives.
+        const started = await starting?.catch(() => undefined);
+        // Waits for active jobs; the shutdown deadline bounds it.
+        await (runtime ?? started)?.stop();
+      } finally {
+        connection.disconnect();
+        await pool.end();
+      }
+    })());
+  const shutdown = async (reason: string): Promise<void> => {
     if (stopping) return;
     stopping = true;
-    log.info({ signal }, "worker shutting down");
+    log.info({ reason }, "worker shutting down");
     const deadline = setTimeout(() => {
       log.error("graceful shutdown deadline exceeded");
       process.exit(1);
@@ -45,7 +46,7 @@ async function main(): Promise<void> {
       await closeResources();
       clearTimeout(deadline);
       log.info("worker stopped");
-      process.exit(signal === "run-failure" ? 1 : 0);
+      process.exit(reason === "SIGTERM" || reason === "SIGINT" ? 0 : 1);
     } catch (error) {
       log.error(errorSummary(error), "worker shutdown failed");
       process.exit(1);
@@ -54,47 +55,19 @@ async function main(): Promise<void> {
   process.on("SIGTERM", () => void shutdown("SIGTERM"));
   process.on("SIGINT", () => void shutdown("SIGINT"));
   try {
-    if (!(await bounded(pingDatabase(pool), env.WORKER_STARTUP_TIMEOUT_MS)))
-      throw new Error("Database unavailable");
-    await bounded(connection.connect(), env.WORKER_STARTUP_TIMEOUT_MS);
-    const policy = await bounded(
-      connection.config("GET", "maxmemory-policy"),
-      env.WORKER_STARTUP_TIMEOUT_MS,
-    )
-      .then((reply) => (Array.isArray(reply) ? String(reply[1]) : undefined))
-      .catch(() => undefined);
-    const policyCheck = checkQueuePolicy(policy, env.APP_ENV);
-    if (!policyCheck.ok) {
-      if (policyCheck.fatal) throw new Error("Unsafe queue configuration");
-      log.warn(policyCheck.message);
-    }
-    worker = new Worker(QUEUES.system, handleSystemJob, {
-      connection,
+    starting = startWorker({
+      appEnv: env.APP_ENV,
       concurrency: env.WORKER_CONCURRENCY,
-      autorun: false,
+      startupTimeoutMs: env.WORKER_STARTUP_TIMEOUT_MS,
+      log,
+      pool,
+      connection,
+      onFatal: (reason) => void shutdown(reason),
     });
-    worker.on("error", (error) => log.error(errorSummary(error), "worker infrastructure error"));
-    worker.on("failed", (job, error) =>
-      log.error(
-        {
-          jobType: job?.name === "healthcheck" ? "healthcheck" : "unsupported",
-          ...errorSummary(error),
-        },
-        "job failed",
-      ),
-    );
-    await bounded(worker.waitUntilReady(), env.WORKER_STARTUP_TIMEOUT_MS);
-    void worker.run().catch((error) => {
-      log.error(errorSummary(error), "worker run terminated");
-      void shutdown("run-failure");
-    });
-    log.info({ queue: QUEUES.system, concurrency: env.WORKER_CONCURRENCY }, "worker started");
+    runtime = await starting;
   } catch (error) {
-    try {
-      await bounded(closeResources(), 5000);
-    } finally {
-      connection.disconnect();
-    }
+    log.error(errorSummary(error), "worker startup failed");
+    await bounded(closeResources(), 5000).catch(() => connection.disconnect());
     throw error;
   }
 }

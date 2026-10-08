@@ -9,7 +9,8 @@
     "start": "node dist/main.js",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src",
-    "test": "vitest run"
+    "test": "vitest run --exclude \"src/**/*.int.test.ts\"",
+    "test:int": "vitest run --config vitest.int.config.ts"
   },
   "dependencies": {
     "@ih/config": "workspace:*",
