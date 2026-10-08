@@ -8,3 +8,24 @@ generator client {
 datasource db {
   provider = "postgresql"
 }
+
+/// Append-only audit trail (roadmap step 18). UPDATE/DELETE/TRUNCATE are rejected by trigger.
+/// actor_id has no FK yet: staff_users arrives in step 27.
+model AuditLog {
+  id          String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  occurredAt  DateTime @default(now()) @map("occurred_at") @db.Timestamptz(6)
+  actorType   String   @map("actor_type") @db.VarChar(16)
+  actorId     String?  @map("actor_id") @db.Uuid
+  action      String   @db.VarChar(64)
+  entityType  String   @map("entity_type") @db.VarChar(64)
+  entityId    String   @map("entity_id") @db.VarChar(128)
+  requestId   String   @map("request_id") @db.VarChar(128)
+  commandId   String?  @map("command_id") @db.VarChar(128)
+  reason      String?  @db.VarChar(500)
+  diff        Json     @default("{}")
+
+  @@index([entityType, entityId, occurredAt(sort: Desc)])
+  @@index([actorId, occurredAt(sort: Desc)])
+  @@index([occurredAt(sort: Desc)])
+  @@map("audit_log")
+}

@@ -18,6 +18,11 @@ function retryable(error: unknown): boolean {
   const pgCode = meta.code ?? meta.driverAdapterError?.cause?.originalCode;
   return pgCode === "40P01" || pgCode === "40001";
 }
+const unitsOfWork = new WeakSet<object>();
+/** True only for a transaction client handed out by withTransaction(), never the root client. */
+export function isUnitOfWork(tx: unknown): boolean {
+  return typeof tx === "object" && tx !== null && unitsOfWork.has(tx);
+}
 /**
  * Short Read Committed unit of work. No external effects inside callbacks.
  * Resource order: idempotency → existing order → customer → settings/area → catalogue → coupon → variants.
@@ -26,7 +31,11 @@ function retryable(error: unknown): boolean {
 export async function withTransaction<T>(db: Database, work: (tx: Tx) => Promise<T>): Promise<T> {
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
-      return await db.$transaction(work, {
+      const tracked = (tx: Tx) => {
+        unitsOfWork.add(tx);
+        return work(tx);
+      };
+      return await db.$transaction(tracked, {
         isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted,
         maxWait: 2000,
         timeout: 10000,

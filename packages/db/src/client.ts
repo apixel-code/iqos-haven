@@ -29,8 +29,15 @@ export function createPool(options: PoolOptions): Pool {
   });
   return pool;
 }
-export function createDatabase(pool: Pool): Database {
-  return new PrismaClient({ adapter: new PrismaPg(pool, { disposeExternalPool: false }), log: [] });
+/** `schema` is for isolated integration-test schemas; runtime uses the connection default. */
+export function createDatabase(pool: Pool, options: { schema?: string } = {}): Database {
+  return new PrismaClient({
+    adapter: new PrismaPg(pool, {
+      disposeExternalPool: false,
+      ...(options.schema ? { schema: options.schema } : {}),
+    }),
+    log: [],
+  });
 }
 export async function pingDatabase(pool: Pool): Promise<boolean> {
   try {

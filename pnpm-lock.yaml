@@ -84,6 +84,9 @@ importers:
 
   apps/api:
     dependencies:
+      '@ih/application':
+        specifier: workspace:*
+        version: link:../../packages/application
       '@ih/config':
         specifier: workspace:*
         version: link:../../packages/config
@@ -93,6 +96,9 @@ importers:
       '@ih/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@ih/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
       '@ih/logger':
         specifier: workspace:*
         version: link:../../packages/logger
@@ -228,9 +234,15 @@ importers:
 
   packages/db:
     dependencies:
+      '@ih/application':
+        specifier: workspace:*
+        version: link:../application
       '@ih/config':
         specifier: workspace:*
         version: link:../config
+      '@ih/domain':
+        specifier: workspace:*
+        version: link:../domain
       '@ih/logger':
         specifier: workspace:*
         version: link:../logger
