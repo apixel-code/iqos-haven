@@ -23,12 +23,15 @@ const redisUrl = z.string().refine((value) => {
 }, "must be a redis:// or rediss:// URL");
 /**
  * host:port identifies a Redis instance; eviction policy is instance-wide, so the DB index is ignored.
- * Best-effort: aliases (localhost vs 127.0.0.1, two DNS names) are not resolved; provisioning
+ * Best-effort: loopback aliases are unified, but distinct DNS names for one host are not resolved; provisioning
  * must still give the cache its own instance.
  */
 export function redisInstance(url: string): string {
   const parsed = new URL(url);
-  return parsed.hostname.toLowerCase() + ":" + (parsed.port || "6379");
+  const host = parsed.hostname.toLowerCase();
+  // Loopback aliases name the same local instance.
+  const loopback = host === "localhost" || host === "[::1]" || /^127\.\d+\.\d+\.\d+$/.test(host);
+  return (loopback ? "loopback" : host) + ":" + (parsed.port || "6379");
 }
 /**
  * Optional cache Redis (replicated profile only). It may evict, so it must never be the queue

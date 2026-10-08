@@ -4,18 +4,18 @@
 
 ## Consumed by this foundation
 
-| Variable                                       | Consumer                                   | Default / requirement                                                  |
-| ---------------------------------------------- | ------------------------------------------ | ---------------------------------------------------------------------- |
-| NODE_ENV / APP_ENV / LOG_LEVEL                 | Config/API/worker/Next launchers           | Explicit production deployment identity; safe level                    |
-| DATABASE_URL / DATABASE_POOL_MAX               | API/worker Prisma adapter/pg pool          | Runtime role, max API 10 / worker 5                                    |
-| DATABASE_MIGRATION_URL                         | Migration wrapper/Prisma CLI configuration | Owner URL required for migrate; generation uses an inert URL if absent |
-| DATABASE_TEST_URL                              | Integration harness                        | Dedicated *_test DB; local ih_test role, isolated schema per run       |
-| QUEUE_REDIS_URL                                | API readiness/worker                       | Separate noeviction queue; not catalogue cache                         |
-| CACHE_REDIS_URL (optional)                     | API/worker schemas (guard only for now)    | Replicated profile only; best-effort reject if same host:port as queue |
-| API_PORT / API_HOST                            | API                                        | 4000 / 127.0.0.1 locally; container private bind 0.0.0.0               |
-| WORKER_CONCURRENCY / WORKER_STARTUP_TIMEOUT_MS | Worker                                     | 4 / 15000; bounded startup and 20s shutdown                            |
-| STOREFRONT_PORT / ADMIN_PORT                   | Next launchers                             | 3000 / 3001; changing example values now affects launch                |
-| API_INTERNAL_URL                               | Next startup schemas                       | Required HTTP(S); reserved for the later same-origin gateway consumer  |
+| Variable                                       | Consumer                                   | Default / requirement                                                                 |
+| ---------------------------------------------- | ------------------------------------------ | ------------------------------------------------------------------------------------- |
+| NODE_ENV / APP_ENV / LOG_LEVEL                 | Config/API/worker/Next launchers           | Explicit production deployment identity; safe level                                   |
+| DATABASE_URL / DATABASE_POOL_MAX               | API/worker Prisma adapter/pg pool          | Runtime role, max API 10 / worker 5                                                   |
+| DATABASE_MIGRATION_URL                         | Migration wrapper/Prisma CLI configuration | Owner URL required for migrate; generation uses an inert URL if absent                |
+| DATABASE_TEST_URL                              | Integration harness                        | Dedicated *_test DB; local ih_test role, isolated schema per run                      |
+| QUEUE_REDIS_URL                                | API readiness/worker                       | Separate noeviction queue; not catalogue cache                                        |
+| CACHE_REDIS_URL (optional)                     | API/worker schemas (guard only for now)    | Replicated profile only; reject if same host:port as queue (loopback aliases unified) |
+| API_PORT / API_HOST                            | API                                        | 4000 / 127.0.0.1 locally; container private bind 0.0.0.0                              |
+| WORKER_CONCURRENCY / WORKER_STARTUP_TIMEOUT_MS | Worker                                     | 4 / 15000; bounded startup and 20s shutdown                                           |
+| STOREFRONT_PORT / ADMIN_PORT                   | Next launchers                             | 3000 / 3001; changing example values now affects launch                               |
+| API_INTERNAL_URL                               | Next startup schemas                       | Required HTTP(S); reserved for the later same-origin gateway consumer                 |
 
 The root launch helper resolves compiled @ih/config. Run pnpm build before pnpm dev/start. Front-end build uses no DB/queue credentials. Turbo explicitly passes runtime/test variables through strict env mode; it does not put secrets into build inputs or browser public variables.
 

@@ -26,17 +26,31 @@ export async function findStrandedEffects(
   limit: number,
 ): Promise<StrandedEffect[]> {
   const stale = Prisma.sql`now() - make_interval(secs => ${staleMs / 1000})`;
+  const columns = Prisma.sql`e.id, e.event_id, e.consumer, e.status, e.due_at`;
+  // One branch per status so each can use its partial index (due/queued/running indexes).
   const rows = await db.$queryRaw<
     Array<{ id: string; event_id: string; consumer: string; status: StrandedEffect["status"] }>
   >(Prisma.sql`
-    SELECT e.id, e.event_id, e.consumer, e.status FROM consumer_effects e
-    JOIN outbox_events o ON o.id = e.event_id
-    -- pending + dispatched only arises from a replay: enqueue it without waiting.
-    WHERE (e.status = 'pending' AND o.dispatched_at IS NOT NULL)
-       OR (e.status = 'queued' AND e.queued_at < ${stale})
-       OR (e.status = 'retry' AND e.due_at < ${stale})
-       OR (e.status = 'running' AND e.lease_expires_at < now())
-    ORDER BY e.due_at, e.id
+    SELECT id, event_id, consumer, status FROM (
+    (SELECT ${columns} FROM consumer_effects e JOIN outbox_events o ON o.id = e.event_id
+      -- pending + dispatched only arises from a replay: enqueue it without waiting.
+      WHERE e.status = 'pending' AND o.dispatched_at IS NOT NULL
+      ORDER BY e.due_at, e.id LIMIT ${limit})
+    UNION ALL
+    (SELECT ${columns} FROM consumer_effects e
+      WHERE e.status = 'queued' AND e.queued_at < ${stale}
+      ORDER BY e.queued_at, e.id LIMIT ${limit})
+    UNION ALL
+    (SELECT ${columns} FROM consumer_effects e
+      WHERE e.status = 'retry' AND e.due_at < ${stale}
+      ORDER BY e.due_at, e.id LIMIT ${limit})
+    UNION ALL
+    (SELECT ${columns} FROM consumer_effects e
+      WHERE e.status = 'running' AND e.lease_expires_at < now()
+      ORDER BY e.lease_expires_at, e.id LIMIT ${limit})
+    ) stranded
+    -- Merge branches oldest-due first so a burst of one status cannot starve the others.
+    ORDER BY due_at, id
     LIMIT ${limit}`);
   return rows.map((row) => ({
     effectId: row.id,

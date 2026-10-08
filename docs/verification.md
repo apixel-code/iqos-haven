@@ -72,3 +72,22 @@ Release note: the migration revokes privileges only from a role named `ih_app`. 
 ## Step 24 — reconciler, replay, schedules; M2 gate demonstration (2026-10-08, local)
 
 `pnpm verify -- --integration` PASS and one forced integration repeat (worker 35, db 32, api 1; unit 98). M2 gate demonstrated locally against real PostgreSQL/Redis: a synthetic `system.probe` event written by the outbox writer is dispatched by the relay, its Redis job is destroyed (queue obliterated), the reconciler re-enqueues it after the stale window, a duplicate copy of the original job is also delivered, and the effect completes exactly once (attempts 1) with the event completed; nothing remains stranded. No email exists or is sent. Also covered: live leases never re-enqueued, expired/overdue work recovered, bucketed reconcile IDs, dead listing without payloads, audited replay (reason required), missed-completion repair, scheduler slot uniqueness across two replicas, bounded catch-up after downtime, one-slot leases under slow runs, retry→failed, crash reclaim and crash-loop → failed. Manual: the built worker's reconciler recovered the real orphaned dev effect (`manual-relay-check`, job previously deleted) to completed. Found and fixed: BullMQ rejects custom job IDs with ":" beyond its 3-part legacy form, which had silently broken step-23 retry scheduling (masked by a fake enqueuer in tests); IDs are now colon-free and a test enqueues every ID form into real BullMQ. CI has not run (no remote).
+
+## Known-issue fixes after step 24 (2026-10-08, local)
+
+`pnpm verify -- --integration` PASS (unit 98, integration 68). Fixed: zero-consumer events now take `completed_at` from the database-generated `created_at` (no application clock left in outbox writes); reconciler query split per status (`UNION ALL`, merged oldest-due first) with new `consumer_effects_queued_idx`/`consumer_effects_running_idx` and the unused `consumer_effects_active_idx` dropped — `EXPLAIN` on local `iqos_haven` shows index scans for every branch, `prisma migrate diff` shows no drift; cache/queue Redis guard treats loopback aliases (`localhost`, `127.x`, `[::1]`) as one instance. Built worker on the dev stack: probe completed, no warnings/errors.
+
+### Bug log (all found so far)
+
+| Found   | Bug                                                                                | Fixed in                                   |
+| ------- | ---------------------------------------------------------------------------------- | ------------------------------------------ |
+| Setup   | Official MinIO images no longer pullable                                           | baseline (Chainguard, digest-pinned)       |
+| Setup   | `pnpm dev` exceeded turbo concurrency 10                                           | baseline                                   |
+| Step 18 | `pnpm db:migrate` could not resolve the Prisma CLI                                 | step 18                                    |
+| Step 19 | Trigger functions resolved tables via caller `search_path`                         | step 19 (`SET search_path FROM CURRENT`)   |
+| Step 23 | Integration tests obliterated the real dev effect queue                            | step 23 (unique test prefix)               |
+| Step 23 | Prisma `@default(now())` used the app clock (fresh effects unclaimable under skew) | step 23 (`db_clock_defaults`)              |
+| Step 24 | BullMQ rejected `:` job IDs beyond 3 parts; step-23 retry jobs silently failed     | step 24 (colon-free IDs, real-BullMQ test) |
+| Post-24 | Zero-consumer events still used the app clock                                      | this fix                                   |
+| Post-24 | Reconciler OR-query could not use partial indexes                                  | this fix (`reconciler_indexes`)            |
+| Post-24 | Redis guard missed loopback aliases                                                | this fix                                   |

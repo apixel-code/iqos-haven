@@ -4,8 +4,8 @@
 
 - Date: 2026-10-08
 - Milestone: M2 — shared reliability, communication and audit foundation (M0 review and M1 staging/fixtures still open)
-- Step: 24 (reconciler, replay, durable schedules) — done; M2 gate condition demonstrated locally
-- Branch: `step/24-reconciler-schedules` (stacked on steps 23 → … → 18; neither merged to `main` — no remote/CI yet)
+- Step: 24 done + known-issue fixes; M2 gate condition demonstrated locally
+- Branch: `fix/known-issues` (stacked on `step/24-reconciler-schedules` → … → 18; neither merged to `main` — no remote/CI yet)
 - See docs/verification.md for actual checks.
 
 ## Next action
@@ -29,7 +29,8 @@ None closed. M2 gate condition (synthetic event processed by worker; duplicate d
 - 21 — worker runtime/shutdown, INFO-based noeviction + memory monitor, BullMQ options/prefix, cache≠queue guard — 0375223
 - 22 — leased outbox relay (SKIP LOCKED claim, enqueue outside tx, stable job IDs, backoff) — 85d0487
 - 23 — EffectRunner (lease claim, one-tx completion, retry/dead, heartbeat, external receipts), DB-clock timestamp defaults — 1781c95
-- 24 — EffectReconciler, dead listing + audited replay, scheduled_runs + Scheduler, colon-free job IDs; M2 gate demo — uncommitted (commit `step(24)` follows this handoff)
+- 24 — EffectReconciler, dead listing + audited replay, scheduled_runs + Scheduler, colon-free job IDs; M2 gate demo — 7769a8f
+- fix — DB-clock completion for zero-consumer events, reconciler per-status query + indexes, loopback Redis guard (bug log in docs/verification.md) — uncommitted (commit follows this handoff)
 
 ## Known deviations
 
@@ -37,18 +38,19 @@ None closed. M2 gate condition (synthetic event processed by worker; duplicate d
 - Event `consumers` lists only implemented consumers (now `system_probe`); planned ones are documented with roadmap steps and move in with a backfill decision (architecture §8: adding a consumer must not redefine old completions).
 - `audit_log` migration revokes UPDATE/DELETE/TRUNCATE only from a role named `ih_app`; other runtime role names must be revoked at provisioning (trigger blocks mutations regardless).
 
-## Last session handoff (2026-10-08, step 24)
+## Last session handoff (2026-10-08, known-issue fixes)
 
-Done: step 24; `invariant-reviewer`: no blockers; should-fixes applied (one-slot scheduler leases, timeout below lease without freeing a still-running slot, crash-loop → failed for slots, reconciler stops on first Redis failure) and nits (replay reason validation, custom timeout message, catch-up docs). Fixed a real bug from step 23: colon job IDs rejected by BullMQ. Local dev DB: `db_clock_defaults` checksum row was updated to the committed file (comment-only change after local apply; SQL identical). Real dev orphan recovered by the built worker.
+Done: fixed all open issues found so far (full bug log in docs/verification.md): zero-consumer events use the DB clock; reconciler query per status with new partial indexes (migration `20261008170000_reconciler_indexes`, applied locally, no drift, EXPLAIN shows index scans) merged oldest-due first; Redis guard unifies loopback aliases. `invariant-reviewer`: no blockers; its ordering note applied.
 
-Files: `packages/db/prisma/{schema.prisma,migrations/20261008162235_scheduled_runs/}`, `packages/db/src/{reconciler,scheduled-runs,index}.ts`, `packages/domain/src/{schedule,schedule.test,index}.ts`, `packages/contracts/src/{events,events.test}.ts`, `apps/worker/src/{reconciler,scheduler,effects,lifecycle,main,recovery.int.test,effects.int.test}.ts`, `apps/worker/package.json`, `docs/{verification,implementation-status,task-backlog}.md`, `PROGRESS.md`.
+Files: `packages/db/src/{outbox,reconciler}.ts`, `packages/db/prisma/migrations/20261008170000_reconciler_indexes/`, `packages/config/src/{index,index.test}.ts`, `docs/{verification,environment}.md`, `PROGRESS.md`.
 
-Tests: `pnpm verify -- --integration` PASS (unit 98, integration 68) + forced integration repeat PASS.
+Tests: `pnpm verify -- --integration` PASS (unit 98, integration 68).
 
-Unfinished: replay/dead-effect admin API + permission (needs RBAC, step 27+); production scheduled jobs register in their own steps; pruning/retention (BI-08); CI run once a remote exists.
+Unfinished: same as step 24 (replay API/permission with RBAC, scheduled jobs in their steps, BI-08 pruning, CI once a remote exists). Deliberately not changed: `OutboxService`/`AuditService` construct their writers directly (reviewer nit; consistent pattern, no defect).
 
 ## History (summary)
 
+- 2026-10-08 step 24: reconciler, audited replay, durable scheduler, colon-free job IDs, M2 gate demo (7769a8f).
 - 2026-10-08 step 23: effect runner + DB-clock defaults (1781c95).
 - 2026-10-08 step 22: leased outbox relay (85d0487).
 - 2026-10-08 step 21: worker runtime, INFO-based noeviction monitor, BullMQ prefix/options, cache≠queue guard (0375223).

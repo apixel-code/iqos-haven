@@ -55,7 +55,8 @@ describe("queue/cache Redis separation", () => {
     expect(redisInstance("redis://Queue.Internal/3")).toBe(
       redisInstance("rediss://queue.internal:6379/0"),
     );
-    expect(redisInstance("redis://[::1]:6380")).toBe("[::1]:6380");
+    expect(redisInstance("redis://[::1]:6380")).toBe(redisInstance("redis://localhost:6380"));
+    expect(redisInstance("redis://127.0.0.1")).toBe(redisInstance("redis://localhost:6379"));
     expect(redisInstance("redis://cache:6380")).not.toBe(redisInstance("redis://cache:6379"));
   });
   it.each([apiEnvSchema, workerEnvSchema])("rejects a cache on the queue instance", (schema) => {
