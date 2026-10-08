@@ -2,10 +2,10 @@
 
 ## Current position
 
-- Date: 2026-10-08
+- Date: 2026-10-09
 - Milestone: M2 — shared reliability, communication and audit foundation (M0 review and M1 staging/fixtures still open)
-- Step: 24 done + known-issue fixes; M2 gate condition demonstrated locally
-- Branch: `fix/known-issues` (stacked on `step/24-reconciler-schedules` → … → 18; neither merged to `main` — no remote/CI yet)
+- Step: 24 done + known-issue fixes, all merged to `main` (PR #1 `dba7acd`, PR #2 `674f52a`); M2 gate condition demonstrated locally and in CI
+- Branch: `main` — start the next step from it (`step/25-email-adapter`)
 - See docs/verification.md for actual checks.
 
 ## Next action
@@ -30,7 +30,8 @@ None closed. M2 gate condition (synthetic event processed by worker; duplicate d
 - 22 — leased outbox relay (SKIP LOCKED claim, enqueue outside tx, stable job IDs, backoff) — 85d0487
 - 23 — EffectRunner (lease claim, one-tx completion, retry/dead, heartbeat, external receipts), DB-clock timestamp defaults — 1781c95
 - 24 — EffectReconciler, dead listing + audited replay, scheduled_runs + Scheduler, colon-free job IDs; M2 gate demo — 7769a8f
-- fix — DB-clock completion for zero-consumer events, reconciler per-status query + indexes, loopback Redis guard (bug log in docs/verification.md) — uncommitted (commit follows this handoff)
+- fix — DB-clock completion for zero-consumer events, reconciler per-status query + indexes, loopback Redis guard (bug log in docs/verification.md) — 7e879c5
+- ci — actions/checkout v7, setup-node v7, pnpm/action-setup v6 (Node 24 runtimes) — b31ad60 (PR #2)
 
 ## Known deviations
 
@@ -38,18 +39,19 @@ None closed. M2 gate condition (synthetic event processed by worker; duplicate d
 - Event `consumers` lists only implemented consumers (now `system_probe`); planned ones are documented with roadmap steps and move in with a backfill decision (architecture §8: adding a consumer must not redefine old completions).
 - `audit_log` migration revokes UPDATE/DELETE/TRUNCATE only from a role named `ih_app`; other runtime role names must be revoked at provisioning (trigger blocks mutations regardless).
 
-## Last session handoff (2026-10-08, known-issue fixes)
+## Last session handoff (2026-10-09, merge + CI)
 
-Done: fixed all open issues found so far (full bug log in docs/verification.md): zero-consumer events use the DB clock; reconciler query per status with new partial indexes (migration `20261008170000_reconciler_indexes`, applied locally, no drift, EXPLAIN shows index scans) merged oldest-due first; Redis guard unifies loopback aliases. `invariant-reviewer`: no blockers; its ordering note applied.
+Done: remote `git@github-apixel:apixel-code/iqos-haven.git` (SSH alias for the apixel-code account; `gh` logged in as apixel-code). Repository made public by Marina because Actions created no runs while it was private. PR #1 (steps 18–24 + fixes) CI green → merged; PR #2 moved CI actions to Node 24 majors, CI green → merged; `main` push CI green at `674f52a`.
 
-Files: `packages/db/src/{outbox,reconciler}.ts`, `packages/db/prisma/migrations/20261008170000_reconciler_indexes/`, `packages/config/src/{index,index.test}.ts`, `docs/{verification,environment}.md`, `PROGRESS.md`.
+Files: `.github/workflows/ci.yml`, `docs/verification.md`, `PROGRESS.md`.
 
-Tests: `pnpm verify -- --integration` PASS (unit 98, integration 68).
+Tests: CI on GitHub Actions — unit 98, integration 68 (PostgreSQL 18 + Redis services); every run so far succeeded.
 
-Unfinished: same as step 24 (replay API/permission with RBAC, scheduled jobs in their steps, BI-08 pruning). Remote: `git@github-apixel:apixel-code/iqos-haven.git` (public); PR #1 (`fix/known-issues` → `main`, contains steps 18–24 + fixes) CI green, awaiting merge decision. Deliberately not changed: `OutboxService`/`AuditService` construct their writers directly (reviewer nit; consistent pattern, no defect).
+Open notes: the repository is public (client architecture/docs visible) — confirm with the client or find a private-CI path; Vercel/Render/Netlify checks appear on commits (external apps on the account, not part of this project's pipeline); `ubuntu-latest` moves to Ubuntu 26 on 2026-10-19; merged step branches still exist on the remote.
 
 ## History (summary)
 
+- 2026-10-08 known-issue fixes + bug log (7e879c5); first CI runs green.
 - 2026-10-08 step 24: reconciler, audited replay, durable scheduler, colon-free job IDs, M2 gate demo (7769a8f).
 - 2026-10-08 step 23: effect runner + DB-clock defaults (1781c95).
 - 2026-10-08 step 22: leased outbox relay (85d0487).
