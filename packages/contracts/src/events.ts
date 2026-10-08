@@ -190,9 +190,30 @@ export function defineEvent<T extends EventType>(
 }
 
 /**
- * Stable queue job ID for one effect. Reduces duplicate jobs while a job exists; the
+ * Stable queue job IDs for one effect. They reduce duplicate jobs while a job exists; the
  * UNIQUE (event_id, consumer) row remains the durable deduplication key.
+ * BullMQ rejects custom IDs containing ":" (except its legacy 3-part form), so IDs use "-".
  */
 export function effectJobId(eventId: string, consumer: ConsumerName): string {
-  return `effect:${eventId}:${consumer}`;
+  return jobId(["effect", eventId, consumer]);
+}
+
+/** Delayed retry of attempt `attempt`: one job per attempt, deduplicated across runners. */
+export function effectRetryJobId(eventId: string, consumer: ConsumerName, attempt: number): string {
+  return jobId(["effect", eventId, consumer, "retry", String(attempt)]);
+}
+
+/** Reconciler re-enqueue in time bucket `bucket`: replicas in the same bucket deduplicate. */
+export function effectReconcileJobId(
+  eventId: string,
+  consumer: ConsumerName,
+  bucket: number,
+): string {
+  return jobId(["effect", eventId, consumer, "rc", String(bucket)]);
+}
+
+function jobId(parts: readonly string[]): string {
+  const id = parts.join("-");
+  if (id.includes(":")) throw new RangeError("Invalid queue job ID");
+  return id;
 }

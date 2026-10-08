@@ -80,3 +80,23 @@ model ConsumerEffect {
   @@unique([eventId, consumer])
   @@map("consumer_effects")
 }
+
+/// Durable schedule slots (roadmap step 24). One row per (job, slot) across all worker replicas;
+/// missed slots inside a job's catch-up window are created and run after downtime.
+/// status: pending | running | completed | failed.
+model ScheduledRun {
+  id             String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  jobName        String    @map("job_name") @db.VarChar(64)
+  slot           DateTime  @db.Timestamptz(6)
+  status         String    @default("pending") @db.VarChar(16)
+  attempts       Int       @default(0)
+  leaseOwner     String?   @map("lease_owner") @db.VarChar(128)
+  leaseExpiresAt DateTime? @map("lease_expires_at") @db.Timestamptz(6)
+  lastError      String?   @map("last_error") @db.VarChar(120)
+  createdAt      DateTime  @default(dbgenerated("statement_timestamp()")) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime  @default(dbgenerated("statement_timestamp()")) @map("updated_at") @db.Timestamptz(6)
+  completedAt    DateTime? @map("completed_at") @db.Timestamptz(6)
+
+  @@unique([jobName, slot])
+  @@map("scheduled_runs")
+}

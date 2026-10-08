@@ -4,13 +4,13 @@
 
 - Date: 2026-10-08
 - Milestone: M2 — shared reliability, communication and audit foundation (M0 review and M1 staging/fixtures still open)
-- Step: 23 (effect runner) — done
-- Branch: `step/23-effect-runner` (stacked on steps 22 → 21 → 20 → 19 → 18; neither merged to `main` — no remote/CI yet)
+- Step: 24 (reconciler, replay, durable schedules) — done; M2 gate condition demonstrated locally
+- Branch: `step/24-reconciler-schedules` (stacked on steps 23 → … → 18; neither merged to `main` — no remote/CI yet)
 - See docs/verification.md for actual checks.
 
 ## Next action
 
-Run `/step 24`: `EffectReconciler` + `scheduled_runs` + dead-effect inspection/replay. Reconciler (periodic, leased/SKIP LOCKED): re-enqueue effects that are `pending`/`queued`/`retry` and due with no live lease, and `running` with an expired lease — using stable job IDs, without re-enqueueing live work; dispatch events stuck with expired relay leases. Permissioned, audited replay command (dead → pending/retry; `replays` counter) — the API part waits for RBAC, so expose it as an application/db command now. `scheduled_runs` table (unique job/slot, lease, catch-up of missed slots, Asia/Dubai). Demonstrate the M2 gate: duplicate delivery + Redis job loss recovery. Local dev DB has a real orphan (`manual-relay-check` effect `queued`, its job was deleted) — the reconciler should complete it. Use node@24 PATH; start Docker Desktop before `pnpm infra:up`.
+Run `/step 25`: email adapter + template pipeline (`EmailAdapter`, `EmailConsumer` as an `external` effect handler using Mailpit locally): stable delivery key (event/template/recipient), provider receipt stored via `external_receipt`, retries/duplicate-risk policy documented, `EMAIL_SEND_ENABLED` default off in tests/staging (add adapter env schema + boolean parsing in the same change). Real provider/sender/recipients wait for BI-07 — build behind config with Mailpit only. Do not wire `email` into any event's required consumers until its first real use (step 78/92) with a backfill decision. Use node@24 PATH; start Docker Desktop before `pnpm infra:up`.
 
 ## Blockers
 
@@ -18,7 +18,7 @@ None for steps 19–24. Step 25 (email) needs BI-07 for real providers (Mailpit 
 
 ## Gates passed
 
-None. M0–M11 gates not claimed. M2 gate needs steps 19–24 (synthetic event processed by worker; duplicate delivery and Redis job-loss recovery demonstrated).
+None closed. M2 gate condition (synthetic event processed by worker; duplicate delivery + Redis job-loss recovery; tests send no real email) is demonstrated locally (docs/verification.md, step 24) but not yet in CI; Milestone 2 still has steps 25–26 open. M0/M1 remain open.
 
 ## Steps done
 
@@ -28,7 +28,8 @@ None. M0–M11 gates not claimed. M2 gate needs steps 19–24 (synthetic event p
 - 20 — `EventWriter` port, `PrismaOutboxWriter`, API `OutboxService` (`ReliabilityModule`) — b220ca5
 - 21 — worker runtime/shutdown, INFO-based noeviction + memory monitor, BullMQ options/prefix, cache≠queue guard — 0375223
 - 22 — leased outbox relay (SKIP LOCKED claim, enqueue outside tx, stable job IDs, backoff) — 85d0487
-- 23 — EffectRunner (lease claim, one-tx completion, retry/dead, heartbeat, external receipts), DB-clock timestamp defaults — uncommitted (commit `step(23)` follows this handoff)
+- 23 — EffectRunner (lease claim, one-tx completion, retry/dead, heartbeat, external receipts), DB-clock timestamp defaults — 1781c95
+- 24 — EffectReconciler, dead listing + audited replay, scheduled_runs + Scheduler, colon-free job IDs; M2 gate demo — uncommitted (commit `step(24)` follows this handoff)
 
 ## Known deviations
 
@@ -36,18 +37,19 @@ None. M0–M11 gates not claimed. M2 gate needs steps 19–24 (synthetic event p
 - Event `consumers` lists only implemented consumers (now `system_probe`); planned ones are documented with roadmap steps and move in with a backfill decision (architecture §8: adding a consumer must not redefine old completions).
 - `audit_log` migration revokes UPDATE/DELETE/TRUNCATE only from a role named `ih_app`; other runtime role names must be revoked at provisioning (trigger blocks mutations regardless).
 
-## Last session handoff (2026-10-08, step 23)
+## Last session handoff (2026-10-08, step 24)
 
-Done: step 23; `invariant-reviewer`: no blockers; should-fixes applied (DB-clock due_at + retry delay margin, completion retry/receipt after external work, heartbeat staleness abort, crash-loop → dead at budget, unrecorded-failure outcome) and nits (code-only PermanentEffectError, statement timeout in completion). Full verify exposed a real clock-skew bug (Prisma client-side `@default(now())`); fixed with migration `20261008160845_db_clock_defaults` (`statement_timestamp()`, zero Prisma drift) and a schema-policy unit test. Tests now use a unique queue prefix (an earlier run had obliterated the dev `ih-effect-system-probe` queue — that orphan is left for the step-24 reconciler).
+Done: step 24; `invariant-reviewer`: no blockers; should-fixes applied (one-slot scheduler leases, timeout below lease without freeing a still-running slot, crash-loop → failed for slots, reconciler stops on first Redis failure) and nits (replay reason validation, custom timeout message, catch-up docs). Fixed a real bug from step 23: colon job IDs rejected by BullMQ. Local dev DB: `db_clock_defaults` checksum row was updated to the committed file (comment-only change after local apply; SQL identical). Real dev orphan recovered by the built worker.
 
-Files: `packages/db/src/{effect-runner,schema-policy.test,index}.ts`, `packages/db/prisma/{schema.prisma,migrations/20261008160845_db_clock_defaults/}`, `packages/application/src/{effects,index}.ts`, `apps/worker/src/{effects,effects.int.test,queue,main,relay.int.test}.ts`, `apps/worker/package.json`, `docs/{verification,implementation-status,task-backlog}.md`, `PROGRESS.md`.
+Files: `packages/db/prisma/{schema.prisma,migrations/20261008162235_scheduled_runs/}`, `packages/db/src/{reconciler,scheduled-runs,index}.ts`, `packages/domain/src/{schedule,schedule.test,index}.ts`, `packages/contracts/src/{events,events.test}.ts`, `apps/worker/src/{reconciler,scheduler,effects,lifecycle,main,recovery.int.test,effects.int.test}.ts`, `apps/worker/package.json`, `docs/{verification,implementation-status,task-backlog}.md`, `PROGRESS.md`.
 
-Tests: `pnpm verify -- --integration` PASS (unit 92, integration 57); integration suites re-run twice, stable.
+Tests: `pnpm verify -- --integration` PASS (unit 98, integration 68) + forced integration repeat PASS.
 
-Unfinished: reconciler, replay command, scheduled_runs (24) → then M2 gate demonstration.
+Unfinished: replay/dead-effect admin API + permission (needs RBAC, step 27+); production scheduled jobs register in their own steps; pruning/retention (BI-08); CI run once a remote exists.
 
 ## History (summary)
 
+- 2026-10-08 step 23: effect runner + DB-clock defaults (1781c95).
 - 2026-10-08 step 22: leased outbox relay (85d0487).
 - 2026-10-08 step 21: worker runtime, INFO-based noeviction monitor, BullMQ prefix/options, cache≠queue guard (0375223).
 - 2026-10-08 step 20: atomic outbox writer + OutboxService in ReliabilityModule (b220ca5).

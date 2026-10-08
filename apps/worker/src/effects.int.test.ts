@@ -7,7 +7,7 @@ import {
   loadLocalEnvFile,
   queueIntegrationTestEnvSchema,
 } from "@ih/config";
-import { defineEvent } from "@ih/contracts";
+import { defineEvent, effectRetryJobId } from "@ih/contracts";
 import {
   claimEffect,
   completeEffect,
@@ -142,7 +142,7 @@ describe("EffectRunner (real PostgreSQL + Redis)", () => {
       lastError: "TRANSIENT",
     });
     expect(effect.dueAt.getTime()).toBeGreaterThan(Date.now());
-    expect(scheduled).toEqual([`effect:${eventId}:system_probe:retry:1`]);
+    expect(scheduled).toEqual([effectRetryJobId(eventId, "system_probe", 1)]);
     expect(await sideEffectCount(data.effectId)).toBe(0);
     // Not due yet: an early duplicate job claims nothing.
     expect(await instance.run(data)).toBe("duplicate");

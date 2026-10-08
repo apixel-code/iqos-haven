@@ -7,6 +7,8 @@ import {
   EVENT_TYPE_PATTERN,
   defineEvent,
   effectJobId,
+  effectReconcileJobId,
+  effectRetryJobId,
   isEventType,
 } from "./events";
 
@@ -93,6 +95,17 @@ describe("defineEvent", () => {
     expect(() => defineEvent("order.created", "", { orderId })).toThrow(RangeError);
     expect(() => defineEvent("order.created", orderId, { orderId }, -1)).toThrow(RangeError);
     expect(() => defineEvent("order.created", orderId, { orderId }, 1.5)).toThrow(RangeError);
+  });
+
+  it("builds colon-free job IDs that differ per attempt and bucket", () => {
+    const ids = [
+      effectJobId(orderId, "notification"),
+      effectRetryJobId(orderId, "notification", 1),
+      effectRetryJobId(orderId, "notification", 2),
+      effectReconcileJobId(orderId, "notification", 7),
+    ];
+    expect(ids.every((id) => !id.includes(":"))).toBe(true);
+    expect(new Set(ids).size).toBe(ids.length);
   });
 
   it("recognises catalogue types and builds stable job IDs", () => {

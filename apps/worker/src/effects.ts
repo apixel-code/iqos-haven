@@ -1,5 +1,5 @@
 import { PermanentEffectError, type EffectContext, type EffectHandler } from "@ih/application";
-import { EVENT_CATALOGUE, effectJobId, type ConsumerName } from "@ih/contracts";
+import { EVENT_CATALOGUE, effectRetryJobId, type ConsumerName } from "@ih/contracts";
 import {
   claimEffect,
   completeEffect,
@@ -141,7 +141,7 @@ export class EffectRunner {
       await this.options.retries
         ?.enqueue(
           data,
-          effectJobId(claimed.eventId, data.consumer) + ":retry:" + claimed.attempt,
+          effectRetryJobId(claimed.eventId, data.consumer, claimed.attempt),
           (decision.delayMs ?? 0) + RETRY_DELAY_MARGIN_MS,
         )
         .catch((scheduleError) =>

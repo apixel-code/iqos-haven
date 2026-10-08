@@ -6,7 +6,9 @@ import { createLogger, errorSummary } from "@ih/logger";
 import { bounded } from "./lifecycle";
 import { EffectRunner, startEffectWorkers, systemProbeHandler } from "./effects";
 import { BullEffectEnqueuer, createQueueConnection } from "./queue";
+import { EffectReconciler } from "./reconciler";
 import { OutboxRelay } from "./relay";
+import { Scheduler } from "./scheduler";
 import { startWorker, type WorkerRuntime } from "./runtime";
 const SHUTDOWN_TIMEOUT_MS = 20000;
 async function main(): Promise<void> {
@@ -32,6 +34,9 @@ async function main(): Promise<void> {
     handlers: [systemProbeHandler],
     retries: enqueuer,
   });
+  const reconciler = new EffectReconciler({ db: database, enqueuer, log });
+  // Scheduled jobs (daily summary, rollups, cleanup) register here in their roadmap steps.
+  const scheduler = new Scheduler({ db: database, owner, log, jobs: [] });
   let effectWorkers: { stop(): Promise<void> } | undefined;
   let runtime: WorkerRuntime | undefined;
   let starting: Promise<WorkerRuntime> | undefined;
@@ -44,6 +49,8 @@ async function main(): Promise<void> {
         // A signal during startup waits for it to settle so nothing half-started survives.
         const started = await starting?.catch(() => undefined);
         // Relay first: finish the current pass so no claim is left half-marked.
+        await scheduler.stop();
+        await reconciler.stop();
         await relay.stop();
         // Waits for active effect jobs; unfinished leases expire and are reclaimed.
         await effectWorkers?.stop();
@@ -92,6 +99,8 @@ async function main(): Promise<void> {
     if (!stopping) {
       effectWorkers = startEffectWorkers(runner, connection, env.WORKER_CONCURRENCY, log);
       relay.start();
+      reconciler.start();
+      scheduler.start();
     }
   } catch (error) {
     log.error(errorSummary(error), "worker startup failed");

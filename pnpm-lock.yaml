@@ -206,6 +206,9 @@ importers:
       '@ih/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@ih/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
       '@ih/logger':
         specifier: workspace:*
         version: link:../../packages/logger
