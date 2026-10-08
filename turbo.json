@@ -1,0 +1,42 @@
+{
+  "$schema": "https://turborepo.com/schema.json",
+  "globalEnv": ["NODE_ENV"],
+  "concurrency": "16",
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**", ".next/**", "!.next/cache/**", "src/generated/**"],
+      "env": ["APP_ENV", "NEXT_PUBLIC_*"]
+    },
+    "dev": {
+      "dependsOn": ["^build"],
+      "cache": false,
+      "persistent": true,
+      "passThroughEnv": [
+        "APP_ENV",
+        "LOG_LEVEL",
+        "API_*",
+        "DATABASE_URL",
+        "DATABASE_POOL_MAX",
+        "QUEUE_REDIS_URL",
+        "WORKER_*",
+        "STOREFRONT_PORT",
+        "ADMIN_PORT"
+      ]
+    },
+    "lint": {
+      "dependsOn": ["^build"]
+    },
+    "typecheck": {
+      "dependsOn": ["^build"]
+    },
+    "test": {
+      "dependsOn": ["^build"]
+    },
+    "test:int": {
+      "dependsOn": ["^build"],
+      "cache": false,
+      "passThroughEnv": ["DATABASE_TEST_URL", "DATABASE_URL", "QUEUE_REDIS_URL", "APP_ENV"]
+    }
+  }
+}

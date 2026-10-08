@@ -1,0 +1,63 @@
+/* Tailwind v4 theme mapping for admin. Same semantic names as storefront.theme.css. */
+@import "./admin.css";
+
+@theme inline {
+  --font-sans: var(--font);
+  --font-mono: var(--mono);
+
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-line: var(--line);
+  --color-line-2: var(--line-2);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-ink-4: var(--ink-4);
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-h);
+  --color-on-primary: var(--primary-ink);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-ink: var(--accent-ink);
+  --color-chart: var(--chart);
+  --color-success: var(--ok);
+  --color-success-soft: var(--ok-soft);
+  --color-warning: var(--warn);
+  --color-warning-soft: var(--warn-soft);
+  --color-error: var(--err);
+  --color-error-soft: var(--err-soft);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+  --color-st-pending: var(--st-pending);
+  --color-st-pending-bg: var(--st-pending-bg);
+  --color-st-confirmed: var(--st-confirmed);
+  --color-st-confirmed-bg: var(--st-confirmed-bg);
+  --color-st-processing: var(--st-processing);
+  --color-st-processing-bg: var(--st-processing-bg);
+  --color-st-ofd: var(--st-ofd);
+  --color-st-ofd-bg: var(--st-ofd-bg);
+  --color-st-delivered: var(--st-delivered);
+  --color-st-delivered-bg: var(--st-delivered-bg);
+  --color-st-cancelled: var(--st-cancelled);
+  --color-st-cancelled-bg: var(--st-cancelled-bg);
+  --color-wa: var(--wa);
+  --color-wa-hover: var(--wa-h);
+  --color-focus: var(--focus);
+  --color-scrim: var(--scrim);
+  --color-chrome: var(--chrome);
+  --color-chrome-ink: var(--chrome-ink);
+
+  --radius-xs: var(--r-xs);
+  --radius-sm: var(--r-sm);
+  --radius-md: var(--r-md);
+  --radius-lg: var(--r-lg);
+  --radius-pill: var(--r-pill);
+
+  --shadow-1: var(--sh-1);
+  --shadow-2: var(--sh-2);
+  --shadow-3: var(--sh-3);
+
+  --ease-brand: var(--ease);
+}

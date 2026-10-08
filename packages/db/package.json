@@ -1,0 +1,41 @@
+{
+  "name": "@ih/db",
+  "version": "0.0.0",
+  "private": true,
+  "type": "commonjs",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "prisma",
+    "prisma.config.ts"
+  ],
+  "scripts": {
+    "build": "prisma generate && tsc -p tsconfig.build.json",
+    "dev": "tsc -p tsconfig.build.json --watch --preserveWatchOutput",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src",
+    "test": "vitest run --passWithNoTests",
+    "test:int": "vitest run --config vitest.int.config.ts",
+    "db:generate": "prisma generate",
+    "db:migrate": "node dist/migrate.js",
+    "db:migration:create": "prisma migrate dev --create-only"
+  },
+  "dependencies": {
+    "@ih/config": "workspace:*",
+    "pg": "8.23.1",
+    "@prisma/client": "7.10.0",
+    "@prisma/adapter-pg": "7.10.0",
+    "@ih/logger": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/pg": "8.23.1",
+    "prisma": "7.10.0"
+  }
+}

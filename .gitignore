@@ -1,0 +1,17 @@
+node_modules/
+.next/
+dist/
+.turbo/
+coverage/
+*.log
+.env
+.env.*
+!.env.example
+.DS_Store
+.claude/settings.local.json
+CLAUDE.local.md
+*.tsbuildinfo
+next-env.d.ts
+dump.rdb
+
+packages/db/src/generated/

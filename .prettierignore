@@ -1,0 +1,10 @@
+docs/prototypes/
+pnpm-lock.yaml
+**/dist/
+**/.next/
+**/migrations/
+
+**/src/generated/
+
+# Uploaded architecture must remain byte-for-byte identical.
+docs/architecture.md

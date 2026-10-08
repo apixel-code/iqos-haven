@@ -1,0 +1,22 @@
+# Corrections from the uploaded foundation
+
+The latest user-supplied architecture is retained byte-for-byte in architecture.md. Changes below correct the existing foundation and document the remaining production work; they do not claim to implement the whole roadmap.
+
+| Finding                                              | Correction                                                                                                                        | Evidence                                                     |
+| ---------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| Approved stack divergence                            | Prisma 7 / PostgreSQL 18 / NestJS Fastify; obsolete Drizzle configuration removed, ADR superseded                                 | Four-app build; generated client; ADR 0003                   |
+| Import restrictions overwritten                      | Non-overlapping shared-package and frontend restrictions                                                                          | 9 actual ESLint boundary probes                              |
+| Shallow logger redaction                             | Bounded recursive sanitization, safe error summaries, URL/body/header suppression, static-message policy                          | Sensitive root/deep/array/error cases in logger tests        |
+| Pool background errors unhandled                     | Safe pool error listener; separate runtime/migration credentials                                                                  | Pool regression test                                         |
+| Worker startup/errors unbounded                      | Dependency bounds, Redis/worker listeners, supported-job check, hard shutdown deadline                                            | Worker tests; real runtime still needs infrastructure        |
+| Empty migration bundle falsely successful            | Fail absent/empty/incomplete bundles; explicit development-only empty allowance                                                   | Policy tests and production/local CLI probes                 |
+| MinIO failures masked                                | Bounded alias retry and checked bucket create/stat; errors retain nonzero status                                                  | 3 shell initializer probes                                   |
+| Unsafe test reset                                    | Dedicated *_test URL guard, physical target comparison and random owned schemas                                                   | Guard tests; real PostgreSQL suite defined, not run here     |
+| Environment/port mismatch                            | APP_ENV versus NODE_ENV, validated ports, production startup validation, consumed/reserved matrix                                 | Config tests, launcher code and docs                         |
+| Unpinned / publicly bound development services       | Versioned images, verified digests where accessible, loopback ports, correct PG18 volume layout                                   | Static review; Docker execution pending                      |
+| API foundation validation/filter missing             | Strict DTO body/query validation, safe error envelope, normalized request IDs, body-size bounds                                   | HTTP/health fixtures                                         |
+| Prototype privacy/COD/coupon inconsistencies         | Checkout/confirmation PII memory-only; old storage cleared; explicit collection; percentage-only demo; disabled free threshold    | Reference check and JS syntax check                          |
+| Architecture, design and implementation handoff gaps | Requirements, acceptance, 40-table contract, UI/asset checklist, role matrix, security/environment documents and runbooks         | Reference set check; business implementation remains pending |
+| Setup/status/CI could overstate completion           | Corrected README, Bengali startup guide, status/backlog, provider handoff, CI PostgreSQL18 services and exit-status-safe verifier | Documentation review; CI execution pending                   |
+
+Production next steps are listed in implementation-status.md and task-backlog.md. No default Owner, fake business migration, pretend commerce endpoint or production approval was added.

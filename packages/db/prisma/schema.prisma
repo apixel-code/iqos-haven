@@ -1,0 +1,10 @@
+// Business tables are introduced in roadmap order; no invented foundation tables.
+generator client {
+  provider = "prisma-client"
+  output = "../src/generated/prisma"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "postgresql"
+}

@@ -1,0 +1,29 @@
+{
+  "name": "@ih/admin",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "node ../../scripts/next-app.cjs admin dev",
+    "build": "next build",
+    "start": "node ../../scripts/next-app.cjs admin start",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint ."
+  },
+  "dependencies": {
+    "@fontsource/jetbrains-mono": "5.3.0",
+    "@fontsource/poppins": "5.3.0",
+    "@ih/tokens": "workspace:*",
+    "@ih/ui-core": "workspace:*",
+    "next": "16.4.0",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "@ih/config": "workspace:*"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "4.3.3",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "eslint-config-next": "16.4.0",
+    "tailwindcss": "4.3.3"
+  }
+}

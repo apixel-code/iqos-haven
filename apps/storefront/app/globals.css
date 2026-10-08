@@ -1,0 +1,10 @@
+@import "tailwindcss";
+@import "@ih/tokens/storefront.theme.css";
+@source "../../../packages/ui-core/src";
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+body {
+  @apply bg-bg text-ink font-sans antialiased;
+}

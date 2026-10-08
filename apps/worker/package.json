@@ -1,0 +1,24 @@
+{
+  "name": "@ih/worker",
+  "version": "0.0.0",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "dev": "tsx watch src/main.ts",
+    "start": "node dist/main.js",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@ih/config": "workspace:*",
+    "@ih/db": "workspace:*",
+    "@ih/logger": "workspace:*",
+    "bullmq": "6.3.11",
+    "ioredis": "6.0.0"
+  },
+  "devDependencies": {
+    "tsx": "4.23.15"
+  }
+}

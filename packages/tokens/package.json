@@ -1,0 +1,15 @@
+{
+  "name": "@ih/tokens",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Design tokens from the approved prototypes + Tailwind v4 theme mappings",
+  "exports": {
+    "./storefront.css": "./storefront.css",
+    "./storefront.theme.css": "./storefront.theme.css",
+    "./admin.css": "./admin.css",
+    "./admin.theme.css": "./admin.theme.css"
+  },
+  "files": [
+    "*.css"
+  ]
+}

@@ -1,0 +1,7 @@
+@import "tailwindcss";
+@import "@ih/tokens/admin.theme.css";
+@source "../../../packages/ui-core/src";
+
+body {
+  @apply bg-bg text-ink font-sans antialiased;
+}

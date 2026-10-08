@@ -1,0 +1,41 @@
+{
+  "name": "iqos-haven",
+  "private": true,
+  "packageManager": "pnpm@10.28.0",
+  "engines": {
+    "node": ">=24.15.0 <25"
+  },
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "test:int": "turbo run test:int",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "db:generate": "pnpm --filter @ih/db db:generate",
+    "db:migrate": "pnpm --filter @ih/db db:migrate",
+    "infra:up": "docker compose up -d",
+    "infra:down": "docker compose down",
+    "db:migration:create": "pnpm --filter @ih/db db:migration:create",
+    "test:boundaries": "node scripts/check-boundaries.mjs",
+    "test:package": "node scripts/check-reference-set.mjs",
+    "test:infra": "node scripts/check-minio-init.mjs",
+    "contracts:generate": "node scripts/generate-api-contract.mjs",
+    "contracts:check": "node scripts/generate-api-contract.mjs --check",
+    "verify": "node scripts/verify.mjs"
+  },
+  "devDependencies": {
+    "@eslint/js": "9.39.5",
+    "@types/node": "24.19.1",
+    "eslint": "9.39.5",
+    "globals": "17.13.0",
+    "prettier": "3.9.9",
+    "turbo": "2.11.7",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.71.1",
+    "vitest": "5.0.3",
+    "@ih/config": "workspace:*"
+  }
+}
