@@ -134,3 +134,55 @@ describe("email integration test environment", () => {
     ).toThrow(/SMTP_HOST/);
   });
 });
+
+describe("Resend configuration", () => {
+  const base = {
+    DATABASE_URL: "postgres://u:p@localhost:5432/db",
+    QUEUE_REDIS_URL: "redis://localhost:6379",
+    EMAIL_SEND_ENABLED: "true",
+    EMAIL_PROVIDER: "resend",
+    EMAIL_FROM: "orders@iqoshaven.com",
+  };
+  it("needs an API key and, outside production, an allowlist", () => {
+    expect(() => loadEnv(workerEnvSchema, base)).toThrow(/RESEND_API_KEY/);
+    const keyed = { ...base, RESEND_API_KEY: "re_live_abcdefgh123" };
+    expect(() => loadEnv(workerEnvSchema, keyed)).toThrow(/EMAIL_RECIPIENT_ALLOWLIST/);
+    expect(
+      loadEnv(workerEnvSchema, { ...keyed, EMAIL_RECIPIENT_ALLOWLIST: "@apixel.net" })
+        .EMAIL_PROVIDER,
+    ).toBe("resend");
+    expect(
+      loadEnv(workerEnvSchema, { ...keyed, APP_ENV: "production", NODE_ENV: "production" })
+        .EMAIL_PROVIDER,
+    ).toBe("resend");
+  });
+  it("never lets tests reach the real Resend API", () => {
+    const testEnv = {
+      ...base,
+      APP_ENV: "test",
+      RESEND_API_KEY: "re_test_abcdefgh",
+      EMAIL_RECIPIENT_ALLOWLIST: "@x.ae",
+    };
+    expect(() => loadEnv(workerEnvSchema, testEnv)).toThrow(/RESEND_API_URL/);
+    expect(
+      loadEnv(workerEnvSchema, { ...testEnv, RESEND_API_URL: "http://127.0.0.1:4010" })
+        .RESEND_API_URL,
+    ).toBe("http://127.0.0.1:4010");
+  });
+  it("refuses a cleartext API URL except for a local stub", () => {
+    const prod = {
+      ...base,
+      APP_ENV: "production",
+      NODE_ENV: "production",
+      RESEND_API_KEY: "re_live_abcdefgh123",
+    };
+    expect(() =>
+      loadEnv(workerEnvSchema, { ...prod, RESEND_API_URL: "http://api.resend.com" }),
+    ).toThrow(/RESEND_API_URL/);
+  });
+  it("rejects malformed API keys", () => {
+    expect(() => loadEnv(workerEnvSchema, { ...base, RESEND_API_KEY: "secret" })).toThrow(
+      /RESEND_API_KEY/,
+    );
+  });
+});

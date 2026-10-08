@@ -102,22 +102,36 @@ const LOCAL_SMTP_HOSTS = new Set(["localhost", "127.0.0.1", "::1", "[::1]", "mai
  */
 export const emailEnvFields = {
   EMAIL_SEND_ENABLED: strictBoolean,
+  /** smtp = SMTP relay / local Mailpit; resend = Resend HTTP API (ADR 0004). */
+  EMAIL_PROVIDER: z.enum(["smtp", "resend"]).default("smtp"),
   EMAIL_FROM: z.email().optional(),
   SMTP_HOST: z.string().min(1).optional(),
   SMTP_PORT: port.default(1025),
   SMTP_SECURE: strictBoolean,
   SMTP_USER: z.string().min(1).optional(),
   SMTP_PASSWORD: z.string().min(1).optional(),
+  RESEND_API_KEY: z
+    .string()
+    .regex(/^re_[A-Za-z0-9_]{8,}$/, "must be a Resend API key")
+    .optional(),
+  // The bearer key must never travel in cleartext: https, except a local test stub.
+  RESEND_API_URL: httpUrl.default("https://api.resend.com").refine((value) => {
+    const url = new URL(value);
+    return url.protocol === "https:" || LOCAL_SMTP_HOSTS.has(url.hostname);
+  }, "must be https (or a local stub)"),
   EMAIL_RECIPIENT_ALLOWLIST: recipientAllowlist,
 };
 const emailSafety = (
   value: {
     APP_ENV: DeploymentEnv;
     EMAIL_SEND_ENABLED: boolean;
+    EMAIL_PROVIDER: "smtp" | "resend";
     EMAIL_FROM?: string | undefined;
     SMTP_HOST?: string | undefined;
     SMTP_USER?: string | undefined;
     SMTP_PASSWORD?: string | undefined;
+    RESEND_API_KEY?: string | undefined;
+    RESEND_API_URL: string;
     EMAIL_RECIPIENT_ALLOWLIST: string[];
   },
   ctx: z.RefinementCtx,
@@ -127,15 +141,22 @@ const emailSafety = (
   if (Boolean(value.SMTP_USER) !== Boolean(value.SMTP_PASSWORD))
     issue("SMTP_PASSWORD", "SMTP_USER and SMTP_PASSWORD are set together");
   if (!value.EMAIL_SEND_ENABLED) return;
+  const local = value.APP_ENV === "development" || value.APP_ENV === "test";
   if (!value.EMAIL_FROM) issue("EMAIL_FROM", "required when EMAIL_SEND_ENABLED=true");
-  if (!value.SMTP_HOST) issue("SMTP_HOST", "required when EMAIL_SEND_ENABLED=true");
-  // Local and test runs may only deliver to a local sink such as Mailpit.
-  if (
-    (value.APP_ENV === "development" || value.APP_ENV === "test") &&
-    value.SMTP_HOST &&
-    !LOCAL_SMTP_HOSTS.has(value.SMTP_HOST.toLowerCase())
-  )
-    issue("SMTP_HOST", "development/test may only send to a local SMTP sink");
+  if (value.EMAIL_PROVIDER === "smtp") {
+    if (!value.SMTP_HOST) issue("SMTP_HOST", "required when EMAIL_SEND_ENABLED=true");
+    // Local and test runs may only deliver to a local sink such as Mailpit.
+    if (local && value.SMTP_HOST && !LOCAL_SMTP_HOSTS.has(value.SMTP_HOST.toLowerCase()))
+      issue("SMTP_HOST", "development/test may only send to a local SMTP sink");
+  } else {
+    if (!value.RESEND_API_KEY) issue("RESEND_API_KEY", "required for EMAIL_PROVIDER=resend");
+    // Tests never reach the real Resend API; only a local stub.
+    if (value.APP_ENV === "test" && !LOCAL_SMTP_HOSTS.has(new URL(value.RESEND_API_URL).hostname))
+      issue("RESEND_API_URL", "tests may only use a local Resend stub");
+    // Before production, real delivery is limited to explicitly allowed recipients.
+    if (value.APP_ENV === "development" && value.EMAIL_RECIPIENT_ALLOWLIST.length === 0)
+      issue("EMAIL_RECIPIENT_ALLOWLIST", "required for Resend outside production");
+  }
   // Staging never emails real customers: an explicit recipient allowlist is mandatory.
   if (value.APP_ENV === "staging" && value.EMAIL_RECIPIENT_ALLOWLIST.length === 0)
     issue("EMAIL_RECIPIENT_ALLOWLIST", "required in staging when sending is enabled");
