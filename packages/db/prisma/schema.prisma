@@ -1,7 +1,7 @@
 // Business tables are introduced in roadmap order; no invented foundation tables.
 generator client {
-  provider = "prisma-client"
-  output = "../src/generated/prisma"
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
   moduleFormat = "cjs"
 }
 
@@ -12,20 +12,71 @@ datasource db {
 /// Append-only audit trail (roadmap step 18). UPDATE/DELETE/TRUNCATE are rejected by trigger.
 /// actor_id has no FK yet: staff_users arrives in step 27.
 model AuditLog {
-  id          String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
-  occurredAt  DateTime @default(now()) @map("occurred_at") @db.Timestamptz(6)
-  actorType   String   @map("actor_type") @db.VarChar(16)
-  actorId     String?  @map("actor_id") @db.Uuid
-  action      String   @db.VarChar(64)
-  entityType  String   @map("entity_type") @db.VarChar(64)
-  entityId    String   @map("entity_id") @db.VarChar(128)
-  requestId   String   @map("request_id") @db.VarChar(128)
-  commandId   String?  @map("command_id") @db.VarChar(128)
-  reason      String?  @db.VarChar(500)
-  diff        Json     @default("{}")
+  id         String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  occurredAt DateTime @default(now()) @map("occurred_at") @db.Timestamptz(6)
+  actorType  String   @map("actor_type") @db.VarChar(16)
+  actorId    String?  @map("actor_id") @db.Uuid
+  action     String   @db.VarChar(64)
+  entityType String   @map("entity_type") @db.VarChar(64)
+  entityId   String   @map("entity_id") @db.VarChar(128)
+  requestId  String   @map("request_id") @db.VarChar(128)
+  commandId  String?  @map("command_id") @db.VarChar(128)
+  reason     String?  @db.VarChar(500)
+  diff       Json     @default("{}")
 
   @@index([entityType, entityId, occurredAt(sort: Desc)])
   @@index([actorId, occurredAt(sort: Desc)])
   @@index([occurredAt(sort: Desc)])
   @@map("audit_log")
+}
+
+/// Transactional outbox (roadmap step 19). One row per committed domain event; payload carries IDs only.
+/// Relay lease/dispatch columns are hints; completion is decided by consumer_effects.
+model OutboxEvent {
+  id               String           @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  eventType        String           @map("event_type") @db.VarChar(64)
+  schemaVersion    Int              @map("schema_version")
+  aggregateType    String           @map("aggregate_type") @db.VarChar(64)
+  aggregateId      String           @map("aggregate_id") @db.VarChar(128)
+  aggregateVersion BigInt?          @map("aggregate_version")
+  payload          Json             @default("{}")
+  createdAt        DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  leaseOwner       String?          @map("lease_owner") @db.VarChar(128)
+  leaseExpiresAt   DateTime?        @map("lease_expires_at") @db.Timestamptz(6)
+  dispatchAttempts Int              @default(0) @map("dispatch_attempts")
+  lastError        String?          @map("last_error") @db.VarChar(500)
+  dispatchedAt     DateTime?        @map("dispatched_at") @db.Timestamptz(6)
+  completedAt      DateTime?        @map("completed_at") @db.Timestamptz(6)
+  effects          ConsumerEffect[]
+
+  @@index([aggregateType, aggregateId, createdAt])
+  @@map("outbox_events")
+}
+
+/// One required effect per (event, consumer), snapshotted when the event is written.
+/// status: pending | queued | running | retry | completed | dead | skipped.
+model ConsumerEffect {
+  id              String      @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  eventId         String      @map("event_id") @db.Uuid
+  event           OutboxEvent @relation(fields: [eventId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  consumer        String      @db.VarChar(64)
+  /// Opaque reference (e.g. a recipient/staff UUID) for consumer fan-out. Never personal data.
+  payloadRef      String?     @map("payload_ref") @db.VarChar(256)
+  status          String      @default("pending") @db.VarChar(16)
+  attempts        Int         @default(0)
+  leaseOwner      String?     @map("lease_owner") @db.VarChar(128)
+  leaseExpiresAt  DateTime?   @map("lease_expires_at") @db.Timestamptz(6)
+  heartbeatAt     DateTime?   @map("heartbeat_at") @db.Timestamptz(6)
+  queuedAt        DateTime?   @map("queued_at") @db.Timestamptz(6)
+  replays         Int         @default(0)
+  dueAt           DateTime    @default(now()) @map("due_at") @db.Timestamptz(6)
+  createdAt       DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime    @default(now()) @map("updated_at") @db.Timestamptz(6)
+  completedAt     DateTime?   @map("completed_at") @db.Timestamptz(6)
+  lastError       String?     @map("last_error") @db.VarChar(500)
+  externalReceipt String?     @map("external_receipt") @db.VarChar(256)
+  skipReason      String?     @map("skip_reason") @db.VarChar(500)
+
+  @@unique([eventId, consumer])
+  @@map("consumer_effects")
 }

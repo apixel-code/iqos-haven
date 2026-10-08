@@ -1,6 +1,4 @@
 import { randomUUID } from "node:crypto";
-import { readdirSync, readFileSync } from "node:fs";
-import { join } from "node:path";
 import { toAuditEntry } from "@ih/application";
 import {
   assertTestDatabase,
@@ -11,6 +9,7 @@ import {
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { AuditOutsideTransactionError, PrismaAuditWriter } from "./audit";
 import { createDatabase, createPool, Prisma } from "./client";
+import { applyMigrations } from "./test-schema";
 import { withTransaction } from "./transaction";
 loadLocalEnvFile();
 const env = loadEnv(integrationTestEnvSchema);
@@ -36,25 +35,8 @@ const entry = (requestId: string) =>
     },
   );
 
-function migrationSql(name: string): string {
-  const folder = join(__dirname, "..", "prisma", "migrations");
-  const dir = readdirSync(folder).find((entryName) => entryName.endsWith("_" + name));
-  if (!dir) throw new Error("migration not found: " + name);
-  return readFileSync(join(folder, dir, "migration.sql"), "utf8");
-}
-
 describe("audit_log (real PostgreSQL)", () => {
-  beforeAll(async () => {
-    const client = await pool.connect();
-    try {
-      await client.query('CREATE SCHEMA "' + namespace + '"');
-      await client.query('SET search_path TO "' + namespace + '"');
-      await client.query(migrationSql("audit_log"));
-    } finally {
-      await client.query("RESET search_path");
-      client.release();
-    }
-  });
+  beforeAll(() => applyMigrations(pool, namespace));
   afterAll(async () => {
     await db.$disconnect();
     await pool.query('DROP SCHEMA IF EXISTS "' + namespace + '" CASCADE');

@@ -256,6 +256,9 @@ importers:
         specifier: 8.23.1
         version: 8.23.1
     devDependencies:
+      '@ih/contracts':
+        specifier: workspace:*
+        version: link:../contracts
       '@types/pg':
         specifier: 8.23.1
         version: 8.23.1
