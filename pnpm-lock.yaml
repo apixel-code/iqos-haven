@@ -84,6 +84,9 @@ importers:
 
   apps/api:
     dependencies:
+      '@ih/application':
+        specifier: workspace:*
+        version: link:../../packages/application
       '@ih/config':
         specifier: workspace:*
         version: link:../../packages/config
@@ -93,6 +96,9 @@ importers:
       '@ih/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@ih/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
       '@ih/logger':
         specifier: workspace:*
         version: link:../../packages/logger
@@ -188,12 +194,21 @@ importers:
 
   apps/worker:
     dependencies:
+      '@ih/application':
+        specifier: workspace:*
+        version: link:../../packages/application
       '@ih/config':
         specifier: workspace:*
         version: link:../../packages/config
+      '@ih/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
       '@ih/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@ih/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
       '@ih/logger':
         specifier: workspace:*
         version: link:../../packages/logger
@@ -210,6 +225,9 @@ importers:
 
   packages/application:
     dependencies:
+      '@ih/contracts':
+        specifier: workspace:*
+        version: link:../contracts
       '@ih/domain':
         specifier: workspace:*
         version: link:../domain
@@ -228,9 +246,18 @@ importers:
 
   packages/db:
     dependencies:
+      '@ih/application':
+        specifier: workspace:*
+        version: link:../application
       '@ih/config':
         specifier: workspace:*
         version: link:../config
+      '@ih/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@ih/domain':
+        specifier: workspace:*
+        version: link:../domain
       '@ih/logger':
         specifier: workspace:*
         version: link:../logger

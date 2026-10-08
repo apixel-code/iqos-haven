@@ -1,10 +1,14 @@
-export async function bounded<T>(work: Promise<T>, timeoutMs: number): Promise<T> {
+export async function bounded<T>(
+  work: Promise<T>,
+  timeoutMs: number,
+  message = "Startup dependency timed out",
+): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
     return await Promise.race([
       work,
       new Promise<never>((_, reject) => {
-        timer = setTimeout(() => reject(new Error("Startup dependency timed out")), timeoutMs);
+        timer = setTimeout(() => reject(new Error(message)), timeoutMs);
       }),
     ]);
   } finally {

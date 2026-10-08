@@ -21,6 +21,36 @@ const redisUrl = z.string().refine((value) => {
     return false;
   }
 }, "must be a redis:// or rediss:// URL");
+/**
+ * host:port identifies a Redis instance; eviction policy is instance-wide, so the DB index is ignored.
+ * Best-effort: loopback aliases are unified, but distinct DNS names for one host are not resolved; provisioning
+ * must still give the cache its own instance.
+ */
+export function redisInstance(url: string): string {
+  const parsed = new URL(url);
+  const host = parsed.hostname.toLowerCase();
+  // Loopback aliases name the same local instance.
+  const loopback = host === "localhost" || host === "[::1]" || /^127\.\d+\.\d+\.\d+$/.test(host);
+  return (loopback ? "loopback" : host) + ":" + (parsed.port || "6379");
+}
+/**
+ * Optional cache Redis (replicated profile only). It may evict, so it must never be the queue
+ * instance (architecture §8: cache eviction policy never mixes with queue Redis).
+ */
+const separateCacheRedis = (
+  value: { QUEUE_REDIS_URL: string; CACHE_REDIS_URL?: string | undefined },
+  ctx: z.RefinementCtx,
+) => {
+  if (
+    value.CACHE_REDIS_URL &&
+    redisInstance(value.CACHE_REDIS_URL) === redisInstance(value.QUEUE_REDIS_URL)
+  )
+    ctx.addIssue({
+      code: "custom",
+      path: ["CACHE_REDIS_URL"],
+      message: "must be a different Redis instance from QUEUE_REDIS_URL",
+    });
+};
 const httpUrl = z
   .string()
   .url()
@@ -31,21 +61,27 @@ export const baseEnvSchema = z.object({
   APP_ENV: deploymentEnvSchema.default("development"),
   LOG_LEVEL: logLevel.default("info"),
 });
-export const apiEnvSchema = baseEnvSchema.extend({
-  API_PORT: port.default(4000),
-  API_HOST: z.string().default("127.0.0.1"),
-  DATABASE_URL: postgresUrl,
-  DATABASE_POOL_MAX: z.coerce.number().int().min(1).max(100).default(10),
-  QUEUE_REDIS_URL: redisUrl,
-});
+export const apiEnvSchema = baseEnvSchema
+  .extend({
+    API_PORT: port.default(4000),
+    API_HOST: z.string().default("127.0.0.1"),
+    DATABASE_URL: postgresUrl,
+    DATABASE_POOL_MAX: z.coerce.number().int().min(1).max(100).default(10),
+    QUEUE_REDIS_URL: redisUrl,
+    CACHE_REDIS_URL: redisUrl.optional(),
+  })
+  .superRefine(separateCacheRedis);
 export type ApiEnv = z.infer<typeof apiEnvSchema>;
-export const workerEnvSchema = baseEnvSchema.extend({
-  DATABASE_URL: postgresUrl,
-  DATABASE_POOL_MAX: z.coerce.number().int().min(1).max(100).default(5),
-  QUEUE_REDIS_URL: redisUrl,
-  WORKER_CONCURRENCY: z.coerce.number().int().min(1).max(32).default(4),
-  WORKER_STARTUP_TIMEOUT_MS: z.coerce.number().int().min(1000).max(120000).default(15000),
-});
+export const workerEnvSchema = baseEnvSchema
+  .extend({
+    DATABASE_URL: postgresUrl,
+    DATABASE_POOL_MAX: z.coerce.number().int().min(1).max(100).default(5),
+    QUEUE_REDIS_URL: redisUrl,
+    CACHE_REDIS_URL: redisUrl.optional(),
+    WORKER_CONCURRENCY: z.coerce.number().int().min(1).max(32).default(4),
+    WORKER_STARTUP_TIMEOUT_MS: z.coerce.number().int().min(1000).max(120000).default(15000),
+  })
+  .superRefine(separateCacheRedis);
 export type WorkerEnv = z.infer<typeof workerEnvSchema>;
 export const storefrontEnvSchema = baseEnvSchema.extend({
   STOREFRONT_PORT: port.default(3000),
@@ -57,6 +93,10 @@ export const adminEnvSchema = baseEnvSchema.extend({
 });
 export const migrationEnvSchema = baseEnvSchema.extend({ DATABASE_MIGRATION_URL: postgresUrl });
 export const integrationTestEnvSchema = z.object({ DATABASE_TEST_URL: postgresUrl });
+/** Worker integration tests also need the local/CI queue Redis (unique queue names per run). */
+export const queueIntegrationTestEnvSchema = integrationTestEnvSchema.extend({
+  QUEUE_REDIS_URL: redisUrl,
+});
 
 export class ConfigurationError extends Error {}
 export function loadEnv<S extends z.ZodType>(

@@ -1,6 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 import { type Database, Prisma } from "./client";
-import { sortedForLocking, withTransaction, TransactionContentionError } from "./transaction";
+import {
+  isUnitOfWork,
+  sortedForLocking,
+  withTransaction,
+  TransactionContentionError,
+} from "./transaction";
 describe("transaction policy", () => {
   it("dedupes and sorts lock ids", () => {
     expect(sortedForLocking(["v3", "v1", "v3", "v2"])).toEqual(["v1", "v2", "v3"]);
@@ -17,9 +22,17 @@ describe("transaction policy", () => {
     );
     expect(transaction).toHaveBeenCalledTimes(2);
     expect(transaction).toHaveBeenCalledWith(
-      work,
+      expect.any(Function),
       expect.objectContaining({ isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted }),
     );
+  });
+  it("marks only the transaction client it hands out as a unit of work", async () => {
+    const tx = {};
+    const root = {
+      $transaction: (work: (client: object) => Promise<unknown>) => work(tx),
+    } as unknown as Database;
+    expect(await withTransaction(root, async (client) => isUnitOfWork(client))).toBe(true);
+    expect(isUnitOfWork(root)).toBe(false);
   });
   it("retries approved raw-query PostgreSQL deadlocks but not unique violations", async () => {
     const transaction = vi

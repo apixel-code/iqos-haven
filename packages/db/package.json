@@ -9,6 +9,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./testing": {
+      "types": "./dist/test-schema.d.ts",
+      "default": "./dist/test-schema.js"
     }
   },
   "files": [
@@ -32,7 +36,10 @@
     "pg": "8.23.1",
     "@prisma/client": "7.10.0",
     "@prisma/adapter-pg": "7.10.0",
-    "@ih/logger": "workspace:*"
+    "@ih/logger": "workspace:*",
+    "@ih/domain": "workspace:*",
+    "@ih/application": "workspace:*",
+    "@ih/contracts": "workspace:*"
   },
   "devDependencies": {
     "@types/pg": "8.23.1",

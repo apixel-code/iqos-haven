@@ -9,6 +9,9 @@ const probes = [
   ["packages/application/src/index.ts", "next/server", false],
   ["packages/application/src/index.ts", "@ih/domain", true],
   ["packages/db/src/client.ts", "@ih/api", false],
+  ["packages/db/src/outbox.ts", "@ih/db/testing", false],
+  ["apps/worker/src/main.ts", "@ih/db/testing", false],
+  ["apps/worker/src/relay.int.test.ts", "@ih/db/testing", true],
 ];
 for (const [filePath, dependency, allowed] of probes) {
   const [result] = await root.lintText(
@@ -26,4 +29,4 @@ for (const app of ["storefront", "admin"]) {
   );
   assert(result.messages.some((item) => item.ruleId === "no-restricted-imports"));
 }
-process.stdout.write("9 package-boundary probes passed.\n");
+process.stdout.write("12 package-boundary probes passed.\n");

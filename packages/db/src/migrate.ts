@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
-import { join } from "node:path";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { loadEnv, loadLocalEnvFile, migrationEnvSchema } from "@ih/config";
 import { assertMigrationBundle } from "./migration-policy";
 async function main(): Promise<void> {
@@ -15,7 +16,12 @@ async function main(): Promise<void> {
     process.stdout.write("Local scaffold only: no business migrations exist.\n");
     return;
   }
-  const entry = require.resolve("prisma");
+  // The package "exports" point at type stubs; the CLI is the declared bin.
+  const manifest = require.resolve("prisma/package.json");
+  const entry = join(
+    dirname(manifest),
+    (JSON.parse(readFileSync(manifest, "utf8")) as { bin: { prisma: string } }).bin.prisma,
+  );
   const code = await new Promise<number>((resolve, reject) => {
     const child = spawn(
       process.execPath,

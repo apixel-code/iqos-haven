@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { apiEnvSchema, loadEnv, assertTestDatabase } from "./index";
+import { apiEnvSchema, loadEnv, assertTestDatabase, redisInstance, workerEnvSchema } from "./index";
 
 describe("loadEnv", () => {
   it("applies defaults and coerces numbers", () => {
@@ -43,5 +43,31 @@ describe("environment and test-target safety", () => {
         QUEUE_REDIS_URL: "redis://localhost",
       }),
     ).toThrow(/APP_ENV/);
+  });
+});
+
+describe("queue/cache Redis separation", () => {
+  const base = {
+    DATABASE_URL: "postgres://u:p@localhost:5432/db",
+    QUEUE_REDIS_URL: "redis://queue.internal:6379/0",
+  };
+  it("treats host:port as the instance, ignoring DB index and default port", () => {
+    expect(redisInstance("redis://Queue.Internal/3")).toBe(
+      redisInstance("rediss://queue.internal:6379/0"),
+    );
+    expect(redisInstance("redis://[::1]:6380")).toBe(redisInstance("redis://localhost:6380"));
+    expect(redisInstance("redis://127.0.0.1")).toBe(redisInstance("redis://localhost:6379"));
+    expect(redisInstance("redis://cache:6380")).not.toBe(redisInstance("redis://cache:6379"));
+  });
+  it.each([apiEnvSchema, workerEnvSchema])("rejects a cache on the queue instance", (schema) => {
+    expect(() =>
+      loadEnv(schema, { ...base, CACHE_REDIS_URL: "redis://queue.internal:6379/1" }),
+    ).toThrow(/CACHE_REDIS_URL/);
+    expect(
+      loadEnv(schema, { ...base, CACHE_REDIS_URL: "redis://cache.internal:6379" }),
+    ).toMatchObject({
+      CACHE_REDIS_URL: "redis://cache.internal:6379",
+    });
+    expect(loadEnv(schema, base).CACHE_REDIS_URL).toBeUndefined();
   });
 });
