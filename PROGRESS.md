@@ -18,7 +18,7 @@ None for steps 19–24. Step 25 (email) needs BI-07 for real providers (Mailpit 
 
 ## Gates passed
 
-None closed. M2 gate condition (synthetic event processed by worker; duplicate delivery + Redis job-loss recovery; tests send no real email) is demonstrated locally (docs/verification.md, step 24) but not yet in CI; Milestone 2 still has steps 25–26 open. M0/M1 remain open.
+None closed. M2 gate condition (synthetic event processed by worker; duplicate delivery + Redis job-loss recovery; tests send no real email) is demonstrated locally and in CI (PR #1, run 37818768532); Milestone 2 still has steps 25–26 open. M0/M1 remain open.
 
 ## Steps done
 
@@ -46,7 +46,7 @@ Files: `packages/db/src/{outbox,reconciler}.ts`, `packages/db/prisma/migrations/
 
 Tests: `pnpm verify -- --integration` PASS (unit 98, integration 68).
 
-Unfinished: same as step 24 (replay API/permission with RBAC, scheduled jobs in their steps, BI-08 pruning, CI once a remote exists). Deliberately not changed: `OutboxService`/`AuditService` construct their writers directly (reviewer nit; consistent pattern, no defect).
+Unfinished: same as step 24 (replay API/permission with RBAC, scheduled jobs in their steps, BI-08 pruning). Remote: `git@github-apixel:apixel-code/iqos-haven.git` (public); PR #1 (`fix/known-issues` → `main`, contains steps 18–24 + fixes) CI green, awaiting merge decision. Deliberately not changed: `OutboxService`/`AuditService` construct their writers directly (reviewer nit; consistent pattern, no defect).
 
 ## History (summary)
 
