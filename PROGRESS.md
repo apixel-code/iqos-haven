@@ -3,18 +3,18 @@
 ## Current position
 
 - Date: 2026-10-09
-- Milestone: M2 — shared reliability, communication and audit foundation (M0 review and M1 staging/fixtures still open)
-- Step: 30 (admin sign-in + sessions) — done
-- Branch: `step/30-auth-sessions` (from `main`)
+- Milestone: M3 — identity, permissions, admin access and basic settings (M0 review and M1 staging/fixtures still open)
+- Step: 31 (access guard + permission guard + response field filtering) — done
+- Branch: `step/31-permission-guard` (from `main`)
 - See docs/verification.md for actual checks.
 
 ## Next action
 
-Run `/step 31`: permission guard + response field filtering: `@RequirePermission("...")` decorator + `PermissionGuard` on top of `AuthGuard` (deny by default for admin routes without a declared permission), and a serializer/field-filter mechanism that strips Owner-only fields (e.g. aggregate spend, revenue) for Staff. Every new endpoint needs allowed-role, denied-role and invalid-input integration tests (apps/api/CLAUDE.md). Pending decision: close the M2 gate. Use node@24 PATH; start Docker Desktop before `pnpm infra:up`.
+Merge PR for `step/31-permission-guard` once CI is green, then run `/step 32`: Origin/CSRF controls on every state-changing cookie-authenticated request (incl. login/logout), reject unsupported content types, and the endpoint-specific limiter framework (local authoritative limiter for login on the budget profile, shared on replicated; fail closed for auth when the configured limiter fails; architecture §11 "Rate-limit and dependency outage policy"). New admin routes must use `@RequirePermission`/`@Authenticated` + `@Serialize` (apps/api/CLAUDE.md). Use node@24 PATH; start Docker Desktop before `pnpm infra:up`.
 
 ## Blockers
 
-None for step 27 (schema). BI-11 blocks real Owner bootstrap (28). Email go-live needs the rest of BI-07 (verified Resend domain, sender address, new-order recipients). Audit retention/pruning needs BI-08. BI-07 is partially answered; the other BI items remain open; M0 needs client decisions; M1 staging needs BI-06.
+None for steps 31–32. BI-11 blocks real Owner bootstrap (28). Email go-live needs the rest of BI-07 (verified Resend domain, sender address, new-order recipients). Audit retention/pruning needs BI-08. BI-07 is partially answered; the other BI items remain open; M0 needs client decisions; M1 staging needs BI-06.
 
 ## Gates passed
 
@@ -39,7 +39,8 @@ None for step 27 (schema). BI-11 blocks real Owner bootstrap (28). Email go-live
 - 27 — identity schema, explicit Owner/Staff permission seeds, lockable-but-immutable roles — PR #7 (2bbe336)
 - 28 — argon2id hasher, password policy, one-time Owner bootstrap CLI, owner-lock trigger — PR #8 (045b544)
 - 29 — Caddy same-origin gateway, header stripping, `pnpm test:gateway` (29 checks) in verify/CI — PR #9 (d494dc0)
-- 30 — login/logout/me, `__Host-ih_admin` sessions, AuthGuard — uncommitted (commit `step(30)` follows this handoff)
+- 30 — login/logout/me, `__Host-ih_admin` sessions, AuthGuard — PR #10 (3254f93)
+- 31 — deny-by-default global `AccessGuard` (`@Public`/`@InternalService`/`@Authenticated`/`@RequirePermission`), boot-time route check, DB-derived permissions, `@Serialize` field policy + contract parse — uncommitted (commit `step(31)` follows this handoff)
 
 ## Known deviations
 
@@ -47,17 +48,19 @@ None for step 27 (schema). BI-11 blocks real Owner bootstrap (28). Email go-live
 - Event `consumers` lists only implemented consumers (now `system_probe`); planned ones are documented with roadmap steps and move in with a backfill decision (architecture §8: adding a consumer must not redefine old completions).
 - `audit_log` migration revokes UPDATE/DELETE/TRUNCATE only from a role named `ih_app`; other runtime role names must be revoked at provisioning (trigger blocks mutations regardless).
 
-## Last session handoff (2026-10-09, step 30)
+## Last session handoff (2026-10-09, step 31)
 
-Done: step 30. `invariant-reviewer`: no blockers; should-fixes applied (one argon2 verify on the over-length path; dummy hash warmed at startup; `no-store` on errors confirmed by tests — the global error filter already sets it) and nits (duplicate-cookie scan, logout revokes every presented token, re-login revokes the previous session, session insert conditional on the verified hash + active user). Test seam: `createApp(env, { pool, database })` for isolated-schema API integration tests (production never passes it).
+Done: step 31. Global APP_GUARD `AccessGuard` replaces `AuthGuard`: every route declares `@Public()` (handler-only), `@InternalService(...)`, `@Authenticated()` (handler-only) or `@RequirePermission(...all)`; `AccessPolicyCheck` refuses to boot on an undeclared route, a class-level `@Public`/`@Authenticated`, or a signed-in route without `@Serialize`/`@NoResponseBody`. Permissions come from the DB session query on every request (401 unauthenticated, 403 missing permission, checked before body validation). `filterFields`/`defineFieldPolicy` in `@ih/domain`; `@Serialize(schema, fieldPolicy)` strips Owner-only fields by permission (no caller → all stripped) then parses the contract (violation → generic 500). Test seam `createApp(env, overrides, testModules)` refused in production. `invariant-reviewer`: no blockers; 4 should-fixes applied (class-level public, mandatory serializer, prod seam guard, test gaps) plus nits.
 
-Files: `packages/contracts/src/{auth,index}.ts`, `packages/domain/src/{session,session.test,index}.ts`, `packages/db/src/{sessions,index}.ts`, `apps/api/src/auth/*`, `apps/api/src/{app.module,bootstrap}.ts`, `apps/api/src/infra/infra.module.ts`, `docs/{verification,implementation-status,task-backlog}.md`, `PROGRESS.md`.
+Files: `packages/domain/src/{field-policy,field-policy.test,index}.ts`, `apps/api/src/auth/{access,serialize,access.int.test,auth.controller,auth.module}.ts` (deleted `auth.guard.ts`), `apps/api/src/{app.module,bootstrap}.ts`, `apps/api/src/health/health.controller.ts`, `apps/api/src/internal/service-auth.guard.ts`, `apps/api/CLAUDE.md`, `docs/{verification,implementation-status,task-backlog}.md`, `PROGRESS.md`.
 
-Tests: `pnpm verify -- --integration` PASS (unit 263, integration 101, gateway 29).
+Tests: `pnpm verify -- --integration` PASS (unit 236, integration 117 incl. api 28, gateway 29).
 
-Unfinished: permission guard/field filtering (31), Origin/CSRF + login rate limits (32), password reset (33), invites (34), staff admin (35), last-Owner service (36), admin UI (37).
+Unfinished: Origin/CSRF + limiters (32), password reset (33), invites (34), staff admin (35), last-Owner service (36), admin UI (37). Real Owner-only endpoints adopt field policies as they land (customers 90s, reports 106+).
 
 ## History (summary)
+
+- 2026-10-09 step 30: admin sign-in/logout/me + session lifecycle, AuthGuard (PR #10, 3254f93); M2 gate closed (PR #11).
 
 - 2026-10-09 step 29: Caddy same-origin gateway (PR #9, d494dc0).
 - 2026-10-09 step 28: argon2id + one-time Owner bootstrap (PR #8, 045b544).

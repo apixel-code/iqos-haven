@@ -5,3 +5,4 @@ export * from "./schedule";
 export * from "./permissions";
 export * from "./identity";
 export * from "./session";
+export * from "./field-policy";

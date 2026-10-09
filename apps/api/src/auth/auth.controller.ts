@@ -7,14 +7,14 @@ import {
   Req,
   Res,
   UnauthorizedException,
-  UseGuards,
 } from "@nestjs/common";
-import { loginRequestSchema, type MeResponse } from "@ih/contracts";
+import { loginRequestSchema, meResponseSchema, type MeResponse } from "@ih/contracts";
 import { errorSummary } from "@ih/logger";
 import type { FastifyReply } from "fastify";
 import { createZodDto } from "../http/zod-validation.pipe";
-import { AuthGuard, type AuthenticatedRequest } from "./auth.guard";
+import { Authenticated, Public, type AuthenticatedRequest } from "./access";
 import { AuthService, InvalidCredentialsError, toMeResponse } from "./auth.service";
+import { Serialize } from "./serialize";
 import { clearedSessionCookie, readSessionTokens, sessionCookie } from "./session-cookie";
 
 class LoginDto extends createZodDto(loginRequestSchema) {}
@@ -25,6 +25,7 @@ export class AuthController {
   constructor(private readonly auth: AuthService) {}
 
   @Post("login")
+  @Public()
   @HttpCode(200)
   async login(
     @Body() body: LoginDto,
@@ -57,6 +58,7 @@ export class AuthController {
 
   /** Always succeeds and clears the cookie; revokes the presented session if there is one. */
   @Post("logout")
+  @Public()
   @HttpCode(204)
   async logout(
     @Req() request: AuthenticatedRequest,
@@ -67,7 +69,8 @@ export class AuthController {
   }
 
   @Get("me")
-  @UseGuards(AuthGuard)
+  @Authenticated()
+  @Serialize(meResponseSchema)
   me(
     @Req() request: AuthenticatedRequest,
     @Res({ passthrough: true }) reply: FastifyReply,

@@ -1,4 +1,4 @@
-import { VersioningType, type INestApplication } from "@nestjs/common";
+import { VersioningType, type INestApplication, type Type } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
 import { FastifyAdapter, type NestFastifyApplication } from "@nestjs/platform-fastify";
 import type { ApiEnv } from "@ih/config";
@@ -12,7 +12,10 @@ import { ZodValidationPipe } from "./http/zod-validation.pipe";
 export async function createApp(
   env: ApiEnv,
   overrides?: InfraOverrides,
+  testModules?: readonly Type[],
 ): Promise<INestApplication> {
+  if (testModules?.length && env.NODE_ENV === "production")
+    throw new Error("Test modules are not allowed in production");
   const adapter = new FastifyAdapter({ bodyLimit: 32768, trustProxy: false, genReqId: requestId });
   adapter.getInstance().addHook("onRequest", (req, reply, done) => {
     const id = requestId(req.raw);
@@ -21,7 +24,7 @@ export async function createApp(
     done();
   });
   const app = await NestFactory.create<NestFastifyApplication>(
-    AppModule.register(env, overrides),
+    AppModule.register(env, overrides, testModules),
     adapter,
     {
       bufferLogs: true,

@@ -1,4 +1,4 @@
-import { Module, type DynamicModule } from "@nestjs/common";
+import { Module, type DynamicModule, type Type } from "@nestjs/common";
 import type { ApiEnv } from "@ih/config";
 import { loggerOptions } from "@ih/logger";
 import { LoggerModule } from "nestjs-pino";
@@ -10,7 +10,12 @@ import { InternalModule } from "./internal/internal.module";
 import { requestId } from "./http/request-id";
 @Module({})
 export class AppModule {
-  static register(env: ApiEnv, overrides?: InfraOverrides): DynamicModule {
+  /** `testModules`: test seam for probe controllers in integration tests; production passes none. */
+  static register(
+    env: ApiEnv,
+    overrides?: InfraOverrides,
+    testModules: readonly Type[] = [],
+  ): DynamicModule {
     return {
       module: AppModule,
       imports: [
@@ -35,6 +40,7 @@ export class AppModule {
         AuthModule,
         ReliabilityModule,
         HealthModule,
+        ...testModules,
       ],
     };
   }
