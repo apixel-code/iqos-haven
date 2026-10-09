@@ -15,6 +15,11 @@ const ERRORS: Record<number, [string, string]> = {
   429: ["RATE_LIMITED", "Too many requests"],
   503: ["SERVICE_UNAVAILABLE", "Service temporarily unavailable"],
 };
+/** The standard envelope for a status, without details (also used by Fastify hooks). */
+export function errorEnvelope(status: number, requestId: string): ErrorEnvelope {
+  const [code, message] = ERRORS[status] ?? ["INTERNAL_ERROR", "Unexpected server error"];
+  return { error: { code, message, requestId, fields: [] } };
+}
 @Catch()
 export class ApiErrorFilter implements ExceptionFilter {
   constructor(private readonly logger?: Pick<Logger, "error">) {}

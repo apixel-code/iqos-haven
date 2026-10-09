@@ -28,6 +28,7 @@ const db = createDatabase(pool, { schema: namespace });
 const fast = { memoryKib: 19_456, timeCost: 2, parallelism: 1 };
 const hasher = new Argon2PasswordHasher(fast);
 const PASSWORD = "copper-lantern-river-71";
+const ADMIN_ORIGIN = "http://localhost:8081";
 
 let app: INestApplication;
 let base: string;
@@ -53,6 +54,7 @@ const login = (email: string, password = PASSWORD, extra: Record<string, unknown
   fetch(`${base}/v1/auth/login`, {
     method: "POST",
     headers: {
+      origin: ADMIN_ORIGIN,
       "content-type": "application/json",
       "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_5) Chrome/126.0 Safari/537.36",
       "x-ih-client-ip": "203.0.113.77",
@@ -164,7 +166,11 @@ describe("admin authentication and sessions (real PostgreSQL)", () => {
     const first = tokenOf(await login("staff@iqoshaven.test"))!;
     const second = await fetch(`${base}/v1/auth/login`, {
       method: "POST",
-      headers: { "content-type": "application/json", cookie: `__Host-ih_admin=${first}` },
+      headers: {
+        origin: ADMIN_ORIGIN,
+        "content-type": "application/json",
+        cookie: `__Host-ih_admin=${first}`,
+      },
       body: JSON.stringify({ email: "staff@iqoshaven.test", password: PASSWORD }),
     });
     expect(second.status).toBe(200);
@@ -188,7 +194,7 @@ describe("admin authentication and sessions (real PostgreSQL)", () => {
     const token = tokenOf(await login("staff@iqoshaven.test"))!;
     const response = await fetch(`${base}/v1/auth/logout`, {
       method: "POST",
-      headers: { cookie: `__Host-ih_admin=${token}` },
+      headers: { origin: ADMIN_ORIGIN, cookie: `__Host-ih_admin=${token}` },
     });
     expect(response.status).toBe(204);
     expect(response.headers.get("set-cookie")).toBe(

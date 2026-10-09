@@ -26,7 +26,11 @@
         "EMAIL_*",
         "SMTP_*",
         "S3_*",
-        "INTERNAL_SERVICE_*"
+        "INTERNAL_SERVICE_*",
+        "ARGON2_*",
+        "ADMIN_ORIGINS",
+        "STOREFRONT_ORIGINS",
+        "RATE_LIMIT_*"
       ]
     },
     "lint": {

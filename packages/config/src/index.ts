@@ -274,6 +274,76 @@ const signerComplete = (
     });
 };
 
+/**
+ * Browser origins and rate limiting (roadmap step 32, architecture §11). State-changing
+ * cookie-authenticated requests must carry an Origin from these lists. Defaults are the local
+ * gateway ports; staging/production must set https origins explicitly.
+ */
+const originList = (fallback: string) =>
+  z
+    .string()
+    .default(fallback)
+    .transform((value) =>
+      value
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean),
+    )
+    .pipe(
+      z
+        .array(httpUrl.refine((value) => new URL(value).origin === value, "must be a bare origin"))
+        .min(1)
+        .max(10),
+    );
+export const securityEnvFields = {
+  ADMIN_ORIGINS: originList("http://localhost:8081"),
+  STOREFRONT_ORIGINS: originList("http://localhost:8080"),
+  /** budget: local limiter is authoritative (one API process); replicated: shared cache Redis. */
+  RATE_LIMIT_PROFILE: z.enum(["budget", "replicated"]).default("budget"),
+  /** Keyed-hash secret for limiter keys; identical on all replicas. Required when replicated. */
+  RATE_LIMIT_KEY_SECRET: z.string().min(32).optional(),
+  RATE_LIMIT_LOCAL_MAX_KEYS: z.coerce.number().int().min(1000).max(1_000_000).default(50_000),
+  /** Maximum API replicas; local outage fallbacks divide cluster budgets by this. */
+  RATE_LIMIT_MAX_REPLICAS: z.coerce.number().int().min(1).max(64).default(1),
+};
+const securitySafety = (
+  value: {
+    APP_ENV: DeploymentEnv;
+    ADMIN_ORIGINS: string[];
+    STOREFRONT_ORIGINS: string[];
+    RATE_LIMIT_PROFILE: "budget" | "replicated";
+    RATE_LIMIT_KEY_SECRET?: string | undefined;
+    CACHE_REDIS_URL?: string | undefined;
+  },
+  ctx: z.RefinementCtx,
+) => {
+  const deployed = value.APP_ENV === "staging" || value.APP_ENV === "production";
+  for (const field of ["ADMIN_ORIGINS", "STOREFRONT_ORIGINS"] as const) {
+    if (deployed && value[field].some((origin) => !origin.startsWith("https://")))
+      ctx.addIssue({ code: "custom", path: [field], message: "must be https outside development" });
+  }
+  if (value.ADMIN_ORIGINS.some((origin) => value.STOREFRONT_ORIGINS.includes(origin)))
+    ctx.addIssue({
+      code: "custom",
+      path: ["ADMIN_ORIGINS"],
+      message: "admin and storefront origins must differ",
+    });
+  if (value.RATE_LIMIT_PROFILE === "replicated") {
+    if (!value.CACHE_REDIS_URL)
+      ctx.addIssue({
+        code: "custom",
+        path: ["CACHE_REDIS_URL"],
+        message: "required when replicated",
+      });
+    if (!value.RATE_LIMIT_KEY_SECRET)
+      ctx.addIssue({
+        code: "custom",
+        path: ["RATE_LIMIT_KEY_SECRET"],
+        message: "required when replicated",
+      });
+  }
+};
+
 export const apiEnvSchema = baseEnvSchema
   .extend({
     API_PORT: port.default(4000),
@@ -285,10 +355,12 @@ export const apiEnvSchema = baseEnvSchema
     ...storageEnvFields,
     INTERNAL_SERVICE_KEYS: serviceKeysSchema,
     ...passwordHashEnvFields,
+    ...securityEnvFields,
   })
   .superRefine((value, ctx) => {
     separateCacheRedis(value, ctx);
     storageSafety(value, ctx);
+    securitySafety(value, ctx);
   });
 export type ApiEnv = z.infer<typeof apiEnvSchema>;
 /** One-time first-Owner bootstrap CLI (runtime role; no other services needed). */

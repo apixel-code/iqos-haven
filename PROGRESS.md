@@ -4,17 +4,17 @@
 
 - Date: 2026-10-09
 - Milestone: M3 — identity, permissions, admin access and basic settings (M0 review and M1 staging/fixtures still open)
-- Step: 31 (access guard + permission guard + response field filtering) — done
-- Branch: `step/31-permission-guard` (from `main`)
+- Step: 32 (Origin/CSRF controls + endpoint limiter framework) — done
+- Branch: `step/32-origin-csrf-limiters` (from `main`)
 - See docs/verification.md for actual checks.
 
 ## Next action
 
-Merge PR for `step/31-permission-guard` once CI is green, then run `/step 32`: Origin/CSRF controls on every state-changing cookie-authenticated request (incl. login/logout), reject unsupported content types, and the endpoint-specific limiter framework (local authoritative limiter for login on the budget profile, shared on replicated; fail closed for auth when the configured limiter fails; architecture §11 "Rate-limit and dependency outage policy"). New admin routes must use `@RequirePermission`/`@Authenticated` + `@Serialize` (apps/api/CLAUDE.md). Use node@24 PATH; start Docker Desktop before `pnpm infra:up`.
+Merge the PR for `step/32-origin-csrf-limiters` once CI is green, then run `/step 33`: password-reset request/consume (`password_reset_tokens` migration, `PasswordResetController`). Use a generic response whether or not the account exists. The token is single-use, expires in 30 minutes and is stored hashed, and it is consumed atomically so concurrent reuse is rejected. Consuming it revokes all of the user's sessions. The reset email goes through the outbox/worker. Add fail-closed `EndpointLimitPolicy` entries for reset request and consume in `apps/api/src/security/limit-policies.ts` (ADR 0005). Use node@24 PATH; start Docker Desktop before `pnpm infra:up`.
 
 ## Blockers
 
-None for steps 31–32. BI-11 blocks real Owner bootstrap (28). Email go-live needs the rest of BI-07 (verified Resend domain, sender address, new-order recipients). Audit retention/pruning needs BI-08. BI-07 is partially answered; the other BI items remain open; M0 needs client decisions; M1 staging needs BI-06.
+None for steps 32–33 (reset email delivery to real inboxes still needs the rest of BI-07; local/test use Mailpit). BI-11 blocks real Owner bootstrap (28). Email go-live needs the rest of BI-07 (verified Resend domain, sender address, new-order recipients). Audit retention/pruning needs BI-08. BI-07 is partially answered; the other BI items remain open; M0 needs client decisions; M1 staging needs BI-06.
 
 ## Gates passed
 
@@ -40,7 +40,8 @@ None for steps 31–32. BI-11 blocks real Owner bootstrap (28). Email go-live ne
 - 28 — argon2id hasher, password policy, one-time Owner bootstrap CLI, owner-lock trigger — PR #8 (045b544)
 - 29 — Caddy same-origin gateway, header stripping, `pnpm test:gateway` (29 checks) in verify/CI — PR #9 (d494dc0)
 - 30 — login/logout/me, `__Host-ih_admin` sessions, AuthGuard — PR #10 (3254f93)
-- 31 — deny-by-default global `AccessGuard` (`@Public`/`@InternalService`/`@Authenticated`/`@RequirePermission`), boot-time route check, DB-derived permissions, `@Serialize` field policy + contract parse — uncommitted (commit `step(31)` follows this handoff)
+- 31 — deny-by-default global `AccessGuard` (`@Public`/`@InternalService`/`@Authenticated`/`@RequirePermission`), boot-time route check, DB-derived permissions, `@Serialize` field policy + contract parse — PR #12 (7654d35)
+- 32 — Origin/Sec-Fetch-Site/JSON-only `onRequest` hook, `@ih/platform` local/Redis fixed-window limiters + `EndpointLimiter` (fail-closed vs local fallback), login limits, ADR 0005 — uncommitted (commit `step(32)` follows this handoff)
 
 ## Known deviations
 
@@ -48,18 +49,27 @@ None for steps 31–32. BI-11 blocks real Owner bootstrap (28). Email go-live ne
 - Event `consumers` lists only implemented consumers (now `system_probe`); planned ones are documented with roadmap steps and move in with a backfill decision (architecture §8: adding a consumer must not redefine old completions).
 - `audit_log` migration revokes UPDATE/DELETE/TRUNCATE only from a role named `ih_app`; other runtime role names must be revoked at provisioning (trigger blocks mutations regardless).
 
-## Last session handoff (2026-10-09, step 31)
+## Last session handoff (2026-10-09, step 32)
 
-Done: step 31. Global APP_GUARD `AccessGuard` replaces `AuthGuard`: every route declares `@Public()` (handler-only), `@InternalService(...)`, `@Authenticated()` (handler-only) or `@RequirePermission(...all)`; `AccessPolicyCheck` refuses to boot on an undeclared route, a class-level `@Public`/`@Authenticated`, or a signed-in route without `@Serialize`/`@NoResponseBody`. Permissions come from the DB session query on every request (401 unauthenticated, 403 missing permission, checked before body validation). `filterFields`/`defineFieldPolicy` in `@ih/domain`; `@Serialize(schema, fieldPolicy)` strips Owner-only fields by permission (no caller → all stripped) then parses the contract (violation → generic 500). Test seam `createApp(env, overrides, testModules)` refused in production. `invariant-reviewer`: no blockers; 4 should-fixes applied (class-level public, mandatory serializer, prod seam guard, test gaps) plus nits.
+Done: step 32 (ADR 0005).
 
-Files: `packages/domain/src/{field-policy,field-policy.test,index}.ts`, `apps/api/src/auth/{access,serialize,access.int.test,auth.controller,auth.module}.ts` (deleted `auth.guard.ts`), `apps/api/src/{app.module,bootstrap}.ts`, `apps/api/src/health/health.controller.ts`, `apps/api/src/internal/service-auth.guard.ts`, `apps/api/CLAUDE.md`, `docs/{verification,implementation-status,task-backlog}.md`, `PROGRESS.md`.
+- **Fastify `onRequest` hook:** every non-safe request needs the target surface's allowlisted Origin (`ADMIN_ORIGINS` / `STOREFRONT_ORIGINS`) or it gets a 403. A cross-site or same-site `Sec-Fetch-Site` gets a 403, and a non-JSON body gets a 415.
+  - Paths are classified after decoding and slash collapsing. Unknown surfaces fail closed, and internal HMAC routes are exempt from the Origin rule.
+- **`@ih/platform` limiters:** a partitioned, capped `LocalRateLimiter` with an overflow ceiling, a Redis Lua limiter, and an `EndpointLimiter` (keyed HMAC keys, ordered short-circuit, fail-closed or local fallback with a per-process ceiling).
+- **Config:** `RATE_LIMIT_PROFILE` (budget or replicated) plus the key secret, key cap and max replicas.
+- **Login limits** are counted before argon2 and reset on success: IP 30/15m, identity+network 10/15m, identity 50/h. Denials get a generic 429 with Retry-After; a fail-closed limiter outage gets a 503.
+- `checkoutPolicy`/`quotePolicy` are defined for steps 75 and 76.
+- `invariant-reviewer`: no blockers. All 6 should-fixes are applied: IP header validation, per-partition caps with throttled sweep, IP-first short-circuit, accepted lockout risk recorded in the ADR with a warn log, encoded-path bypass, and logging of reset failures. The nits are applied too.
 
-Tests: `pnpm verify -- --integration` PASS (unit 236, integration 117 incl. api 28, gateway 29).
+Files: `packages/config/src/{index,index.test}.ts`, `packages/platform/src/{index.ts,rate-limit/*}`, `apps/api/src/security/*`, `apps/api/src/{bootstrap,app.module}.ts`, `apps/api/src/infra/{infra.module,tokens}.ts`, `apps/api/src/http/error.filter.ts`, `apps/api/src/auth/{auth.controller,auth.int.test,access.int.test}.ts`, `.env.example`, `turbo.json`, `docs/environment.md`, `docs/decisions/0005-csrf-origin-and-rate-limits.md`, `docs/{verification,implementation-status,task-backlog}.md`, `PROGRESS.md`.
 
-Unfinished: Origin/CSRF + limiters (32), password reset (33), invites (34), staff admin (35), last-Owner service (36), admin UI (37). Real Owner-only endpoints adopt field policies as they land (customers 90s, reports 106+).
+Tests: `pnpm verify -- --integration` PASS (unit 256, integration 128, gateway 29).
+
+Unfinished: password reset (33), invites (34), staff admin (35), last-Owner service (36), admin UI (37). Limit values must be verified in staging (M11). The production deploy must keep Nest private behind the gateway.
 
 ## History (summary)
 
+- 2026-10-09 step 31: deny-by-default AccessGuard, DB-derived permissions, `@Serialize` field policy (PR #12, 7654d35).
 - 2026-10-09 step 30: admin sign-in/logout/me + session lifecycle, AuthGuard (PR #10, 3254f93); M2 gate closed (PR #11).
 
 - 2026-10-09 step 29: Caddy same-origin gateway (PR #9, d494dc0).

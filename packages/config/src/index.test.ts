@@ -186,3 +186,47 @@ describe("Resend configuration", () => {
     );
   });
 });
+
+describe("browser origins and rate-limit profile", () => {
+  const base = {
+    DATABASE_URL: "postgres://u:p@localhost:5432/db",
+    QUEUE_REDIS_URL: "redis://localhost:6379",
+  };
+
+  it("defaults to the local gateway origins and the budget profile", () => {
+    const env = loadEnv(apiEnvSchema, base);
+    expect(env.ADMIN_ORIGINS).toEqual(["http://localhost:8081"]);
+    expect(env.STOREFRONT_ORIGINS).toEqual(["http://localhost:8080"]);
+    expect(env.RATE_LIMIT_PROFILE).toBe("budget");
+  });
+
+  it("parses origin lists and rejects paths, http in production and shared origins", () => {
+    const env = loadEnv(apiEnvSchema, {
+      ...base,
+      ADMIN_ORIGINS: "https://admin.iqoshaven.com, https://admin2.iqoshaven.com",
+    });
+    expect(env.ADMIN_ORIGINS).toHaveLength(2);
+    expect(() =>
+      loadEnv(apiEnvSchema, { ...base, ADMIN_ORIGINS: "https://admin.iqoshaven.com/" }),
+    ).toThrow(/ADMIN_ORIGINS/);
+    expect(() => loadEnv(apiEnvSchema, { ...base, APP_ENV: "production" })).toThrow(
+      /ADMIN_ORIGINS/,
+    );
+    expect(() =>
+      loadEnv(apiEnvSchema, { ...base, STOREFRONT_ORIGINS: "http://localhost:8081" }),
+    ).toThrow(/ADMIN_ORIGINS/);
+  });
+
+  it("requires a cache Redis and a key secret for the replicated profile", () => {
+    const run = () => loadEnv(apiEnvSchema, { ...base, RATE_LIMIT_PROFILE: "replicated" });
+    expect(run).toThrow(/CACHE_REDIS_URL/);
+    expect(run).toThrow(/RATE_LIMIT_KEY_SECRET/);
+    const env = loadEnv(apiEnvSchema, {
+      ...base,
+      RATE_LIMIT_PROFILE: "replicated",
+      CACHE_REDIS_URL: "redis://cache:6379",
+      RATE_LIMIT_KEY_SECRET: "s".repeat(32),
+    });
+    expect(env.RATE_LIMIT_PROFILE).toBe("replicated");
+  });
+});

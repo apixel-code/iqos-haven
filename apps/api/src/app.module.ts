@@ -6,6 +6,7 @@ import { ReliabilityModule } from "./reliability/reliability.module";
 import { HealthModule } from "./health/health.module";
 import { InfraModule, type InfraOverrides } from "./infra/infra.module";
 import { AuthModule } from "./auth/auth.module";
+import { SecurityModule } from "./security/security.module";
 import { InternalModule } from "./internal/internal.module";
 import { requestId } from "./http/request-id";
 @Module({})
@@ -37,6 +38,7 @@ export class AppModule {
         }),
         InfraModule.register(env, overrides),
         InternalModule,
+        SecurityModule,
         AuthModule,
         ReliabilityModule,
         HealthModule,
