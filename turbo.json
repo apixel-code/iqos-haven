@@ -30,7 +30,8 @@
         "ARGON2_*",
         "ADMIN_ORIGINS",
         "STOREFRONT_ORIGINS",
-        "RATE_LIMIT_*"
+        "RATE_LIMIT_*",
+        "PASSWORD_RESET_*"
       ]
     },
     "lint": {

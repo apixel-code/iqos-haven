@@ -50,6 +50,21 @@ interface EventDefinition<P extends z.ZodType> {
 const define = <P extends z.ZodType>(definition: EventDefinition<P>) => definition;
 
 export const EVENT_CATALOGUE = {
+  "staff.password_reset": define({
+    schemaVersion: 1,
+    aggregateType: "staff_user",
+    payload: z.strictObject({ userId: id }),
+    consumers: [],
+    plannedConsumers: {},
+  }),
+  // New event in step 33: no historical rows to replay/backfill; old events are unchanged.
+  "staff.password_reset_requested": define({
+    schemaVersion: 1,
+    aggregateType: "staff_user",
+    payload: z.strictObject({ resetId: id }),
+    consumers: ["email"],
+    plannedConsumers: {},
+  }),
   /** Synthetic event for the Milestone 2 gate and operational smoke checks. */
   "system.probe": define({
     schemaVersion: 1,

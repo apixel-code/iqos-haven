@@ -24,6 +24,7 @@
 - Step 30: `POST /v1/auth/login`, `POST /v1/auth/logout`, `GET /v1/auth/me` (admin origin only via the gateway). `__Host-ih_admin` cookie (Secure, HttpOnly, SameSite=Strict, Path=/, no Domain), 256-bit token stored as SHA-256; one SQL check of revocation, 12 h idle, 7 d absolute and active user on every authenticated request; throttled last-seen; generic 401 with one argon2 verify on every failure path; NFKC + length cap; rehash on login; session only created if the verified hash and active status still hold; re-login revokes the presented session; minimized IP/client metadata. Rate limits/CSRF are step 32.
 - Step 31: deny-by-default global `AccessGuard` with `@Public`/`@InternalService`/`@Authenticated`/`@RequirePermission` (all listed keys required); API refuses to boot on undeclared routes, class-wide public/authenticated policies or signed-in routes without `@Serialize`/`@NoResponseBody`. Permissions are read from PostgreSQL per request. `@Serialize(contract, fieldPolicy)` strips Owner-only fields by permission (`filterFields` in `@ih/domain`) and then parses the response contract; a violation answers a generic 500.
 - Step 32 (ADR 0005): API `onRequest` Origin/CSRF hook — surface-specific Origin allowlists, `Sec-Fetch-Site` refusal, JSON-only bodies (415), decoded-path classification, unknown surfaces fail closed, internal HMAC routes exempt from Origin. `@ih/platform` endpoint limiters (partitioned local + Redis fixed windows, keyed-hash keys, fail-closed vs bounded local fallback); `RATE_LIMIT_PROFILE` budget/replicated. Login limited per IP, identity+network and identity (429 + Retry-After; 503 when the authoritative limiter is down). Checkout/quote policies defined for steps 75–76.
+- Step 33: forgot/reset contracts and controller; hashed 30-minute reset verifiers; atomic consumption/password update/session revocation/sibling invalidation plus audit/outbox; generic account responses; dedicated key-ring durable email planner and template; fail-closed request/consume policies (ADR 0006). Admin reset UI remains step 37.
 - Uploaded architecture, ordered roadmap, corrected prototypes, derived requirements/design/acceptance/database/security/operational references.
 
 ## Partial or awaiting review
@@ -32,9 +33,9 @@ Milestone 0 documentation exists, but business inputs, final screen states/asset
 
 ## Not implemented
 
-The remaining 36 business tables; identity/auth (M3)/effect relay/reconciler/scheduler; email/media adapters; bootstrap/auth/sessions/permissions/reset; gateway/CSRF/rate limits; catalogue/variants/inventory; Ed25519 age gate; private confirmation capabilities; tax/quote/coupons; transactional checkout/idempotency; operational orders/COD/returns; notifications/reviews/CMS/reports/SEO; production deployment, PITR and recovery drills.
+Remaining identity invites/staff administration/last-Owner service/admin UI and settings; business tables and media processing; catalogue/variants/inventory; Ed25519 age gate; private confirmation capabilities; tax/quote/coupons; transactional checkout/idempotency; operational orders/COD/returns; notifications/reviews/CMS/reports/SEO; production deployment, PITR and recovery drills.
 
-No feature becomes complete because a document, exported primitive or demo screen exists. `packages/domain` money/order helpers are building blocks only. `packages/application` remains a use-case placeholder. Current frontend environment configuration does not imply that a gateway or API commerce integration has been implemented.
+No feature becomes complete because a document, exported primitive or demo screen exists. `packages/domain` money/order helpers are building blocks only. `packages/application` remains a use-case placeholder. Gateway and backend authentication exist; frontends remain foundation pages with no commerce or authentication UI integration.
 
 ## Next implementation sequence
 

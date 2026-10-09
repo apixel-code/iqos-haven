@@ -21,6 +21,7 @@
     "@ih/contracts": "workspace:*",
     "@ih/application": "workspace:*",
     "@ih/domain": "workspace:*",
+    "@ih/platform": "workspace:*",
     "nodemailer": "10.0.16"
   },
   "devDependencies": {

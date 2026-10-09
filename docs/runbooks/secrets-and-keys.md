@@ -33,3 +33,7 @@ Revoke compromised kid immediately across every verifier; do not use the normal 
 ## Other credential rotation/recovery
 
 Use provider-supported staged credentials/identity rotation, deploy readers, verify health and revoke old credentials after the controlled window. Confirmation-encryption-key removal needs a deliberate replay-expiry/recovery policy so accepted orders are never duplicated. Keep secret-manager recovery permissions separately controlled/tested; bootstrap Owner recovery is audited and never adds a default password. Every environment has independent secrets/state/backup access.
+
+## Password-reset key ring
+
+Use independent `PASSWORD_RESET_KEYS` on API/worker, delivered by the chosen secret manager. Add the new `reset:keyId:base64urlSecret` to all workers/readers before making it the API's first entry. Keep old entries through the last 30-minute token expiry and rollout. Compromise: invalidate unused `password_reset_tokens` for the compromised key ID, remove it everywhere and record audited incident evidence. Removing a delivery key alone does not revoke an already delivered verifier. Do not print secrets/links or put tokens in outbox payloads. ADR 0006 documents the PRF and threat model.

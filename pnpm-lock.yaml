@@ -215,6 +215,9 @@ importers:
       '@ih/logger':
         specifier: workspace:*
         version: link:../../packages/logger
+      '@ih/platform':
+        specifier: workspace:*
+        version: link:../../packages/platform
       bullmq:
         specifier: 6.3.11
         version: 6.3.11(ioredis@6.0.0)(pg@8.23.1)

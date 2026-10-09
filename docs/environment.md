@@ -49,3 +49,7 @@ Future signing/confirmation/session/gateway/cache/provider secrets must follow `
 Compose binds Postgres, queue Redis, MinIO and Mailpit host ports only to loopback. PostgreSQL 18 uses its version-specific Docker data layout and a new pg18-data volume; do not mount a PG17 volume into it or delete an old volume as an upgrade method. Use logical dump/restore or an approved major-upgrade procedure.
 
 `infra/images.lock.json` records pinned references. Postgres/Redis/Node/Mailpit digests were fetched from the registry; MinIO/mc use digest-pinned Chainguard builds because official MinIO images are no longer publicly pullable; Docker runtime checks passed locally (see verification.md). All of these Compose credentials are local fixtures, never production credentials. Production storage is the selected approved UAE-region provider, not this dev MinIO instance.
+
+## Password reset (step 33)
+
+API and worker share `PASSWORD_RESET_KEYS` from a secret manager: comma-separated `reset:keyId:base64urlSecret` entries (>=32 random bytes, independent of other purpose keys). First entry issues; retained entries deliver pending links. Set `PASSWORD_RESET_ORIGIN` to the bare admin origin, allowed by API `ADMIN_ORIGINS`; staging/production require HTTPS. Never use browser `Host` to build email links. Empty keys disable forgot/reset with 503. No committed default key exists. Delivery still uses `EMAIL_SEND_ENABLED`, local Mailpit and the staging recipient allowlist. See ADR 0006 for rotation, compromise and the planned step 37 fragment flow.

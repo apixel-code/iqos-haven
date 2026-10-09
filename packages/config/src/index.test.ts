@@ -230,3 +230,42 @@ describe("browser origins and rate-limit profile", () => {
     expect(env.RATE_LIMIT_PROFILE).toBe("replicated");
   });
 });
+
+describe("purpose-specific reset configuration", () => {
+  const base = {
+    DATABASE_URL: "postgres://u:p@localhost:5432/db",
+    QUEUE_REDIS_URL: "redis://localhost:6379",
+  };
+  const key = Buffer.alloc(32, 8).toString("base64url");
+  it("defaults to disabled, validates purpose/length and requires the admin origin", () => {
+    expect(loadEnv(apiEnvSchema, base).PASSWORD_RESET_KEYS).toEqual([]);
+    for (const PASSWORD_RESET_KEYS of [
+      "reset:one:short",
+      `worker:one:${key}`,
+      `reset:one:${key},reset:one:${key}`,
+    ])
+      expect(() =>
+        loadEnv(apiEnvSchema, {
+          ...base,
+          PASSWORD_RESET_KEYS,
+          PASSWORD_RESET_ORIGIN: "http://localhost:8081",
+        }),
+      ).toThrow();
+    expect(() =>
+      loadEnv(apiEnvSchema, { ...base, PASSWORD_RESET_KEYS: `reset:one:${key}` }),
+    ).toThrow(/PASSWORD_RESET_ORIGIN/);
+    expect(() =>
+      loadEnv(apiEnvSchema, {
+        ...base,
+        PASSWORD_RESET_KEYS: `reset:one:${key}`,
+        PASSWORD_RESET_ORIGIN: "https://evil.test",
+      }),
+    ).toThrow(/PASSWORD_RESET_ORIGIN/);
+    const parsed = loadEnv(apiEnvSchema, {
+      ...base,
+      PASSWORD_RESET_KEYS: `reset:one:${key}`,
+      PASSWORD_RESET_ORIGIN: "http://localhost:8081",
+    });
+    expect(parsed.PASSWORD_RESET_KEYS[0]?.keyId).toBe("one");
+  });
+});

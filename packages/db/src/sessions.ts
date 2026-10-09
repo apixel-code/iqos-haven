@@ -6,6 +6,7 @@ import {
   type SessionRevokeReason,
 } from "@ih/domain";
 import { Prisma, type Database, type DbExecutor } from "./client";
+import { withTransaction } from "./transaction";
 
 /**
  * Admin session persistence (architecture §11). Only the SHA-256 of the token is stored. Every
@@ -53,7 +54,7 @@ export async function upgradePasswordHash(
  * Returns null when that is no longer true.
  */
 export async function createSession(
-  db: DbExecutor,
+  db: Database,
   input: {
     userId: string;
     /** The hash the caller verified against (or the one it just upgraded to). */
@@ -63,7 +64,14 @@ export async function createSession(
     clientLabel: string | null;
   },
 ): Promise<{ id: string; expiresAt: Date } | null> {
-  const rows = await db.$queryRaw<Array<{ id: string; expires_at: Date }>>(Prisma.sql`
+  return withTransaction(db, async (tx) => {
+    // Serialize with password reset. INSERT SELECT alone may read an old MVCC snapshot before
+    // its FK lock waits, letting an uncommitted old-password session escape reset revocation.
+    const users = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+    SELECT id FROM staff_users WHERE id = ${input.userId}::uuid
+      AND active AND password_hash = ${input.expectedPasswordHash} FOR UPDATE`);
+    if (!users[0]) return null;
+    const rows = await tx.$queryRaw<Array<{ id: string; expires_at: Date }>>(Prisma.sql`
     INSERT INTO sessions (user_id, token_hash, expires_at, ip_network, client_label)
     SELECT u.id, ${input.tokenHash},
            statement_timestamp() + make_interval(secs => ${SESSION_ABSOLUTE_MS / 1000}),
@@ -71,11 +79,12 @@ export async function createSession(
     FROM staff_users u
     WHERE u.id = ${input.userId}::uuid AND u.active AND u.password_hash = ${input.expectedPasswordHash}
     RETURNING id, expires_at`);
-  const row = rows[0];
-  if (!row) return null;
-  await db.$executeRaw(Prisma.sql`
+    const row = rows[0];
+    if (!row) return null;
+    await tx.$executeRaw(Prisma.sql`
     UPDATE staff_users SET last_active_at = statement_timestamp() WHERE id = ${input.userId}::uuid`);
-  return { id: row.id, expiresAt: row.expires_at };
+    return { id: row.id, expiresAt: row.expires_at };
+  });
 }
 
 export interface AuthenticatedStaff {

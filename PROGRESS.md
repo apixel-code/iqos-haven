@@ -4,17 +4,17 @@
 
 - Date: 2026-10-09
 - Milestone: M3 — identity, permissions, admin access and basic settings (M0 review and M1 staging/fixtures still open)
-- Step: 32 (Origin/CSRF controls + endpoint limiter framework) — done
-- Branch: `step/32-origin-csrf-limiters` (from `main`)
+- Step: 33 (password-reset request/consume + durable email) — done
+- Branch: `step/33-password-reset` (based on local step 32 commit `1a58fea`; ensure step 32 is merged before merging step 33)
 - See docs/verification.md for actual checks.
 
 ## Next action
 
-Merge the PR for `step/32-origin-csrf-limiters` once CI is green, then run `/step 33`: password-reset request/consume (`password_reset_tokens` migration, `PasswordResetController`). Use a generic response whether or not the account exists. The token is single-use, expires in 30 minutes and is stored hashed, and it is consumed atomically so concurrent reuse is rejected. Consuming it revokes all of the user's sessions. The reset email goes through the outbox/worker. Add fail-closed `EndpointLimitPolicy` entries for reset request and consume in `apps/api/src/security/limit-policies.ts` (ADR 0005). Use node@24 PATH; start Docker Desktop before `pnpm infra:up`.
+Review/push step 33 and merge via PR after CI is green, with step 32 (`1a58fea`) merged first. Then implement `/step 34`: staff invitation request/acceptance, server-approved role, hashed single-use expiring/revocable tokens and safe worker email. Reuse the identity user-lock/session-revocation pattern and fail-closed endpoint limiter framework. Reset UI remains step 37. Configure separate `PASSWORD_RESET_KEYS` and `PASSWORD_RESET_ORIGIN` on API/worker for reset testing; empty keys intentionally return 503. Apply the additive migration through the normal release flow. No real identities or `.env` secrets changed here.
 
 ## Blockers
 
-None for steps 32–33 (reset email delivery to real inboxes still needs the rest of BI-07; local/test use Mailpit). BI-11 blocks real Owner bootstrap (28). Email go-live needs the rest of BI-07 (verified Resend domain, sender address, new-order recipients). Audit retention/pruning needs BI-08. BI-07 is partially answered; the other BI items remain open; M0 needs client decisions; M1 staging needs BI-06.
+None for step 33 implementation (reset email delivery to real inboxes still needs the rest of BI-07; local/test use Mailpit). BI-11 blocks real Owner bootstrap (28). Email go-live needs the rest of BI-07 (verified Resend domain, sender address, new-order recipients). Audit retention/pruning needs BI-08. BI-07 is partially answered; the other BI items remain open; M0 needs client decisions; M1 staging needs BI-06.
 
 ## Gates passed
 
@@ -41,7 +41,9 @@ None for steps 32–33 (reset email delivery to real inboxes still needs the res
 - 29 — Caddy same-origin gateway, header stripping, `pnpm test:gateway` (29 checks) in verify/CI — PR #9 (d494dc0)
 - 30 — login/logout/me, `__Host-ih_admin` sessions, AuthGuard — PR #10 (3254f93)
 - 31 — deny-by-default global `AccessGuard` (`@Public`/`@InternalService`/`@Authenticated`/`@RequirePermission`), boot-time route check, DB-derived permissions, `@Serialize` field policy + contract parse — PR #12 (7654d35)
-- 32 — Origin/Sec-Fetch-Site/JSON-only `onRequest` hook, `@ih/platform` local/Redis fixed-window limiters + `EndpointLimiter` (fail-closed vs local fallback), login limits, ADR 0005 — uncommitted (commit `step(32)` follows this handoff)
+- 32 — Origin/Sec-Fetch-Site/JSON-only `onRequest` hook, `@ih/platform` local/Redis fixed-window limiters + `EndpointLimiter` (fail-closed vs local fallback), login limits, ADR 0005 — 1a58fea
+
+- 33 — hashed 30-minute password reset, atomic password/session/sibling revocation + audit/outbox, purpose-keyed worker email, fail-closed reset limits and old-password login race fix (ADR 0006) — commit `step(33): password reset with durable email and atomic session revocation` on this branch
 
 ## Known deviations
 
@@ -49,25 +51,26 @@ None for steps 32–33 (reset email delivery to real inboxes still needs the res
 - Event `consumers` lists only implemented consumers (now `system_probe`); planned ones are documented with roadmap steps and move in with a backfill decision (architecture §8: adding a consumer must not redefine old completions).
 - `audit_log` migration revokes UPDATE/DELETE/TRUNCATE only from a role named `ih_app`; other runtime role names must be revoked at provisioning (trigger blocks mutations regardless).
 
-## Last session handoff (2026-10-09, step 32)
+## Last session handoff (2026-10-09, step 33)
 
-Done: step 32 (ADR 0005).
+Done: step 33 (ADR 0006), backend + durable email only. Frontend reset page is step 37.
 
-- **Fastify `onRequest` hook:** every non-safe request needs the target surface's allowlisted Origin (`ADMIN_ORIGINS` / `STOREFRONT_ORIGINS`) or it gets a 403. A cross-site or same-site `Sec-Fetch-Site` gets a 403, and a non-JSON body gets a 415.
-  - Paths are classified after decoding and slash collapsing. Unknown surfaces fail closed, and internal HMAC routes are exempt from the Origin rule.
-- **`@ih/platform` limiters:** a partitioned, capped `LocalRateLimiter` with an overflow ceiling, a Redis Lua limiter, and an `EndpointLimiter` (keyed HMAC keys, ordered short-circuit, fail-closed or local fallback with a per-process ceiling).
-- **Config:** `RATE_LIMIT_PROFILE` (budget or replicated) plus the key secret, key cap and max replicas.
-- **Login limits** are counted before argon2 and reset on success: IP 30/15m, identity+network 10/15m, identity 50/h. Denials get a generic 429 with Retry-After; a fail-closed limiter outage gets a 503.
-- `checkoutPolicy`/`quotePolicy` are defined for steps 75 and 76.
-- `invariant-reviewer`: no blockers. All 6 should-fixes are applied: IP header validation, per-partition caps with throttled sweep, IP-first short-circuit, accepted lockout risk recorded in the ADR with a warn log, encoded-path bypass, and logging of reset failures. The nits are applied too.
+- `POST /v1/auth/forgot`: strict bounded contract; generic accepted response for known/unknown/inactive/malformed identities; no cookie or secret returned; active users receive a 30-minute hashed verifier with atomic audit/outbox/email effect.
+- `POST /v1/auth/reset`: generic failure; password-policy/NFKC validation; user lock + atomic single-use consumption, password/version update, all-session revocation, sibling-link invalidation and audit/outbox; no auto-login.
+- Random UUID + purpose-keyed 256-bit secret; only hash in DB, IDs-only events. Dedicated API/worker key ring, configured admin origin, fragment link. Planner verifies recipient/hash/user/version/use/expiry; retained old keys reproduce the identical retry message. Empty keys fail closed with 503.
+- Request limits IP 20/15m + identity 3/30m; consume IP 20/15m; authoritative limiter outages 503, denials 429 + Retry-After. Origin/JSON controls cover both endpoints.
+- Review caught a concurrent old-password login that could commit behind reset revocation. `createSession` now locks/rechecks the same user before insert; deterministic real-DB lock-wait test passes. Second invariant review: no issues.
+- Generated reset OpenAPI contracts; corrected stale README/start/status/security text. Frozen lockfile validated offline. Existing local dependency tree linked the new worker workspace dependency; no external package version changed.
 
-Files: `packages/config/src/{index,index.test}.ts`, `packages/platform/src/{index.ts,rate-limit/*}`, `apps/api/src/security/*`, `apps/api/src/{bootstrap,app.module}.ts`, `apps/api/src/infra/{infra.module,tokens}.ts`, `apps/api/src/http/error.filter.ts`, `apps/api/src/auth/{auth.controller,auth.int.test,access.int.test}.ts`, `.env.example`, `turbo.json`, `docs/environment.md`, `docs/decisions/0005-csrf-origin-and-rate-limits.md`, `docs/{verification,implementation-status,task-backlog}.md`, `PROGRESS.md`.
+Files: `packages/db/prisma/{schema.prisma,migrations/20261009120000_password_reset/migration.sql}`, `packages/db/src/{password-reset,sessions,index}.ts`, `packages/contracts/src/{auth,events,events.test}.ts`, `packages/platform/src/{index.ts,password/reset-token*}`, `packages/config/src/{index,index.test}.ts`, `packages/application/src/email/{index,password-reset}.ts`, `apps/api/src/auth/{auth.module,password-reset*}.ts`, `apps/api/src/security/limit-policies.ts`, `apps/worker/src/{main,password-reset-email*}.ts`, `apps/worker/package.json`, `pnpm-lock.yaml`, `.env.example`, `turbo.json`, `scripts/generate-api-contract.mjs`, `docs/api.openapi.json`, `docs/decisions/0006-password-reset-delivery.md`, `docs/{environment,email-delivery,implementation-status,task-backlog,security-boundaries,verification}.md`, `docs/runbooks/secrets-and-keys.md`, `README.md`, `START-HERE-BN.md`, `PROGRESS.md`.
 
-Tests: `pnpm verify -- --integration` PASS (unit 256, integration 128, gateway 29).
+Tests: `pnpm verify -- --integration` PASS (unit 266, integration 139, gateway 29). New coverage: generic accounts, hash-only storage, 30-minute expiry, concurrent reuse and sibling invalidation, weak/NFKC passwords, all-session revocation, rollback on audit failure, blocked old-hash login, Origin/strict contracts/rate limits, missing reset config/shared Redis outage, real Mailpit delivery through EffectRunner, completed duplicate, old-key retry, stale/changed recipient suppression.
 
-Unfinished: password reset (33), invites (34), staff admin (35), last-Owner service (36), admin UI (37). Limit values must be verified in staging (M11). The production deploy must keep Nest private behind the gateway.
+Unfinished: step 34 invites, step 35 staff admin, step 36 last-Owner service, step 37 auth/reset UI. Real email go-live still BI-07; key provisioning and migration are operator/release setup. No live DB migration, real email, PR push or merge performed. No new milestone gate closed.
 
 ## History (summary)
+
+- 2026-10-09 step 32: Origin/CSRF/JSON controls, fail-closed/local-fallback limiters, login policies, ADR 0005 (1a58fea); verify unit 256/integration 128/gateway 29.
 
 - 2026-10-09 step 31: deny-by-default AccessGuard, DB-derived permissions, `@Serialize` field policy (PR #12, 7654d35).
 - 2026-10-09 step 30: admin sign-in/logout/me + session lifecycle, AuthGuard (PR #10, 3254f93); M2 gate closed (PR #11).

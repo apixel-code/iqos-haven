@@ -5,6 +5,7 @@ import { createDatabase, createPool } from "@ih/db";
 import { createLogger, errorSummary } from "@ih/logger";
 import { bounded } from "./lifecycle";
 import { createEmailConsumer } from "@ih/application";
+import { passwordResetEmailPlanner } from "./password-reset-email";
 import { createEmailAdapter } from "./email";
 import { EffectRunner, startEffectWorkers, systemProbeHandler } from "./effects";
 import { BullEffectEnqueuer, createQueueConnection } from "./queue";
@@ -30,11 +31,11 @@ async function main(): Promise<void> {
   const owner = `${hostname()}:${process.pid}:${randomUUID().slice(0, 8)}`;
   const relay = new OutboxRelay({ db: database, enqueuer, owner, log });
   const email = createEmailAdapter(env, log);
-  // No event routes to email yet: planners arrive with their features (steps 78/92, BI-07).
+  // Step 33 wires the new reset event only; prior event consumer snapshots stay unchanged.
   const emailConsumer = createEmailConsumer({
     adapter: email.adapter,
     from: env.EMAIL_FROM ?? "no-reply@iqoshaven.local",
-    planners: {},
+    planners: { "staff.password_reset_requested": passwordResetEmailPlanner(database, env) },
   });
   const runner = new EffectRunner({
     db: database,

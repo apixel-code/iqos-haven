@@ -43,3 +43,19 @@ export const quotePolicy = (env: ApiEnv): EndpointLimitPolicy<"ip"> => ({
   rules: { ip: perMinute(60) },
   outage: { fallback: { ip: perInstance(env, 30) }, processCeiling: perMinute(600) },
 });
+
+/** Reset requests count identically for known and unknown identities; never cleared by request. */
+export const RESET_REQUEST_POLICY: EndpointLimitPolicy<"ip" | "identity"> = {
+  endpoint: "password_reset_request",
+  rules: {
+    ip: { limit: 20, windowMs: 15 * MINUTE },
+    identity: { limit: 3, windowMs: 30 * MINUTE },
+  },
+  outage: "fail_closed",
+};
+/** IP-only: rotating invalid tokens must not create an unbounded second limiter partition. */
+export const RESET_CONSUME_POLICY: EndpointLimitPolicy<"ip"> = {
+  endpoint: "password_reset_consume",
+  rules: { ip: { limit: 20, windowMs: 15 * MINUTE } },
+  outage: "fail_closed",
+};

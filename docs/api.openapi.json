@@ -1,11 +1,132 @@
 {
   "openapi": "3.0.3",
   "info": {
-    "title": "Iqos Haven — implemented internal foundation API",
+    "title": "Iqos Haven — implemented API contracts",
     "version": "0.0.0",
-    "description": "Only implemented health routes. Commerce endpoints are specifications in architecture.md, not live routes."
+    "description": "Implemented health and password-reset contracts. Browser reset commands require the configured admin Origin and JSON bodies; responses are no-store. Reset UI is roadmap step 37."
   },
   "paths": {
+    "/v1/auth/forgot": {
+      "post": {
+        "operationId": "passwordResetRequest",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/ForgotRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Accepted, irrespective of account existence",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ForgotResponse" }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "403": {
+            "description": "Origin denied",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "415": {
+            "description": "JSON required",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited; Retry-After set",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "503": {
+            "description": "Reset configuration or authoritative limiter unavailable",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/auth/reset": {
+      "post": {
+        "operationId": "passwordResetConsume",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/ResetRequest" }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Password changed; all sessions and sibling links revoked; no auto-login"
+          },
+          "400": {
+            "description": "Invalid request, link or password",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "403": {
+            "description": "Origin denied",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "415": {
+            "description": "JSON required",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited; Retry-After set",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          },
+          "503": {
+            "description": "Reset configuration or authoritative limiter unavailable",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/health/live": {
       "get": {
         "operationId": "healthLive",
@@ -97,6 +218,29 @@
           }
         },
         "required": ["error"],
+        "additionalProperties": false
+      },
+      "ForgotRequest": {
+        "type": "object",
+        "properties": {
+          "email": { "type": "string", "minLength": 1, "maxLength": 320 }
+        },
+        "required": ["email"],
+        "additionalProperties": false
+      },
+      "ForgotResponse": {
+        "type": "object",
+        "properties": { "accepted": { "type": "boolean", "enum": [true] } },
+        "required": ["accepted"],
+        "additionalProperties": false
+      },
+      "ResetRequest": {
+        "type": "object",
+        "properties": {
+          "token": { "type": "string", "minLength": 1, "maxLength": 200 },
+          "password": { "type": "string", "minLength": 1, "maxLength": 1024 }
+        },
+        "required": ["token", "password"],
         "additionalProperties": false
       }
     }

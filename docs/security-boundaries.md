@@ -1,6 +1,6 @@
 # Security boundaries and implementation controls
 
-Architecture sections 3, 9 and 11 are authoritative. Current code fixes cover foundation validation/logging/lifecycle only. Authentication, age tickets, gateways, storage authorization and commerce enforcement are pending milestones.
+Architecture sections 3, 9 and 11 are authoritative. Implemented controls include validation/logging/lifecycle, backend sessions/permissions/reset, Origin/CSRF/rate limits, the gateway, private storage and service auth (steps 18–33). Age tickets, frontend auth and commerce enforcement remain pending milestones.
 
 | Boundary                         | Required enforcement                                                                                                               | Release evidence                                                                                      |
 | -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |

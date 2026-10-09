@@ -18,3 +18,11 @@ export const meResponseSchema = z.strictObject({
   permissions: z.array(z.string()),
 });
 export type MeResponse = z.infer<typeof meResponseSchema>;
+
+/** Generic response for every valid forgot request, including unknown/inactive accounts. */
+export const forgotRequestSchema = z.strictObject({ email: z.string().min(1).max(320) });
+export const forgotResponseSchema = z.strictObject({ accepted: z.literal(true) });
+export const resetRequestSchema = z.strictObject({
+  token: z.string().min(1).max(200),
+  password: z.string().min(1).max(1024),
+});

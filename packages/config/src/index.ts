@@ -344,6 +344,46 @@ const securitySafety = (
   }
 };
 
+/** Purpose-specific reset key ring (first entry signs; old entries retained for delivery overlap). */
+export const resetEnvFields = {
+  PASSWORD_RESET_KEYS: serviceKeysSchema
+    .refine(
+      (keys) => keys.every((key) => key.service === "reset"),
+      "Reset keys require reset service",
+    )
+    .transform((keys) => {
+      return keys.map(({ keyId, secret }) => ({ keyId, secret }));
+    }),
+  PASSWORD_RESET_ORIGIN: httpUrl
+    .refine((value) => new URL(value).origin === value, "must be a bare origin")
+    .optional(),
+};
+const resetSafety = (
+  value: {
+    APP_ENV: DeploymentEnv;
+    PASSWORD_RESET_KEYS: unknown[];
+    PASSWORD_RESET_ORIGIN?: string | undefined;
+  },
+  ctx: z.RefinementCtx,
+) => {
+  if (value.PASSWORD_RESET_KEYS.length && !value.PASSWORD_RESET_ORIGIN)
+    ctx.addIssue({
+      code: "custom",
+      path: ["PASSWORD_RESET_ORIGIN"],
+      message: "required with reset keys",
+    });
+  if (
+    (value.APP_ENV === "production" || value.APP_ENV === "staging") &&
+    value.PASSWORD_RESET_ORIGIN &&
+    !value.PASSWORD_RESET_ORIGIN.startsWith("https://")
+  )
+    ctx.addIssue({
+      code: "custom",
+      path: ["PASSWORD_RESET_ORIGIN"],
+      message: "must be https outside development",
+    });
+};
+
 export const apiEnvSchema = baseEnvSchema
   .extend({
     API_PORT: port.default(4000),
@@ -355,12 +395,20 @@ export const apiEnvSchema = baseEnvSchema
     ...storageEnvFields,
     INTERNAL_SERVICE_KEYS: serviceKeysSchema,
     ...passwordHashEnvFields,
+    ...resetEnvFields,
     ...securityEnvFields,
   })
   .superRefine((value, ctx) => {
     separateCacheRedis(value, ctx);
     storageSafety(value, ctx);
     securitySafety(value, ctx);
+    resetSafety(value, ctx);
+    if (value.PASSWORD_RESET_ORIGIN && !value.ADMIN_ORIGINS.includes(value.PASSWORD_RESET_ORIGIN))
+      ctx.addIssue({
+        code: "custom",
+        path: ["PASSWORD_RESET_ORIGIN"],
+        message: "must be an allowed admin origin",
+      });
   });
 export type ApiEnv = z.infer<typeof apiEnvSchema>;
 /** One-time first-Owner bootstrap CLI (runtime role; no other services needed). */
@@ -379,12 +427,14 @@ export const workerEnvSchema = baseEnvSchema
     WORKER_CONCURRENCY: z.coerce.number().int().min(1).max(32).default(4),
     WORKER_STARTUP_TIMEOUT_MS: z.coerce.number().int().min(1000).max(120000).default(15000),
     ...emailEnvFields,
+    ...resetEnvFields,
     ...storageEnvFields,
     ...serviceSignerFields,
   })
   .superRefine((value, ctx) => {
     separateCacheRedis(value, ctx);
     emailSafety(value, ctx);
+    resetSafety(value, ctx);
     storageSafety(value, ctx);
     signerComplete(value, ctx);
   });
