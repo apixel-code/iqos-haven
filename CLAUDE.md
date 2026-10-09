@@ -48,6 +48,8 @@ pnpm db:generate              # Prisma client only
 pnpm db:migration:create       # reviewed Prisma SQL migration
 pnpm db:migrate
 pnpm format
+pnpm bootstrap:owner --email <a> --name "<n>"   # one-time first Owner (password prompted)
+pnpm identity:benchmark       # argon2id cost on this machine
 ```
 
 Keep in sync with root package.json. If a script is missing, add it — don't guess variants.

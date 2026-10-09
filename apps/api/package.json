@@ -10,7 +10,9 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint src",
     "test": "vitest run",
-    "test:int": "vitest run --config vitest.int.config.ts"
+    "test:int": "vitest run --config vitest.int.config.ts",
+    "bootstrap:owner": "node dist/cli/bootstrap-owner.main.js",
+    "identity:benchmark": "node dist/cli/argon2-benchmark.main.js"
   },
   "dependencies": {
     "@ih/config": "workspace:*",
