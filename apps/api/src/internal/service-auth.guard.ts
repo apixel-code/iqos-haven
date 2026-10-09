@@ -13,6 +13,7 @@ import type { ApiEnv } from "@ih/config";
 import { createLogger } from "@ih/logger";
 import { verifyServiceRequest, type NonceStore } from "@ih/platform";
 import type { FastifyRequest } from "fastify";
+import { InternalAccess } from "../auth/access";
 import { API_ENV } from "../infra/tokens";
 
 export const NONCE_STORE = Symbol("NONCE_STORE");
@@ -33,7 +34,11 @@ export type InternalRequest = FastifyRequest & {
  * (@ih/platform service auth), may call it. Admin/shopper cookies are never accepted here.
  */
 export const InternalService = (...services: string[]) =>
-  applyDecorators(SetMetadata(INTERNAL_SERVICES, services), UseGuards(ServiceAuthGuard));
+  applyDecorators(
+    SetMetadata(INTERNAL_SERVICES, services),
+    InternalAccess(),
+    UseGuards(ServiceAuthGuard),
+  );
 
 @Injectable()
 export class ServiceAuthGuard implements CanActivate {
