@@ -4,18 +4,18 @@ Status: operational procedure for implementation; no production keys exist in th
 
 ## Purpose/access matrix
 
-| Purpose                                  | Allowed reader/writer                     | Storage/rotation control                                                            |
-| ---------------------------------------- | ----------------------------------------- | ----------------------------------------------------------------------------------- |
-| Age Ed25519 private signer               | Storefront server age-accept handler only | Secret manager/service identity; never API/browser/build                            |
-| Age public verification set              | Storefront verifier/API                   | Allowlisted kid/algorithm/issuer/audiences/policy; no token-controlled key URL      |
-| Signed quote key                         | API pricing/checkout                      | Separate purpose/key and lifetime from age                                          |
-| Confirmation replay encryption           | API idempotency/cookie response           | Encrypted token material expires with capability; store only verifier hash on order |
-| Internal invalidation/gateway identity   | Specific service-to-service callers       | Separate from shopper/admin cookies; rotation/revocation                            |
-| Session/reset/invite/confirmation tokens | Issuing API and scoped consumer           | Random opaque secret, hashed verifier; session/one-time/expiry rules                |
-| Runtime DB                               | API/worker                                | Least privilege, no DDL; app connection pool drain on rotation                      |
-| Migration DB                             | One release migration job                 | Owner role; absent from front ends/runtime containers                               |
-| Test DB                                  | Isolated test jobs                        | Cannot connect to live DB; dedicated *_test database                                |
-| Queue/cache/storage/email                | Only relevant adapters/services           | Separate environment/purpose credentials; least privilege                           |
+| Purpose                                  | Allowed reader/writer                     | Storage/rotation control                                                                                                                                                      |
+| ---------------------------------------- | ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Age Ed25519 private signer               | Storefront server age-accept handler only | Secret manager/service identity; never API/browser/build                                                                                                                      |
+| Age public verification set              | Storefront verifier/API                   | Allowlisted kid/algorithm/issuer/audiences/policy; no token-controlled key URL                                                                                                |
+| Signed quote key                         | API pricing/checkout                      | Separate purpose/key and lifetime from age                                                                                                                                    |
+| Confirmation replay encryption           | API idempotency/cookie response           | Encrypted token material expires with capability; store only verifier hash on order                                                                                           |
+| Internal invalidation/gateway identity   | Specific service-to-service callers       | `INTERNAL_SERVICE_KEYS` on the verifier, one `service:keyId` per caller; rotate by adding the new key id to the verifier, then switching the caller, then removing the old id |
+| Session/reset/invite/confirmation tokens | Issuing API and scoped consumer           | Random opaque secret, hashed verifier; session/one-time/expiry rules                                                                                                          |
+| Runtime DB                               | API/worker                                | Least privilege, no DDL; app connection pool drain on rotation                                                                                                                |
+| Migration DB                             | One release migration job                 | Owner role; absent from front ends/runtime containers                                                                                                                         |
+| Test DB                                  | Isolated test jobs                        | Cannot connect to live DB; dedicated *_test database                                                                                                                          |
+| Queue/cache/storage/email                | Only relevant adapters/services           | Separate environment/purpose credentials; least privilege                                                                                                                     |
 
 ## Normal age-key rotation
 

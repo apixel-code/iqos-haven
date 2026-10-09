@@ -24,7 +24,9 @@
         "ADMIN_PORT",
         "CACHE_REDIS_URL",
         "EMAIL_*",
-        "SMTP_*"
+        "SMTP_*",
+        "S3_*",
+        "INTERNAL_SERVICE_*"
       ]
     },
     "lint": {
@@ -46,7 +48,8 @@
         "APP_ENV",
         "SMTP_HOST",
         "SMTP_PORT",
-        "MAILPIT_URL"
+        "MAILPIT_URL",
+        "S3_*"
       ]
     }
   }
