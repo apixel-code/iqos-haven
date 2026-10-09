@@ -9,7 +9,7 @@ import type { ApiEnv } from "@ih/config";
 import { createDatabase, createPool, type Database, type Pool } from "@ih/db";
 import { createLogger, errorSummary } from "@ih/logger";
 import Redis from "ioredis";
-import { API_ENV, DATABASE, PG_POOL, QUEUE_REDIS } from "./tokens";
+import { API_ENV, CACHE_REDIS, DATABASE, PG_POOL, QUEUE_REDIS } from "./tokens";
 /** Test seam: integration tests pass an isolated-schema pool/database they own and close. */
 export interface InfraOverrides {
   readonly pool: Pool;
@@ -26,6 +26,7 @@ export class InfraModule implements OnApplicationShutdown {
     @Inject(QUEUE_REDIS) private readonly redis: Redis,
     @Inject(DATABASE) private readonly database: Database,
     @Inject(OWNS_DATABASE) private readonly ownsDatabase: boolean,
+    @Inject(CACHE_REDIS) private readonly cache: Redis | null,
   ) {}
   static register(env: ApiEnv, overrides?: InfraOverrides): DynamicModule {
     return {
@@ -63,12 +64,30 @@ export class InfraModule implements OnApplicationShutdown {
             return client;
           },
         },
+        {
+          // Shared limiter store (replicated profile only); may evict, unlike the queue Redis.
+          provide: CACHE_REDIS,
+          useFactory: () => {
+            if (env.RATE_LIMIT_PROFILE !== "replicated" || !env.CACHE_REDIS_URL) return null;
+            const client = new Redis(env.CACHE_REDIS_URL, {
+              lazyConnect: true,
+              maxRetriesPerRequest: 1,
+              enableOfflineQueue: false,
+              connectTimeout: 1000,
+              commandTimeout: 500,
+            });
+            const log = createLogger({ service: "api-cache", level: env.LOG_LEVEL });
+            client.on("error", (error) => log.warn(errorSummary(error), "cache connection error"));
+            return client;
+          },
+        },
       ],
-      exports: [API_ENV, PG_POOL, DATABASE, QUEUE_REDIS],
+      exports: [API_ENV, PG_POOL, DATABASE, QUEUE_REDIS, CACHE_REDIS],
     };
   }
   async onApplicationShutdown(): Promise<void> {
     this.redis.disconnect();
+    this.cache?.disconnect();
     if (!this.ownsDatabase) return;
     await this.database.$disconnect();
     await this.pool.end();

@@ -34,6 +34,7 @@ const db = createDatabase(pool, { schema: namespace });
 const fast = { memoryKib: 19_456, timeCost: 2, parallelism: 1 };
 const hasher = new Argon2PasswordHasher(fast);
 const PASSWORD = "copper-lantern-river-71";
+const ADMIN_ORIGIN = "http://localhost:8081";
 
 // Probe routes stand in for the admin endpoints that later steps add with the same decorators.
 const customerSchema = z.strictObject({
@@ -54,7 +55,7 @@ const customerFields = defineFieldPolicy({
 });
 class SettingsDto extends createZodDto(z.object({ storeName: z.string().min(1).max(40) })) {}
 
-@Controller({ path: "probe", version: "1" })
+@Controller({ path: "admin/probe", version: "1" })
 class ProbeController {
   @Get("customer")
   @RequirePermission("customers.read")
@@ -106,7 +107,7 @@ class ProbeController {
 
 /** Controller-level policy with a handler override. */
 @RequirePermission("staff.manage")
-@Controller({ path: "probe-owner", version: "1" })
+@Controller({ path: "admin/probe-owner", version: "1" })
 class OwnerProbeController {
   @Get()
   @Serialize(z.strictObject({ ok: z.literal(true) }))
@@ -171,7 +172,7 @@ const tokens: Record<"owner" | "staff", string> = { owner: "", staff: "" };
 async function signIn(email: string): Promise<string> {
   const response = await fetch(`${base}/v1/auth/login`, {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: { origin: ADMIN_ORIGIN, "content-type": "application/json" },
     body: JSON.stringify({ email, password: PASSWORD }),
   });
   expect(response.status).toBe(200);
@@ -179,11 +180,11 @@ async function signIn(email: string): Promise<string> {
 }
 
 const call = (path: string, token?: string, body?: unknown) =>
-  fetch(`${base}/v1/${path}`, {
+  fetch(`${base}/v1/${path.startsWith("auth/") ? path : "admin/" + path}`, {
     method: body === undefined ? "GET" : "POST",
     headers: {
       ...(token ? { cookie: `__Host-ih_admin=${token}` } : {}),
-      ...(body === undefined ? {} : { "content-type": "application/json" }),
+      ...(body === undefined ? {} : { origin: ADMIN_ORIGIN, "content-type": "application/json" }),
     },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
@@ -331,7 +332,7 @@ describe("permission guard and response field filtering (real PostgreSQL)", () =
     expect((await call("probe/customer", token)).status).toBe(200);
     const logout = await fetch(`${base}/v1/auth/logout`, {
       method: "POST",
-      headers: { cookie: `__Host-ih_admin=${token}` },
+      headers: { origin: ADMIN_ORIGIN, cookie: `__Host-ih_admin=${token}` },
     });
     expect(logout.status).toBe(204);
     expect((await call("probe/customer", token)).status).toBe(401);
