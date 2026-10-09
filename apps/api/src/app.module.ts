@@ -4,12 +4,13 @@ import { loggerOptions } from "@ih/logger";
 import { LoggerModule } from "nestjs-pino";
 import { ReliabilityModule } from "./reliability/reliability.module";
 import { HealthModule } from "./health/health.module";
-import { InfraModule } from "./infra/infra.module";
+import { InfraModule, type InfraOverrides } from "./infra/infra.module";
+import { AuthModule } from "./auth/auth.module";
 import { InternalModule } from "./internal/internal.module";
 import { requestId } from "./http/request-id";
 @Module({})
 export class AppModule {
-  static register(env: ApiEnv): DynamicModule {
+  static register(env: ApiEnv, overrides?: InfraOverrides): DynamicModule {
     return {
       module: AppModule,
       imports: [
@@ -29,8 +30,9 @@ export class AppModule {
             },
           },
         }),
-        InfraModule.register(env),
+        InfraModule.register(env, overrides),
         InternalModule,
+        AuthModule,
         ReliabilityModule,
         HealthModule,
       ],

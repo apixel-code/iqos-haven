@@ -5,10 +5,14 @@ import type { ApiEnv } from "@ih/config";
 import { Logger } from "nestjs-pino";
 import { createLogger } from "@ih/logger";
 import { AppModule } from "./app.module";
+import type { InfraOverrides } from "./infra/infra.module";
 import { requestId } from "./http/request-id";
 import { ApiErrorFilter } from "./http/error.filter";
 import { ZodValidationPipe } from "./http/zod-validation.pipe";
-export async function createApp(env: ApiEnv): Promise<INestApplication> {
+export async function createApp(
+  env: ApiEnv,
+  overrides?: InfraOverrides,
+): Promise<INestApplication> {
   const adapter = new FastifyAdapter({ bodyLimit: 32768, trustProxy: false, genReqId: requestId });
   adapter.getInstance().addHook("onRequest", (req, reply, done) => {
     const id = requestId(req.raw);
@@ -16,11 +20,15 @@ export async function createApp(env: ApiEnv): Promise<INestApplication> {
     reply.header("x-request-id", id);
     done();
   });
-  const app = await NestFactory.create<NestFastifyApplication>(AppModule.register(env), adapter, {
-    bufferLogs: true,
-    // Raw request bytes are part of the internal service-auth signature.
-    rawBody: true,
-  });
+  const app = await NestFactory.create<NestFastifyApplication>(
+    AppModule.register(env, overrides),
+    adapter,
+    {
+      bufferLogs: true,
+      // Raw request bytes are part of the internal service-auth signature.
+      rawBody: true,
+    },
+  );
   app.useLogger(app.get(Logger));
   app.useGlobalPipes(new ZodValidationPipe());
   app.useGlobalFilters(new ApiErrorFilter(createLogger({ service: "api", level: env.LOG_LEVEL })));
