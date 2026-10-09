@@ -18,7 +18,8 @@ None for step 27 (schema). BI-11 blocks real Owner bootstrap (28). Email go-live
 
 ## Gates passed
 
-None closed. M2 gate condition (synthetic event processed by worker; duplicate delivery + Redis job-loss recovery; tests send no real email) is demonstrated locally and in CI (PR #1, run 37818768532); Milestone 2 still has steps 25–26 open. M0/M1 remain open.
+- **M2 — PASSED 2026-10-09** (closed on Marina's approval). Gate: a synthetic event is written and processed by the worker; duplicate delivery and Redis job loss are recovered; tests send no real email. Evidence: `apps/worker/src/recovery.int.test.ts` "M2 gate" (queue obliterated → reconciler re-enqueue + duplicate original job → effect completed exactly once), `effects.int.test.ts` (5 concurrent duplicates apply once), real dev orphan recovered by the built worker (step 24 notes in docs/verification.md); email only to Mailpit/stubs. CI green on `main` at a2429f7 (run 37894960188) with all steps 18–26 merged. Not part of this gate: production queue Redis failover/restore drills (M11, after BI-06).
+- M0, M1 and M3–M11: not passed.
 
 ## Steps done
 
