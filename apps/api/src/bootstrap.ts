@@ -18,6 +18,8 @@ export async function createApp(env: ApiEnv): Promise<INestApplication> {
   });
   const app = await NestFactory.create<NestFastifyApplication>(AppModule.register(env), adapter, {
     bufferLogs: true,
+    // Raw request bytes are part of the internal service-auth signature.
+    rawBody: true,
   });
   app.useLogger(app.get(Logger));
   app.useGlobalPipes(new ZodValidationPipe());

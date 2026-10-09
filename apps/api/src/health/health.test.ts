@@ -1,19 +1,21 @@
 import "reflect-metadata";
 import type { INestApplication } from "@nestjs/common";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { apiEnvSchema } from "@ih/config";
 import { createApp } from "../bootstrap";
 
 // Unreachable dependencies on purpose: liveness must not depend on them, readiness must report them.
-const env = {
+// Parsed so newly added optional settings (storage, internal auth) take their defaults.
+const env = apiEnvSchema.parse({
   NODE_ENV: "test",
   APP_ENV: "test",
   API_HOST: "127.0.0.1",
   LOG_LEVEL: "silent",
-  API_PORT: 0,
+  API_PORT: 4000, // unused: tests listen on an ephemeral port
   DATABASE_URL: "postgres://nobody:nothing@127.0.0.1:1/none",
   DATABASE_POOL_MAX: 1,
   QUEUE_REDIS_URL: "redis://127.0.0.1:1",
-} as const;
+});
 
 describe("health endpoints", () => {
   let app: INestApplication;

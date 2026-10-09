@@ -40,6 +40,10 @@ jobs:
       SMTP_HOST: localhost
       SMTP_PORT: "1025"
       MAILPIT_URL: http://localhost:8025
+      S3_ENDPOINT: http://localhost:9000
+      S3_ACCESS_KEY: ih_service
+      S3_SECRET_KEY: ih_service_ci_secret
+      S3_FORCE_PATH_STYLE: "true"
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
@@ -57,4 +61,20 @@ jobs:
       - run: pnpm test:infra
       - run: pnpm test:package
       - run: pnpm contracts:check
+      # Service containers cannot take arguments, so MinIO starts here; the same init script as
+      # local Compose creates private buckets and the least-privilege service user.
+      - name: Start MinIO
+        run: |
+          docker run -d --name minio -p 9000:9000 \
+            -e MINIO_ROOT_USER=ih_minio -e MINIO_ROOT_PASSWORD=ih_minio_ci_root \
+            cgr.dev/chainguard/minio:latest@sha256:59667194421209c2c1eacbe761e24787e047985c5dfa96b15da9b59fe9b55cd0 \
+            server /data
+          docker run --rm --network host --entrypoint /bin/sh \
+            -v "$PWD/infra/minio/init-buckets.sh:/init-buckets.sh:ro" \
+            -e MINIO_ENDPOINT=http://localhost:9000 \
+            -e MINIO_ROOT_USER=ih_minio -e MINIO_ROOT_PASSWORD=ih_minio_ci_root \
+            -e MINIO_SERVICE_USER=ih_service -e MINIO_SERVICE_PASSWORD=ih_service_ci_secret \
+            -e MINIO_INIT_RETRIES=60 \
+            cgr.dev/chainguard/minio-client:latest-dev@sha256:603a402c2cd1543109c39eb5d1f731bd83b3c8f6ee8299b3785c8519fad0f5b5 \
+            /init-buckets.sh
       - run: pnpm test:int

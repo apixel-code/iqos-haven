@@ -4,6 +4,7 @@ import tseslint from "typescript-eslint";
 const apps = ["@ih/api", "@ih/worker", "@ih/storefront", "@ih/admin", "**/apps/**"];
 const infra = [
   "@ih/db",
+  "@ih/platform",
   "@ih/config",
   "@ih/logger",
   "@ih/ui-core",
@@ -15,6 +16,7 @@ const infra = [
   "next",
   "next/*",
   "**/db/**",
+  "**/platform/**",
   "**/config/**",
   "**/logger/**",
 ];

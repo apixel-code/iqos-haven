@@ -10,6 +10,8 @@ const probes = [
   ["packages/application/src/index.ts", "@ih/domain", true],
   ["packages/db/src/client.ts", "@ih/api", false],
   ["packages/db/src/outbox.ts", "@ih/db/testing", false],
+  ["packages/application/src/index.ts", "@ih/platform", false],
+  ["packages/domain/src/money.ts", "@ih/platform", false],
   ["apps/worker/src/main.ts", "@ih/db/testing", false],
   ["apps/worker/src/relay.int.test.ts", "@ih/db/testing", true],
 ];
@@ -29,4 +31,4 @@ for (const app of ["storefront", "admin"]) {
   );
   assert(result.messages.some((item) => item.ruleId === "no-restricted-imports"));
 }
-process.stdout.write("12 package-boundary probes passed.\n");
+process.stdout.write("14 package-boundary probes passed.\n");

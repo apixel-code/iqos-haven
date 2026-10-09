@@ -1,5 +1,6 @@
 import "reflect-metadata";
 import {
+  apiEnvSchema,
   assertTestDatabase,
   integrationTestEnvSchema,
   loadEnv,
@@ -18,16 +19,19 @@ describe("readiness against real infrastructure", () => {
   let base: string;
 
   beforeAll(async () => {
-    app = await createApp({
-      NODE_ENV: "test",
-      APP_ENV: "test",
-      API_HOST: "127.0.0.1",
-      LOG_LEVEL: "silent",
-      API_PORT: 0,
-      DATABASE_URL: DATABASE_TEST_URL,
-      DATABASE_POOL_MAX: 2,
-      QUEUE_REDIS_URL: process.env.QUEUE_REDIS_URL ?? "redis://localhost:6379",
-    });
+    app = await createApp(
+      // Parse so newly added optional settings (storage, internal auth) take their defaults.
+      apiEnvSchema.parse({
+        NODE_ENV: "test",
+        APP_ENV: "test",
+        API_HOST: "127.0.0.1",
+        LOG_LEVEL: "silent",
+        API_PORT: 4000, // unused: tests listen on an ephemeral port
+        DATABASE_URL: DATABASE_TEST_URL,
+        DATABASE_POOL_MAX: 2,
+        QUEUE_REDIS_URL: process.env.QUEUE_REDIS_URL ?? "redis://localhost:6379",
+      }),
+    );
     await app.listen(0, "127.0.0.1");
     base = await app.getUrl();
   });

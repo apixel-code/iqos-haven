@@ -61,17 +61,6 @@ export const baseEnvSchema = z.object({
   APP_ENV: deploymentEnvSchema.default("development"),
   LOG_LEVEL: logLevel.default("info"),
 });
-export const apiEnvSchema = baseEnvSchema
-  .extend({
-    API_PORT: port.default(4000),
-    API_HOST: z.string().default("127.0.0.1"),
-    DATABASE_URL: postgresUrl,
-    DATABASE_POOL_MAX: z.coerce.number().int().min(1).max(100).default(10),
-    QUEUE_REDIS_URL: redisUrl,
-    CACHE_REDIS_URL: redisUrl.optional(),
-  })
-  .superRefine(separateCacheRedis);
-export type ApiEnv = z.infer<typeof apiEnvSchema>;
 /** "true"/"false" only. Never Boolean(value): Boolean("false") is true. */
 const strictBoolean = z
   .enum(["true", "false"])
@@ -162,6 +151,135 @@ const emailSafety = (
     issue("EMAIL_RECIPIENT_ALLOWLIST", "required in staging when sending is enabled");
 };
 
+const bucketName = (fallback: string) =>
+  z
+    .string()
+    .regex(/^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/, "must be a valid bucket name")
+    .default(fallback);
+
+/**
+ * Object storage (roadmap step 26). Without S3_ENDPOINT the SDK targets AWS (provider is BI-06);
+ * without keys it uses the platform credential chain (service identity), never a root account.
+ */
+export const storageEnvFields = {
+  S3_ENDPOINT: httpUrl.optional(),
+  S3_REGION: z
+    .string()
+    .regex(/^[a-z]{2}(-[a-z]+)+-\d$/, "must be a region like me-central-1")
+    .default("me-central-1"),
+  S3_ACCESS_KEY: z.string().min(3).optional(),
+  S3_SECRET_KEY: z.string().min(8).optional(),
+  S3_FORCE_PATH_STYLE: strictBoolean,
+  S3_BUCKET_QUARANTINE: bucketName("ih-quarantine"),
+  S3_BUCKET_MEDIA: bucketName("ih-media"),
+  S3_BUCKET_REPORTS: bucketName("ih-reports"),
+};
+const storageSafety = (
+  value: {
+    APP_ENV: DeploymentEnv;
+    S3_ENDPOINT?: string | undefined;
+    S3_ACCESS_KEY?: string | undefined;
+    S3_SECRET_KEY?: string | undefined;
+  },
+  ctx: z.RefinementCtx,
+) => {
+  if (Boolean(value.S3_ACCESS_KEY) !== Boolean(value.S3_SECRET_KEY))
+    ctx.addIssue({ code: "custom", path: ["S3_SECRET_KEY"], message: "keys are set together" });
+  if (
+    value.S3_ENDPOINT &&
+    (value.APP_ENV === "staging" || value.APP_ENV === "production") &&
+    new URL(value.S3_ENDPOINT).protocol !== "https:"
+  )
+    ctx.addIssue({
+      code: "custom",
+      path: ["S3_ENDPOINT"],
+      message: "must be https outside development",
+    });
+};
+
+/**
+ * Private service-to-service auth (roadmap step 26). Verifiers list the callers they accept as
+ * "service:keyId:base64urlSecret" entries (comma separated; several key ids allow rotation).
+ */
+const serviceName = z.string().regex(/^[a-z][a-z0-9-]{1,31}$/);
+const keyId = z.string().regex(/^[A-Za-z0-9_-]{1,32}$/);
+const serviceSecret = z
+  .string()
+  .regex(/^[A-Za-z0-9_-]+$/, "must be base64url")
+  .refine((value) => Buffer.from(value, "base64url").length >= 32, "must decode to ≥ 32 bytes");
+export const serviceKeysSchema = z
+  .string()
+  .default("")
+  .transform((value, ctx) => {
+    const keys: Array<{ service: string; keyId: string; secret: string }> = [];
+    for (const entry of value
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean)) {
+      const [service = "", id = "", secret = "", ...rest] = entry.split(":");
+      if (
+        rest.length ||
+        !serviceName.safeParse(service).success ||
+        !keyId.safeParse(id).success ||
+        !serviceSecret.safeParse(secret).success
+      ) {
+        ctx.addIssue({
+          code: "custom",
+          message: "entries must be service:keyId:secret (≥ 32 bytes)",
+        });
+        return z.NEVER;
+      }
+      if (keys.some((key) => key.service === service && key.keyId === id)) {
+        ctx.addIssue({ code: "custom", message: "duplicate service:keyId entry" });
+        return z.NEVER;
+      }
+      keys.push({ service, keyId: id, secret });
+    }
+    return keys;
+  });
+/** Signing identity of a calling service (worker, storefront): all three or none. */
+export const serviceSignerFields = {
+  INTERNAL_SERVICE_ID: serviceName.optional(),
+  INTERNAL_SERVICE_KEY_ID: keyId.optional(),
+  INTERNAL_SERVICE_KEY: serviceSecret.optional(),
+};
+const signerComplete = (
+  value: {
+    INTERNAL_SERVICE_ID?: string | undefined;
+    INTERNAL_SERVICE_KEY_ID?: string | undefined;
+    INTERNAL_SERVICE_KEY?: string | undefined;
+  },
+  ctx: z.RefinementCtx,
+) => {
+  const set = [
+    value.INTERNAL_SERVICE_ID,
+    value.INTERNAL_SERVICE_KEY_ID,
+    value.INTERNAL_SERVICE_KEY,
+  ].filter(Boolean);
+  if (set.length !== 0 && set.length !== 3)
+    ctx.addIssue({
+      code: "custom",
+      path: ["INTERNAL_SERVICE_KEY"],
+      message: "service id, key id and key are set together",
+    });
+};
+
+export const apiEnvSchema = baseEnvSchema
+  .extend({
+    API_PORT: port.default(4000),
+    API_HOST: z.string().default("127.0.0.1"),
+    DATABASE_URL: postgresUrl,
+    DATABASE_POOL_MAX: z.coerce.number().int().min(1).max(100).default(10),
+    QUEUE_REDIS_URL: redisUrl,
+    CACHE_REDIS_URL: redisUrl.optional(),
+    ...storageEnvFields,
+    INTERNAL_SERVICE_KEYS: serviceKeysSchema,
+  })
+  .superRefine((value, ctx) => {
+    separateCacheRedis(value, ctx);
+    storageSafety(value, ctx);
+  });
+export type ApiEnv = z.infer<typeof apiEnvSchema>;
 export const workerEnvSchema = baseEnvSchema
   .extend({
     DATABASE_URL: postgresUrl,
@@ -171,10 +289,14 @@ export const workerEnvSchema = baseEnvSchema
     WORKER_CONCURRENCY: z.coerce.number().int().min(1).max(32).default(4),
     WORKER_STARTUP_TIMEOUT_MS: z.coerce.number().int().min(1000).max(120000).default(15000),
     ...emailEnvFields,
+    ...storageEnvFields,
+    ...serviceSignerFields,
   })
   .superRefine((value, ctx) => {
     separateCacheRedis(value, ctx);
     emailSafety(value, ctx);
+    storageSafety(value, ctx);
+    signerComplete(value, ctx);
   });
 export type WorkerEnv = z.infer<typeof workerEnvSchema>;
 export const storefrontEnvSchema = baseEnvSchema.extend({
@@ -197,6 +319,16 @@ export const emailIntegrationTestEnvSchema = z.object({
     .refine((host) => LOCAL_SMTP_HOSTS.has(host.toLowerCase()), "must be a local SMTP sink"),
   SMTP_PORT: port.default(1025),
   MAILPIT_URL: httpUrl.default("http://localhost:8025"),
+});
+/** Storage integration tests: local MinIO with the least-privilege service user. Test-only. */
+export const storageIntegrationTestEnvSchema = z.object({
+  ...storageEnvFields,
+  S3_ENDPOINT: httpUrl.refine(
+    (value) => LOCAL_SMTP_HOSTS.has(new URL(value).hostname),
+    "storage tests only run against a local MinIO",
+  ),
+  S3_ACCESS_KEY: z.string().min(3),
+  S3_SECRET_KEY: z.string().min(8),
 });
 /** Worker integration tests also need the local/CI queue Redis (unique queue names per run). */
 export const queueIntegrationTestEnvSchema = integrationTestEnvSchema.extend({

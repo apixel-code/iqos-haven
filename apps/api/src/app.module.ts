@@ -5,6 +5,7 @@ import { LoggerModule } from "nestjs-pino";
 import { ReliabilityModule } from "./reliability/reliability.module";
 import { HealthModule } from "./health/health.module";
 import { InfraModule } from "./infra/infra.module";
+import { InternalModule } from "./internal/internal.module";
 import { requestId } from "./http/request-id";
 @Module({})
 export class AppModule {
@@ -29,6 +30,7 @@ export class AppModule {
           },
         }),
         InfraModule.register(env),
+        InternalModule,
         ReliabilityModule,
         HealthModule,
       ],

@@ -27,7 +27,7 @@ Prototypes define look, copy, interaction only. Their demo logic is NOT a requir
 - `apps/admin` (:3001) — Next.js 16 on shared tokens (`@ih/tokens`, `@ih/ui-core`).
 - `apps/api` (:4000) — NestJS 12 with Fastify, nestjs-pino. Routes `/v1/...` (URI versioning); gateway maps browser `/api`.
 - `apps/worker` — BullMQ 6 + ioredis; refuses non-`noeviction` Redis outside development/test; 20 s shutdown deadline.
-- `packages/*` (scope `@ih/`): config, logger, contracts, domain, application, db, tokens, ui-core. Compiled to CJS `dist/` — run `pnpm build` (or `pnpm dev`) after changing a package.
+- `packages/*` (scope `@ih/`): config, logger, contracts, domain, application, db, platform (storage + service auth), tokens, ui-core. Compiled to CJS `dist/` — run `pnpm build` (or `pnpm dev`) after changing a package.
 - Dependency direction enforced by ESLint: domain/contracts ← application ← db ← apps. Packages never import apps.
 - DB: Prisma 7 + pg adapter (ADR 0003 supersedes 0002). `withTransaction()` (READ COMMITTED), `DbExecutor`, `sortedForLocking()` in `@ih/db`.
 - Env: every app validates with a schema in `@ih/config`. New variable → add to schema + `.env.example`.

@@ -4,17 +4,17 @@
 
 - Date: 2026-10-09
 - Milestone: M2 — shared reliability, communication and audit foundation (M0 review and M1 staging/fixtures still open)
-- Step: 25 done (merged, PR #4) + Resend adapter (BI-07 partial, ADR 0004)
-- Branch: `feat/resend-adapter` (from `main`)
+- Step: 26 (object storage + private service auth) — done; Milestone 2 steps 18–26 all implemented
+- Branch: `step/26-object-storage` (from `main`)
 - See docs/verification.md for actual checks.
 
 ## Next action
 
-Run `/step 26`: object-storage adapter + private service-auth framework (S3-compatible client against local MinIO buckets `ih-quarantine`/`ih-media`/`ih-reports`; add S3_* env schema in the same change, move those variables from "reserved" in docs/environment.md; buckets private, short-lived signed URLs only, service credentials scoped per bucket; no public bucket policies). Add MinIO to CI if integration tests need it (Chainguard image pinned in infra/images.lock.json). Production provider is BI-06. Use node@24 PATH; start Docker Desktop before `pnpm infra:up`.
+Milestone 2 is implemented; decide on closing its gate (condition demonstrated locally + in CI) and record it. Then Milestone 3 — run `/step 27`: identity migrations (`staff_users`, `roles`, `permissions`, `role_permissions`, `sessions`) with explicit permission seeds; read the M3 Dependency/Gate lines first. BI-11 (Owner accounts/staff list) blocks bootstrap data (step 28), not the schema. Use node@24 PATH; start Docker Desktop before `pnpm infra:up`.
 
 ## Blockers
 
-None for step 26. Email go-live needs the rest of BI-07 (verified Resend domain, sender address, new-order recipients). Audit retention/pruning needs BI-08. BI-07 is partially answered; the other BI items remain open; M0 needs client decisions; M1 staging needs BI-06.
+None for step 27 (schema). BI-11 blocks real Owner bootstrap (28). Email go-live needs the rest of BI-07 (verified Resend domain, sender address, new-order recipients). Audit retention/pruning needs BI-08. BI-07 is partially answered; the other BI items remain open; M0 needs client decisions; M1 staging needs BI-06.
 
 ## Gates passed
 
@@ -33,7 +33,8 @@ None closed. M2 gate condition (synthetic event processed by worker; duplicate d
 - fix — DB-clock completion for zero-consumer events, reconciler per-status query + indexes, loopback Redis guard (bug log in docs/verification.md) — 7e879c5
 - ci — actions/checkout v7, setup-node v7, pnpm/action-setup v6 (Node 24 runtimes) — b31ad60 (PR #2)
 - 25 — email pipeline (strict env, templates, delivery key, EmailConsumer, SMTP/disabled/allowlist adapters, Mailpit in CI) — f35e3dc (PR #4)
-- feat — Resend adapter, EMAIL_PROVIDER/RESEND_* config, BI-07 partial + ADR 0004 — uncommitted (commit follows this handoff)
+- feat — Resend adapter, EMAIL_PROVIDER/RESEND_* config, BI-07 partial + ADR 0004 — PR #5 (c088bb9)
+- 26 — @ih/platform storage + HMAC service auth, API InternalService guard, MinIO least-privilege user, MinIO in CI — uncommitted (commit `step(26)` follows this handoff)
 
 ## Known deviations
 
@@ -41,18 +42,19 @@ None closed. M2 gate condition (synthetic event processed by worker; duplicate d
 - Event `consumers` lists only implemented consumers (now `system_probe`); planned ones are documented with roadmap steps and move in with a backfill decision (architecture §8: adding a consumer must not redefine old completions).
 - `audit_log` migration revokes UPDATE/DELETE/TRUNCATE only from a role named `ih_app`; other runtime role names must be revoked at provisioning (trigger blocks mutations regardless).
 
-## Last session handoff (2026-10-09, Resend adapter)
+## Last session handoff (2026-10-09, step 26)
 
-Done: BI-07 partial answer recorded (Resend; domain not verified yet; launch email scope = new-order only, low-stock/daily-summary email deferred) with ADR 0004. Added `ResendEmailAdapter` (batch API, one email per recipient, Idempotency-Key = delivery key, sorted recipients, chunking >100, safe error classes) and config (`EMAIL_PROVIDER`, `RESEND_API_KEY`, `RESEND_API_URL` https-only except local stub; allowlist required outside production; tests may only use a local stub). `invariant-reviewer`: no blockers; all four findings fixed.
+Done: step 26 in new package `@ih/platform` (ESLint infra group; boundary probes 14). `invariant-reviewer`: no blockers; should-fixes applied (fail closed when a body's raw bytes are missing; nonce store shared via queue Redis SET NX EX, deny on outage) and nits (service/keyId signed, no live-nonce eviction, duplicate keys rejected, streamed bounded reads, upload prefix + type allowlist). Local `.env` S3 keys switched to the `ih_service` user (gitignored file). CI starts MinIO via `docker run` (service containers cannot take arguments).
 
-Files: `apps/worker/src/{email,resend.test}.ts`, `packages/config/src/{index,index.test}.ts`, `.env.example`, `docs/{business-inputs,email-delivery,environment,verification,implementation-status}.md`, `docs/decisions/0004-email-provider-resend.md`, `PROGRESS.md`.
+Files: `packages/platform/**`, `packages/config/src/{index,index.test}.ts`, `apps/api/src/{bootstrap,app.module}.ts`, `apps/api/src/internal/*`, `apps/api/src/health/{health.test,health.int.test}.ts`, `apps/api/package.json`, `infra/minio/init-buckets.sh`, `docker-compose.yml`, `.env.example`, `.github/workflows/ci.yml`, `turbo.json`, `eslint.config.mjs`, `scripts/check-boundaries.mjs`, `CLAUDE.md`, `docs/{environment,security-boundaries,verification,implementation-status,task-backlog}.md`, `docs/runbooks/secrets-and-keys.md`, `PROGRESS.md`.
 
-Tests: `pnpm verify -- --integration` PASS (unit 130, integration 73).
+Tests: `pnpm verify -- --integration` PASS (unit 162, integration 79).
 
-Unfinished: Marina to verify the sending domain in Resend and decide sender address + new-order recipients; the new-order template/planner and `order.created → email` wiring happen in step 78 (orders do not exist yet). Bounce/complaint webhooks later.
+Unfinished: production storage provider, bucket encryption/versioning/lifecycle and IAM (BI-06); first internal route (step 52) and the worker's signed client; media consumer (49) and report storage (112) use this adapter later.
 
 ## History (summary)
 
+- 2026-10-09 BI-07 partial (Resend) + Resend adapter (PR #5, c088bb9).
 - 2026-10-09 step 25: email pipeline (PR #4, 5d66ade).
 - 2026-10-09 merged PR #1 (steps 18–24 + fixes) and PR #2 (CI actions → Node 24) after green CI; PROGRESS PR #3.
 - 2026-10-08 known-issue fixes + bug log (7e879c5); first CI runs green.
