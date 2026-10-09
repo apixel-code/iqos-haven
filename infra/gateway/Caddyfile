@@ -1,0 +1,106 @@
+# Same-origin gateway (architecture §3 "Browser routing", §12 budget profile: Caddy).
+# The browser only ever talks to the storefront and admin origins; NestJS stays private and is
+# reached solely through the allowlisted /api routes below. The gateway adds no pricing,
+# inventory or authorization logic. TLS/edge (Cloudflare) and production hosts are BI-06.
+{
+	admin off
+	auto_https off
+	# No trusted_proxies: the client address is the TCP peer, never a browser-supplied header.
+	# When Cloudflare fronts the origin (BI-06), add `servers { trusted_proxies static <Cloudflare
+	# ranges>; client_ip_headers CF-Connecting-IP }` and allow origin traffic only from Cloudflare,
+	# otherwise X-IH-Client-IP becomes Cloudflare's address and per-IP limits break.
+}
+
+# Headers a browser must never be able to inject. Trust signals (age, client IP, service
+# identity) are set only by the gateway or verified cryptographically downstream.
+(strip_untrusted) {
+	request_header -X-Age-Verified
+	request_header -X-Forwarded-For
+	request_header -X-Forwarded-Host
+	request_header -X-Forwarded-Proto
+	request_header -X-Real-Ip
+	request_header -Forwarded
+	request_header -X-Request-Id
+	request_header -X-Ih-*
+	# Caddy's own response banner and Via (header_down only removes the upstream's copies).
+	header -Server
+	header -Via
+}
+
+# One request ID per request, generated here and preserved by every hop.
+(upstream_headers) {
+	header_up X-Request-Id {http.request.uuid}
+	header_up X-IH-Client-IP {http.request.remote.host}
+	header_down -Server
+	header_down -Via
+	# Clients can quote this ID to support; it is the same one the API logs.
+	header_down X-Request-Id {http.request.uuid}
+}
+
+# JSON API bodies only. Media never passes through here: uploads go straight to the private
+# quarantine bucket with a presigned POST (step 26), so this limit stays small.
+(api_proxy) {
+	request_body {
+		max_size 64KB
+	}
+	uri strip_prefix /api
+	reverse_proxy {$API_UPSTREAM:host.docker.internal:4000} {
+		import upstream_headers
+	}
+}
+
+# --- Storefront origin ---
+:{$STOREFRONT_GATEWAY_PORT:8080} {
+	import strip_untrusted
+
+	handle /api/v1/store/* {
+		import api_proxy
+	}
+	# Age-gate acceptance is a storefront route handler (it alone holds the signing key), not Nest.
+	handle /api/age/* {
+		request_body {
+			max_size 4KB
+		}
+		reverse_proxy {$STOREFRONT_UPSTREAM:host.docker.internal:3000} {
+			import upstream_headers
+		}
+	}
+	# Nothing else under /api is reachable from the storefront origin (no admin, internal, health).
+	handle /api/* {
+		respond 404
+	}
+	handle {
+		reverse_proxy {$STOREFRONT_UPSTREAM:host.docker.internal:3000} {
+			import upstream_headers
+		}
+	}
+}
+
+# --- Admin origin (noindex; protection is session auth + RBAC) ---
+:{$ADMIN_GATEWAY_PORT:8081} {
+	import strip_untrusted
+
+	# Server-sent events: stream immediately, never buffer.
+	handle /api/v1/admin/events/* {
+		request_body {
+			max_size 1KB
+		}
+		uri strip_prefix /api
+		reverse_proxy {$API_UPSTREAM:host.docker.internal:4000} {
+			import upstream_headers
+			flush_interval -1
+		}
+	}
+	@adminApi path /api/v1/auth/* /api/v1/admin/*
+	handle @adminApi {
+		import api_proxy
+	}
+	handle /api/* {
+		respond 404
+	}
+	handle {
+		reverse_proxy {$ADMIN_UPSTREAM:host.docker.internal:3001} {
+			import upstream_headers
+		}
+	}
+}

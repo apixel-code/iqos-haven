@@ -32,5 +32,10 @@
     "image": "node:24.19.0-bookworm-slim",
     "digest": "sha256:a9f5f7c91a432850b2a8a7797adf5eadb6c733ceed61167806cee7ea7fbc29df",
     "verified": true
+  },
+  "caddy": {
+    "image": "caddy:2.11-alpine",
+    "digest": "sha256:d8542f48d34a9cf4e4c11a478865229840e87e4c96ea3f439101f31a5d35f75f",
+    "verified": true
   }
 }

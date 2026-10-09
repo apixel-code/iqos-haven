@@ -26,7 +26,8 @@
     "contracts:check": "node scripts/generate-api-contract.mjs --check",
     "verify": "node scripts/verify.mjs",
     "bootstrap:owner": "pnpm --filter @ih/api bootstrap:owner",
-    "identity:benchmark": "pnpm --filter @ih/api identity:benchmark"
+    "identity:benchmark": "pnpm --filter @ih/api identity:benchmark",
+    "test:gateway": "node scripts/check-gateway.mjs"
   },
   "devDependencies": {
     "@eslint/js": "9.39.5",

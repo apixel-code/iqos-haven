@@ -10,7 +10,8 @@ const checks = [
   "test:package",
   "contracts:check",
 ];
-if (process.argv.includes("--integration")) checks.push("test:int");
+// Integration needs real PostgreSQL/Redis/MinIO/Mailpit and Docker (gateway check).
+if (process.argv.includes("--integration")) checks.push("test:int", "test:gateway");
 const command = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
 for (const check of checks) {
   const result = spawnSync(command, [check], {
