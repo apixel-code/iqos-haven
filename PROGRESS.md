@@ -4,13 +4,13 @@
 
 - Date: 2026-10-09
 - Milestone: M2 — shared reliability, communication and audit foundation (M0 review and M1 staging/fixtures still open)
-- Step: 26 (object storage + private service auth) — done; Milestone 2 steps 18–26 all implemented
-- Branch: `step/26-object-storage` (from `main`)
+- Step: 27 (identity schema + permission seeds) — done; Milestone 3 started
+- Branch: `step/27-identity-schema` (from `main`)
 - See docs/verification.md for actual checks.
 
 ## Next action
 
-Milestone 2 is implemented; decide on closing its gate (condition demonstrated locally + in CI) and record it. Then Milestone 3 — run `/step 27`: identity migrations (`staff_users`, `roles`, `permissions`, `role_permissions`, `sessions`) with explicit permission seeds; read the M3 Dependency/Gate lines first. BI-11 (Owner accounts/staff list) blocks bootstrap data (step 28), not the schema. Use node@24 PATH; start Docker Desktop before `pnpm infra:up`.
+Run `/step 28`: one-time first-Owner bootstrap + argon2id password hashing (identity service; benchmark parameters; no default/prototype password; re-running bootstrap must never create another Owner without authorization; audit the bootstrap). BI-11 (real Owner account details) is needed to run it for real — build the command so the Owner's email/name come from the operator at run time, never from the repo. Services must bump `staff_users.version` explicitly (no trigger). Also pending decision: close the M2 gate. Use node@24 PATH; start Docker Desktop before `pnpm infra:up`.
 
 ## Blockers
 
@@ -34,7 +34,8 @@ None closed. M2 gate condition (synthetic event processed by worker; duplicate d
 - ci — actions/checkout v7, setup-node v7, pnpm/action-setup v6 (Node 24 runtimes) — b31ad60 (PR #2)
 - 25 — email pipeline (strict env, templates, delivery key, EmailConsumer, SMTP/disabled/allowlist adapters, Mailpit in CI) — f35e3dc (PR #4)
 - feat — Resend adapter, EMAIL_PROVIDER/RESEND_* config, BI-07 partial + ADR 0004 — PR #5 (c088bb9)
-- 26 — @ih/platform storage + HMAC service auth, API InternalService guard, MinIO least-privilege user, MinIO in CI — uncommitted (commit `step(26)` follows this handoff)
+- 26 — @ih/platform storage + HMAC service auth, API InternalService guard, MinIO least-privilege user, MinIO in CI — PR #6 (c786eda)
+- 27 — identity schema, explicit Owner/Staff permission seeds, lockable-but-immutable roles — uncommitted (commit `step(27)` follows this handoff)
 
 ## Known deviations
 
@@ -42,18 +43,19 @@ None closed. M2 gate condition (synthetic event processed by worker; duplicate d
 - Event `consumers` lists only implemented consumers (now `system_probe`); planned ones are documented with roadmap steps and move in with a backfill decision (architecture §8: adding a consumer must not redefine old completions).
 - `audit_log` migration revokes UPDATE/DELETE/TRUNCATE only from a role named `ih_app`; other runtime role names must be revoked at provisioning (trigger blocks mutations regardless).
 
-## Last session handoff (2026-10-09, step 26)
+## Last session handoff (2026-10-09, step 27)
 
-Done: step 26 in new package `@ih/platform` (ESLint infra group; boundary probes 14). `invariant-reviewer`: no blockers; should-fixes applied (fail closed when a body's raw bytes are missing; nonce store shared via queue Redis SET NX EX, deny on outage) and nits (service/keyId signed, no live-nonce eviction, duplicate keys rejected, streamed bounded reads, upload prefix + type allowlist). Local `.env` S3 keys switched to the `ih_service` user (gitignored file). CI starts MinIO via `docker run` (service containers cannot take arguments).
+Done: step 27. Permission catalogue lives in `@ih/domain` (`PERMISSIONS`, `ROLE_PERMISSIONS`); the identity migration seeds were generated from it and an integration test keeps them equal. `invariant-reviewer`: one blocker (runtime role could not lock the owner role row) fixed with a column-level UPDATE grant + immutability trigger, verified as `ih_app` on the dev DB; should-fix applied (privilege tests use production-like default privileges, fail in CI if `ih_app` is missing; CI creates `ih_app`). Nits deferred: session expiry index (with the sweep job), explicit `version` bumps in services. The unreleased identity migration was rolled back and re-applied locally once during the fix.
 
-Files: `packages/platform/**`, `packages/config/src/{index,index.test}.ts`, `apps/api/src/{bootstrap,app.module}.ts`, `apps/api/src/internal/*`, `apps/api/src/health/{health.test,health.int.test}.ts`, `apps/api/package.json`, `infra/minio/init-buckets.sh`, `docker-compose.yml`, `.env.example`, `.github/workflows/ci.yml`, `turbo.json`, `eslint.config.mjs`, `scripts/check-boundaries.mjs`, `CLAUDE.md`, `docs/{environment,security-boundaries,verification,implementation-status,task-backlog}.md`, `docs/runbooks/secrets-and-keys.md`, `PROGRESS.md`.
+Files: `packages/domain/src/{permissions,permissions.test,index}.ts`, `packages/db/prisma/{schema.prisma,migrations/20261009053207_identity/}`, `packages/db/src/{identity.int.test,test-schema}.ts`, `.github/workflows/ci.yml`, `docs/{verification,implementation-status,task-backlog}.md`, `PROGRESS.md`.
 
-Tests: `pnpm verify -- --integration` PASS (unit 162, integration 79).
+Tests: `pnpm verify -- --integration` PASS (domain 66, db int 38).
 
-Unfinished: production storage provider, bucket encryption/versioning/lifecycle and IAM (BI-06); first internal route (step 52) and the worker's signed client; media consumer (49) and report storage (112) use this adapter later.
+Unfinished: bootstrap/hashing (28), gateway (29), sessions/login (30), guards (31), CSRF/limits (32), reset (33), invites (34), staff admin (35), last-Owner guard (36).
 
 ## History (summary)
 
+- 2026-10-09 step 26: @ih/platform storage + service auth (PR #6, c786eda); Milestone 2 steps complete.
 - 2026-10-09 BI-07 partial (Resend) + Resend adapter (PR #5, c088bb9).
 - 2026-10-09 step 25: email pipeline (PR #4, 5d66ade).
 - 2026-10-09 merged PR #1 (steps 18–24 + fixes) and PR #2 (CI actions → Node 24) after green CI; PROGRESS PR #3.

@@ -100,3 +100,79 @@ model ScheduledRun {
   @@unique([jobName, slot])
   @@map("scheduled_runs")
 }
+
+/// Fixed launch roles (roadmap step 27): owner, staff. Custom roles are deferred.
+/// The owner row is also the common identity guard locked before Owner membership changes.
+model Role {
+  id          String           @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  key         String           @unique @db.VarChar(32)
+  name        String           @db.VarChar(64)
+  createdAt   DateTime         @default(dbgenerated("statement_timestamp()")) @map("created_at") @db.Timestamptz(6)
+  permissions RolePermission[]
+  staff       StaffUser[]
+
+  @@map("roles")
+}
+
+/// Granular permission keys, seeded from @ih/domain PERMISSIONS.
+model Permission {
+  id          String           @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  key         String           @unique @db.VarChar(64)
+  description String           @db.VarChar(200)
+  roles       RolePermission[]
+
+  @@map("permissions")
+}
+
+/// Explicit grants only; no wildcard.
+model RolePermission {
+  roleId       String     @map("role_id") @db.Uuid
+  permissionId String     @map("permission_id") @db.Uuid
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@id([roleId, permissionId])
+  @@index([permissionId])
+  @@map("role_permissions")
+}
+
+/// Admin users. Never deleted (deactivate). Email stored normalized (trimmed, lower case).
+model StaffUser {
+  id                  String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  email               String    @unique @db.VarChar(254)
+  passwordHash        String    @map("password_hash") @db.VarChar(255)
+  name                String    @db.VarChar(100)
+  roleId              String    @map("role_id") @db.Uuid
+  role                Role      @relation(fields: [roleId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  active              Boolean   @default(true)
+  /// Deferred MFA: encrypted TOTP secret only, never plaintext.
+  totpSecretEncrypted Bytes?    @map("totp_secret_encrypted")
+  lastActiveAt        DateTime? @map("last_active_at") @db.Timestamptz(6)
+  createdAt           DateTime  @default(dbgenerated("statement_timestamp()")) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime  @default(dbgenerated("statement_timestamp()")) @map("updated_at") @db.Timestamptz(6)
+  version             Int       @default(1)
+  sessions            Session[]
+
+  @@index([roleId])
+  @@map("staff_users")
+}
+
+/// Admin sessions: only the SHA-256 of the 256-bit token is stored.
+/// Idle timeout 12 h (last_seen_at), absolute expiry 7 days (expires_at).
+model Session {
+  id           String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  userId       String    @map("user_id") @db.Uuid
+  user         StaffUser @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  tokenHash    Bytes     @unique @map("token_hash")
+  createdAt    DateTime  @default(dbgenerated("statement_timestamp()")) @map("created_at") @db.Timestamptz(6)
+  lastSeenAt   DateTime  @default(dbgenerated("statement_timestamp()")) @map("last_seen_at") @db.Timestamptz(6)
+  expiresAt    DateTime  @map("expires_at") @db.Timestamptz(6)
+  revokedAt    DateTime? @map("revoked_at") @db.Timestamptz(6)
+  revokeReason String?   @map("revoke_reason") @db.VarChar(32)
+  /// Minimized metadata: truncated IP network and a coarse client label, never full UA strings.
+  ipNetwork    String?   @map("ip_network") @db.VarChar(64)
+  clientLabel  String?   @map("client_label") @db.VarChar(64)
+
+  @@index([userId])
+  @@map("sessions")
+}
