@@ -70,6 +70,22 @@ services:
       - "127.0.0.1:1025:1025"
       - "127.0.0.1:8025:8025"
 
+  # Same-origin gateway (step 29). Storefront http://localhost:8080, admin http://localhost:8081;
+  # upstreams are the dev servers on the host. NestJS is reachable only through /api routes.
+  gateway:
+    image: caddy:2.11-alpine@sha256:d8542f48d34a9cf4e4c11a478865229840e87e4c96ea3f439101f31a5d35f75f
+    ports:
+      - "127.0.0.1:8080:8080"
+      - "127.0.0.1:8081:8081"
+    volumes:
+      - ./infra/gateway/Caddyfile:/etc/caddy/Caddyfile:ro
+    environment:
+      STOREFRONT_UPSTREAM: host.docker.internal:3000
+      ADMIN_UPSTREAM: host.docker.internal:3001
+      API_UPSTREAM: host.docker.internal:4000
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
 volumes:
   pg18-data:
   redis-queue-data:

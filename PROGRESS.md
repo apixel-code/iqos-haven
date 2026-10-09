@@ -4,13 +4,13 @@
 
 - Date: 2026-10-09
 - Milestone: M2 — shared reliability, communication and audit foundation (M0 review and M1 staging/fixtures still open)
-- Step: 28 (first-Owner bootstrap + password hashing) — done
-- Branch: `step/28-owner-bootstrap` (from `main`)
+- Step: 29 (same-origin gateway) — done
+- Branch: `step/29-same-origin-gateway` (from `main`)
 - See docs/verification.md for actual checks.
 
 ## Next action
 
-Run `/step 29`: admin/storefront same-origin gateway and origin routing (gateway/reverse-proxy config: Nest stays private, browser `/api` → Nest `/v1`, cookies/streaming forwarded, browser-supplied trust headers stripped). Gateway technology depends on BI-06 (budget: Caddy/reverse proxy; replicated: ALB) — build the local/dev gateway and tests for routing/header stripping, keep provider specifics behind BI-06. Login (step 30) must NFKC-normalize passwords, cap length before `verify`, and run a dummy verify for unknown users. Pending decision: close the M2 gate. Use node@24 PATH; start Docker Desktop before `pnpm infra:up`.
+Run `/step 30`: login/logout/me and session lifecycle (`AuthController`, `SessionService`): `__Host-ih_admin` set from the admin origin (Secure, HttpOnly, SameSite=Strict, Path=/, no Domain), 256-bit token stored as SHA-256, idle 12 h (throttled last_seen) / absolute 7 d, revoke; NFKC-normalize passwords, cap length before argon2 verify, dummy verify for unknown users, generic errors, `needsRehash` upgrade on login. Routes live under `/v1/auth/*` (gateway maps `/api/v1/auth/*` from the admin origin only). Rate limiting is step 32. Pending decision: close the M2 gate. Use node@24 PATH; start Docker Desktop before `pnpm infra:up`.
 
 ## Blockers
 
@@ -36,7 +36,8 @@ None closed. M2 gate condition (synthetic event processed by worker; duplicate d
 - feat — Resend adapter, EMAIL_PROVIDER/RESEND_* config, BI-07 partial + ADR 0004 — PR #5 (c088bb9)
 - 26 — @ih/platform storage + HMAC service auth, API InternalService guard, MinIO least-privilege user, MinIO in CI — PR #6 (c786eda)
 - 27 — identity schema, explicit Owner/Staff permission seeds, lockable-but-immutable roles — PR #7 (2bbe336)
-- 28 — argon2id hasher, password policy, one-time Owner bootstrap CLI, owner-lock trigger — uncommitted (commit `step(28)` follows this handoff)
+- 28 — argon2id hasher, password policy, one-time Owner bootstrap CLI, owner-lock trigger — PR #8 (045b544)
+- 29 — Caddy same-origin gateway, header stripping, `pnpm test:gateway` (29 checks) in verify/CI — uncommitted (commit `step(29)` follows this handoff)
 
 ## Known deviations
 
@@ -44,18 +45,19 @@ None closed. M2 gate condition (synthetic event processed by worker; duplicate d
 - Event `consumers` lists only implemented consumers (now `system_probe`); planned ones are documented with roadmap steps and move in with a backfill decision (architecture §8: adding a consumer must not redefine old completions).
 - `audit_log` migration revokes UPDATE/DELETE/TRUNCATE only from a role named `ih_app`; other runtime role names must be revoked at provisioning (trigger blocks mutations regardless).
 
-## Last session handoff (2026-10-09, step 28)
+## Last session handoff (2026-10-09, step 29)
 
-Done: step 28. `invariant-reviewer`: no blockers; should-fixes applied (database trigger `staff_users_owner_lock` takes the owner-role lock for every Owner insert/role/active change; hidden prompt handles Ctrl-D, closed stdin and escape sequences; existing-Owner pre-check before prompting) and nits (P2002 → STAFF_EMAIL_TAKEN, parsed `--password-stdin`, NFKC normalization, verify length cap). New dependency: @node-rs/argon2 2.2.2 (prebuilt). Verified on a throwaway database that was dropped — the local dev DB still has no Owner; Marina runs `pnpm bootstrap:owner` with the real Owner (BI-11) when ready.
+Done: step 29. `invariant-reviewer`: no blockers; should-fixes applied (Connection-header abuse check — Caddy is safe; SSE body limit; `/api/age/*` reserved for the storefront age handler; Cloudflare trusted-proxy note for BI-06) and nits (request ID echoed to clients, Linux dev binding documented). One reviewer nit was wrong and reverted: `header -Server/-Via` are needed because Caddy adds its own banner. Compose now runs the gateway on 127.0.0.1:8080/8081.
 
-Files: `packages/domain/src/{identity,identity.test,index}.ts`, `packages/platform/src/password/*`, `packages/platform/{package.json,src/index.ts}`, `packages/config/src/index.ts`, `packages/db/src/{identity,bootstrap.int.test,index}.ts`, `packages/db/prisma/migrations/20261009090000_owner_membership_lock/`, `apps/api/src/cli/*`, `apps/api/package.json`, `package.json`, `.env.example`, `CLAUDE.md`, `docs/{environment,verification,implementation-status,task-backlog}.md`, `docs/runbooks/owner-and-data-bootstrap.md`, `PROGRESS.md`.
+Files: `infra/gateway/Caddyfile`, `scripts/check-gateway.mjs`, `scripts/verify.mjs`, `docker-compose.yml`, `infra/images.lock.json`, `package.json`, `.github/workflows/ci.yml`, `README.md`, `docs/{environment,security-boundaries,verification,implementation-status,task-backlog}.md`, `PROGRESS.md`.
 
-Tests: `pnpm verify -- --integration` PASS (unit 224, integration 90).
+Tests: `pnpm verify -- --integration` PASS (unit 224, integration 90, gateway 29).
 
-Unfinished: production argon2 tuning (needs the production runtime, BI-06); real Owner creation (BI-11); login/sessions (30); last-Owner service guard (36) can now rely on the trigger-enforced lock.
+Unfinished: production gateway/TLS/Cloudflare origin protection (BI-06); age handler (55–56) will use `/api/age/*`; CSRF/Origin checks and limiters are step 32.
 
 ## History (summary)
 
+- 2026-10-09 step 28: argon2id + one-time Owner bootstrap (PR #8, 045b544).
 - 2026-10-09 step 27: identity schema + permission seeds (PR #7, 2bbe336).
 - 2026-10-09 step 26: @ih/platform storage + service auth (PR #6, c786eda); Milestone 2 steps complete.
 - 2026-10-09 BI-07 partial (Resend) + Resend adapter (PR #5, c088bb9).
