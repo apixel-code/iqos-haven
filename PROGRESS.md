@@ -4,13 +4,13 @@
 
 - Date: 2026-10-09
 - Milestone: M2 — shared reliability, communication and audit foundation (M0 review and M1 staging/fixtures still open)
-- Step: 29 (same-origin gateway) — done
-- Branch: `step/29-same-origin-gateway` (from `main`)
+- Step: 30 (admin sign-in + sessions) — done
+- Branch: `step/30-auth-sessions` (from `main`)
 - See docs/verification.md for actual checks.
 
 ## Next action
 
-Run `/step 30`: login/logout/me and session lifecycle (`AuthController`, `SessionService`): `__Host-ih_admin` set from the admin origin (Secure, HttpOnly, SameSite=Strict, Path=/, no Domain), 256-bit token stored as SHA-256, idle 12 h (throttled last_seen) / absolute 7 d, revoke; NFKC-normalize passwords, cap length before argon2 verify, dummy verify for unknown users, generic errors, `needsRehash` upgrade on login. Routes live under `/v1/auth/*` (gateway maps `/api/v1/auth/*` from the admin origin only). Rate limiting is step 32. Pending decision: close the M2 gate. Use node@24 PATH; start Docker Desktop before `pnpm infra:up`.
+Run `/step 31`: permission guard + response field filtering: `@RequirePermission("...")` decorator + `PermissionGuard` on top of `AuthGuard` (deny by default for admin routes without a declared permission), and a serializer/field-filter mechanism that strips Owner-only fields (e.g. aggregate spend, revenue) for Staff. Every new endpoint needs allowed-role, denied-role and invalid-input integration tests (apps/api/CLAUDE.md). Pending decision: close the M2 gate. Use node@24 PATH; start Docker Desktop before `pnpm infra:up`.
 
 ## Blockers
 
@@ -37,7 +37,8 @@ None closed. M2 gate condition (synthetic event processed by worker; duplicate d
 - 26 — @ih/platform storage + HMAC service auth, API InternalService guard, MinIO least-privilege user, MinIO in CI — PR #6 (c786eda)
 - 27 — identity schema, explicit Owner/Staff permission seeds, lockable-but-immutable roles — PR #7 (2bbe336)
 - 28 — argon2id hasher, password policy, one-time Owner bootstrap CLI, owner-lock trigger — PR #8 (045b544)
-- 29 — Caddy same-origin gateway, header stripping, `pnpm test:gateway` (29 checks) in verify/CI — uncommitted (commit `step(29)` follows this handoff)
+- 29 — Caddy same-origin gateway, header stripping, `pnpm test:gateway` (29 checks) in verify/CI — PR #9 (d494dc0)
+- 30 — login/logout/me, `__Host-ih_admin` sessions, AuthGuard — uncommitted (commit `step(30)` follows this handoff)
 
 ## Known deviations
 
@@ -45,18 +46,19 @@ None closed. M2 gate condition (synthetic event processed by worker; duplicate d
 - Event `consumers` lists only implemented consumers (now `system_probe`); planned ones are documented with roadmap steps and move in with a backfill decision (architecture §8: adding a consumer must not redefine old completions).
 - `audit_log` migration revokes UPDATE/DELETE/TRUNCATE only from a role named `ih_app`; other runtime role names must be revoked at provisioning (trigger blocks mutations regardless).
 
-## Last session handoff (2026-10-09, step 29)
+## Last session handoff (2026-10-09, step 30)
 
-Done: step 29. `invariant-reviewer`: no blockers; should-fixes applied (Connection-header abuse check — Caddy is safe; SSE body limit; `/api/age/*` reserved for the storefront age handler; Cloudflare trusted-proxy note for BI-06) and nits (request ID echoed to clients, Linux dev binding documented). One reviewer nit was wrong and reverted: `header -Server/-Via` are needed because Caddy adds its own banner. Compose now runs the gateway on 127.0.0.1:8080/8081.
+Done: step 30. `invariant-reviewer`: no blockers; should-fixes applied (one argon2 verify on the over-length path; dummy hash warmed at startup; `no-store` on errors confirmed by tests — the global error filter already sets it) and nits (duplicate-cookie scan, logout revokes every presented token, re-login revokes the previous session, session insert conditional on the verified hash + active user). Test seam: `createApp(env, { pool, database })` for isolated-schema API integration tests (production never passes it).
 
-Files: `infra/gateway/Caddyfile`, `scripts/check-gateway.mjs`, `scripts/verify.mjs`, `docker-compose.yml`, `infra/images.lock.json`, `package.json`, `.github/workflows/ci.yml`, `README.md`, `docs/{environment,security-boundaries,verification,implementation-status,task-backlog}.md`, `PROGRESS.md`.
+Files: `packages/contracts/src/{auth,index}.ts`, `packages/domain/src/{session,session.test,index}.ts`, `packages/db/src/{sessions,index}.ts`, `apps/api/src/auth/*`, `apps/api/src/{app.module,bootstrap}.ts`, `apps/api/src/infra/infra.module.ts`, `docs/{verification,implementation-status,task-backlog}.md`, `PROGRESS.md`.
 
-Tests: `pnpm verify -- --integration` PASS (unit 224, integration 90, gateway 29).
+Tests: `pnpm verify -- --integration` PASS (unit 263, integration 101, gateway 29).
 
-Unfinished: production gateway/TLS/Cloudflare origin protection (BI-06); age handler (55–56) will use `/api/age/*`; CSRF/Origin checks and limiters are step 32.
+Unfinished: permission guard/field filtering (31), Origin/CSRF + login rate limits (32), password reset (33), invites (34), staff admin (35), last-Owner service (36), admin UI (37).
 
 ## History (summary)
 
+- 2026-10-09 step 29: Caddy same-origin gateway (PR #9, d494dc0).
 - 2026-10-09 step 28: argon2id + one-time Owner bootstrap (PR #8, 045b544).
 - 2026-10-09 step 27: identity schema + permission seeds (PR #7, 2bbe336).
 - 2026-10-09 step 26: @ih/platform storage + service auth (PR #6, c786eda); Milestone 2 steps complete.
