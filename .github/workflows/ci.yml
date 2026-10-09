@@ -61,6 +61,9 @@ jobs:
       - run: pnpm test:infra
       - run: pnpm test:package
       - run: pnpm contracts:check
+      # Runtime role (as in infra/postgres/init) so migration privilege tests run, not skip.
+      - name: Create runtime database role
+        run: psql "postgres://ih_test:ih_test_ci@localhost:5432/iqos_haven_test" -c "CREATE ROLE ih_app NOLOGIN"
       # Service containers cannot take arguments, so MinIO starts here; the same init script as
       # local Compose creates private buckets and the least-privilege service user.
       - name: Start MinIO
