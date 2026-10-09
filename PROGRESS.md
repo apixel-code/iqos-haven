@@ -4,13 +4,13 @@
 
 - Date: 2026-10-09
 - Milestone: M2 — shared reliability, communication and audit foundation (M0 review and M1 staging/fixtures still open)
-- Step: 27 (identity schema + permission seeds) — done; Milestone 3 started
-- Branch: `step/27-identity-schema` (from `main`)
+- Step: 28 (first-Owner bootstrap + password hashing) — done
+- Branch: `step/28-owner-bootstrap` (from `main`)
 - See docs/verification.md for actual checks.
 
 ## Next action
 
-Run `/step 28`: one-time first-Owner bootstrap + argon2id password hashing (identity service; benchmark parameters; no default/prototype password; re-running bootstrap must never create another Owner without authorization; audit the bootstrap). BI-11 (real Owner account details) is needed to run it for real — build the command so the Owner's email/name come from the operator at run time, never from the repo. Services must bump `staff_users.version` explicitly (no trigger). Also pending decision: close the M2 gate. Use node@24 PATH; start Docker Desktop before `pnpm infra:up`.
+Run `/step 29`: admin/storefront same-origin gateway and origin routing (gateway/reverse-proxy config: Nest stays private, browser `/api` → Nest `/v1`, cookies/streaming forwarded, browser-supplied trust headers stripped). Gateway technology depends on BI-06 (budget: Caddy/reverse proxy; replicated: ALB) — build the local/dev gateway and tests for routing/header stripping, keep provider specifics behind BI-06. Login (step 30) must NFKC-normalize passwords, cap length before `verify`, and run a dummy verify for unknown users. Pending decision: close the M2 gate. Use node@24 PATH; start Docker Desktop before `pnpm infra:up`.
 
 ## Blockers
 
@@ -35,7 +35,8 @@ None closed. M2 gate condition (synthetic event processed by worker; duplicate d
 - 25 — email pipeline (strict env, templates, delivery key, EmailConsumer, SMTP/disabled/allowlist adapters, Mailpit in CI) — f35e3dc (PR #4)
 - feat — Resend adapter, EMAIL_PROVIDER/RESEND_* config, BI-07 partial + ADR 0004 — PR #5 (c088bb9)
 - 26 — @ih/platform storage + HMAC service auth, API InternalService guard, MinIO least-privilege user, MinIO in CI — PR #6 (c786eda)
-- 27 — identity schema, explicit Owner/Staff permission seeds, lockable-but-immutable roles — uncommitted (commit `step(27)` follows this handoff)
+- 27 — identity schema, explicit Owner/Staff permission seeds, lockable-but-immutable roles — PR #7 (2bbe336)
+- 28 — argon2id hasher, password policy, one-time Owner bootstrap CLI, owner-lock trigger — uncommitted (commit `step(28)` follows this handoff)
 
 ## Known deviations
 
@@ -43,18 +44,19 @@ None closed. M2 gate condition (synthetic event processed by worker; duplicate d
 - Event `consumers` lists only implemented consumers (now `system_probe`); planned ones are documented with roadmap steps and move in with a backfill decision (architecture §8: adding a consumer must not redefine old completions).
 - `audit_log` migration revokes UPDATE/DELETE/TRUNCATE only from a role named `ih_app`; other runtime role names must be revoked at provisioning (trigger blocks mutations regardless).
 
-## Last session handoff (2026-10-09, step 27)
+## Last session handoff (2026-10-09, step 28)
 
-Done: step 27. Permission catalogue lives in `@ih/domain` (`PERMISSIONS`, `ROLE_PERMISSIONS`); the identity migration seeds were generated from it and an integration test keeps them equal. `invariant-reviewer`: one blocker (runtime role could not lock the owner role row) fixed with a column-level UPDATE grant + immutability trigger, verified as `ih_app` on the dev DB; should-fix applied (privilege tests use production-like default privileges, fail in CI if `ih_app` is missing; CI creates `ih_app`). Nits deferred: session expiry index (with the sweep job), explicit `version` bumps in services. The unreleased identity migration was rolled back and re-applied locally once during the fix.
+Done: step 28. `invariant-reviewer`: no blockers; should-fixes applied (database trigger `staff_users_owner_lock` takes the owner-role lock for every Owner insert/role/active change; hidden prompt handles Ctrl-D, closed stdin and escape sequences; existing-Owner pre-check before prompting) and nits (P2002 → STAFF_EMAIL_TAKEN, parsed `--password-stdin`, NFKC normalization, verify length cap). New dependency: @node-rs/argon2 2.2.2 (prebuilt). Verified on a throwaway database that was dropped — the local dev DB still has no Owner; Marina runs `pnpm bootstrap:owner` with the real Owner (BI-11) when ready.
 
-Files: `packages/domain/src/{permissions,permissions.test,index}.ts`, `packages/db/prisma/{schema.prisma,migrations/20261009053207_identity/}`, `packages/db/src/{identity.int.test,test-schema}.ts`, `.github/workflows/ci.yml`, `docs/{verification,implementation-status,task-backlog}.md`, `PROGRESS.md`.
+Files: `packages/domain/src/{identity,identity.test,index}.ts`, `packages/platform/src/password/*`, `packages/platform/{package.json,src/index.ts}`, `packages/config/src/index.ts`, `packages/db/src/{identity,bootstrap.int.test,index}.ts`, `packages/db/prisma/migrations/20261009090000_owner_membership_lock/`, `apps/api/src/cli/*`, `apps/api/package.json`, `package.json`, `.env.example`, `CLAUDE.md`, `docs/{environment,verification,implementation-status,task-backlog}.md`, `docs/runbooks/owner-and-data-bootstrap.md`, `PROGRESS.md`.
 
-Tests: `pnpm verify -- --integration` PASS (domain 66, db int 38).
+Tests: `pnpm verify -- --integration` PASS (unit 224, integration 90).
 
-Unfinished: bootstrap/hashing (28), gateway (29), sessions/login (30), guards (31), CSRF/limits (32), reset (33), invites (34), staff admin (35), last-Owner guard (36).
+Unfinished: production argon2 tuning (needs the production runtime, BI-06); real Owner creation (BI-11); login/sessions (30); last-Owner service guard (36) can now rely on the trigger-enforced lock.
 
 ## History (summary)
 
+- 2026-10-09 step 27: identity schema + permission seeds (PR #7, 2bbe336).
 - 2026-10-09 step 26: @ih/platform storage + service auth (PR #6, c786eda); Milestone 2 steps complete.
 - 2026-10-09 BI-07 partial (Resend) + Resend adapter (PR #5, c088bb9).
 - 2026-10-09 step 25: email pipeline (PR #4, 5d66ade).

@@ -151,6 +151,16 @@ const emailSafety = (
     issue("EMAIL_RECIPIENT_ALLOWLIST", "required in staging when sending is enabled");
 };
 
+/**
+ * argon2id cost (architecture §11: benchmark on the production runtime with
+ * `pnpm identity:benchmark`). Floors follow OWASP's minimum (19 MiB, t=2).
+ */
+export const passwordHashEnvFields = {
+  ARGON2_MEMORY_KIB: z.coerce.number().int().min(19_456).max(1_048_576).default(65_536),
+  ARGON2_TIME_COST: z.coerce.number().int().min(2).max(10).default(3),
+  ARGON2_PARALLELISM: z.coerce.number().int().min(1).max(8).default(1),
+};
+
 const bucketName = (fallback: string) =>
   z
     .string()
@@ -274,12 +284,20 @@ export const apiEnvSchema = baseEnvSchema
     CACHE_REDIS_URL: redisUrl.optional(),
     ...storageEnvFields,
     INTERNAL_SERVICE_KEYS: serviceKeysSchema,
+    ...passwordHashEnvFields,
   })
   .superRefine((value, ctx) => {
     separateCacheRedis(value, ctx);
     storageSafety(value, ctx);
   });
 export type ApiEnv = z.infer<typeof apiEnvSchema>;
+/** One-time first-Owner bootstrap CLI (runtime role; no other services needed). */
+export const bootstrapEnvSchema = baseEnvSchema.extend({
+  DATABASE_URL: postgresUrl,
+  ...passwordHashEnvFields,
+});
+export type BootstrapEnv = z.infer<typeof bootstrapEnvSchema>;
+
 export const workerEnvSchema = baseEnvSchema
   .extend({
     DATABASE_URL: postgresUrl,
