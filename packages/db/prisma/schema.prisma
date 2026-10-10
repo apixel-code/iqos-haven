@@ -104,12 +104,13 @@ model ScheduledRun {
 /// Fixed launch roles (roadmap step 27): owner, staff. Custom roles are deferred.
 /// The owner row is also the common identity guard locked before Owner membership changes.
 model Role {
-  id          String           @id @default(dbgenerated("uuidv7()")) @db.Uuid
-  key         String           @unique @db.VarChar(32)
-  name        String           @db.VarChar(64)
-  createdAt   DateTime         @default(dbgenerated("statement_timestamp()")) @map("created_at") @db.Timestamptz(6)
+  id          String                 @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  key         String                 @unique @db.VarChar(32)
+  name        String                 @db.VarChar(64)
+  createdAt   DateTime               @default(dbgenerated("statement_timestamp()")) @map("created_at") @db.Timestamptz(6)
   permissions RolePermission[]
   staff       StaffUser[]
+  invitations StaffInvitationToken[]
 
   @@map("roles")
 }
@@ -138,21 +139,22 @@ model RolePermission {
 
 /// Admin users. Never deleted (deactivate). Email stored normalized (trimmed, lower case).
 model StaffUser {
-  id                  String               @id @default(dbgenerated("uuidv7()")) @db.Uuid
-  email               String               @unique @db.VarChar(254)
-  passwordHash        String               @map("password_hash") @db.VarChar(255)
-  name                String               @db.VarChar(100)
-  roleId              String               @map("role_id") @db.Uuid
-  role                Role                 @relation(fields: [roleId], references: [id], onDelete: Restrict, onUpdate: Restrict)
-  active              Boolean              @default(true)
+  id                  String                 @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  email               String                 @unique @db.VarChar(254)
+  passwordHash        String                 @map("password_hash") @db.VarChar(255)
+  name                String                 @db.VarChar(100)
+  roleId              String                 @map("role_id") @db.Uuid
+  role                Role                   @relation(fields: [roleId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  active              Boolean                @default(true)
   /// Deferred MFA: encrypted TOTP secret only, never plaintext.
-  totpSecretEncrypted Bytes?               @map("totp_secret_encrypted")
-  lastActiveAt        DateTime?            @map("last_active_at") @db.Timestamptz(6)
-  createdAt           DateTime             @default(dbgenerated("statement_timestamp()")) @map("created_at") @db.Timestamptz(6)
-  updatedAt           DateTime             @default(dbgenerated("statement_timestamp()")) @map("updated_at") @db.Timestamptz(6)
-  version             Int                  @default(1)
+  totpSecretEncrypted Bytes?                 @map("totp_secret_encrypted")
+  lastActiveAt        DateTime?              @map("last_active_at") @db.Timestamptz(6)
+  createdAt           DateTime               @default(dbgenerated("statement_timestamp()")) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime               @default(dbgenerated("statement_timestamp()")) @map("updated_at") @db.Timestamptz(6)
+  version             Int                    @default(1)
   sessions            Session[]
   passwordResets      PasswordResetToken[]
+  invitationsSent     StaffInvitationToken[] @relation("Inviter")
 
   @@index([roleId])
   @@map("staff_users")
@@ -193,4 +195,25 @@ model PasswordResetToken {
 
   @@index([userId])
   @@map("password_reset_tokens")
+}
+
+/// Immutable recipient/role snapshots; secret lives only as a hashed verifier.
+model StaffInvitationToken {
+  id         String    @id @db.Uuid
+  email      String    @db.VarChar(254)
+  name       String    @db.VarChar(100)
+  roleId     String    @map("role_id") @db.Uuid
+  role       Role      @relation(fields: [roleId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  invitedBy  String    @map("invited_by") @db.Uuid
+  inviter    StaffUser @relation("Inviter", fields: [invitedBy], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  tokenHash  Bytes     @unique @map("token_hash")
+  keyId      String    @map("key_id") @db.VarChar(32)
+  createdAt  DateTime  @default(dbgenerated("statement_timestamp()")) @map("created_at") @db.Timestamptz(6)
+  expiresAt  DateTime  @map("expires_at") @db.Timestamptz(6)
+  acceptedAt DateTime? @map("accepted_at") @db.Timestamptz(6)
+  revokedAt  DateTime? @map("revoked_at") @db.Timestamptz(6)
+  version    Int       @default(1)
+
+  @@index([invitedBy])
+  @@map("staff_invitation_tokens")
 }

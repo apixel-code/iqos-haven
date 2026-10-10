@@ -26,3 +26,18 @@ export const resetRequestSchema = z.strictObject({
   token: z.string().min(1).max(200),
   password: z.string().min(1).max(1024),
 });
+
+export const invitationRequestSchema = z.strictObject({
+  email: z.email().max(254),
+  name: z.string().min(1).max(100),
+  role: z.enum(["owner", "staff"]),
+});
+export const invitationResponseSchema = z.strictObject({
+  id: z.uuid(),
+  expiresAt: z.iso.datetime(),
+});
+export const invitationRevokeRequestSchema = z.strictObject({ invitationId: z.uuid() });
+export const invitationAcceptRequestSchema = z.strictObject({
+  token: z.string().min(1).max(200),
+  password: z.string().min(1).max(1024),
+});

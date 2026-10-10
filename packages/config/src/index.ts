@@ -384,6 +384,43 @@ const resetSafety = (
     });
 };
 
+export const invitationEnvFields = {
+  STAFF_INVITATION_KEYS: serviceKeysSchema
+    .refine(
+      (keys) => keys.every((key) => key.service === "invite"),
+      "Invitation keys require invite service",
+    )
+    .transform((keys) => keys.map(({ keyId, secret }) => ({ keyId, secret }))),
+  STAFF_INVITATION_ORIGIN: httpUrl
+    .refine((value) => new URL(value).origin === value, "must be a bare origin")
+    .optional(),
+};
+const invitationSafety = (
+  value: {
+    APP_ENV: DeploymentEnv;
+    STAFF_INVITATION_KEYS: unknown[];
+    STAFF_INVITATION_ORIGIN?: string | undefined;
+  },
+  ctx: z.RefinementCtx,
+) => {
+  if (value.STAFF_INVITATION_KEYS.length && !value.STAFF_INVITATION_ORIGIN)
+    ctx.addIssue({
+      code: "custom",
+      path: ["STAFF_INVITATION_ORIGIN"],
+      message: "required with invitation keys",
+    });
+  if (
+    (value.APP_ENV === "production" || value.APP_ENV === "staging") &&
+    value.STAFF_INVITATION_ORIGIN &&
+    !value.STAFF_INVITATION_ORIGIN.startsWith("https://")
+  )
+    ctx.addIssue({
+      code: "custom",
+      path: ["STAFF_INVITATION_ORIGIN"],
+      message: "must be https outside development",
+    });
+};
+
 export const apiEnvSchema = baseEnvSchema
   .extend({
     API_PORT: port.default(4000),
@@ -396,13 +433,24 @@ export const apiEnvSchema = baseEnvSchema
     INTERNAL_SERVICE_KEYS: serviceKeysSchema,
     ...passwordHashEnvFields,
     ...resetEnvFields,
+    ...invitationEnvFields,
     ...securityEnvFields,
   })
   .superRefine((value, ctx) => {
     separateCacheRedis(value, ctx);
     storageSafety(value, ctx);
     securitySafety(value, ctx);
+    if (
+      value.STAFF_INVITATION_ORIGIN &&
+      !value.ADMIN_ORIGINS.includes(value.STAFF_INVITATION_ORIGIN)
+    )
+      ctx.addIssue({
+        code: "custom",
+        path: ["STAFF_INVITATION_ORIGIN"],
+        message: "must be an allowed admin origin",
+      });
     resetSafety(value, ctx);
+    invitationSafety(value, ctx);
     if (value.PASSWORD_RESET_ORIGIN && !value.ADMIN_ORIGINS.includes(value.PASSWORD_RESET_ORIGIN))
       ctx.addIssue({
         code: "custom",
@@ -428,6 +476,7 @@ export const workerEnvSchema = baseEnvSchema
     WORKER_STARTUP_TIMEOUT_MS: z.coerce.number().int().min(1000).max(120000).default(15000),
     ...emailEnvFields,
     ...resetEnvFields,
+    ...invitationEnvFields,
     ...storageEnvFields,
     ...serviceSignerFields,
   })
@@ -435,6 +484,7 @@ export const workerEnvSchema = baseEnvSchema
     separateCacheRedis(value, ctx);
     emailSafety(value, ctx);
     resetSafety(value, ctx);
+    invitationSafety(value, ctx);
     storageSafety(value, ctx);
     signerComplete(value, ctx);
   });

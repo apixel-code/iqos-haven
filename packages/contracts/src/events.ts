@@ -50,6 +50,28 @@ interface EventDefinition<P extends z.ZodType> {
 const define = <P extends z.ZodType>(definition: EventDefinition<P>) => definition;
 
 export const EVENT_CATALOGUE = {
+  // Step 34 introduces new types only, with no historical effects to backfill.
+  "staff.invited": define({
+    schemaVersion: 1,
+    aggregateType: "staff_invitation",
+    payload: z.strictObject({ invitationId: id }),
+    consumers: ["email"],
+    plannedConsumers: {},
+  }),
+  "staff.invitation_revoked": define({
+    schemaVersion: 1,
+    aggregateType: "staff_invitation",
+    payload: z.strictObject({ invitationId: id }),
+    consumers: [],
+    plannedConsumers: {},
+  }),
+  "staff.invitation_accepted": define({
+    schemaVersion: 1,
+    aggregateType: "staff_user",
+    payload: z.strictObject({ userId: id }),
+    consumers: [],
+    plannedConsumers: {},
+  }),
   "staff.password_reset": define({
     schemaVersion: 1,
     aggregateType: "staff_user",

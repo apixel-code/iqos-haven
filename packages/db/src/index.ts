@@ -11,3 +11,5 @@ export * from "./identity";
 export * from "./sessions";
 
 export * from "./password-reset";
+
+export * from "./staff-invitations";

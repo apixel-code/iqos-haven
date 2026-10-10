@@ -53,3 +53,7 @@ Compose binds Postgres, queue Redis, MinIO and Mailpit host ports only to loopba
 ## Password reset (step 33)
 
 API and worker share `PASSWORD_RESET_KEYS` from a secret manager: comma-separated `reset:keyId:base64urlSecret` entries (>=32 random bytes, independent of other purpose keys). First entry issues; retained entries deliver pending links. Set `PASSWORD_RESET_ORIGIN` to the bare admin origin, allowed by API `ADMIN_ORIGINS`; staging/production require HTTPS. Never use browser `Host` to build email links. Empty keys disable forgot/reset with 503. No committed default key exists. Delivery still uses `EMAIL_SEND_ENABLED`, local Mailpit and the staging recipient allowlist. See ADR 0006 for rotation, compromise and the planned step 37 fragment flow.
+
+## Staff invitations (step 34)
+
+Set independent `STAFF_INVITATION_KEYS` on API/worker via a secret manager: comma-separated `invite:keyId:base64urlSecret` entries (>=32 random bytes). First entry issues; retained entries deliver pending links. Set `STAFF_INVITATION_ORIGIN` to a bare admin origin allowed by API `ADMIN_ORIGINS`, HTTPS outside development/test. Empty keys return 503 for issue/accept; revocation still works. Retain old keys through 24-hour expiry and rollout. Delivery uses the existing email disabled/allowlist controls. See ADR 0007.

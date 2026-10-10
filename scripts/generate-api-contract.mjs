@@ -12,6 +12,10 @@ const schemas = Object.fromEntries(
     "ForgotRequest",
     "ForgotResponse",
     "ResetRequest",
+    "InvitationRequest",
+    "InvitationResponse",
+    "InvitationRevokeRequest",
+    "InvitationAcceptRequest",
   ].map((name) => [
     name,
     z.toJSONSchema(contracts[name[0].toLowerCase() + name.slice(1) + "Schema"], {
@@ -28,9 +32,68 @@ const document = {
     title: "Iqos Haven — implemented API contracts",
     version: "0.0.0",
     description:
-      "Implemented health and password-reset contracts. Browser reset commands require the configured admin Origin and JSON bodies; responses are no-store. Reset UI is roadmap step 37.",
+      "Implemented health, password-reset and invitation contracts. Browser identity commands require the configured admin Origin and JSON bodies; responses are no-store. Identity UI is roadmap step 37.",
   },
   paths: {
+    "/v1/admin/staff/invitations": {
+      post: {
+        operationId: "staffInvite",
+        security: [{ adminSession: [] }],
+        description:
+          "Requires staff.manage; approved recipient/name/role stored by the server. Resend revokes the prior pending invitation.",
+        requestBody: { required: true, content: content("InvitationRequest") },
+        responses: {
+          201: {
+            description: "Invitation issued; secret delivered only by worker email",
+            content: content("InvitationResponse"),
+          },
+          400: { description: "Invalid request", content: content("ErrorEnvelope") },
+          401: { description: "Session required", content: content("ErrorEnvelope") },
+          403: { description: "Permission or Origin denied", content: content("ErrorEnvelope") },
+          409: { description: "Account already exists", content: content("ErrorEnvelope") },
+          429: { description: "Rate limited", content: content("ErrorEnvelope") },
+          503: {
+            description: "Invitation configuration or limiter unavailable",
+            content: content("ErrorEnvelope"),
+          },
+        },
+      },
+    },
+    "/v1/admin/staff/invitations/revoke": {
+      post: {
+        operationId: "staffInviteRevoke",
+        security: [{ adminSession: [] }],
+        description:
+          "Requires staff.manage; idempotent for nonexistent/accepted/revoked invitations.",
+        requestBody: { required: true, content: content("InvitationRevokeRequest") },
+        responses: {
+          204: { description: "Pending invitation revoked" },
+          400: { description: "Invalid request", content: content("ErrorEnvelope") },
+          401: { description: "Session required", content: content("ErrorEnvelope") },
+          403: { description: "Permission or Origin denied", content: content("ErrorEnvelope") },
+          429: { description: "Rate limited", content: content("ErrorEnvelope") },
+          503: { description: "Limiter unavailable", content: content("ErrorEnvelope") },
+        },
+      },
+    },
+    "/v1/auth/invite/accept": {
+      post: {
+        operationId: "staffInviteAccept",
+        description:
+          "Single-use 24-hour invitation. Recipient, name and role cannot be supplied by the invitee. Existing accounts are never overwritten/reactivated.",
+        requestBody: { required: true, content: content("InvitationAcceptRequest") },
+        responses: {
+          204: { description: "Account created with the stored role; no auto-login" },
+          400: { description: "Invalid invitation or password", content: content("ErrorEnvelope") },
+          403: { description: "Origin denied", content: content("ErrorEnvelope") },
+          429: { description: "Rate limited; Retry-After set", content: content("ErrorEnvelope") },
+          503: {
+            description: "Invitation configuration or limiter unavailable",
+            content: content("ErrorEnvelope"),
+          },
+        },
+      },
+    },
     "/v1/auth/forgot": {
       post: {
         operationId: "passwordResetRequest",
@@ -89,7 +152,10 @@ const document = {
       },
     },
   },
-  components: { schemas },
+  components: {
+    schemas,
+    securitySchemes: { adminSession: { type: "apiKey", in: "cookie", name: "__Host-ih_admin" } },
+  },
 };
 const output = await format(JSON.stringify(document), { parser: "json" });
 const file = "docs/api.openapi.json";
@@ -100,5 +166,5 @@ if (process.argv.includes("--check")) {
   }
 } else {
   writeFileSync(file, output);
-  process.stdout.write("Implemented health/password-reset/error schemas generated.\n");
+  process.stdout.write("Implemented health/identity/error schemas generated.\n");
 }

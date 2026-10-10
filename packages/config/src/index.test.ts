@@ -269,3 +269,43 @@ describe("purpose-specific reset configuration", () => {
     expect(parsed.PASSWORD_RESET_KEYS[0]?.keyId).toBe("one");
   });
 });
+
+describe("invitation configuration", () => {
+  const base = {
+    DATABASE_URL: "postgres://u:p@localhost:5432/db",
+    QUEUE_REDIS_URL: "redis://localhost:6379",
+  };
+  const secret = Buffer.alloc(32, 1).toString("base64url");
+  it("requires an independent invite-purpose key ring and an allowed bare admin origin", () => {
+    expect(loadEnv(apiEnvSchema, base).STAFF_INVITATION_KEYS).toEqual([]);
+    for (const STAFF_INVITATION_KEYS of [
+      "invite:one:short",
+      `reset:one:${secret}`,
+      `invite:one:${secret},invite:one:${secret}`,
+    ])
+      expect(() =>
+        loadEnv(apiEnvSchema, {
+          ...base,
+          STAFF_INVITATION_KEYS,
+          STAFF_INVITATION_ORIGIN: "http://localhost:8081",
+        }),
+      ).toThrow();
+    expect(() =>
+      loadEnv(apiEnvSchema, { ...base, STAFF_INVITATION_KEYS: `invite:one:${secret}` }),
+    ).toThrow(/STAFF_INVITATION_ORIGIN/);
+    expect(() =>
+      loadEnv(apiEnvSchema, {
+        ...base,
+        STAFF_INVITATION_KEYS: `invite:one:${secret}`,
+        STAFF_INVITATION_ORIGIN: "https://evil.test",
+      }),
+    ).toThrow(/STAFF_INVITATION_ORIGIN/);
+    expect(
+      loadEnv(apiEnvSchema, {
+        ...base,
+        STAFF_INVITATION_KEYS: `invite:one:${secret}`,
+        STAFF_INVITATION_ORIGIN: "http://localhost:8081",
+      }).STAFF_INVITATION_KEYS[0]?.keyId,
+    ).toBe("one");
+  });
+});

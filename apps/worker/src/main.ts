@@ -5,6 +5,7 @@ import { createDatabase, createPool } from "@ih/db";
 import { createLogger, errorSummary } from "@ih/logger";
 import { bounded } from "./lifecycle";
 import { createEmailConsumer } from "@ih/application";
+import { staffInvitationEmailPlanner } from "./staff-invitation-email";
 import { passwordResetEmailPlanner } from "./password-reset-email";
 import { createEmailAdapter } from "./email";
 import { EffectRunner, startEffectWorkers, systemProbeHandler } from "./effects";
@@ -31,11 +32,14 @@ async function main(): Promise<void> {
   const owner = `${hostname()}:${process.pid}:${randomUUID().slice(0, 8)}`;
   const relay = new OutboxRelay({ db: database, enqueuer, owner, log });
   const email = createEmailAdapter(env, log);
-  // Step 33 wires the new reset event only; prior event consumer snapshots stay unchanged.
+  // Identity steps wire new reset/invitation types; prior consumer snapshots stay unchanged.
   const emailConsumer = createEmailConsumer({
     adapter: email.adapter,
     from: env.EMAIL_FROM ?? "no-reply@iqoshaven.local",
-    planners: { "staff.password_reset_requested": passwordResetEmailPlanner(database, env) },
+    planners: {
+      "staff.password_reset_requested": passwordResetEmailPlanner(database, env),
+      "staff.invited": staffInvitationEmailPlanner(database, env),
+    },
   });
   const runner = new EffectRunner({
     db: database,

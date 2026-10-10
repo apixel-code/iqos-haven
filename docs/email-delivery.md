@@ -46,3 +46,7 @@ Still needed:
 ## Password reset
 
 Step 33 wires `staff.password_reset_requested` to the email consumer. Its planner loads the token row and active user, checks expiry/use/version and the keyed recipient fingerprint, and derives the link under the stored key ID. PostgreSQL/outbox never store plaintext reset secrets. Retry renders the same link and recipient while valid; obsolete links complete without sending. API/worker reset-key setup and rotation are in ADR 0006. The `/reset` UI is step 37; links are not browser-usable until that page exists. Tests use Mailpit only.
+
+## Staff invitations
+
+Step 34 wires the new `staff.invited` event to email. Its IDs-only payload loads an immutable invitation recipient/role snapshot; the worker verifies token hash, expiry/terminal state, inviter authority and recipient account absence. The dedicated invitation key reproduces a stable retry link. Revoked/accepted/expired/unauthorized invitations send nothing. Missing delivery key is retryable configuration failure. Fragment URL and separate key rotation are in ADR 0007. The acceptance page is step 37; tests use local Mailpit only.

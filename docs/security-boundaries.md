@@ -1,6 +1,6 @@
 # Security boundaries and implementation controls
 
-Architecture sections 3, 9 and 11 are authoritative. Implemented controls include validation/logging/lifecycle, backend sessions/permissions/reset, Origin/CSRF/rate limits, the gateway, private storage and service auth (steps 18–33). Age tickets, frontend auth and commerce enforcement remain pending milestones.
+Architecture sections 3, 9 and 11 are authoritative. Implemented controls include validation/logging/lifecycle, backend sessions/permissions/reset/invitations, Origin/CSRF/rate limits, the gateway, private storage and service auth (steps 18–34). Age tickets, frontend auth and commerce enforcement remain pending milestones.
 
 | Boundary                         | Required enforcement                                                                                                               | Release evidence                                                                                      |
 | -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |

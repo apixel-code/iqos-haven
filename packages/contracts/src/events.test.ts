@@ -30,6 +30,9 @@ describe("event catalogue", () => {
         "report.requested",
         "review.submitted",
         "system.probe",
+        "staff.invited",
+        "staff.invitation_revoked",
+        "staff.invitation_accepted",
         "staff.password_reset",
         "staff.password_reset_requested",
       ].sort(),
@@ -56,7 +59,7 @@ describe("event catalogue", () => {
     expect(required.filter((consumer) => planned.includes(consumer))).toEqual([]);
   });
 
-  it("only wires consumers whose handlers exist (steps 19/33: probe and reset email)", () => {
+  it("only wires consumers whose handlers exist (steps 19/33/34: probe and identity email)", () => {
     const wired = entries.flatMap(([, definition]) => definition.consumers as readonly string[]);
     expect([...new Set(wired)].sort()).toEqual(["email", "system_probe"]);
   });

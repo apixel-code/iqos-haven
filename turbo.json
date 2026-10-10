@@ -31,7 +31,8 @@
         "ADMIN_ORIGINS",
         "STOREFRONT_ORIGINS",
         "RATE_LIMIT_*",
-        "PASSWORD_RESET_*"
+        "PASSWORD_RESET_*",
+        "STAFF_INVITATION_*"
       ]
     },
     "lint": {
