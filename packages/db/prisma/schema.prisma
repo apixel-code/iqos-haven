@@ -139,6 +139,7 @@ model RolePermission {
 
 /// Admin users. Never deleted (deactivate). Email stored normalized (trimmed, lower case).
 model StaffUser {
+  settingsUpdates Setting[]
   id                  String                 @id @default(dbgenerated("uuidv7()")) @db.Uuid
   email               String                 @unique @db.VarChar(254)
   passwordHash        String                 @map("password_hash") @db.VarChar(255)
@@ -216,4 +217,15 @@ model StaffInvitationToken {
 
   @@index([invitedBy])
   @@map("staff_invitation_tokens")
+}
+
+/// Versioned typed configuration; absent or JSON-null values are unconfigured (step 38).
+model Setting {
+  key       String @id @db.VarChar(64)
+  value     Json
+  version   Int @default(1)
+  updatedBy String @map("updated_by") @db.Uuid
+  updater   StaffUser @relation(fields: [updatedBy], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  updatedAt DateTime @default(dbgenerated("statement_timestamp()")) @map("updated_at") @db.Timestamptz(6)
+  @@map("settings")
 }

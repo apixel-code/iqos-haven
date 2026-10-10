@@ -1,4 +1,4 @@
-import { format } from "prettier";
+import { format, resolveConfig } from "prettier";
 import { createRequire } from "node:module";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 const require = createRequire(new URL("../apps/api/package.json", import.meta.url));
@@ -22,6 +22,9 @@ const schemas = Object.fromEntries(
     "StaffDeactivateRequest",
     "StaffRoleRequest",
     "StaffReactivateRequest",
+    "SettingsWriteRequest",
+    "SettingResponse",
+    "SettingsResponse",
   ].map((name) => [
     name,
     z.toJSONSchema(contracts[name[0].toLowerCase() + name.slice(1) + "Schema"], {
@@ -30,6 +33,24 @@ const schemas = Object.fromEntries(
   ]),
 );
 schemas.StaffEditRequest.anyOf = [{ required: ["name"] }, { required: ["email"] }];
+// Zod refinements are enforced at runtime; describe the cross-field recipient rule explicitly.
+function annotateNotifications(schema) {
+  if (!schema || typeof schema !== "object") return;
+  if (schema.properties?.enabled && schema.properties?.recipients) {
+    schema.anyOf = [
+      { properties: { enabled: { enum: [false] } } },
+      { properties: { recipients: { minItems: 1 } } },
+    ];
+    schema.properties.recipients.description =
+      "Unique case-insensitively; no real defaults or delivery activation supplied.";
+  }
+  for (const value of Object.values(schema)) {
+    if (Array.isArray(value)) value.forEach(annotateNotifications);
+    else if (value && typeof value === "object") annotateNotifications(value);
+  }
+}
+for (const name of ["SettingsWriteRequest", "SettingResponse", "SettingsResponse"])
+  annotateNotifications(schemas[name]);
 const content = (name) => ({
   "application/json": { schema: { $ref: "#/components/schemas/" + name } },
 });
@@ -42,6 +63,45 @@ const document = {
       "Implemented health, identity and staff administration contracts. Browser identity commands require the configured admin Origin and JSON bodies; responses are no-store. Identity UI is roadmap step 37.",
   },
   paths: {
+    "/v1/admin/settings": {
+      get: {
+        operationId: "settingsRead",
+        security: [{ adminSession: [] }],
+        description:
+          "Requires settings.manage. Four typed groups; absent values are null/version 0. No prototype defaults. Private/no-store; no public settings endpoint.",
+        responses: {
+          200: { description: "Typed current configuration", content: content("SettingsResponse") },
+          400: { description: "Unknown query", content: content("ErrorEnvelope") },
+          401: { description: "Session required", content: content("ErrorEnvelope") },
+          403: { description: "Permission denied", content: content("ErrorEnvelope") },
+        },
+      },
+      patch: {
+        operationId: "settingsWrite",
+        security: [{ adminSession: [] }],
+        description:
+          "Requires settings.manage and expected version. Replace one typed value; 0 creates an absent key, null clears without deleting history. Settings alone do not activate email/WhatsApp delivery. Unknown keys/fields rejected; audit and IDs-only event atomic.",
+        requestBody: { required: true, content: content("SettingsWriteRequest") },
+        responses: {
+          200: {
+            description: "Current versioned configuration group",
+            content: content("SettingResponse"),
+          },
+          400: { description: "Invalid typed configuration", content: content("ErrorEnvelope") },
+          401: { description: "Session required", content: content("ErrorEnvelope") },
+          403: { description: "Permission or Origin denied", content: content("ErrorEnvelope") },
+          409: {
+            description: "Stale version; reload current settings",
+            content: content("ErrorEnvelope"),
+          },
+          429: { description: "Rate limited", content: content("ErrorEnvelope") },
+          503: {
+            description: "Authoritative limiter unavailable",
+            content: content("ErrorEnvelope"),
+          },
+        },
+      },
+    },
     "/v1/admin/staff": {
       get: {
         operationId: "staffList",
@@ -297,8 +357,11 @@ const document = {
     securitySchemes: { adminSession: { type: "apiKey", in: "cookie", name: "__Host-ih_admin" } },
   },
 };
-const output = await format(JSON.stringify(document), { parser: "json" });
 const file = "docs/api.openapi.json";
+const output = await format(JSON.stringify(document), {
+  ...(await resolveConfig(file)),
+  parser: "json",
+});
 if (process.argv.includes("--check")) {
   if (!existsSync(file) || readFileSync(file, "utf8") !== output) {
     process.stderr.write("Contract drift: run pnpm contracts:generate after building contracts.\n");
@@ -306,5 +369,5 @@ if (process.argv.includes("--check")) {
   }
 } else {
   writeFileSync(file, output);
-  process.stdout.write("Implemented health/identity/error schemas generated.\n");
+  process.stdout.write("Implemented health/identity/settings/error schemas generated.\n");
 }

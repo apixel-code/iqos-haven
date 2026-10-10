@@ -4,17 +4,17 @@
 
 - Date: 2026-10-10
 - Milestone: M3 — identity, permissions, admin access and basic settings (M0 review and M1 staging/fixtures still open)
-- Step: 37 (admin login/reset/invite + session-aware layout/navigation) — done; visual browser QA pending
-- Branch: `step/37-admin-auth-ui` (based on local step 36 commit `ad21bda`; merge dependency PRs in step order)
+- Step: 38 (typed store/contact/notification/WhatsApp settings schema + Owner-only API) — done; step 37 visual browser QA pending
+- Branch: `step/38-settings-api` (based on local step 37 commit `f0071e8`; merge dependency PRs in step order)
 - See docs/verification.md for actual checks.
 
 ## Next action
 
-Implement `/step 38`: store/contact/notification/WhatsApp settings schema and Owner-only API with strict validation, expected versions and atomic audit/outbox. Read the settings architecture/database contracts and BI-01/BI-07 first; keep unanswered real contact/sender/recipient values unset/configured rather than copying prototype values. Step 37 browser visual/interactive QA remains pending: enable Computer Use and verify desktop/mobile login, expired-session recovery, reset/invite fragment consumption and permission navigation against isolated synthetic accounts. Review/push completed branches through green CI in step order (32–37).
+Implement `/step 39`: delivery areas, flat fees and ETA schema/API, using the roadmap and delivery/settings contracts. Keep unanswered BI-03 real areas/fees/ETA unconfigured; enforce strict bounded inputs, current permissions, expected versions and atomic audit/outbox. Step 37 desktop/mobile browser QA remains pending (Computer Use unavailable). Review/push completed branches through green CI in step order (32–38).
 
 ## Blockers
 
-None for step 37 code implementation; browser visual/interactive QA blocked by unavailable browser surface/Computer Use permission. Step 38 schema/API can proceed without real contact inputs (identity email delivery to real inboxes still needs the rest of BI-07; local/test use Mailpit). BI-11 blocks real Owner bootstrap (28). Email go-live needs the rest of BI-07 (verified Resend domain, sender address, new-order recipients). Audit retention/pruning needs BI-08. BI-07 is partially answered; the other BI items remain open; M0 needs client decisions; M1 staging needs BI-06.
+None for step 38 implementation or step 39 schema/API. Real settings need BI-01/BI-09 and remaining BI-07 contact, sender and recipient inputs; real delivery configuration needs BI-03. Step 37 browser QA remains blocked by unavailable browser surface/Computer Use permission. BI-11 blocks real Owner bootstrap; BI-06 blocks staging provisioning. No milestone gate changes.
 
 ## Gates passed
 
@@ -51,7 +51,9 @@ None for step 37 code implementation; browser visual/interactive QA blocked by u
 
 - 36 — shared identity transactions/last-Owner guard, fixed Owner/Staff role changes and reactivation, atomic session/capability cleanup + audit/outbox, recovery runbook (ADR 0009) — ad21bda
 
-- 37 — admin auth/reset/invite forms, dynamic no-store session shell and permission navigation/direct-section gate, memory-only fragment capabilities, real gateway auth checks (ADR 0010); visual/interactive QA pending — commit `step(37): admin auth pages and permission-aware session layout`
+- 37 — admin auth/reset/invite forms, dynamic no-store session shell and permission navigation/direct-section gate, memory-only fragment capabilities, real gateway auth checks (ADR 0010); visual/interactive QA pending — f0071e8
+
+- 38 — typed Owner-only settings read/replace API, unconfigured groups, versioned atomic audit/outbox and strict validation (ADR 0011) — commit `step(38): typed settings API with versioned atomic updates`
 
 ## Known deviations
 
@@ -59,24 +61,23 @@ None for step 37 code implementation; browser visual/interactive QA blocked by u
 - Event `consumers` lists only implemented consumers (now `system_probe` and `email`); planned ones are documented with roadmap steps and move in with a backfill decision (architecture §8: adding a consumer must not redefine old completions).
 - `audit_log` migration revokes UPDATE/DELETE/TRUNCATE only from a role named `ih_app`; other runtime role names must be revoked at provisioning (trigger blocks mutations regardless).
 
-## Last session handoff (2026-10-10, step 37)
+## Last session handoff (2026-10-10, step 38)
 
-Done: step 37 code (ADR 0010), real admin auth pages/session-aware shell/navigation. Browser visual/interactive QA remains pending; no M3 gate claim.
+Done: step 38 settings schema/API (ADR 0011). Four groups are explicit null/version 0 until configured; no prototype or real values seeded. Owner-only GET/PATCH uses strict complete-group contracts, current `settings.manage`, no-store responses and fail-closed mutation limits.
 
-- `/login`, `/forgot`, `/reset`, `/invite/accept`: shared responsive prototype-based forms/tokens; no defaults/demo credentials; real same-origin JSON auth and generic errors/success. Pending, password confirmation, show/hide, invalid/missing links, retry/rate-limit/unavailable states. Reset/invite success redirects to login without auto-login.
-- Fragment capabilities consumed once into memory refs and immediately removed from history; no query token support/storage/logging. Cookie stays HttpOnly; browser handles it. Auth requests no-store and timeout after ten seconds. Dynamic page/cache/referrer controls prevent protected/session/capability caching.
-- Protected shell uses strict fresh `/me`; route/focus/visibility/minute rechecks abort superseded requests and suppress stale completion. Failed verification hides workspace; 401 redirects with expired notice; other failures show retry. Real logout clears/revokes session; no success claim on failure. Permission-derived navigation and direct-section denial never trust a client role. Operational bodies are honest placeholders.
-- Reused self-hosted fonts and light/dark theme tokens; initial light document/theme toggle, responsive card/sidebar. Browser gateway origin required; no Next credential proxy/config secrets. New contracts dependency is a workspace link only. Invariant reviewer: no issues.
+- Additive settings migration: allowed immutable keys, bounded positive versions, JSON object/null and Staff actor FK. Expected version 0 creates version 1; competing creates/updates conflict; unchanged replacements preserve metadata; null clears preserve version history.
+- Transactions lock the Owner role, actor and setting in order, recheck authority and atomically save settings, metadata-only audit and IDs-only `settings.updated` outbox. Audit/outbox contain no contact, recipient or template content. No email delivery or WhatsApp automation activated.
+- Strict domains, HTTPS social links without credentials, E.164 numbers, bounded email recipients and approved template placeholders. Only implemented new-order email configuration is exposed; low-stock/daily digest remain deferred. Invariant reviewer: no issues.
 
-Files: `apps/admin/{package.json,next.config.ts,vitest.config.ts}`, `apps/admin/app/{layout.tsx,globals.css,(workspace)/**,login/page.tsx,forgot/page.tsx,reset/page.tsx,invite/accept/page.tsx}` (old foundation page replaced), `apps/admin/components/{auth-form,session-shell,workspace-section}.tsx`, `apps/admin/lib/{auth,auth.test,navigation,navigation.test}.ts`, `pnpm-lock.yaml`, `docs/decisions/0010-admin-auth-ui.md`, `docs/{implementation-status,task-backlog,security-boundaries,verification}.md`, `README.md`, `START-HERE-BN.md`, `PROGRESS.md`.
+Files: `packages/contracts/src/{settings.ts,index.ts,events.ts,events.test.ts}`, `packages/db/{prisma/schema.prisma,prisma/migrations/20261010000200_settings/migration.sql,src/settings.ts,src/index.ts}`, `apps/api/src/{settings/**,app.module.ts,security/limit-policies.ts}`, `scripts/generate-api-contract.mjs`, `docs/api.openapi.json`, `docs/decisions/0011-settings-api.md`, `docs/{implementation-status,task-backlog,security-boundaries,business-inputs,verification}.md`, `docs/runbooks/owner-and-data-bootstrap.md`, `README.md`, `START-HERE-BN.md`, `PROGRESS.md`.
 
-Tests: `pnpm verify -- --integration` PASS (unit 295, integration 172, gateway 29); includes admin 13 new auth/navigation tests and production build/lint/typecheck/format/boundary/reference/infra/contract checks. Offline frozen lockfile check PASS. Nine additional production-page/gateway HTTP smoke checks PASS: pages/cache/referrer/no demo defaults, anonymous shell/no private profile, actual anonymous 401, Staff login/current grants, Owner endpoint 403, logout/revoked session. Final admin checks rerun after explicit initial theme and same-page fragment replacement handling. Temporary API used an isolated test schema with synthetic identities and disabled email; shutdown drops it.
+Tests: `pnpm verify -- --integration` PASS (unit 297, integration 180, gateway 29), including production builds/lint/typecheck/format/boundary/reference/infra/contract checks. Eight new real Nest/PostgreSQL integration tests cover authorization, strict inputs, concurrent creation/version conflicts/no-ops, null clear, audit privacy/rollback, DB constraints, deterministic actor-demotion lock race and shared-limiter outage. All migrations applied only to isolated test schemas. Initial DTO typing and generated-contract formatting failures fixed before the green full run; generator now uses the repository Prettier config.
 
-Initial setup: offline install needed noninteractive CI mode; stale generated `.next/dev/types` from the old page were removed before a green build. Local production preview used explicit staging profile/HTTPS internal URL placeholder; browser requests still used gateway. No dependency versions changed. Browser visual/interactive checks NOT RUN: no browser connector and native Computer Use permission denied. No screenshots or interactive reset/invite/session recovery evidence claimed.
-
-Unfinished: browser desktop/mobile/interactive QA; step 38 settings schema/API; operational UI/later roadmap. Real identities BI-11, email BI-07, infrastructure/recovery BI-06. No real email, live DB migration, `.env` secret changes, PR push/merge or milestone gate performed.
+Unfinished: step 39 delivery configuration, step 40 admin forms/auth acceptance and step 37 browser visual/interactive QA. Real settings/delivery inputs pending. No live migration, `.env` changes, new dependencies, real email/identities, PR push/merge or M3 gate closure.
 
 ## History (summary)
+
+- 2026-10-10 step 37: admin auth/session-aware navigation, ADR 0010 (f0071e8); verify unit 295/integration 172/gateway 29 and nine gateway HTTP checks. Browser visual/interactive QA not run (unavailable surfaces/Computer Use denied).
 
 - 2026-10-10 step 36: shared last-Owner guard + versioned fixed-role/reactivation commands and atomic capability cleanup, ADR 0009 (ad21bda); verify unit 282/integration 172/gateway 29.
 

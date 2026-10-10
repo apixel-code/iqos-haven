@@ -50,6 +50,13 @@ interface EventDefinition<P extends z.ZodType> {
 const define = <P extends z.ZodType>(definition: EventDefinition<P>) => definition;
 
 export const EVENT_CATALOGUE = {
+  "settings.updated": define({
+    schemaVersion: 1,
+    aggregateType: "setting",
+    payload: z.strictObject({ key: z.enum(["store", "contact", "notifications", "whatsapp"]) }),
+    consumers: [],
+    plannedConsumers: {},
+  }),
   "staff.role_changed": define({
     schemaVersion: 1,
     aggregateType: "staff_user",

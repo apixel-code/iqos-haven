@@ -76,3 +76,8 @@ export const STAFF_MANAGE_POLICY: EndpointLimitPolicy<"ip" | "actor"> = {
   rules: { ip: { limit: 30, windowMs: 60 * MINUTE }, actor: { limit: 30, windowMs: 60 * MINUTE } },
   outage: "fail_closed",
 };
+
+export const SETTINGS_MANAGE_POLICY = {
+  ...STAFF_MANAGE_POLICY,
+  endpoint: "settings.manage",
+} as const;

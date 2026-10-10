@@ -18,6 +18,7 @@ describe("event catalogue", () => {
   it("covers the architecture §8 initial events plus the synthetic probe", () => {
     expect(Object.keys(EVENT_CATALOGUE).sort()).toEqual(
       [
+        "settings.updated",
         "catalog.changed",
         "content.published",
         "inventory.low",
