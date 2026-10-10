@@ -12,6 +12,7 @@ import { filsToAed, managementRequest } from "../lib/management";
 import { formatExtraSpecs, productCreateCommand, productUpdateCommand } from "../lib/products";
 import { ResourceNotice, useManagementResource } from "./management-resource";
 import { ProductVariants } from "./product-variants";
+import { ProductImages } from "./product-images";
 
 type Status = "all" | "published" | "draft";
 
@@ -219,6 +220,7 @@ function ProductEditor({
         }}
         onBack={onBack}
       />
+      {row && <ProductImages productId={row.id} canWrite={canWrite} />}
       {row && (
         <ProductVariants
           productId={row.id}

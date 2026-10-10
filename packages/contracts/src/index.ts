@@ -32,6 +32,8 @@ export const CONFLICT_CODES = [
   "IMAGE_LIMIT",
   "UPLOAD_MISSING",
   "UPLOAD_EXPIRED",
+  "MEDIA_NOT_READY",
+  "ORDER_MISMATCH",
 ] as const;
 export type ConflictCode = (typeof CONFLICT_CODES)[number];
 

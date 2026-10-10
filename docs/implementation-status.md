@@ -41,6 +41,12 @@
 - Step 47 (ADR 0017): absolute set-stock against the balance the user saw (`STOCK_CHANGED` on mismatch, delta computed under the row lock, effect `set`, admin command IDs unique across variants/effects); admin Stock workspace (state tabs, SKU/product search, add/remove/set with notes, history, per-action command IDs). Browser QA not run.
 - Step 48 (ADR 0018): `media_assets` and the quarantine upload flow.
 - Step 49 (ADR 0019): `media_processor` consumer (worker, external effect).
+- Step 50 (ADR 0020): product image gallery.
+  - Only ready assets of the same product can be attached, enforced by DB triggers in both directions.
+  - Eight images, one primary and a dense order, all serialized by the product lock; alt text; atomic audit and `catalog.changed`.
+  - Removal marks the asset `removed`, which frees its slot; its original is purged after 24 h.
+  - Admin previews use 10-minute signed links to sanitized derivatives. Nothing is public; storefront serving waits for the age gate in steps 56–60.
+  - The admin Images card handles upload, quiet polling, recovery, alt text, primary, reordering and removal. Browser QA has not been run.
   - Checks the ETag; checks magic bytes against the declared type, then the decoder format.
   - Refuses pixel bombs, animation (incl. APNG), out-of-range sides and decoding warnings.
   - Writes Sharp WebP derivatives (1600/800/320, metadata stripped, orientation applied) to the private media bucket and records ready/rejected idempotently.

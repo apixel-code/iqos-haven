@@ -292,10 +292,33 @@ describe("catalogue constraints (real PostgreSQL, isolated schema)", () => {
       expect(await privilege(table, "TRUNCATE")).toBe(false);
   });
 
+  /** A processed media asset (step 50: gallery images reference ready assets). */
+  async function readyAsset(productId: string) {
+    const role = await db.role.findUniqueOrThrow({ where: { key: "staff" } });
+    const uploader = await db.staffUser.create({
+      data: {
+        email: `uploader-${randomUUID()}@iqoshaven.test`,
+        name: "Uploader",
+        roleId: role.id,
+        passwordHash: "$argon2id$v=19$m=65536,t=3,p=1$c2FsdHNhbHQ$aGFzaGhhc2hoYXNo",
+      },
+    });
+    const id = randomUUID();
+    await pool.query(
+      `INSERT INTO media_assets (id, product_id, uploaded_by, quarantine_key, declared_type,
+         declared_bytes, state, observed_bytes, width, height, sha256, upload_expires_at)
+       VALUES ($1::uuid, $2, $3, 'uploads/' || $1::text, 'image/jpeg', 10, 'ready', 10, 100, 200,
+         repeat('a', 64), statement_timestamp())`,
+      [id, productId, uploader.id],
+    );
+    return id;
+  }
+
   it("constrains image keys/metadata and enforces one primary image", async () => {
     const { row } = await product();
     const image = await db.productImage.create({
       data: {
+        mediaAssetId: await readyAsset(row.id),
         productId: row.id,
         assetKey: "media/synthetic.webp",
         width: 100,
@@ -307,6 +330,7 @@ describe("catalogue constraints (real PostgreSQL, isolated schema)", () => {
     await expect(
       db.productImage.create({
         data: {
+          mediaAssetId: await readyAsset(row.id),
           productId: row.id,
           assetKey: "media/other.webp",
           width: 100,

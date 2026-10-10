@@ -20,7 +20,7 @@ export async function managementRequest<T>(
   signal?: AbortSignal,
 ): Promise<T> {
   if (
-    !/^\/(settings|staff|delivery-areas|brands|categories|products|inventory)(?:[/?]|$)/.test(
+    !/^\/(settings|staff|delivery-areas|brands|categories|products|inventory|media)(?:[/?]|$)/.test(
       path,
     ) ||
     path.includes("..") ||
@@ -154,6 +154,16 @@ export function managementError(error: unknown, mutation = false) {
       return "Published products still use this record. Move or unpublish them first.";
     if (error.status === 409 && error.code === "DUPLICATE")
       return "That name or link is already used (including in Trash). Choose another.";
+    if (error.status === 409 && error.code === "IMAGE_LIMIT")
+      return "This product already has eight images or uploads in progress. Remove one first.";
+    if (error.status === 409 && error.code === "MEDIA_NOT_READY")
+      return "This image is not processed yet. Wait for it to be ready.";
+    if (error.status === 409 && error.code === "ORDER_MISMATCH")
+      return "The gallery changed meanwhile. Reload and arrange again.";
+    if (error.status === 409 && error.code === "UPLOAD_EXPIRED")
+      return "The upload took too long. Choose the file again.";
+    if (error.status === 409 && error.code === "UPLOAD_MISSING")
+      return "The file did not arrive. Choose the file again.";
     if (error.status === 409 && error.code === "TRASHED")
       return "This record is in Trash. Restore it before making changes.";
     if (error.status === 409)

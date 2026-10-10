@@ -316,7 +316,7 @@ export async function mediaQuarantinePurgeCandidates(
     WHERE quarantine_purged_at IS NULL
       AND ((state IN ('expired','rejected') AND upload_expires_at <= statement_timestamp()
           - make_interval(hours => ${UPLOAD_GRACE_HOURS}))
-        OR (state='ready' AND updated_at <= statement_timestamp()
+        OR (state IN ('ready','removed') AND updated_at <= statement_timestamp()
           - make_interval(hours => ${QUARANTINE_RETENTION_HOURS})))
       ${
         excluded.length

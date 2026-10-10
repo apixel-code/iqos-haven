@@ -4,21 +4,20 @@
 
 - Date: 2026-10-10
 - Milestone: M4 — catalogue, variants, safe media and inventory (started; M3 gate not closed; M0 review and M1 staging/fixtures still open)
-- Step: 49 (media validation, Sharp derivatives, cleanup) — done
-- Branch: `step/49-media-processing` (stacked on local step 48 `16d3867`; merge dependency PRs in step order)
+- Step: 50 (product image gallery + editor) — done (browser QA not run)
+- Branch: `step/50-product-gallery` (stacked on local step 49 `3e9b5f7`; merge dependency PRs in step order)
 - See docs/verification.md for actual checks.
 
 ## Next action
 
-1. **Marina:** merge PR #13 (step 32, CI green). Then, in order, push, open a PR, wait for green CI and merge for `step/33-*` … `step/49-*`. None of 33–49 is pushed. The auto-mode classifier blocked Claude from running the merge chain ("merge without review"), so Marina either merges herself or allows it.
-2. Then `/step 50`: the product images gallery and editor. Check the row with `rg -n "^| 50 " docs/roadmap.md`.
-   - Attach `ready` media assets as `product_images`: at most eight, with one primary, sort order and alt text, locked under the product row.
-   - Show the upload processing state, and let users recover from failures by retrying or removing.
-   - Make the derivatives public in a sanitized way (CDN or short signed links; decide in an ADR).
-   - Admin UI: upload with progress, the processing state, reordering and the primary image.
-   - The quarantine bucket needs CORS for the admin origin (BI-06).
+1. **Marina:** merge PR #13 (step 32, CI green). Then, in order, push → PR → green CI → merge `step/33-*` … `step/50-*`. None of 33–50 is pushed. The auto-mode classifier blocked Claude from running the merge chain ("merge without review"), so Marina either merges herself or allows it.
+2. Then `/step 51`: publication, trash/restore and reference-aware hard purge (`rg -n "^| 51 " docs/roadmap.md`).
+   - **Publish:** require an approved tax treatment (BI-02, still OPEN; publication stays blocked until it is answered), at least one active variant with an active default, at least one gallery image, a description, a live brand/category (trigger) and price rules.
+   - **Trash/restore:** products.
+   - **Owner-only `catalog.purge`:** blocked by historical references; decide what happens to the derivatives of removed/purged media.
+   - Staff may publish/trash/restore. History is never cascade-deleted.
 
-BI-02 also gates product publication (51) and the M4 gate. Browser QA is still open for the catalogue/stock screens (42–47) and the step 37/40 forms. Use node@24 PATH; start Docker Desktop before `pnpm infra:up`.
+BI-02 gates real publication, so ask Marina whether to build step 51 with publish failing closed (`PUBLISH_REQUIREMENTS`) until the tax treatment exists. Browser QA is still open for the catalogue/stock/gallery screens (42–50) and the step 37/40 forms. Use node@24 PATH; start Docker Desktop before `pnpm infra:up`.
 
 ## Blockers
 
@@ -83,7 +82,9 @@ None for step 41 schema work. Real settings/coverage require BI-01/BI-03/BI-09 a
 
 - 48 — media_assets + quarantine upload (signed POST policy, HEAD outside tx, ETag, eight-slot limit, public endpoint), media.uploaded (ADR 0018) — 16d3867
 
-- 49 — media_processor consumer (magic/decoder/bomb/animation/APNG checks, Sharp WebP derivatives, ETag pin), backfill function, hourly quarantine cleanup with grace (ADR 0019) — uncommitted (commit `step(49)` follows this handoff)
+- 49 — media_processor consumer (magic/decoder/bomb/animation/APNG checks, Sharp WebP derivatives, ETag pin), backfill function, hourly quarantine cleanup with grace (ADR 0019) — 3e9b5f7
+
+- 50 — product gallery: ready-asset-only attach (DB triggers both ways), 8/primary/order under product lock, removal frees slot, 10-min signed previews, admin Images card (ADR 0020) — uncommitted (commit `step(50)` follows this handoff)
 
 ## Known deviations
 
@@ -91,35 +92,37 @@ None for step 41 schema work. Real settings/coverage require BI-01/BI-03/BI-09 a
 - Event `consumers` lists only implemented consumers (now `system_probe` and `email`); planned ones are documented with roadmap steps and move in with a backfill decision (architecture §8: adding a consumer must not redefine old completions).
 - `audit_log` migration revokes UPDATE/DELETE/TRUNCATE only from a role named `ih_app`; other runtime role names must be revoked at provisioning (trigger blocks mutations regardless).
 
-## Last session handoff (2026-10-10, step 49)
+## Last session handoff (2026-10-10, step 50)
 
-Done: step 49 (ADR 0019). Marina approved adding Sharp; it is pinned at 0.35.5 in platform and worker.
+Done: step 50 (ADR 0020).
 
-- **Image module** `@ih/platform` `image/`:
-  - `sniffImageType`, `isAnimatedPng`, `processImage`;
-  - strict decoding (`failOn: "warning"`) with pixel, side and byte bounds;
-  - WebP derivatives with metadata stripped.
-- **Migration `20261010000900_media_processing`:** `quarantine_purged_at` column plus the idempotent `media_backfill_processing()`, which runs once.
-- **`media.uploaded`:** now requires `media_processor`.
-- **Worker** `apps/worker/src/media.ts`:
-  - consumer: external effect with ETag pin, ready/rejected recorded idempotently, system audit;
-  - cleanup job: hourly, expire → purge after grace or retention, per-item failure isolation;
-  - wired into `main.ts` with `sharp.concurrency(1)` and storage.
-- **`invariant-reviewer`:** one blocker (false backfill claim) — fixed with the backfill. Should-fixes done: APNG, cleanup isolation, grace period, strict decoding.
+- **Migration `20261010001000_product_gallery`:**
+  - `product_images.media_asset_id`;
+  - a ready/same-product trigger (`FOR SHARE`);
+  - a guard that keeps attached assets `ready`;
+  - a new media state, `removed`.
+- **Repository `packages/db/src/gallery.ts`:** read, attach, update, reorder and remove, all under the product lock, with audit and `catalog.changed`.
+- **API `/v1/admin/products/:id/images`** (`GET`/`POST`/`PATCH :imageId`/`PUT order`/`POST :imageId/remove`):
+  - Previews are 10-minute signed links to derivatives.
+  - New conflict codes: `MEDIA_NOT_READY`, `ORDER_MISMATCH`.
+- **Cleanup:** originals of removed assets are now also purged after 24 h.
+- **Admin:** an Images card in the product editor (`product-images.tsx`, `lib/media.ts`).
+- **`invariant-reviewer`:** found 2 UI blockers — polling reloaded and unmounted the card and could abort an upload, and an upload failure blocked the card. Both are fixed, along with all should-fixes (DB guard triggers, removed purge, derivative completeness, expired/pending copy, mutation snapshot) and the test gaps.
 
-Files: `packages/platform/{package.json,src/index.ts,src/image/*}`, `apps/worker/{package.json,src/media.ts,src/media.int.test.ts,src/main.ts}`, `packages/db/prisma/{schema.prisma,migrations/20261010000900_media_processing/}`, `packages/db/src/media.ts`, `packages/contracts/src/{events,events.test}.ts`, `pnpm-lock.yaml`, `docs/decisions/0019-media-processing.md`, `docs/{implementation-status,task-backlog,verification}.md`, `PROGRESS.md`.
+Files: `packages/db/prisma/{schema.prisma,migrations/20261010001000_product_gallery/}`, `packages/db/src/{gallery,media,index,catalogue.int.test}.ts`, `packages/contracts/src/{media,index}.ts`, `apps/api/src/media/{gallery.controller,gallery.service,gallery.int.test,media.module}.ts`, `apps/admin/{components/product-images.tsx,components/product-management.tsx,lib/media.ts,lib/media.test.ts,lib/management.ts}`, `docs/decisions/0020-product-gallery.md`, `docs/{implementation-status,task-backlog,verification}.md`, `PROGRESS.md`.
 
-Tests: `pnpm verify -- --integration` PASS (unit 342, integration 286, gateway 29).
+Tests: `pnpm verify -- --integration` PASS (unit 345, integration 293, gateway 29).
 
 Unfinished:
 
-- Gallery/attachment and public derivative serving (step 50).
-- Bucket CORS and lifecycle backstop (BI-06).
-- PR #13 and steps 33–49 not merged or pushed (Marina).
-- Migrations not applied to the dev database.
+- Browser QA has not been done, including the real upload with bucket CORS (BI-06).
+- Storefront image serving waits for the age-gated steps 56–60.
+- PR #13 and steps 33–50 are not merged or pushed; Marina has to do this.
+- Migrations are not applied to the dev database.
 
 ## History (summary)
 
+- 2026-10-10 step 49: media validation, Sharp derivatives, quarantine cleanup (3e9b5f7); verify unit 342/integration 286/gateway 29.
 - 2026-10-10 step 48: quarantine media upload authorization (16d3867); verify unit 334/integration 280/gateway 29.
 - 2026-10-10 step 47: set-stock + admin Stock workspace (947f097); verify unit 333/integration 272/gateway 29.
 - 2026-10-10 step 46: append-only stock ledger + inventory API (0923c1f); verify unit 331/integration 266/gateway 29.

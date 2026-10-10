@@ -382,19 +382,22 @@ model StockMovement {
 }
 
 model ProductImage {
-  id        String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
-  productId String   @map("product_id") @db.Uuid
-  product   Product  @relation(fields: [productId], references: [id], onDelete: Restrict, onUpdate: Restrict)
-  assetKey  String   @map("asset_key") @db.VarChar(512)
-  isPrimary Boolean  @default(false) @map("is_primary")
-  sortOrder Int      @default(0) @map("sort_order")
-  alt       String   @default("") @db.VarChar(500)
-  width     Int
-  height    Int
-  mime      String   @db.VarChar(32)
-  version   Int      @default(1)
-  createdAt DateTime @default(dbgenerated("statement_timestamp()")) @map("created_at") @db.Timestamptz(6)
-  updatedAt DateTime @default(dbgenerated("statement_timestamp()")) @map("updated_at") @db.Timestamptz(6)
+  id           String     @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  productId    String     @map("product_id") @db.Uuid
+  product      Product    @relation(fields: [productId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  assetKey     String     @map("asset_key") @db.VarChar(512)
+  isPrimary    Boolean    @default(false) @map("is_primary")
+  sortOrder    Int        @default(0) @map("sort_order")
+  alt          String     @default("") @db.VarChar(500)
+  width        Int
+  height       Int
+  mime         String     @db.VarChar(32)
+  /// The processed (ready) media asset this image shows (step 50).
+  mediaAssetId String     @unique @map("media_asset_id") @db.Uuid
+  mediaAsset   MediaAsset @relation(fields: [mediaAssetId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  version      Int        @default(1)
+  createdAt    DateTime   @default(dbgenerated("statement_timestamp()")) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime   @default(dbgenerated("statement_timestamp()")) @map("updated_at") @db.Timestamptz(6)
 
   @@unique([productId, assetKey])
   @@index([productId, sortOrder, id], map: "product_images_order")
@@ -448,6 +451,8 @@ model MediaAsset {
   version            Int       @default(1)
   createdAt          DateTime  @default(dbgenerated("statement_timestamp()")) @map("created_at") @db.Timestamptz(6)
   updatedAt          DateTime  @default(dbgenerated("statement_timestamp()")) @map("updated_at") @db.Timestamptz(6)
+
+  image ProductImage?
 
   @@index([productId, createdAt, id], map: "media_assets_product")
   @@map("media_assets")

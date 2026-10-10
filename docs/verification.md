@@ -347,3 +347,38 @@ Browser upload (CORS on the quarantine bucket) is part of step 50 and BI-06.
   - expired and rejected originals are purged after the grace period;
   - a processed original is kept for 24 h, then purged while its derivatives remain;
   - a repeated cleanup run is harmless.
+
+## Step 50 — product image gallery (2026-10-10, local)
+
+`pnpm verify -- --integration` PASS:
+
+- unit 345 (admin 45)
+- integration 293 (api 176)
+- gateway 29
+
+`gallery.int.test.ts` has 7 tests:
+
+- **Attach:**
+  - Ready assets are attached; the first becomes primary and the order stays dense.
+  - Previews are 10-minute signed links to `.webp` derivatives in the media bucket, never quarantine.
+  - Re-attaching the same asset is idempotent.
+  - Audit is written.
+- **Refusals:**
+  - Uploaded, processing, rejected and removed assets give `MEDIA_NOT_READY`.
+  - Another product's asset gives 404.
+  - Raw SQL inserts are refused by the trigger.
+  - Failed uploads stay visible with their error code.
+- **Concurrency:** ten concurrent attaches give exactly 8 images, one primary and order 0..7. The next attach gives `IMAGE_LIMIT`.
+- **Edits:**
+  - Alt edits work.
+  - Moving the primary works; unsetting it gives `DEFAULT_REQUIRED`; a stale version gives `VERSION_CONFLICT`.
+  - Reordering works; a wrong set gives `ORDER_MISMATCH`.
+- **Removal:** the next image is promoted to primary, the order stays dense, the asset becomes `removed` and its slot is freed.
+- **DB integrity:**
+  - An attached asset cannot leave `ready` or change product.
+  - A stale remove is refused.
+  - A removed asset cannot be re-attached.
+  - An asset missing a derivative is refused.
+- **Permissions:** without the `catalog.write` grant the API returns 403 while reads still work. Anonymous → 401, unknown product → 404, trashed product → `TRASHED`.
+
+The admin unit tests cover the upload pre-check, form field order, rejection copy and reordering. The Images card has not been exercised in a browser.
