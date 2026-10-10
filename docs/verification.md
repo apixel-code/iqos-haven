@@ -382,3 +382,41 @@ Browser upload (CORS on the quarantine bucket) is part of step 50 and BI-06.
 - **Permissions:** without the `catalog.write` grant the API returns 403 while reads still work. Anonymous → 401, unknown product → 404, trashed product → `TRASHED`.
 
 The admin unit tests cover the upload pre-check, form field order, rejection copy and reordering. The Images card has not been exercised in a browser.
+
+## Browser QA — catalogue, stock and media screens (2026-10-10, local)
+
+**Setup:**
+
+- Headless Chromium (Playwright, cached Chrome for Testing) through the real local gateway admin origin `http://localhost:8081`.
+- Built admin served on 3001.
+- Built API on 4000, plus the real `media_processor` consumer driven in a loop.
+- An isolated `ih_test_*` schema in the test database; the dev database was not touched. Synthetic Owner and Staff only. Real local MinIO.
+
+**Result: 19/19 checks PASS.**
+
+- Owner sign-in.
+- Brand: created, with the slug suggested from its name.
+- Category: created.
+- Product draft: saved with AED→fils, compare-at and typed specs.
+- Variants:
+  - flavour × nicotine options generated 4 variants;
+  - exactly one is the default.
+- Images:
+  - a JPEG carrying EXIF was uploaded straight to quarantine and processed by the worker;
+  - "Add to gallery" made it the primary;
+  - the thumbnail loads from a signed media-bucket WebP link, never quarantine;
+  - a GIF was refused in the browser.
+- Stock: a count was set to 12 (initial), then 2 removed as damaged with a note; the history shows actor and note.
+- No failed requests during the Owner journey.
+- Staff: no SEO fields, and denied Owner-only settings.
+- Mobile: no horizontal overflow at 375 px on the products, inventory and brands screens.
+- Screenshots were inspected; they were not archived.
+
+**Found and fixed:** the "Add product" editor recreated its response contract on every render. That reloaded the resource endlessly: the form stuck on "Loading current values…", Save stayed disabled and typed values were lost. Unit and integration tests could not see this. The contracts are now module-level constants. After the fix, the admin was rebuilt and the full journey passed.
+
+**Not covered:**
+
+- Real mobile touch/keyboard.
+- Dark theme via the in-app toggle (the app uses its own theme switch, not the OS preference).
+- Reset/invite new-password submission.
+- Storefront.

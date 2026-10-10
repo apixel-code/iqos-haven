@@ -8,13 +8,19 @@ import {
   type ProductResponse,
 } from "@ih/contracts";
 import { slugify } from "../lib/catalogue";
-import { filsToAed, managementRequest } from "../lib/management";
+import { filsToAed, managementRequest, type ResponseContract } from "../lib/management";
 import { formatExtraSpecs, productCreateCommand, productUpdateCommand } from "../lib/products";
 import { ResourceNotice, useManagementResource } from "./management-resource";
 import { ProductVariants } from "./product-variants";
 import { ProductImages } from "./product-images";
 
 type Status = "all" | "published" | "draft";
+
+// Module-level contracts: the resource reloads when its contract identity changes, so these
+// must never be recreated per render (that caused an endless reload of the editor).
+const EXISTING_PRODUCT: ResponseContract<ProductResponse | null> = productResponseSchema;
+/** A new product has nothing to load; the probe request only confirms read access. */
+const NEW_PRODUCT: ResponseContract<ProductResponse | null> = { parse: () => null };
 
 /**
  * Products (step 44): list and draft-first editor. Variants/SKU (45), stock (46–47), images
@@ -189,9 +195,10 @@ function ProductEditor({
   onDone: (id: string) => void;
   onBack: () => void;
 }) {
-  const product = useManagementResource(id ? `/products/${id}` : "/products?limit=1", {
-    parse: (value: unknown) => (id ? productResponseSchema.parse(value) : null),
-  });
+  const product = useManagementResource(
+    id ? `/products/${id}` : "/products?limit=1",
+    id ? EXISTING_PRODUCT : NEW_PRODUCT,
+  );
   const brands = useManagementResource("/brands?limit=100", brandsResponseSchema);
   const categories = useManagementResource("/categories?limit=100", categoriesResponseSchema);
   const row = id ? product.data : null;
