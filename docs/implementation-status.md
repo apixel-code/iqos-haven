@@ -40,6 +40,13 @@
 - Step 46 (ADR 0017): append-only `stock_movements` ledger. An AFTER INSERT trigger applies and verifies each movement (`balance_after` computed under the variant lock). Direct stock writes are impossible (trigger-depth guard). Stock stays within 0–100,000,000. Reasons: INITIAL_STOCK/RESTOCK/MANUAL/DAMAGE. Inventory API: list with stock states, movement history, replay-safe adjustments by command ID. Audit records no note text. A reconciliation query exists; scheduled alerting arrives in step 53. Set-stock and the UI are step 47.
 - Step 47 (ADR 0017): absolute set-stock against the balance the user saw (`STOCK_CHANGED` on mismatch, delta computed under the row lock, effect `set`, admin command IDs unique across variants/effects); admin Stock workspace (state tabs, SKU/product search, add/remove/set with notes, history, per-action command IDs). Browser QA not run.
 - Step 48 (ADR 0018): `media_assets` and the quarantine upload flow.
+- Step 49 (ADR 0019): `media_processor` consumer (worker, external effect).
+  - Checks the ETag; checks magic bytes against the declared type, then the decoder format.
+  - Refuses pixel bombs, animation (incl. APNG), out-of-range sides and decoding warnings.
+  - Writes Sharp WebP derivatives (1600/800/320, metadata stripped, orientation applied) to the private media bucket and records ready/rejected idempotently.
+  - Backfill function for pre-consumer uploads.
+  - Hourly durable quarantine cleanup with a grace period and 24 h original retention.
+  - Sharp 0.35.5.
   - Authorize, then a short-lived signed POST policy straight to private storage (key, type and size pinned; never longer than the DB authorization; `S3_PUBLIC_ENDPOINT` for browsers), then complete.
   - Completion runs HEAD outside the transaction and records size and ETag, or rejects the upload on a mismatch. Audit and `media.uploaded` are written atomically.
   - The eight-slot limit is serialized by the product lock. Expired or failed authorizations free their slot.

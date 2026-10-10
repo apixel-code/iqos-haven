@@ -425,27 +425,29 @@ model SlugRedirect {
 /// Quarantine upload record (step 48). Bytes are untrusted until processing (step 49) marks the
 /// asset `ready`; only ready assets may become product images.
 model MediaAsset {
-  id              String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
-  productId       String    @map("product_id") @db.Uuid
-  product         Product   @relation(fields: [productId], references: [id], onDelete: Restrict, onUpdate: Restrict)
-  uploadedBy      String    @map("uploaded_by") @db.Uuid
-  uploader        StaffUser @relation(fields: [uploadedBy], references: [id], onDelete: Restrict, onUpdate: Restrict)
-  quarantineKey   String    @unique @map("quarantine_key") @db.VarChar(512)
-  declaredType    String    @map("declared_type") @db.VarChar(32)
-  declaredBytes   Int       @map("declared_bytes")
-  state           String    @default("pending") @db.VarChar(16)
-  observedBytes   Int?      @map("observed_bytes")
-  observedType    String?   @map("observed_type") @db.VarChar(32)
-  observedEtag    String?   @map("observed_etag") @db.VarChar(128)
-  width           Int?
-  height          Int?
-  sha256          String?   @db.Char(64)
-  derivativeKeys  Json      @default("{}") @map("derivative_keys")
-  error           String?   @db.VarChar(64)
-  uploadExpiresAt DateTime  @map("upload_expires_at") @db.Timestamptz(6)
-  version         Int       @default(1)
-  createdAt       DateTime  @default(dbgenerated("statement_timestamp()")) @map("created_at") @db.Timestamptz(6)
-  updatedAt       DateTime  @default(dbgenerated("statement_timestamp()")) @map("updated_at") @db.Timestamptz(6)
+  id                 String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  productId          String    @map("product_id") @db.Uuid
+  product            Product   @relation(fields: [productId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  uploadedBy         String    @map("uploaded_by") @db.Uuid
+  uploader           StaffUser @relation(fields: [uploadedBy], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  quarantineKey      String    @unique @map("quarantine_key") @db.VarChar(512)
+  declaredType       String    @map("declared_type") @db.VarChar(32)
+  declaredBytes      Int       @map("declared_bytes")
+  state              String    @default("pending") @db.VarChar(16)
+  observedBytes      Int?      @map("observed_bytes")
+  observedType       String?   @map("observed_type") @db.VarChar(32)
+  observedEtag       String?   @map("observed_etag") @db.VarChar(128)
+  width              Int?
+  height             Int?
+  sha256             String?   @db.Char(64)
+  derivativeKeys     Json      @default("{}") @map("derivative_keys")
+  error              String?   @db.VarChar(64)
+  uploadExpiresAt    DateTime  @map("upload_expires_at") @db.Timestamptz(6)
+  /// When the private quarantine original was deleted (cleanup, step 49).
+  quarantinePurgedAt DateTime? @map("quarantine_purged_at") @db.Timestamptz(6)
+  version            Int       @default(1)
+  createdAt          DateTime  @default(dbgenerated("statement_timestamp()")) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime  @default(dbgenerated("statement_timestamp()")) @map("updated_at") @db.Timestamptz(6)
 
   @@index([productId, createdAt, id], map: "media_assets_product")
   @@map("media_assets")

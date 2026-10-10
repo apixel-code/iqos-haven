@@ -212,3 +212,130 @@ export async function abandonMediaUpload(db: Database, id: string, reason: "pres
       updated_at=statement_timestamp()
     WHERE id=${id}::uuid AND state='pending'`);
 }
+
+// --- Processing and cleanup (step 49, ADR 0019) ---
+
+export interface MediaForProcessing {
+  readonly id: string;
+  readonly productId: string;
+  readonly state: MediaAsset["state"];
+  readonly quarantineKey: string;
+  readonly declaredType: MediaAsset["declaredType"];
+  readonly observedEtag: string | null;
+  readonly version: number;
+}
+
+export async function loadMediaForProcessing(
+  db: Database,
+  id: string,
+): Promise<MediaForProcessing | null> {
+  const [row] = await db.$queryRaw<MediaForProcessing[]>(Prisma.sql`
+    SELECT id, product_id AS "productId", state, quarantine_key AS "quarantineKey",
+      declared_type AS "declaredType", observed_etag AS "observedEtag", version
+    FROM media_assets WHERE id=${id}::uuid`);
+  return row ?? null;
+}
+
+export type MediaProcessingResult =
+  | {
+      readonly state: "ready";
+      readonly width: number;
+      readonly height: number;
+      readonly sha256: string;
+      readonly derivativeKeys: Readonly<Record<string, string>>;
+    }
+  | { readonly state: "rejected"; readonly error: string };
+
+/**
+ * Records the processing outcome once: only an `uploaded` asset changes, so a redelivered effect
+ * (or a racing duplicate) is a no-op. Audit is written by the system actor in the same transaction.
+ */
+export async function finishMediaProcessing(
+  db: Database,
+  context: CommandContext,
+  id: string,
+  result: MediaProcessingResult,
+): Promise<boolean> {
+  return withTransaction(db, async (tx) => {
+    const changed =
+      result.state === "ready"
+        ? await tx.$executeRaw(Prisma.sql`
+            UPDATE media_assets SET state='ready', width=${result.width}, height=${result.height},
+              sha256=${result.sha256}, derivative_keys=${JSON.stringify(result.derivativeKeys)}::jsonb,
+              error=NULL, version=version+1, updated_at=statement_timestamp()
+            WHERE id=${id}::uuid AND state='uploaded'`)
+        : await tx.$executeRaw(Prisma.sql`
+            UPDATE media_assets SET state='rejected', error=${result.error},
+              version=version+1, updated_at=statement_timestamp()
+            WHERE id=${id}::uuid AND state='uploaded'`);
+    if (!changed) return false;
+    await new PrismaAuditWriter().append(
+      tx,
+      toAuditEntry(context, {
+        action: result.state === "ready" ? "media.processed" : "media.processing_rejected",
+        entity: { type: "media_asset", id },
+        before: { state: "uploaded" },
+        after:
+          result.state === "ready"
+            ? { state: "ready", width: result.width, height: result.height }
+            : { state: "rejected", error: result.error },
+      }),
+    );
+    return true;
+  });
+}
+
+/** Retention of private originals after successful processing. */
+export const QUARANTINE_RETENTION_HOURS = 24;
+
+/** Marks authorizations that ran out before completion as expired; returns how many. */
+export async function expireMediaUploads(db: Database): Promise<number> {
+  return db.$executeRaw(Prisma.sql`
+    UPDATE media_assets SET state='expired', version=version+1, updated_at=statement_timestamp()
+    WHERE state='pending' AND upload_expires_at <= statement_timestamp()`);
+}
+
+/**
+ * Grace after an upload authorization expires before its object is deleted: storage and database
+ * clocks differ, so a straggling POST could otherwise land after the purge and be orphaned.
+ */
+export const UPLOAD_GRACE_HOURS = 1;
+
+/**
+ * Quarantine originals that may be deleted now: expired or rejected assets once their upload
+ * policy (plus grace) can no longer write, and ready assets after retention. `excluded` skips ids
+ * that failed earlier in the same cleanup run.
+ */
+export async function mediaQuarantinePurgeCandidates(
+  db: Database,
+  limit: number,
+  excluded: readonly string[] = [],
+) {
+  return db.$queryRaw<Array<{ id: string; quarantineKey: string }>>(Prisma.sql`
+    SELECT id, quarantine_key AS "quarantineKey" FROM media_assets
+    WHERE quarantine_purged_at IS NULL
+      AND ((state IN ('expired','rejected') AND upload_expires_at <= statement_timestamp()
+          - make_interval(hours => ${UPLOAD_GRACE_HOURS}))
+        OR (state='ready' AND updated_at <= statement_timestamp()
+          - make_interval(hours => ${QUARANTINE_RETENTION_HOURS})))
+      ${
+        excluded.length
+          ? Prisma.sql`AND id NOT IN (${Prisma.join(excluded.map((id) => Prisma.sql`${id}::uuid`))})`
+          : Prisma.empty
+      }
+    ORDER BY updated_at, id LIMIT ${limit}`);
+}
+
+/** Re-runs the step-49 backfill (idempotent); returns how many effects were created. */
+export async function backfillMediaProcessing(db: Database): Promise<number> {
+  const [row] = await db.$queryRaw<Array<{ created: number }>>(
+    Prisma.sql`SELECT media_backfill_processing() AS created`,
+  );
+  return row?.created ?? 0;
+}
+
+export async function markQuarantinePurged(db: Database, id: string) {
+  await db.$executeRaw(Prisma.sql`
+    UPDATE media_assets SET quarantine_purged_at=statement_timestamp()
+    WHERE id=${id}::uuid AND quarantine_purged_at IS NULL`);
+}

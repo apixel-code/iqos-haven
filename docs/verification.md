@@ -319,3 +319,31 @@ The admin unit tests cover the add/remove/set command builders. The Stock screen
 Platform unit test: presigned uploads are signed for the public endpoint, never the internal one.
 
 Browser upload (CORS on the quarantine bucket) is part of step 50 and BI-06.
+
+## Step 49 — media processing and cleanup (2026-10-10, local)
+
+`pnpm verify -- --integration` PASS (unit 342 incl. platform 55; integration 286 incl. worker 52; gateway 29).
+
+`image.test.ts` (8 tests):
+
+- signature sniffing: JPEG/PNG/WebP only, so SVG and GIF are refused;
+- derivatives are metadata-free WebP, never enlarged, and the source sha256 is recorded;
+- EXIF orientation is applied;
+- a mismatch between the declared type and the actual bytes is rejected;
+- truncated or corrupt files are rejected;
+- animated WebP and APNG are rejected;
+- side and pixel bounds hold, with a compressible decompression bomb refused;
+- the byte cap is enforced.
+
+`media.int.test.ts` (worker, 6 tests, real PostgreSQL and MinIO):
+
+- **Processing:** through `EffectRunner` exactly once, giving `ready` with dimensions, sha256 and three private WebP derivatives without EXIF, plus an audit entry. A duplicate job is a no-op.
+- **Rejections:**
+  - replaced bytes are rejected as `object_changed`;
+  - disguised SVG, truncated JPEG and an undersized image are rejected with no derivatives;
+  - an asset from before the consumer existed is backfilled once (idempotent), processed, and rejected as `object_missing`.
+- **Cleanup:**
+  - a just-expired grant is kept through the grace period;
+  - expired and rejected originals are purged after the grace period;
+  - a processed original is kept for 24 h, then purged while its derivatives remain;
+  - a repeated cleanup run is harmless.

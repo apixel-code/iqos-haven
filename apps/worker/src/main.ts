@@ -8,6 +8,9 @@ import { createEmailConsumer } from "@ih/application";
 import { staffInvitationEmailPlanner } from "./staff-invitation-email";
 import { passwordResetEmailPlanner } from "./password-reset-email";
 import { createEmailAdapter } from "./email";
+import { createMediaCleanupJob, createMediaConsumer } from "./media";
+import { ObjectStorage, storageConfigFromEnv } from "@ih/platform";
+import sharp from "sharp";
 import { EffectRunner, startEffectWorkers, systemProbeHandler } from "./effects";
 import { BullEffectEnqueuer, createQueueConnection } from "./queue";
 import { EffectReconciler } from "./reconciler";
@@ -41,16 +44,25 @@ async function main(): Promise<void> {
       "staff.invited": staffInvitationEmailPlanner(database, env),
     },
   });
+  // Image processing is CPU/memory heavy: one libvips thread per job, bounded worker concurrency.
+  sharp.concurrency(1);
+  const storage = new ObjectStorage(storageConfigFromEnv(env));
+  const mediaConsumer = createMediaConsumer({ db: database, storage, log });
   const runner = new EffectRunner({
     db: database,
     owner,
     log,
-    handlers: [systemProbeHandler, emailConsumer],
+    handlers: [systemProbeHandler, emailConsumer, mediaConsumer],
     retries: enqueuer,
   });
   const reconciler = new EffectReconciler({ db: database, enqueuer, log });
   // Scheduled jobs (daily summary, rollups, cleanup) register here in their roadmap steps.
-  const scheduler = new Scheduler({ db: database, owner, log, jobs: [] });
+  const scheduler = new Scheduler({
+    db: database,
+    owner,
+    log,
+    jobs: [createMediaCleanupJob({ db: database, storage, log })],
+  });
   let effectWorkers: { stop(): Promise<void> } | undefined;
   let runtime: WorkerRuntime | undefined;
   let starting: Promise<WorkerRuntime> | undefined;
@@ -70,6 +82,7 @@ async function main(): Promise<void> {
         await effectWorkers?.stop();
         await enqueuer.close();
         email.close();
+        storage.destroy();
         // Waits for active jobs; the shutdown deadline bounds it.
         await (runtime ?? started)?.stop();
       } finally {

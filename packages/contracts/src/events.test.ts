@@ -66,9 +66,9 @@ describe("event catalogue", () => {
     expect(required.filter((consumer) => planned.includes(consumer))).toEqual([]);
   });
 
-  it("only wires consumers whose handlers exist (steps 19/33/34: probe and identity email)", () => {
+  it("only wires consumers whose handlers exist (probe, identity email, media processor)", () => {
     const wired = entries.flatMap(([, definition]) => definition.consumers as readonly string[]);
-    expect([...new Set(wired)].sort()).toEqual(["email", "system_probe"]);
+    expect([...new Set(wired)].sort()).toEqual(["email", "media_processor", "system_probe"]);
   });
 });
 

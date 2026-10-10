@@ -4,19 +4,19 @@
 
 - Date: 2026-10-10
 - Milestone: M4 — catalogue, variants, safe media and inventory (started; M3 gate not closed; M0 review and M1 staging/fixtures still open)
-- Step: 48 (quarantine media upload authorization) — done
-- Branch: `step/48-media-upload` (stacked on local step 47 `947f097`; merge dependency PRs in step order)
+- Step: 49 (media validation, Sharp derivatives, cleanup) — done
+- Branch: `step/49-media-processing` (stacked on local step 48 `16d3867`; merge dependency PRs in step order)
 - See docs/verification.md for actual checks.
 
 ## Next action
 
-1. **Marina:** merge PR #13 (step 32, CI green). Then, in order, push → PR → green CI → merge for `step/33-*` … `step/48-*`. None of 33–48 is pushed. The auto-mode classifier blocked Claude from running the merge chain ("merge without review"); Marina must merge herself or allow it.
-2. Then `/step 49`: the media processing consumer (`MediaConsumer` in the worker). Add it to the `media.uploaded` consumers with a backfill decision (ADR).
-   - Compare the object ETag with `observed_etag`, or copy to a processing key first.
-   - Read with the 8 MiB cap. Verify magic bytes and decoder support, and reject SVG, animated and malformed images.
-   - Set pixel/dimension bombs limits, strip metadata, re-encode derivatives with Sharp into the media bucket, and set `ready` with width, height and sha256, or `rejected` with an error.
-   - Add a durable cleanup schedule for expired, rejected and orphan quarantine objects.
-   - Sharp is a new dependency, so ask Marina before adding it.
+1. **Marina:** merge PR #13 (step 32, CI green). Then, in order, push, open a PR, wait for green CI and merge for `step/33-*` … `step/49-*`. None of 33–49 is pushed. The auto-mode classifier blocked Claude from running the merge chain ("merge without review"), so Marina either merges herself or allows it.
+2. Then `/step 50`: the product images gallery and editor. Check the row with `rg -n "^| 50 " docs/roadmap.md`.
+   - Attach `ready` media assets as `product_images`: at most eight, with one primary, sort order and alt text, locked under the product row.
+   - Show the upload processing state, and let users recover from failures by retrying or removing.
+   - Make the derivatives public in a sanitized way (CDN or short signed links; decide in an ADR).
+   - Admin UI: upload with progress, the processing state, reordering and the primary image.
+   - The quarantine bucket needs CORS for the admin origin (BI-06).
 
 BI-02 also gates product publication (51) and the M4 gate. Browser QA is still open for the catalogue/stock screens (42–47) and the step 37/40 forms. Use node@24 PATH; start Docker Desktop before `pnpm infra:up`.
 
@@ -81,7 +81,9 @@ None for step 41 schema work. Real settings/coverage require BI-01/BI-03/BI-09 a
 
 - 47 — set-stock against the seen balance (STOCK_CHANGED), set/adjust effects with cross-variant unique admin command IDs, admin Stock workspace (ADR 0017) — 947f097
 
-- 48 — media_assets + quarantine upload (signed POST policy, HEAD outside tx, ETag, eight-slot limit, public endpoint), media.uploaded (ADR 0018) — uncommitted (commit `step(48)` follows this handoff)
+- 48 — media_assets + quarantine upload (signed POST policy, HEAD outside tx, ETag, eight-slot limit, public endpoint), media.uploaded (ADR 0018) — 16d3867
+
+- 49 — media_processor consumer (magic/decoder/bomb/animation/APNG checks, Sharp WebP derivatives, ETag pin), backfill function, hourly quarantine cleanup with grace (ADR 0019) — uncommitted (commit `step(49)` follows this handoff)
 
 ## Known deviations
 
@@ -89,35 +91,36 @@ None for step 41 schema work. Real settings/coverage require BI-01/BI-03/BI-09 a
 - Event `consumers` lists only implemented consumers (now `system_probe` and `email`); planned ones are documented with roadmap steps and move in with a backfill decision (architecture §8: adding a consumer must not redefine old completions).
 - `audit_log` migration revokes UPDATE/DELETE/TRUNCATE only from a role named `ih_app`; other runtime role names must be revoked at provisioning (trigger blocks mutations regardless).
 
-## Last session handoff (2026-10-10, step 48)
+## Last session handoff (2026-10-10, step 49)
 
-Done: step 48 (ADR 0018). The session was interrupted mid-step and resumed from the uncommitted work.
+Done: step 49 (ADR 0019). Marina approved adding Sharp; it is pinned at 0.35.5 in platform and worker.
 
-- **Database:** migration `20261010000800_media_assets` and the Prisma `MediaAsset` model.
-- **Contracts:** `packages/contracts/src/media.ts`.
-- **Repository** (`packages/db/src/media.ts`):
-  - authorize: product lock, eight slots, DB-clock expiry;
-  - complete: lock, trashed check, size/type/ETag, reject or upload, audit plus `media.uploaded`;
-  - `abandonMediaUpload` on signing failure.
-- **API** (`apps/api/src/media/*`):
-  - routes: `GET /admin/products/:id/media`, `POST /admin/products/:id/media/uploads`, `POST /admin/media/:assetId/complete`;
-  - `OBJECT_STORAGE` provider.
-- **Platform and config:** `@ih/platform` storage has `publicEndpoint` and HEAD returns an ETag. `@ih/config` adds `S3_PUBLIC_ENDPOINT` (also in `.env.example` and `docs/environment.md`).
-- **Review:** `invariant-reviewer` found no blockers; all should-fixes and nits are done.
+- **Image module** `@ih/platform` `image/`:
+  - `sniffImageType`, `isAnimatedPng`, `processImage`;
+  - strict decoding (`failOn: "warning"`) with pixel, side and byte bounds;
+  - WebP derivatives with metadata stripped.
+- **Migration `20261010000900_media_processing`:** `quarantine_purged_at` column plus the idempotent `media_backfill_processing()`, which runs once.
+- **`media.uploaded`:** now requires `media_processor`.
+- **Worker** `apps/worker/src/media.ts`:
+  - consumer: external effect with ETag pin, ready/rejected recorded idempotently, system audit;
+  - cleanup job: hourly, expire → purge after grace or retention, per-item failure isolation;
+  - wired into `main.ts` with `sharp.concurrency(1)` and storage.
+- **`invariant-reviewer`:** one blocker (false backfill claim) — fixed with the backfill. Should-fixes done: APNG, cleanup isolation, grace period, strict decoding.
 
-Files: `packages/db/prisma/{schema.prisma,migrations/20261010000800_media_assets/}`, `packages/contracts/src/{media,index}.ts`, `packages/db/src/{media,index}.ts`, `packages/platform/src/storage/{storage,storage.test,storage.int.test}.ts`, `packages/config/src/index.ts`, `apps/api/src/{media/*,infra/infra.module.ts,infra/tokens.ts,app.module.ts}`, `.env.example`, `docs/environment.md`, `docs/decisions/0018-quarantine-media-upload.md`, `docs/{implementation-status,task-backlog,verification}.md`, `PROGRESS.md`.
+Files: `packages/platform/{package.json,src/index.ts,src/image/*}`, `apps/worker/{package.json,src/media.ts,src/media.int.test.ts,src/main.ts}`, `packages/db/prisma/{schema.prisma,migrations/20261010000900_media_processing/}`, `packages/db/src/media.ts`, `packages/contracts/src/{events,events.test}.ts`, `pnpm-lock.yaml`, `docs/decisions/0019-media-processing.md`, `docs/{implementation-status,task-backlog,verification}.md`, `PROGRESS.md`.
 
-Tests: `pnpm verify -- --integration` PASS (unit 334, integration 280, gateway 29).
+Tests: `pnpm verify -- --integration` PASS (unit 342, integration 286, gateway 29).
 
 Unfinished:
 
-- processing, derivatives and cleanup (49);
-- gallery UI and bucket CORS (50 / BI-06);
-- PR #13 and steps 33–48 are not merged or pushed (Marina);
-- migrations are not applied to the dev database.
+- Gallery/attachment and public derivative serving (step 50).
+- Bucket CORS and lifecycle backstop (BI-06).
+- PR #13 and steps 33–49 not merged or pushed (Marina).
+- Migrations not applied to the dev database.
 
 ## History (summary)
 
+- 2026-10-10 step 48: quarantine media upload authorization (16d3867); verify unit 334/integration 280/gateway 29.
 - 2026-10-10 step 47: set-stock + admin Stock workspace (947f097); verify unit 333/integration 272/gateway 29.
 - 2026-10-10 step 46: append-only stock ledger + inventory API (0923c1f); verify unit 331/integration 266/gateway 29.
 - 2026-10-10 step 45: options/variants API + editor (6f93175); verify unit 331/integration 254/gateway 29.

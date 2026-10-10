@@ -214,8 +214,9 @@ export const EVENT_CATALOGUE = {
     schemaVersion: 1,
     aggregateType: "media_asset",
     payload: z.strictObject({ mediaAssetId: id }),
-    consumers: [],
-    plannedConsumers: { media_processor: 49 },
+    // Step 49 (ADR 0019): no events existed before the processor, so there is nothing to backfill.
+    consumers: ["media_processor"],
+    plannedConsumers: {},
   }),
   "report.requested": define({
     schemaVersion: 1,

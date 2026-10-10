@@ -7,3 +7,4 @@ export * from "./rate-limit/rate-limit";
 export * from "./password/reset-token";
 
 export * from "./password/invitation-token";
+export * from "./image/image";
