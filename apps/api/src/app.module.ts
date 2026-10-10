@@ -9,6 +9,7 @@ import { AuthModule } from "./auth/auth.module";
 import { SecurityModule } from "./security/security.module";
 import { InternalModule } from "./internal/internal.module";
 import { DeliveryModule } from "./delivery/delivery.module";
+import { CatalogueCacheModule } from "./cache/catalogue-cache.module";
 import { CatalogueModule } from "./catalogue/catalogue.module";
 import { InventoryModule } from "./inventory/inventory.module";
 import { MediaModule } from "./media/media.module";
@@ -43,6 +44,7 @@ export class AppModule {
         }),
         InfraModule.register(env, overrides),
         InternalModule,
+        CatalogueCacheModule,
         SecurityModule,
         AuthModule,
         SettingsModule,

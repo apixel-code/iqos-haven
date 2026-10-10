@@ -357,6 +357,24 @@ const securitySafety = (
   }
 };
 
+/**
+ * Catalogue read cache budgets (roadmap step 52, architecture §9). The API process owns the
+ * cache: bounded entries/bytes, TTL at most 60 s, bounded concurrent database misses. The
+ * replicated profile (RATE_LIMIT_PROFILE) shares entries through CACHE_REDIS_URL instead.
+ */
+export const catalogueCacheEnvFields = {
+  CATALOG_CACHE_TTL_SECONDS: z.coerce.number().int().min(1).max(60).default(60),
+  CATALOG_CACHE_MAX_ENTRIES: z.coerce.number().int().min(1).max(100_000).default(2_000),
+  CATALOG_CACHE_MAX_BYTES: z.coerce
+    .number()
+    .int()
+    .min(65_536)
+    .max(512 * 1024 * 1024)
+    .default(32 * 1024 * 1024),
+  CATALOG_CACHE_MAX_CONCURRENT_MISSES: z.coerce.number().int().min(1).max(64).default(8),
+  CATALOG_CACHE_MAX_QUEUED_MISSES: z.coerce.number().int().min(0).max(10_000).default(200),
+};
+
 /** Purpose-specific reset key ring (first entry signs; old entries retained for delivery overlap). */
 export const resetEnvFields = {
   PASSWORD_RESET_KEYS: serviceKeysSchema
@@ -448,6 +466,7 @@ export const apiEnvSchema = baseEnvSchema
     ...resetEnvFields,
     ...invitationEnvFields,
     ...securityEnvFields,
+    ...catalogueCacheEnvFields,
   })
   .superRefine((value, ctx) => {
     separateCacheRedis(value, ctx);
@@ -492,6 +511,8 @@ export const workerEnvSchema = baseEnvSchema
     ...invitationEnvFields,
     ...storageEnvFields,
     ...serviceSignerFields,
+    /** Private API base URL for signed invalidation calls (step 52). */
+    API_INTERNAL_URL: httpUrl.optional(),
   })
   .superRefine((value, ctx) => {
     separateCacheRedis(value, ctx);
@@ -500,6 +521,15 @@ export const workerEnvSchema = baseEnvSchema
     invitationSafety(value, ctx);
     storageSafety(value, ctx);
     signerComplete(value, ctx);
+    // Deployed workers must be able to invalidate the API cache; locally the TTL is enough.
+    if (value.APP_ENV === "staging" || value.APP_ENV === "production")
+      for (const field of ["API_INTERNAL_URL", "INTERNAL_SERVICE_KEY"] as const)
+        if (!value[field])
+          ctx.addIssue({
+            code: "custom",
+            path: [field],
+            message: "required outside development for cache invalidation",
+          });
   });
 export type WorkerEnv = z.infer<typeof workerEnvSchema>;
 export const storefrontEnvSchema = baseEnvSchema.extend({

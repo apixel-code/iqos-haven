@@ -458,3 +458,19 @@ The admin unit tests cover the upload pre-check, form field order, rejection cop
 - no unexpected failed requests.
 
 The QA schema was dropped afterwards.
+
+## Step 52 — catalogue cache and invalidation (2026-10-10, local)
+
+`pnpm verify -- --integration`: exit 0. Unit 362, integration 314, gateway 29.
+
+- **Bounds (unit, `packages/platform/src/cache/cache.test.ts`):** a TTL above 60 s is refused; entries expire at the TTL; LRU eviction at the entry bound; the byte bound holds for multi-byte text and keys; an oversized value is not cached.
+- **Stale data:** a load that began before an invalidation is neither stored nor joined by later readers, on one process and across two replicas sharing a (fake) Redis.
+- **Miss control:** one load per key for concurrent callers; concurrent misses capped; a full wait queue is refused.
+- **Replicated profile (fake Redis client):** entries shared with a TTL, one invalidation reaches both replicas, outage falls back to bounded local reads and invalidation rejects so the caller retries. NOT RUN against a real cache Redis: the cache-Redis Compose profile is not part of local infra yet.
+- **Private route (`apps/api/src/cache/revalidate.int.test.ts`, real API):** a signed worker call answers 204 and drops the cache; unsigned, storefront-signed, cookie-only and replayed requests answer 401 without invalidating; invalid bodies answer 400.
+- **Post-commit invalidation:** creating a brand through the admin API drops the cache and queues a `storefront_revalidate` effect in the same commit; reads and denied requests do not.
+- **Worker (`apps/worker/src/revalidate.int.test.ts`, real PostgreSQL, signature verified by a stub server):** completes once after a signed call; a 503 is retried and then succeeds; an unreachable API or rejected key retries and ends dead; an unconfigured target completes as skipped.
+- **Storefront:** the new ESLint rules were shown to reject `next/cache`, `revalidate`, `force-cache` on a probe file (removed).
+- **Gateway:** `/api/v1/internal/revalidate` stays unreachable (existing checks).
+
+Not covered: a real store read through the cache (step 58), and the invalidation-lag alert (observability step).

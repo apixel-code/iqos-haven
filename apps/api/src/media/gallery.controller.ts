@@ -1,4 +1,17 @@
-import { Body, Controller, Get, HttpCode, Param, Patch, Post, Put, Req, Res } from "@nestjs/common";
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  Param,
+  Patch,
+  Post,
+  Put,
+  Req,
+  Res,
+  UseInterceptors,
+} from "@nestjs/common";
+import { CatalogueInvalidationInterceptor } from "../cache/catalogue-invalidation.interceptor";
 import { isIP } from "node:net";
 import {
   galleryAttachRequestSchema,
@@ -35,6 +48,7 @@ class ImageParamsDto extends createZodDto(galleryImageParamsSchema) {
 }
 
 /** Product image gallery (step 50). Every response is the full gallery snapshot. */
+@UseInterceptors(CatalogueInvalidationInterceptor)
 @Controller({ path: "admin/products", version: "1" })
 export class GalleryController {
   constructor(

@@ -79,6 +79,44 @@ describe("queue/cache Redis separation", () => {
   });
 });
 
+/** Deployed workers must be able to call the API's private invalidation route (step 52). */
+const deployedWorker = {
+  API_INTERNAL_URL: "http://api.internal:4000",
+  INTERNAL_SERVICE_ID: "worker",
+  INTERNAL_SERVICE_KEY_ID: "k1",
+  INTERNAL_SERVICE_KEY: "s".repeat(43),
+};
+
+describe("catalogue cache configuration", () => {
+  const base = {
+    DATABASE_URL: "postgres://u:p@localhost:5432/db",
+    QUEUE_REDIS_URL: "redis://localhost:6379",
+  };
+  it("defaults to bounded budgets and never allows a TTL above 60 seconds", () => {
+    expect(loadEnv(apiEnvSchema, base)).toMatchObject({
+      CATALOG_CACHE_TTL_SECONDS: 60,
+      CATALOG_CACHE_MAX_ENTRIES: 2000,
+      CATALOG_CACHE_MAX_BYTES: 33554432,
+      CATALOG_CACHE_MAX_CONCURRENT_MISSES: 8,
+    });
+    expect(() => loadEnv(apiEnvSchema, { ...base, CATALOG_CACHE_TTL_SECONDS: "61" })).toThrow(
+      /CATALOG_CACHE_TTL_SECONDS/,
+    );
+    expect(() => loadEnv(apiEnvSchema, { ...base, CATALOG_CACHE_MAX_BYTES: "0" })).toThrow(
+      /CATALOG_CACHE_MAX_BYTES/,
+    );
+  });
+  it("requires the worker's invalidation target outside development", () => {
+    expect(loadEnv(workerEnvSchema, base).API_INTERNAL_URL).toBeUndefined();
+    const staging = { ...base, APP_ENV: "staging" };
+    expect(() => loadEnv(workerEnvSchema, staging)).toThrow(/API_INTERNAL_URL/);
+    expect(() => loadEnv(workerEnvSchema, staging)).toThrow(/INTERNAL_SERVICE_KEY/);
+    expect(loadEnv(workerEnvSchema, { ...staging, ...deployedWorker }).API_INTERNAL_URL).toBe(
+      "http://api.internal:4000",
+    );
+  });
+});
+
 describe("email configuration", () => {
   const base = {
     DATABASE_URL: "postgres://u:p@localhost:5432/db",
@@ -105,6 +143,7 @@ describe("email configuration", () => {
   it("demands a recipient allowlist in staging and validates entries", () => {
     const staging = {
       ...base,
+      ...deployedWorker,
       APP_ENV: "staging",
       EMAIL_SEND_ENABLED: "true",
       EMAIL_FROM: "no-reply@iqoshaven.com",
@@ -152,8 +191,12 @@ describe("Resend configuration", () => {
         .EMAIL_PROVIDER,
     ).toBe("resend");
     expect(
-      loadEnv(workerEnvSchema, { ...keyed, APP_ENV: "production", NODE_ENV: "production" })
-        .EMAIL_PROVIDER,
+      loadEnv(workerEnvSchema, {
+        ...keyed,
+        ...deployedWorker,
+        APP_ENV: "production",
+        NODE_ENV: "production",
+      }).EMAIL_PROVIDER,
     ).toBe("resend");
   });
   it("never lets tests reach the real Resend API", () => {

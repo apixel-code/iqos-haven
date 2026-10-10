@@ -193,8 +193,10 @@ export const EVENT_CATALOGUE = {
       entityType: z.enum(["brand", "category", "product", "variant"]),
       entityId: id,
     }),
-    consumers: [],
-    plannedConsumers: { storefront_revalidate: 52 },
+    // Step 52 (ADR 0022): earlier events keep their empty snapshot. No backfill: the cache starts
+    // empty with the process and every entry expires within 60 s.
+    consumers: ["storefront_revalidate"],
+    plannedConsumers: {},
   }),
   "content.published": define({
     schemaVersion: 1,
@@ -304,3 +306,13 @@ function jobId(parts: readonly string[]): string {
   if (id.includes(":")) throw new RangeError("Invalid queue job ID");
   return id;
 }
+
+/**
+ * Body of the private `POST /v1/internal/revalidate` call (step 52). IDs only; the API decides
+ * what to drop. `eventId` is for correlation in logs.
+ */
+export const internalRevalidateRequestSchema = z.strictObject({
+  scope: z.literal("catalogue"),
+  eventId: id,
+});
+export type InternalRevalidateRequest = z.infer<typeof internalRevalidateRequestSchema>;

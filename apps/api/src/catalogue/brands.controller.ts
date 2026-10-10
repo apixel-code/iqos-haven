@@ -9,7 +9,9 @@ import {
   Query,
   Req,
   Res,
+  UseInterceptors,
 } from "@nestjs/common";
+import { CatalogueInvalidationInterceptor } from "../cache/catalogue-invalidation.interceptor";
 import { isIP } from "node:net";
 import {
   brandCreateRequestSchema,
@@ -46,6 +48,7 @@ const BRAND_FIELDS = defineFieldPolicy({ seo: "seo.write" });
 const BRANDS_FIELDS = defineFieldPolicy({ items: { seo: "seo.write" } });
 
 /** Admin brand management (step 42). Reached only through the admin origin's /api/v1/admin/*. */
+@UseInterceptors(CatalogueInvalidationInterceptor)
 @Controller({ path: "admin/brands", version: "1" })
 export class BrandsController {
   constructor(

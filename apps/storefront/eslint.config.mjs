@@ -28,10 +28,30 @@ export default defineConfig([
               message:
                 "Front ends access commerce through contracts/gateway, never DB or business services.",
             },
+            {
+              group: ["next/cache"],
+              message:
+                "The API process is the sole catalogue cache owner (ADR 0022): no Next data cache or tags here.",
+            },
           ],
         },
       ],
       "no-restricted-syntax": [
+        "error",
+        // Step 52 (ADR 0022): no second persistent cache in the storefront.
+        {
+          selector:
+            "ExportNamedDeclaration VariableDeclarator[id.name='revalidate'], Property[key.name='revalidate']",
+          message: "No ISR/time-based revalidation: storefront reads are request-time, no-store.",
+        },
+        {
+          selector: "Property[key.name='cache'][value.value='force-cache']",
+          message: 'Storefront fetches use cache: "no-store"; the API owns the catalogue cache.',
+        },
+        {
+          selector: "ExpressionStatement[directive='use cache']",
+          message: "No Next cache directives: the API owns the catalogue cache.",
+        },
         "error",
         {
           selector: "MemberExpression[object.name='Math'][property.name='random']",

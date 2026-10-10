@@ -9,7 +9,9 @@ import {
   Query,
   Req,
   Res,
+  UseInterceptors,
 } from "@nestjs/common";
+import { CatalogueInvalidationInterceptor } from "../cache/catalogue-invalidation.interceptor";
 import { isIP } from "node:net";
 import {
   categoryCreateRequestSchema,
@@ -46,6 +48,7 @@ const CATEGORY_FIELDS = defineFieldPolicy({ seo: "seo.write" });
 const CATEGORIES_FIELDS = defineFieldPolicy({ items: { seo: "seo.write" } });
 
 /** Admin category management (step 43). Reached only through the admin origin's /api/v1/admin/*. */
+@UseInterceptors(CatalogueInvalidationInterceptor)
 @Controller({ path: "admin/categories", version: "1" })
 export class CategoriesController {
   constructor(

@@ -1,4 +1,15 @@
-import { Body, Controller, Get, HttpCode, Param, Post, Req, Res } from "@nestjs/common";
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  Param,
+  Post,
+  Req,
+  Res,
+  UseInterceptors,
+} from "@nestjs/common";
+import { CatalogueInvalidationInterceptor } from "../cache/catalogue-invalidation.interceptor";
 import { isIP } from "node:net";
 import {
   productParamsSchema,
@@ -24,6 +35,7 @@ class ParamsDto extends createZodDto(productParamsSchema) {
  * Product publication (step 51). Staff may publish/unpublish (`catalog.publish`) and
  * trash/restore (`catalog.trash`); permanent purge is Owner-only (`catalog.purge`).
  */
+@UseInterceptors(CatalogueInvalidationInterceptor)
 @Controller({ path: "admin/products", version: "1" })
 export class PublicationController {
   constructor(

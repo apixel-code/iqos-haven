@@ -9,6 +9,7 @@ import { staffInvitationEmailPlanner } from "./staff-invitation-email";
 import { passwordResetEmailPlanner } from "./password-reset-email";
 import { createEmailAdapter } from "./email";
 import { createMediaCleanupJob, createMediaConsumer } from "./media";
+import { createRevalidateConsumer, revalidateTargetFromEnv } from "./revalidate";
 import { ObjectStorage, storageConfigFromEnv } from "@ih/platform";
 import sharp from "sharp";
 import { EffectRunner, startEffectWorkers, systemProbeHandler } from "./effects";
@@ -48,11 +49,15 @@ async function main(): Promise<void> {
   sharp.concurrency(1);
   const storage = new ObjectStorage(storageConfigFromEnv(env));
   const mediaConsumer = createMediaConsumer({ db: database, storage, log });
+  const revalidateTarget = revalidateTargetFromEnv(env);
+  if (!revalidateTarget)
+    log.warn("cache invalidation not configured; relying on the catalogue cache TTL");
+  const revalidateConsumer = createRevalidateConsumer({ target: revalidateTarget, log });
   const runner = new EffectRunner({
     db: database,
     owner,
     log,
-    handlers: [systemProbeHandler, emailConsumer, mediaConsumer],
+    handlers: [systemProbeHandler, emailConsumer, mediaConsumer, revalidateConsumer],
     retries: enqueuer,
   });
   const reconciler = new EffectReconciler({ db: database, enqueuer, log });

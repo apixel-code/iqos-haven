@@ -9,7 +9,9 @@ import {
   Query,
   Req,
   Res,
+  UseInterceptors,
 } from "@nestjs/common";
+import { CatalogueInvalidationInterceptor } from "../cache/catalogue-invalidation.interceptor";
 import { isIP } from "node:net";
 import {
   productCreateRequestSchema,
@@ -47,6 +49,7 @@ class ParamsDto extends createZodDto(productParamsSchema) {
 const PRODUCT_FIELDS = defineFieldPolicy({ seo: "seo.write" });
 
 /** Admin product create/edit/detail/list (step 44). Publication and trash are step 51. */
+@UseInterceptors(CatalogueInvalidationInterceptor)
 @Controller({ path: "admin/products", version: "1" })
 export class ProductsController {
   constructor(

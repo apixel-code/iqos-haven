@@ -8,3 +8,4 @@ export * from "./password/reset-token";
 
 export * from "./password/invitation-token";
 export * from "./image/image";
+export * from "./cache/cache";

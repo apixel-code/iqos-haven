@@ -66,9 +66,14 @@ describe("event catalogue", () => {
     expect(required.filter((consumer) => planned.includes(consumer))).toEqual([]);
   });
 
-  it("only wires consumers whose handlers exist (probe, identity email, media processor)", () => {
+  it("only wires consumers whose handlers exist (probe, email, media, revalidation)", () => {
     const wired = entries.flatMap(([, definition]) => definition.consumers as readonly string[]);
-    expect([...new Set(wired)].sort()).toEqual(["email", "media_processor", "system_probe"]);
+    expect([...new Set(wired)].sort()).toEqual([
+      "email",
+      "media_processor",
+      "storefront_revalidate",
+      "system_probe",
+    ]);
   });
 });
 

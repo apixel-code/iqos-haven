@@ -65,6 +65,7 @@
   - Completion runs HEAD outside the transaction and records size and ETag, or rejects the upload on a mismatch. Audit and `media.uploaded` are written atomically.
   - The eight-slot limit is serialized by the product lock. Expired or failed authorizations free their slot.
   - Nothing is public. Processing, derivatives, cleanup and the gallery come in steps 49–50.
+- Step 52 (ADR 0022): catalogue cache owner in the API (bounded LRU by entries/bytes/TTL ≤ 60 s; shared cache-Redis backend with local fallback on the replicated profile), post-commit local invalidation on catalogue/gallery admin mutations, signed `POST /v1/internal/revalidate`, and the worker `storefront_revalidate` effect on `catalog.changed`. No store endpoint reads the cache until step 58. Storefront ESLint forbids a second Next data cache.
 
 - Uploaded architecture, ordered roadmap, corrected prototypes, derived requirements/design/acceptance/database/security/operational references.
 
