@@ -96,3 +96,8 @@ export const CATALOG_MANAGE_POLICY: EndpointLimitPolicy<"ip" | "actor"> = {
   },
   outage: "fail_closed",
 };
+
+export const INVENTORY_ADJUST_POLICY = {
+  ...CATALOG_MANAGE_POLICY,
+  endpoint: "inventory_adjust",
+} as const;

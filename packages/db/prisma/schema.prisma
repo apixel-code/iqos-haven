@@ -141,6 +141,7 @@ model RolePermission {
 model StaffUser {
   settingsUpdates     Setting[]
   deliveryAreaUpdates DeliveryArea[]
+  stockMovements      StockMovement[]
   id                  String                 @id @default(dbgenerated("uuidv7()")) @db.Uuid
   email               String                 @unique @db.VarChar(254)
   passwordHash        String                 @map("password_hash") @db.VarChar(255)
@@ -349,9 +350,33 @@ model Variant {
   createdAt         DateTime @default(dbgenerated("statement_timestamp()")) @map("created_at") @db.Timestamptz(6)
   updatedAt         DateTime @default(dbgenerated("statement_timestamp()")) @map("updated_at") @db.Timestamptz(6)
 
+  stockMovements StockMovement[]
+
   @@unique([productId, optionSignature])
   @@index([productId, active], map: "variants_availability")
   @@map("variants")
+}
+
+/// Append-only stock ledger (step 46). Inserting a row applies `delta` to the variant in the same
+/// statement (DB trigger) and records `balanceAfter`; it is the only way to change stock.
+model StockMovement {
+  id           String     @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  variantId    String     @map("variant_id") @db.Uuid
+  variant      Variant    @relation(fields: [variantId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  delta        Int
+  /// Set by the database trigger; any value supplied by a caller is overwritten.
+  balanceAfter Int        @map("balance_after")
+  reason       String     @db.VarChar(24)
+  note         String?    @db.VarChar(500)
+  commandId    String     @map("command_id") @db.VarChar(128)
+  effect       String     @default("adjust") @db.VarChar(32)
+  actorId      String?    @map("actor_id") @db.Uuid
+  actor        StaffUser? @relation(fields: [actorId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  createdAt    DateTime   @default(dbgenerated("statement_timestamp()")) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([commandId, variantId, effect])
+  @@index([variantId, createdAt, id], map: "stock_movements_variant")
+  @@map("stock_movements")
 }
 
 model ProductImage {

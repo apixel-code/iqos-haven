@@ -24,6 +24,10 @@ export const CONFLICT_CODES = [
   "OPTIONS_IN_USE",
   "INVALID_COMBINATION",
   "DEFAULT_REQUIRED",
+  "INSUFFICIENT_STOCK",
+  "INITIAL_STOCK_EXISTS",
+  "COMMAND_REUSED",
+  "STOCK_LIMIT",
 ] as const;
 export type ConflictCode = (typeof CONFLICT_CODES)[number];
 
@@ -45,3 +49,4 @@ export * from "./delivery";
 export * from "./catalogue";
 export * from "./products";
 export * from "./variants";
+export * from "./inventory";

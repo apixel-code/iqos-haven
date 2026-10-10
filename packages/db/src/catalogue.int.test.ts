@@ -234,7 +234,7 @@ describe("catalogue constraints (real PostgreSQL, isolated schema)", () => {
     await pool.query("UPDATE products SET status='published' WHERE id=$1", [row.id]);
   });
 
-  it("changes stock only through the ledger flag, starting from zero", async () => {
+  it("changes stock only through the stock ledger, starting from zero", async () => {
     const { row } = await product();
     const sku = () => "SKU_" + randomUUID().replaceAll("-", "").toUpperCase();
     await expect(
@@ -242,27 +242,35 @@ describe("catalogue constraints (real PostgreSQL, isolated schema)", () => {
     ).rejects.toThrow();
     const variant = await db.variant.create({ data: { productId: row.id, sku: sku() } });
     await rejected("UPDATE variants SET stock_on_hand=5 WHERE id=$1", [variant.id], "42501");
-    // Other fields stay editable without the flag.
+    // Other fields stay editable.
     await pool.query("UPDATE variants SET low_stock_threshold=3 WHERE id=$1", [variant.id]);
     const client = await pool.connect();
     try {
+      // The step-41 session flag no longer opens a path: only the ledger trigger may write.
       await client.query("BEGIN");
       await client.query("SELECT set_config('ih.stock_ledger','1',true)");
-      await expect(
-        client.query("UPDATE variants SET stock_on_hand=-1 WHERE id=$1", [variant.id]),
-      ).rejects.toMatchObject({ code: "23514" });
-      await client.query("ROLLBACK");
-      await client.query("BEGIN");
-      await client.query("SELECT set_config('ih.stock_ledger','1',true)");
-      await client.query("UPDATE variants SET stock_on_hand=5 WHERE id=$1", [variant.id]);
-      await client.query("COMMIT");
-      // The flag is transaction-local: it does not leak to the next statement on this connection.
       await expect(
         client.query("UPDATE variants SET stock_on_hand=6 WHERE id=$1", [variant.id]),
       ).rejects.toMatchObject({ code: "42501" });
+      await client.query("ROLLBACK");
     } finally {
       client.release();
     }
+    // The writer states the resulting balance; the trigger applies the delta and verifies it.
+    await rejected(
+      "INSERT INTO stock_movements (variant_id, delta, balance_after, reason, command_id) VALUES ($1, 5, 999, 'INITIAL_STOCK', 'c0')",
+      [variant.id],
+      "IH002",
+    );
+    await pool.query(
+      "INSERT INTO stock_movements (variant_id, delta, balance_after, reason, command_id) VALUES ($1, 5, 5, 'INITIAL_STOCK', 'c1')",
+      [variant.id],
+    );
+    // Below zero is refused by the variant CHECK before any balance comparison.
+    await rejected(
+      "INSERT INTO stock_movements (variant_id, delta, balance_after, reason, note, command_id) VALUES ($1, -6, 0, 'MANUAL', 'count', 'c2')",
+      [variant.id],
+    );
     expect((await db.variant.findUniqueOrThrow({ where: { id: variant.id } })).stockOnHand).toBe(5);
   });
 

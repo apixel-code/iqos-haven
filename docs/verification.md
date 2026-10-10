@@ -253,3 +253,29 @@ Verification: `pnpm verify -- --integration` PASS (unit 331 incl. admin 40; inte
 - **Access:** without `catalog.write`, Staff get 403 on POST, PUT and PATCH. Reads still work. Unknown products get 404 and trashed products get `TRASHED`.
 
 The variants card has not been exercised in a browser.
+
+## Step 46 — stock ledger and inventory API (2026-10-10, local)
+
+`pnpm verify -- --integration` PASS (unit 331; integration 266 incl. api 155, db 59; gateway 29).
+
+`inventory.int.test.ts` (12) covers:
+
+- **Movements and history:** initial/restock/damage/manual movements with exact balances and newest-first history (actor name shown). Audit has four entries and no note text. The reconciliation query returns empty.
+- **Stock limits:**
+  - Stock never goes below zero (`INSUFFICIENT_STOCK`), with nothing written.
+  - Initial stock is accepted only as the first movement (`INITIAL_STOCK_EXISTS`).
+  - Balances are capped (`STOCK_LIMIT`).
+- **Validation:** sign, note, reason and bounds are validated (400). Unknown variant → 404.
+- **Replays and concurrency:**
+  - The same command replays.
+  - A changed payload, or the same ID on another variant, gives `COMMAND_REUSED`.
+  - Four concurrent duplicates apply once.
+  - Three concurrent duplicates that exhaust the stock replay instead of conflicting.
+  - Eight concurrent −1s against 3 units: exactly 3 succeed, and balance equals ledger.
+- **Insert shapes:** an `ON CONFLICT DO NOTHING` skip leaves stock untouched. A multi-row insert with one bad balance rolls back. A movement for a missing variant is refused (FK).
+- **Tamper protection:** ledger UPDATE and DELETE are refused, and direct stock UPDATE is refused even with the old session flag.
+- **Trashed products:** stock can still be adjusted.
+- **List:** stock states (out/low/in) are correct; filters, literal SKU search and the keyset cursor work.
+- **Permissions:** 403 without `inventory.adjust`, while reads still work.
+
+DB test: the movement must state the correct resulting balance (`IH002` otherwise).
