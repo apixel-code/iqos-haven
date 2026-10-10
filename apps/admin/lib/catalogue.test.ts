@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { BrandResponse } from "@ih/contracts";
-import { brandCreateCommand, brandUpdateCommand, plural, slugify } from "./catalogue";
+import {
+  brandCreateCommand,
+  brandUpdateCommand,
+  categoryCreateCommand,
+  plural,
+  slugify,
+} from "./catalogue";
 import { afterEach, vi } from "vitest";
 import { ApiError } from "./auth";
 import { FormValidationError, managementError, managementRequest } from "./management";
@@ -68,6 +74,19 @@ describe("brand form commands", () => {
       expect(() =>
         brandCreateCommand(data({ name: "Nova", slug: "nova", sortOrder }), false),
       ).toThrow(FormValidationError);
+  });
+
+  it("builds category commands without a description", () => {
+    const command = categoryCreateCommand(
+      data({ name: "Disposables", slug: "disposables", description: "ignored", active: "on" }),
+      false,
+    );
+    expect(command).toEqual({
+      name: "Disposables",
+      slug: "disposables",
+      active: true,
+      sortOrder: 0,
+    });
   });
 
   it("pluralizes counts", () => {

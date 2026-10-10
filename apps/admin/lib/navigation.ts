@@ -2,6 +2,7 @@ export const sections = [
   { key: "orders", label: "Orders", permission: "orders.read", group: "Commerce" },
   { key: "products", label: "Products", permission: "catalog.read", group: "Commerce" },
   { key: "brands", label: "Brands", permission: "catalog.read", group: "Commerce" },
+  { key: "categories", label: "Categories", permission: "catalog.read", group: "Commerce" },
   { key: "inventory", label: "Inventory", permission: "inventory.read", group: "Commerce" },
   { key: "customers", label: "Customers", permission: "customers.read", group: "Commerce" },
   {

@@ -10,7 +10,15 @@ describe("permission-derived navigation", () => {
         "customers.read",
         "notifications.read_own",
       ]).map((s) => s.key),
-    ).toEqual(["orders", "products", "brands", "inventory", "customers", "notifications"]);
+    ).toEqual([
+      "orders",
+      "products",
+      "brands",
+      "categories",
+      "inventory",
+      "customers",
+      "notifications",
+    ]);
   });
   it("uses individual server grants rather than a client role label or wildcard", () => {
     expect(visibleSections(["staff.manage"]).map((s) => s.key)).toEqual(["staff"]);

@@ -18,4 +18,4 @@ export * from "./staff-administration";
 
 export * from "./settings";
 export * from "./delivery";
-export * from "./brands";
+export * from "./catalogue-parents";

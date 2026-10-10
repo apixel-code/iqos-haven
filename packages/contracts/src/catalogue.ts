@@ -75,3 +75,35 @@ export type BrandUpdateRequest = z.infer<typeof brandUpdateRequestSchema>;
 export type BrandStateRequest = z.infer<typeof brandStateRequestSchema>;
 export type BrandResponse = z.infer<typeof brandResponseSchema>;
 export type BrandsQuery = z.input<typeof brandsQuerySchema>;
+
+/** Categories mirror brands without a description; their media is an image (step 48–50). */
+export const categoryCreateRequestSchema = z.strictObject({
+  name,
+  slug: catalogueSlugSchema,
+  active: z.boolean(),
+  sortOrder: sortOrder.default(0),
+  seo: catalogueSeoSchema.optional(),
+});
+export const categoryUpdateRequestSchema = z.strictObject({
+  version,
+  name,
+  slug: catalogueSlugSchema,
+  active: z.boolean(),
+  sortOrder,
+  seo: catalogueSeoSchema.optional(),
+});
+export const categoryStateRequestSchema = brandStateRequestSchema;
+export const categoryResponseSchema = brandResponseSchema
+  .omit({ description: true, logoKey: true })
+  .extend({ imageKey: z.string().nullable() });
+export const categoriesQuerySchema = brandsQuerySchema;
+export const categoryParamsSchema = brandParamsSchema;
+export const categoriesResponseSchema = z.strictObject({
+  items: z.array(categoryResponseSchema).max(100),
+  nextCursor: brandsResponseSchema.shape.nextCursor,
+});
+export type CategoryCreateRequest = z.input<typeof categoryCreateRequestSchema>;
+export type CategoryUpdateRequest = z.infer<typeof categoryUpdateRequestSchema>;
+export type CategoryResponse = z.infer<typeof categoryResponseSchema>;
+export type CategoriesQuery = BrandsQuery;
+export type CategoryStateRequest = BrandStateRequest;

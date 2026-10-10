@@ -4,7 +4,7 @@ import { useSession } from "./session-shell";
 import { SettingsManagement } from "./settings-management";
 import { DeliveryManagement } from "./delivery-management";
 import { StaffManagement } from "./staff-management";
-import { BrandManagement } from "./brand-management";
+import { CatalogueParentManagement } from "./catalogue-parent-management";
 import { sections } from "../lib/navigation";
 export function WorkspaceSection({ sectionKey }: { sectionKey: string }) {
   const session = useSession();
@@ -29,7 +29,9 @@ export function WorkspaceSection({ sectionKey }: { sectionKey: string }) {
       ) : sectionKey === "staff" ? (
         <StaffManagement />
       ) : sectionKey === "brands" ? (
-        <BrandManagement permissions={session.permissions} />
+        <CatalogueParentManagement kind="brand" permissions={session.permissions} />
+      ) : sectionKey === "categories" ? (
+        <CatalogueParentManagement kind="category" permissions={session.permissions} />
       ) : (
         <section className="empty-panel">
           <h2>This workspace is being prepared</h2>

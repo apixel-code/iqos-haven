@@ -1,9 +1,14 @@
 import {
   brandCreateRequestSchema,
   brandUpdateRequestSchema,
+  categoryCreateRequestSchema,
+  categoryUpdateRequestSchema,
   type BrandCreateRequest,
   type BrandResponse,
   type BrandUpdateRequest,
+  type CategoryCreateRequest,
+  type CategoryResponse,
+  type CategoryUpdateRequest,
 } from "@ih/contracts";
 import { FormValidationError, validate } from "./management";
 
@@ -52,6 +57,29 @@ export function brandUpdateCommand(
     name: text(data, "name"),
     slug: text(data, "slug"),
     description: text(data, "description"),
+    active: data.get("active") === "on",
+    sortOrder: sortOrder(data),
+    ...(includeSeo ? { seo: seo(data) } : {}),
+  });
+}
+export function categoryCreateCommand(data: FormData, includeSeo: boolean): CategoryCreateRequest {
+  return validate(categoryCreateRequestSchema, {
+    name: text(data, "name"),
+    slug: text(data, "slug"),
+    active: data.get("active") === "on",
+    sortOrder: sortOrder(data),
+    ...(includeSeo ? { seo: seo(data) } : {}),
+  });
+}
+export function categoryUpdateCommand(
+  category: CategoryResponse,
+  data: FormData,
+  includeSeo: boolean,
+): CategoryUpdateRequest {
+  return validate(categoryUpdateRequestSchema, {
+    version: category.version,
+    name: text(data, "name"),
+    slug: text(data, "slug"),
     active: data.get("active") === "on",
     sortOrder: sortOrder(data),
     ...(includeSeo ? { seo: seo(data) } : {}),

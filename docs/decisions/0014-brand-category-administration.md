@@ -1,8 +1,8 @@
-# 0014 — Brand administration: versioned CRUD, reference-aware trash, Owner-only SEO
+# 0014 — Brand and category administration: versioned CRUD, reference-aware trash, Owner-only SEO
 
 - Date: 2026-10-10
 - Status: accepted
-- Step(s): 42 (pattern reused by 43–44, 51, 101)
+- Step(s): 42, 43 (pattern reused by 44, 51, 101)
 
 ## Context
 
@@ -60,6 +60,16 @@ A genuine no-op is not versioned.
 - "Show in store" toggle, display order, and trash/restore buttons with confirmation.
 - Controls follow server grants, and SEO fields appear only with `seo.write`.
 - Logos wait for the media pipeline (48–50).
+
+**Categories (step 43).** Categories follow the same rules through one shared repository (`packages/db/src/catalogue-parents.ts`).
+
+- Endpoints: `/v1/admin/categories` (same routes and permissions).
+- Fields: no description; the media field is `imageKey`.
+- Names are unique case-insensitively (migration `20261010000600_category_names`).
+- Audit actions are `catalog.category_*`, and events are `catalog.changed` with `entityType: "category"`.
+- Trash is refused with `IN_USE` while live published products use the category, and the `products_live_parents` trigger already refuses publishing in a trashed category.
+- Slug redirects live in the category namespace (a brand may use the same slug).
+- The admin UI is one shared component with a Categories workspace.
 
 ## Alternatives considered
 

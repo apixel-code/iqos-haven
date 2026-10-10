@@ -21,7 +21,9 @@ const db = createDatabase(pool, { schema: namespace });
 const key = () => "test-" + randomUUID();
 async function product() {
   const brand = await db.brand.create({ data: { name: "Synthetic brand " + key(), slug: key() } });
-  const category = await db.category.create({ data: { name: "Synthetic category", slug: key() } });
+  const category = await db.category.create({
+    data: { name: "Synthetic category " + key(), slug: key() },
+  });
   const row = await db.product.create({
     data: {
       name: "Synthetic product",
