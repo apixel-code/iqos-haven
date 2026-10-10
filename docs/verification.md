@@ -205,3 +205,25 @@ Initial React effect lint and formatting failures were corrected before the gree
 ## Step 43 — category administration (2026-10-10, local)
 
 `pnpm verify -- --integration` PASS (unit 323 incl. admin 32; integration 230 incl. api 119; gateway 29). Brand suite (15) unchanged and passing after the shared-repository refactor. `categories.int.test.ts` (8): Staff create/edit with `catalog.category_*` audit and `catalog.changed` (`entityType: "category"`), no-store, `imageKey`, no description; SEO Owner-only; invalid/unknown fields (incl. description) 400, 401, 404; case-insensitive duplicate names and taken slugs `DUPLICATE`; trash `IN_USE` with a published product, allowed with drafts only, publish refused while trashed, `TRASHED` edits, restore; five publish-vs-trash races never leave a published product in a trashed category; slug redirect/reclaim with separate brand namespace; stale `VERSION_CONFLICT` on edit/trash/restore, unversioned no-op, oversized cursor 400; keyset order; missing `catalog.write` grant 403. Categories screen not exercised in a browser.
+
+## Step 44 — product administration (2026-10-10, local)
+
+`pnpm verify -- --integration` PASS (unit 328 incl. admin 37; integration 243 incl. api 132; gateway 29). `products.int.test.ts` (13, real app + isolated schema):
+
+- **Create:** Staff creates a draft disposable with typed specs and integer fils; there is one `catalog.product_created` audit entry and an IDs-only `catalog.changed` event. Kits get kit specs and a null puff count.
+- **Invalid input (all 400, with the product count unchanged):** fractional, negative or oversized fils; compare-at not above base; zero puffs; wrong specs for the type; float or too-precise decimals; too many extra rows; bad slug; client-supplied status or tax treatment; unknown fields; NUL in text.
+- **Parents:** a trashed or missing parent gives `PARENT_UNAVAILABLE`.
+- **SEO:** Owner-only, including 403 for Staff when the value is unchanged.
+- **Slugs:** a duplicate slug gives `DUPLICATE`, and a rename creates a redirect.
+- **Versions:**
+  - A no-op is not versioned.
+  - A stale edit gives `VERSION_CONFLICT`.
+  - Audit records change flags and no description text.
+  - Four concurrent same-version edits produce one winner.
+- **Published products:** edits keep the published-state rules (`PUBLISH_REQUIREMENTS`, `PARENT_UNAVAILABLE`) and never change status.
+- **Check order:** an unknown id gives 404 and a stale version gives `VERSION_CONFLICT`, even when the target parent is trashed. A draft stays editable after its own brand is trashed.
+- **Concurrency:** a product move racing a brand trash stays consistent.
+- **List:** status/brand/category filters, literal `%`/`_` search, newest-first cursor; bad query values give 400.
+- **Permissions:** without the `catalog.write` grant, writes give 403 while reads still work.
+
+The Products screen has not been exercised in a browser.

@@ -14,7 +14,14 @@ export const errorEnvelopeSchema = z.strictObject({
 });
 export type ErrorEnvelope = z.infer<typeof errorEnvelopeSchema>;
 /** Stable 409 reasons a client may act on; anything else stays the generic CONFLICT. */
-export const CONFLICT_CODES = ["VERSION_CONFLICT", "DUPLICATE", "IN_USE", "TRASHED"] as const;
+export const CONFLICT_CODES = [
+  "VERSION_CONFLICT",
+  "DUPLICATE",
+  "IN_USE",
+  "TRASHED",
+  "PARENT_UNAVAILABLE",
+  "PUBLISH_REQUIREMENTS",
+] as const;
 export type ConflictCode = (typeof CONFLICT_CODES)[number];
 
 export const healthStatusSchema = z.enum(["ok", "degraded", "down"]);
@@ -33,3 +40,4 @@ export * from "./auth";
 export * from "./settings";
 export * from "./delivery";
 export * from "./catalogue";
+export * from "./products";

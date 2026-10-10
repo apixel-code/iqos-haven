@@ -34,7 +34,10 @@ import { PrismaOutboxWriter } from "./outbox";
  */
 export class CatalogueForbiddenError extends Error {}
 export class CatalogueConflictError extends Error {
-  constructor(readonly reason: "VERSION_CONFLICT" | "DUPLICATE" | "TRASHED") {
+  constructor(
+    readonly reason:
+      "VERSION_CONFLICT" | "DUPLICATE" | "TRASHED" | "PARENT_UNAVAILABLE" | "PUBLISH_REQUIREMENTS",
+  ) {
     super(reason);
   }
 }
@@ -62,7 +65,7 @@ export async function lockCatalogueActor(
   return actorId;
 }
 
-async function canWriteSeo(tx: Database | Tx, actorId: string): Promise<boolean> {
+export async function canWriteSeo(tx: Database | Tx, actorId: string): Promise<boolean> {
   try {
     await lockCatalogueActor(tx, actorId, ["seo.write"], false);
     return true;
@@ -127,7 +130,7 @@ async function load(tx: Database | Tx, kind: Kind, id: string): Promise<ParentRo
 }
 
 /** Stored SEO in the contract shape (`{}` and absent keys are null). */
-function storedSeo(value: unknown) {
+export function storedSeo(value: unknown) {
   const seo = (value ?? {}) as { title?: unknown; description?: unknown };
   return { title: seo.title ?? null, description: seo.description ?? null };
 }
@@ -239,7 +242,8 @@ async function record(
   );
 }
 
-function mapUnique(error: unknown): never {
+/** Unique violations → DUPLICATE; everything else (incl. CHECK failures) stays a loud error. */
+export function mapCatalogueError(error: unknown): never {
   if (error instanceof Prisma.PrismaClientKnownRequestError) {
     const meta = error.meta as
       { code?: unknown; driverAdapterError?: { cause?: { originalCode?: unknown } } } | undefined;
@@ -291,7 +295,7 @@ async function create<K extends Kind>(
       return response(kind, row);
     });
   } catch (error) {
-    mapUnique(error);
+    mapCatalogueError(error);
   }
 }
 
@@ -347,7 +351,7 @@ async function update<K extends Kind>(
       return response(kind, updated);
     });
   } catch (error) {
-    mapUnique(error);
+    mapCatalogueError(error);
   }
 }
 

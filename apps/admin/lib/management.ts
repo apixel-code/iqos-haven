@@ -20,7 +20,7 @@ export async function managementRequest<T>(
   signal?: AbortSignal,
 ): Promise<T> {
   if (
-    !/^\/(settings|staff|delivery-areas|brands|categories)(?:[/?]|$)/.test(path) ||
+    !/^\/(settings|staff|delivery-areas|brands|categories|products)(?:[/?]|$)/.test(path) ||
     path.includes("..") ||
     path.includes("#")
   )
@@ -129,8 +129,7 @@ export function aedToFils(value: string): number {
     throw new FormValidationError("Enter an AED amount with at most two decimal places.");
   const [whole, fraction = ""] = value.trim().split(".");
   const amount = Number(whole) * 100 + Number(fraction.padEnd(2, "0"));
-  if (amount > 1_000_000_000)
-    throw new FormValidationError("Delivery charge exceeds the allowed limit.");
+  if (amount > 1_000_000_000) throw new FormValidationError("Amount exceeds the allowed limit.");
   return amount;
 }
 export function filsToAed(value: number) {

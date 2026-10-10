@@ -26,3 +26,5 @@ When an answer arrives, write the decision in the Answer column and, if it shape
 - 2026-10-10 — Step 38 schema/API implemented with all settings initially unconfigured; BI-01/BI-09 and remaining BI-07 are still unanswered. No prototype contact, WhatsApp wording, recipients or provider secrets seeded; real configuration/communications activation awaits existing client decisions (ADR 0011).
 
 Step 39 implements the Dubai area/flat-fee/ETA schema and Owner-only API with no seeded areas or business values. BI-03 remains OPEN: obtain the approved coverage/exclusions, exact integer-fils flat fee and ETA before activating real areas/configuration. Free threshold remains disabled; approval alone needs a later reviewed enabling policy/UI change. Backend selection fails closed for unconfigured fees and inactive areas.
+
+- 2026-10-10 — Step 44 (ADR 0015): products keep a read-only, null VAT/excise treatment reference until BI-02 provides approved treatments (step 67). Because publication requires that reference (step-41 CHECK), BI-02 also gates product publication (step 51) and therefore the M4 gate. Drafts can be prepared meanwhile.

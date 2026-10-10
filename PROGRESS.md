@@ -4,24 +4,20 @@
 
 - Date: 2026-10-10
 - Milestone: M4 — catalogue, variants, safe media and inventory (started; M3 gate not closed; M0 review and M1 staging/fixtures still open)
-- Step: 43 (categories CRUD, ordering, active/trash/restore) — done (browser QA not run)
-- Branch: `step/43-categories` (stacked on local step 42 `231a726`; merge dependency PRs in step order)
+- Step: 44 (product create/edit/detail/list, typed specs) — done (browser QA not run)
+- Branch: `step/44-products` (stacked on local step 43 `9be9e18`; merge dependency PRs in step order)
 - See docs/verification.md for actual checks.
 
 ## Next action
 
-1. **Marina:** merge PR #13 (step 32, CI green). Then push, PR, wait for green CI and merge for `step/33-*` … `step/43-*` in order. None of 33–43 is pushed. The auto-mode classifier blocked Claude from running the merge chain ("merge without review"). Marina either merges herself or allows the action.
-2. Then `/step 44`: product create/edit (`AdminProductsController`), draft-first.
-   - Lock the parent brand and category `FOR SHARE` before the product row.
-   - Validate brand and category (live).
-   - Enforce money bounds and compare-at above base.
-   - Specs and SEO stay Owner-only.
-   - Expected versions with stable 409 reasons.
-   - Audit plus `catalog.changed` (`entityType: "product"`).
-   - Reuse `lockCatalogueActor` and the ADR 0014 transaction shape.
-   - Check `rg -n "^| 44 " docs/roadmap.md` for the exact scope, plus any tax-treatment business input before allowing publish.
+1. **Marina:** merge PR #13 (step 32, CI green). Then, in order, push, open a PR, wait for green CI and merge `step/33-*` … `step/44-*`. None of 33–44 is pushed. The auto-mode classifier blocked Claude from running the merge chain ("merge without review"). Marina either merges herself or allows it.
+2. Then `/step 45`: real option combinations and SKU management (`VariantsController`, variant editor), using the step-41 `product_options`/`variants` constraints (canonical option signature, global SKU, one default).
+   - Lock order: parents FOR SHARE → product FOR UPDATE → variants in sorted ID order.
+   - A product with no options has only its default variant.
+   - Stock stays at zero; the ledger is step 46.
+   - Reuse the ADR 0015 shape.
 
-Browser QA is still open for the Brands/Categories screens (42–43) and the step 37/40 forms. Use node@24 PATH; start Docker Desktop before `pnpm infra:up`.
+BI-02 now also gates product publication (step 51) and the M4 gate; see business-inputs. Browser QA is still open for the Brands/Categories/Products screens (42–44) and the step 37/40 forms. Use node@24 PATH; start Docker Desktop before `pnpm infra:up`.
 
 ## Blockers
 
@@ -74,7 +70,9 @@ None for step 41 schema work. Real settings/coverage require BI-01/BI-03/BI-09 a
 
 - 42 — brand admin API/UI: versioned CRUD, keyset order, reference-aware soft trash/restore, Owner-only SEO, slug redirects, stable 409 reasons, case-insensitive names, published-needs-live-parent trigger (ADR 0014) — 231a726
 
-- 43 — category admin API/UI on a shared brand/category repository and component: case-insensitive names, IN_USE trash refusal, category-namespace redirects (ADR 0014) — uncommitted (commit `step(43)` follows this handoff)
+- 43 — category admin API/UI on a shared brand/category repository and component: case-insensitive names, IN_USE trash refusal, category-namespace redirects (ADR 0014) — 9be9e18
+
+- 44 — product admin API/UI: draft-first, typed disposable/kit specs, integer fils + compare-at, parent locks, ordered checks with PARENT_UNAVAILABLE/PUBLISH_REQUIREMENTS, read-only tax reference until BI-02 (ADR 0015) — uncommitted (commit `step(44)` follows this handoff)
 
 ## Known deviations
 
@@ -82,31 +80,38 @@ None for step 41 schema work. Real settings/coverage require BI-01/BI-03/BI-09 a
 - Event `consumers` lists only implemented consumers (now `system_probe` and `email`); planned ones are documented with roadmap steps and move in with a backfill decision (architecture §8: adding a consumer must not redefine old completions).
 - `audit_log` migration revokes UPDATE/DELETE/TRUNCATE only from a role named `ih_app`; other runtime role names must be revoked at provisioning (trigger blocks mutations regardless).
 
-## Last session handoff (2026-10-10, step 43)
+## Last session handoff (2026-10-10, step 44)
 
-Done: step 43.
+Done: step 44 (ADR 0015).
 
-- The step-42 brand repository is refactored into the shared `packages/db/src/catalogue-parents.ts`. It uses raw SQL with static per-kind identifiers and generic response typing, with no casts.
-- Category API `/v1/admin/categories` has the same routes, permissions, SEO field policy and 409 reasons as brands.
-- Categories have no description and use `imageKey`.
-- Migration `20261010000600_category_names` adds case-insensitive unique names.
-- The shared admin component `catalogue-parent-management.tsx` replaces `brand-management.tsx` and adds a Categories workspace.
-- ADR 0014 is extended and renamed to `0014-brand-category-administration.md`.
-- `invariant-reviewer`: no blockers. Should-fixes applied: migration comment, generic typing, extra category tests.
+- **Contracts:** `packages/contracts/src/products.ts` holds strict, type-discriminated create/update bodies.
+  - Typed specs: disposable `liquidMl`/`batteryMah`/`rechargeable`/`charging`; kit `batteryMah`/`maxOutputW`/`podCapacityMl`/`coilOhm`/`charging`/`display`/`inTheBox`.
+  - Up to 12 extra rows. Decimals are pattern strings.
+  - Integer fils, and compare-at must be above base.
+  - Text rejects NUL; this also applies to the brand/category text fields.
+- **Repository:** `packages/db/src/products.ts`.
+  - Locks the actor, then parents FOR SHARE, then the product FOR UPDATE.
+  - Checks run in order: 404 → VERSION_CONFLICT → TRASHED → PARENT_UNAVAILABLE (only on a parent move or for a published product) → PUBLISH_REQUIREMENTS (published rules checked up front).
+  - Slug redirects, audit change flags and `catalog.changed`.
+  - `mapCatalogueError` no longer maps CHECK failures.
+- **API:** `/v1/admin/products`. Tax treatment is read-only and null until BI-02. A business-inputs note records that BI-02 also gates publication.
+- **Admin:** a Products workspace with a list (tabs, filters, search) and a draft editor with type-specific spec fields.
+- **Review:** `invariant-reviewer` found no blockers; its 3 should-fixes and the test gaps are done.
 
-Files: `packages/contracts/src/catalogue.ts`, `packages/db/src/{catalogue-parents,index}.ts` (removed `brands.ts`), `packages/db/src/catalogue.int.test.ts`, `packages/db/prisma/migrations/20261010000600_category_names/`, `apps/api/src/catalogue/{categories.controller,categories.service,categories.int.test,catalogue.module}.ts`, `apps/admin/{components/catalogue-parent-management.tsx,components/workspace-section.tsx,lib/catalogue.ts,lib/catalogue.test.ts,lib/management.ts,lib/navigation.ts,lib/navigation.test.ts}`, `docs/decisions/0014-brand-category-administration.md`, `docs/{implementation-status,task-backlog,verification}.md`, `PROGRESS.md`.
+Files: `packages/contracts/src/{products,catalogue,index}.ts`, `packages/db/src/{products,catalogue-parents,index}.ts`, `apps/api/src/catalogue/{products.controller,products.service,products.int.test,catalogue.module}.ts`, `apps/admin/{components/product-management.tsx,components/workspace-section.tsx,lib/products.ts,lib/products.test.ts,lib/management.ts}`, `docs/decisions/0015-product-administration.md`, `docs/{business-inputs,implementation-status,task-backlog,verification}.md`, `PROGRESS.md`.
 
-Tests: `pnpm verify -- --integration` PASS (unit 323, integration 230, gateway 29).
+Tests: `pnpm verify -- --integration` PASS (unit 328, integration 243, gateway 29).
 
 Unfinished:
 
-- Browser QA has not been done for the Brands/Categories screens.
-- Images wait for media (48–50); purge is step 51.
-- PR #13 and steps 33–43 are not merged or pushed; Marina has to do this.
-- Migrations are not applied to the dev database.
+- Browser QA has not been done for the Brands/Categories/Products screens.
+- Coming in later steps: variants/SKU (45), stock (46–47), images (48–50), publish/trash/purge (51).
+- PR #13 and steps 33–44 are not merged or pushed; Marina needs to do that.
+- Migrations have not been applied to the dev database.
 
 ## History (summary)
 
+- 2026-10-10 step 43: category admin on a shared brand/category module (9be9e18); verify unit 323/integration 230/gateway 29.
 - 2026-10-10 step 42: brand admin API/UI, reference-aware trash, Owner-only SEO, published-needs-live-parent trigger, ADR 0014 (231a726); verify unit 322/integration 222/gateway 29.
 - 2026-10-10 step 41: catalogue schema + review fixes (ledger-only stock guard, runtime DELETE/TRUNCATE revoked, publish completeness) (f3fd9ba); verify unit 316/integration 206/gateway 29.
 - 2026-10-10 step 40: permission-gated settings/staff/invitation/delivery forms, ADR 0013 (4ed00a9); verify unit 316/integration 191/gateway 29; manual mobile and new-password browser QA open.

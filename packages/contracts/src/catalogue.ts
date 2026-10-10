@@ -7,13 +7,21 @@ export const catalogueSlugSchema = z
   .min(1)
   .max(150)
   .regex(/^[a-z0-9]+(-[a-z0-9]+)*$/);
-const name = z.string().trim().min(1).max(150);
-const description = z.string().trim().max(10_000);
+/** Trimmed text without NUL (PostgreSQL text/jsonb reject it). */
+export const catalogueText = (min: number, max: number) =>
+  z
+    .string()
+    .trim()
+    .min(min)
+    .max(max)
+    .refine((value) => !value.includes("\0"), "Must not contain NUL");
+const name = catalogueText(1, 150);
+const description = catalogueText(0, 10_000);
 const sortOrder = z.number().int().min(0).max(100_000);
 /** SEO fields are Owner-only (`seo.write`) to read and write (architecture §11). */
 export const catalogueSeoSchema = z.strictObject({
-  title: z.string().trim().min(1).max(120).nullable(),
-  description: z.string().trim().min(1).max(320).nullable(),
+  title: catalogueText(1, 120).nullable(),
+  description: catalogueText(1, 320).nullable(),
 });
 
 export const brandCreateRequestSchema = z.strictObject({
