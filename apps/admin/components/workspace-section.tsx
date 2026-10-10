@@ -1,6 +1,9 @@
 "use client";
 import Link from "next/link";
 import { useSession } from "./session-shell";
+import { SettingsManagement } from "./settings-management";
+import { DeliveryManagement } from "./delivery-management";
+import { StaffManagement } from "./staff-management";
 import { sections } from "../lib/navigation";
 export function WorkspaceSection({ sectionKey }: { sectionKey: string }) {
   const session = useSession();
@@ -18,11 +21,19 @@ export function WorkspaceSection({ sectionKey }: { sectionKey: string }) {
     <main className="page-content">
       <p className="eyebrow">{section.group}</p>
       <h1>{section.label}</h1>
-      <section className="empty-panel">
-        <h2>This workspace is being prepared</h2>
-        <p className="muted">There is no activity to display here yet.</p>
-        <Link href="/">Back to workspace</Link>
-      </section>
+      {sectionKey === "settings" ? (
+        <SettingsManagement />
+      ) : sectionKey === "delivery" ? (
+        <DeliveryManagement />
+      ) : sectionKey === "staff" ? (
+        <StaffManagement />
+      ) : (
+        <section className="empty-panel">
+          <h2>This workspace is being prepared</h2>
+          <p className="muted">There is no activity to display here yet.</p>
+          <Link href="/">Back to workspace</Link>
+        </section>
+      )}
     </main>
   );
 }

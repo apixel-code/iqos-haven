@@ -192,6 +192,7 @@ h2 {
   grid-template-columns: 228px minmax(0, 1fr);
 }
 .sidebar {
+  min-width: 0;
   background: var(--surface);
   border-right: 1px solid var(--line);
   padding: 22px 14px;
@@ -275,7 +276,7 @@ h2 {
 }
 @media (max-width: 700px) {
   .workspace {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
   .sidebar {
     border-right: 0;
@@ -304,5 +305,107 @@ h2 {
 @media (max-width: 420px) {
   .auth-card {
     padding: 24px 18px;
+  }
+}
+
+.management-card {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 24px;
+  background: var(--surface);
+  display: grid;
+  gap: 18px;
+}
+.card-heading,
+.resource-toolbar,
+.form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.resource-toolbar {
+  font-size: 0.85rem;
+}
+.management-card fieldset {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+.management-card label {
+  align-content: start;
+  display: grid;
+  gap: 8px;
+  font-size: 0.8rem;
+}
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+.wide-field {
+  grid-column: 1/-1;
+}
+.management-card input:not([type="checkbox"]),
+.management-card textarea,
+.management-card select {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 10px 12px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+}
+.management-card input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+  accent-color: var(--primary);
+}
+.secondary-button {
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 10px 14px;
+  background: var(--surface-2);
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.8rem;
+}
+.record-list {
+  display: grid;
+  gap: 16px;
+}
+.record-card {
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  padding: 18px;
+  display: grid;
+  gap: 16px;
+}
+.management-card summary {
+  cursor: pointer;
+  font-weight: 500;
+  padding: 10px 0;
+}
+.management-card details form {
+  margin-top: 16px;
+}
+.management-card fieldset:disabled {
+  opacity: 0.7;
+}
+@media (max-width: 700px) {
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+  .management-card {
+    padding: 18px;
+  }
+  .record-card {
+    padding: 14px;
   }
 }
