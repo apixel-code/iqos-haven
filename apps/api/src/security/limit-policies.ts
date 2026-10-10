@@ -70,3 +70,9 @@ export const INVITATION_ACCEPT_POLICY: EndpointLimitPolicy<"ip"> = {
   rules: { ip: { limit: 20, windowMs: 15 * MINUTE } },
   outage: "fail_closed",
 };
+
+export const STAFF_MANAGE_POLICY: EndpointLimitPolicy<"ip" | "actor"> = {
+  endpoint: "staff_manage",
+  rules: { ip: { limit: 30, windowMs: 60 * MINUTE }, actor: { limit: 30, windowMs: 60 * MINUTE } },
+  outage: "fail_closed",
+};

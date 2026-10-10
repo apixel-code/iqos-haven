@@ -16,6 +16,10 @@ const schemas = Object.fromEntries(
     "InvitationResponse",
     "InvitationRevokeRequest",
     "InvitationAcceptRequest",
+    "StaffResponse",
+    "StaffListResponse",
+    "StaffEditRequest",
+    "StaffDeactivateRequest",
   ].map((name) => [
     name,
     z.toJSONSchema(contracts[name[0].toLowerCase() + name.slice(1) + "Schema"], {
@@ -23,6 +27,7 @@ const schemas = Object.fromEntries(
     }),
   ]),
 );
+schemas.StaffEditRequest.anyOf = [{ required: ["name"] }, { required: ["email"] }];
 const content = (name) => ({
   "application/json": { schema: { $ref: "#/components/schemas/" + name } },
 });
@@ -32,9 +37,86 @@ const document = {
     title: "Iqos Haven — implemented API contracts",
     version: "0.0.0",
     description:
-      "Implemented health, password-reset and invitation contracts. Browser identity commands require the configured admin Origin and JSON bodies; responses are no-store. Identity UI is roadmap step 37.",
+      "Implemented health, identity and staff administration contracts. Browser identity commands require the configured admin Origin and JSON bodies; responses are no-store. Identity UI is roadmap step 37.",
   },
   paths: {
+    "/v1/admin/staff": {
+      get: {
+        operationId: "staffList",
+        security: [{ adminSession: [] }],
+        description: "Requires staff.manage; sanitized keyset pagination by immutable user ID.",
+        parameters: [
+          {
+            name: "limit",
+            in: "query",
+            schema: { type: "integer", minimum: 1, maximum: 100, default: 25 },
+          },
+          { name: "after", in: "query", schema: { type: "string", format: "uuid" } },
+        ],
+        responses: {
+          200: { description: "Bounded staff page", content: content("StaffListResponse") },
+          400: { description: "Invalid query", content: content("ErrorEnvelope") },
+          401: { description: "Session required", content: content("ErrorEnvelope") },
+          403: { description: "Permission denied", content: content("ErrorEnvelope") },
+        },
+      },
+    },
+    "/v1/admin/staff/{id}": {
+      patch: {
+        operationId: "staffEdit",
+        security: [{ adminSession: [] }],
+        description:
+          "Requires staff.manage and current version; edit name/email only. Email changes revoke all sessions and durable identity capabilities.",
+        parameters: [
+          { name: "id", in: "path", required: true, schema: { type: "string", format: "uuid" } },
+        ],
+        requestBody: { required: true, content: content("StaffEditRequest") },
+        responses: {
+          200: { description: "Updated sanitized staff member", content: content("StaffResponse") },
+          400: { description: "Invalid edit", content: content("ErrorEnvelope") },
+          401: { description: "Session required", content: content("ErrorEnvelope") },
+          403: { description: "Permission or Origin denied", content: content("ErrorEnvelope") },
+          404: { description: "Staff member absent", content: content("ErrorEnvelope") },
+          409: {
+            description: "Stale version or email conflict",
+            content: content("ErrorEnvelope"),
+          },
+          429: { description: "Rate limited", content: content("ErrorEnvelope") },
+          503: {
+            description: "Authoritative limiter unavailable",
+            content: content("ErrorEnvelope"),
+          },
+        },
+      },
+    },
+    "/v1/admin/staff/{id}/deactivate": {
+      post: {
+        operationId: "staffDeactivate",
+        security: [{ adminSession: [] }],
+        description:
+          "Requires staff.manage and current version; never deletes users; common Owner lock prevents last active Owner removal. Sessions/reset/issued invitations revoked atomically.",
+        parameters: [
+          { name: "id", in: "path", required: true, schema: { type: "string", format: "uuid" } },
+        ],
+        requestBody: { required: true, content: content("StaffDeactivateRequest") },
+        responses: {
+          204: { description: "Deactivated, or already inactive at the supplied current version" },
+          400: { description: "Invalid request", content: content("ErrorEnvelope") },
+          401: { description: "Session required", content: content("ErrorEnvelope") },
+          403: { description: "Permission or Origin denied", content: content("ErrorEnvelope") },
+          404: { description: "Staff member absent", content: content("ErrorEnvelope") },
+          409: {
+            description: "Stale version or last active Owner",
+            content: content("ErrorEnvelope"),
+          },
+          429: { description: "Rate limited", content: content("ErrorEnvelope") },
+          503: {
+            description: "Authoritative limiter unavailable",
+            content: content("ErrorEnvelope"),
+          },
+        },
+      },
+    },
     "/v1/admin/staff/invitations": {
       post: {
         operationId: "staffInvite",

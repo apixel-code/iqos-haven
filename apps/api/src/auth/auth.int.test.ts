@@ -182,6 +182,7 @@ describe("admin authentication and sessions (real PostgreSQL)", () => {
     const user = await staff("racing@iqoshaven.test", "staff");
     const created = await createSession(db, {
       userId: user.id,
+      expectedUserVersion: user.version,
       expectedPasswordHash: "$argon2id$v=19$m=19456,t=2,p=1$c3RhbGU$c3RhbGU", // a hash it no longer has
       tokenHash: sha("racing-token"),
       ipNetwork: null,

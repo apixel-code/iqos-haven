@@ -18,6 +18,7 @@ export interface LoginCandidate {
   readonly id: string;
   readonly passwordHash: string;
   readonly active: boolean;
+  readonly version: number;
 }
 
 export async function findLoginCandidate(
@@ -26,7 +27,7 @@ export async function findLoginCandidate(
 ): Promise<LoginCandidate | null> {
   return db.staffUser.findUnique({
     where: { email },
-    select: { id: true, passwordHash: true, active: true },
+    select: { id: true, passwordHash: true, active: true, version: true },
   });
 }
 
@@ -50,7 +51,7 @@ export async function upgradePasswordHash(
 
 /**
  * Creates a session only if the user is still active and still has the password hash that was
- * just verified, so a concurrent password reset or deactivation cannot be outrun by a login.
+ * just verified and the same identity version, so reset/deactivation/email edits cannot be outrun.
  * Returns null when that is no longer true.
  */
 export async function createSession(
@@ -59,6 +60,7 @@ export async function createSession(
     userId: string;
     /** The hash the caller verified against (or the one it just upgraded to). */
     expectedPasswordHash: string;
+    expectedUserVersion: number;
     tokenHash: Buffer;
     ipNetwork: string | null;
     clientLabel: string | null;
@@ -69,7 +71,7 @@ export async function createSession(
     // its FK lock waits, letting an uncommitted old-password session escape reset revocation.
     const users = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
     SELECT id FROM staff_users WHERE id = ${input.userId}::uuid
-      AND active AND password_hash = ${input.expectedPasswordHash} FOR UPDATE`);
+      AND active AND password_hash = ${input.expectedPasswordHash} AND version = ${input.expectedUserVersion} FOR UPDATE`);
     if (!users[0]) return null;
     const rows = await tx.$queryRaw<Array<{ id: string; expires_at: Date }>>(Prisma.sql`
     INSERT INTO sessions (user_id, token_hash, expires_at, ip_network, client_label)

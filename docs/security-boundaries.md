@@ -1,6 +1,6 @@
 # Security boundaries and implementation controls
 
-Architecture sections 3, 9 and 11 are authoritative. Implemented controls include validation/logging/lifecycle, backend sessions/permissions/reset/invitations, Origin/CSRF/rate limits, the gateway, private storage and service auth (steps 18–34). Age tickets, frontend auth and commerce enforcement remain pending milestones.
+Architecture sections 3, 9 and 11 are authoritative. Implemented controls include validation/logging/lifecycle, backend sessions/permissions/reset/invitations/staff administration, Origin/CSRF/rate limits, the gateway, private storage and service auth (steps 18–35). Age tickets, frontend auth and commerce enforcement remain pending milestones.
 
 | Boundary                         | Required enforcement                                                                                                               | Release evidence                                                                                      |
 | -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
@@ -22,3 +22,5 @@ Structured logging removes sensitive keys/URL/body/headers and exception text re
 API request body limit is 32KiB for the current JSON foundation. New bounded schemas must be strict at nested object boundaries too. Gateway/upload/media limits are separate and must be implemented with those features. Missing body/query DTO contracts fail rather than permitting unchecked input. Future route parameters and controlled business error codes must use shared contracts.
 
 Production credentials and key purposes remain separate. Secrets are never copied into this ZIP, docker build context, browser bundle or build cache. Provider/profile, CSP/TLS/WAF, retention, IAM and production grants still require actual selected infrastructure and tests.
+
+Staff administration writes recheck active `staff.manage` authority after Owner-role and sorted user locks. Required aggregate versions reject stale edits; last-active-Owner checks serialize deactivation. Email edits/deactivation revoke sessions, reset verifiers and pending issued invitations atomically with audit/outbox. Session creation verifies identity version as well as password hash under the user lock, fencing pending old-email logins. Fixed-role changes/reactivation continue in step 36; frontend UI is step 37.

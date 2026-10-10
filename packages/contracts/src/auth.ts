@@ -41,3 +41,31 @@ export const invitationAcceptRequestSchema = z.strictObject({
   token: z.string().min(1).max(200),
   password: z.string().min(1).max(1024),
 });
+
+export const staffListQuerySchema = z.strictObject({
+  limit: z.coerce.number().int().min(1).max(100).default(25),
+  after: z.uuid().optional(),
+});
+export const staffIdParamsSchema = z.strictObject({ id: z.uuid() });
+export const staffEditRequestSchema = z
+  .strictObject({
+    version: z.number().int().min(1),
+    name: z.string().min(1).max(100).optional(),
+    email: z.email().max(254).optional(),
+  })
+  .refine((value) => value.name !== undefined || value.email !== undefined);
+export const staffDeactivateRequestSchema = z.strictObject({ version: z.number().int().min(1) });
+export const staffResponseSchema = z.strictObject({
+  id: z.uuid(),
+  email: z.email(),
+  name: z.string().min(1).max(100),
+  role: z.enum(["owner", "staff"]),
+  active: z.boolean(),
+  version: z.number().int().min(1),
+  createdAt: z.iso.datetime(),
+  lastActiveAt: z.iso.datetime().nullable(),
+});
+export const staffListResponseSchema = z.strictObject({
+  items: z.array(staffResponseSchema).max(100),
+  nextCursor: z.uuid().nullable(),
+});

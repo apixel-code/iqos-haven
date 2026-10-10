@@ -153,6 +153,7 @@ describe("password reset through the real API and PostgreSQL", () => {
       );
       pending = createSession(db, {
         userId: staff.id,
+        expectedUserVersion: staff.version,
         expectedPasswordHash: staff.passwordHash,
         tokenHash: createHash("sha256").update(randomUUID()).digest(),
         ipNetwork: null,

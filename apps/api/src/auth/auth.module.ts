@@ -1,5 +1,7 @@
 import { Global, Module } from "@nestjs/common";
 import { APP_GUARD, DiscoveryModule } from "@nestjs/core";
+import { StaffController } from "./staff-administration.controller";
+import { StaffAdministrationService } from "./staff-administration.service";
 import { AccessGuard, AccessPolicyCheck } from "./access";
 import {
   StaffInvitationController,
@@ -18,12 +20,14 @@ import { SerializeInterceptor } from "./serialize";
   imports: [DiscoveryModule],
   controllers: [
     AuthController,
+    StaffController,
     PasswordResetController,
     StaffInvitationController,
     StaffInvitationAcceptController,
   ],
   providers: [
     AuthService,
+    StaffAdministrationService,
     PasswordResetService,
     StaffInvitationService,
     SerializeInterceptor,
