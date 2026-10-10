@@ -297,3 +297,25 @@ DB test: the movement must state the correct resulting balance (`IH002` otherwis
 - **Reused IDs:** a reused ID with another target gets `COMMAND_REUSED`. So does a set ID used for an adjustment.
 
 The admin unit tests cover the add/remove/set command builders. The Stock screen has not been exercised in a browser.
+
+## Step 48 — quarantine media upload (2026-10-10, local)
+
+`pnpm verify -- --integration` PASS (unit 334 incl. platform 47; integration 280 incl. api 169; gateway 29).
+
+`media.int.test.ts` (8 tests) ran against real MinIO:
+
+- **Upload path:**
+  - An authorized upload is stored in private quarantine, its key is pinned, and the media bucket is not involved.
+  - Completing it gives `uploaded` with size and ETag. Audit and one `media.uploaded` event are written, and a second completion changes nothing.
+- **Storage policy refusals:** MinIO refuses an oversized upload, a re-keyed one, and a re-typed one; completion then reports `UPLOAD_MISSING`.
+- **Rejections:** objects written around the policy are `rejected` (`size_mismatch`/`type_mismatch`). They get no event, an audit entry, and free their slot.
+- **Refusals:** a trashed product gets `TRASHED` on completion. Bad declarations (svg, gif, 0 B, > 8 MiB, unknown fields) get 400 and nothing is signed. An unknown product gets 404.
+- **Limits and expiry:**
+  - Twelve concurrent authorizations give exactly 8, and the next one gets `IMAGE_LIMIT`.
+  - An expired grant frees its slot and is listed as `expired`.
+  - Completing after expiry gets `UPLOAD_EXPIRED`.
+- **Permissions:** without `media.upload` Staff get 403 while reads still work; anonymous requests get 401.
+
+Platform unit test: presigned uploads are signed for the public endpoint, never the internal one.
+
+Browser upload (CORS on the quarantine bucket) is part of step 50 and BI-06.

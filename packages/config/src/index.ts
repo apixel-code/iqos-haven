@@ -173,6 +173,8 @@ const bucketName = (fallback: string) =>
  */
 export const storageEnvFields = {
   S3_ENDPOINT: httpUrl.optional(),
+  /** Browser-facing endpoint for presigned upload/download URLs (defaults to S3_ENDPOINT). */
+  S3_PUBLIC_ENDPOINT: httpUrl.optional(),
   S3_REGION: z
     .string()
     .regex(/^[a-z]{2}(-[a-z]+)+-\d$/, "must be a region like me-central-1")
@@ -188,6 +190,7 @@ const storageSafety = (
   value: {
     APP_ENV: DeploymentEnv;
     S3_ENDPOINT?: string | undefined;
+    S3_PUBLIC_ENDPOINT?: string | undefined;
     S3_ACCESS_KEY?: string | undefined;
     S3_SECRET_KEY?: string | undefined;
   },
@@ -203,6 +206,16 @@ const storageSafety = (
     ctx.addIssue({
       code: "custom",
       path: ["S3_ENDPOINT"],
+      message: "must be https outside development",
+    });
+  if (
+    value.S3_PUBLIC_ENDPOINT &&
+    (value.APP_ENV === "staging" || value.APP_ENV === "production") &&
+    new URL(value.S3_PUBLIC_ENDPOINT).protocol !== "https:"
+  )
+    ctx.addIssue({
+      code: "custom",
+      path: ["S3_PUBLIC_ENDPOINT"],
       message: "must be https outside development",
     });
 };

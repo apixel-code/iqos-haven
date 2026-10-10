@@ -39,6 +39,11 @@
 - Step 45 (ADR 0016): product options (flavour/nicotine/colour, canonical values) and variants API — full snapshot responses, product-row lock serializing all option/variant changes, option structure locked once variants exist, exact combinations, global uppercase SKUs, one active default moved atomically, deactivate-only, product-level `catalog.changed`; admin "Options & variants" card with missing-combination generation. Stock stays read-only (ledger 46–47). Browser QA not run.
 - Step 46 (ADR 0017): append-only `stock_movements` ledger. An AFTER INSERT trigger applies and verifies each movement (`balance_after` computed under the variant lock). Direct stock writes are impossible (trigger-depth guard). Stock stays within 0–100,000,000. Reasons: INITIAL_STOCK/RESTOCK/MANUAL/DAMAGE. Inventory API: list with stock states, movement history, replay-safe adjustments by command ID. Audit records no note text. A reconciliation query exists; scheduled alerting arrives in step 53. Set-stock and the UI are step 47.
 - Step 47 (ADR 0017): absolute set-stock against the balance the user saw (`STOCK_CHANGED` on mismatch, delta computed under the row lock, effect `set`, admin command IDs unique across variants/effects); admin Stock workspace (state tabs, SKU/product search, add/remove/set with notes, history, per-action command IDs). Browser QA not run.
+- Step 48 (ADR 0018): `media_assets` and the quarantine upload flow.
+  - Authorize, then a short-lived signed POST policy straight to private storage (key, type and size pinned; never longer than the DB authorization; `S3_PUBLIC_ENDPOINT` for browsers), then complete.
+  - Completion runs HEAD outside the transaction and records size and ETag, or rejects the upload on a mismatch. Audit and `media.uploaded` are written atomically.
+  - The eight-slot limit is serialized by the product lock. Expired or failed authorizations free their slot.
+  - Nothing is public. Processing, derivatives, cleanup and the gallery come in steps 49–50.
 
 - Uploaded architecture, ordered roadmap, corrected prototypes, derived requirements/design/acceptance/database/security/operational references.
 

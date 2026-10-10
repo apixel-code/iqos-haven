@@ -18,6 +18,11 @@ export type BucketPurpose = "quarantine" | "media" | "reports";
 
 export interface StorageConfig {
   readonly endpoint?: string | undefined;
+  /**
+   * Endpoint browsers use for presigned uploads/downloads when it differs from the private
+   * service endpoint (e.g. in-cluster `minio:9000` vs a public storage host). Defaults to `endpoint`.
+   */
+  readonly publicEndpoint?: string | undefined;
   readonly region: string;
   readonly accessKeyId?: string | undefined;
   readonly secretAccessKey?: string | undefined;
@@ -73,21 +78,26 @@ export interface PresignedUpload {
 
 export class ObjectStorage {
   private readonly client: S3Client;
+  /** Signs browser-facing URLs against the public endpoint; never used for service calls. */
+  private readonly publicClient: S3Client;
 
   constructor(private readonly config: StorageConfig) {
-    this.client = new S3Client({
-      region: config.region,
-      forcePathStyle: config.forcePathStyle,
-      ...(config.endpoint ? { endpoint: config.endpoint } : {}),
-      ...(config.accessKeyId && config.secretAccessKey
-        ? {
-            credentials: {
-              accessKeyId: config.accessKeyId,
-              secretAccessKey: config.secretAccessKey,
-            },
-          }
-        : {}),
-    });
+    const client = (endpoint: string | undefined) =>
+      new S3Client({
+        region: config.region,
+        forcePathStyle: config.forcePathStyle,
+        ...(endpoint ? { endpoint } : {}),
+        ...(config.accessKeyId && config.secretAccessKey
+          ? {
+              credentials: {
+                accessKeyId: config.accessKeyId,
+                secretAccessKey: config.secretAccessKey,
+              },
+            }
+          : {}),
+      });
+    this.client = client(config.endpoint);
+    this.publicClient = config.publicEndpoint ? client(config.publicEndpoint) : this.client;
   }
 
   private bucket(purpose: BucketPurpose): string {
@@ -159,12 +169,16 @@ export class ObjectStorage {
   async head(
     purpose: BucketPurpose,
     key: string,
-  ): Promise<{ size: number; contentType: string | undefined } | null> {
+  ): Promise<{ size: number; contentType: string | undefined; etag: string | undefined } | null> {
     try {
       const result = await this.client.send(
         new HeadObjectCommand({ Bucket: this.bucket(purpose), Key: assertStorageKey(key) }),
       );
-      return { size: result.ContentLength ?? 0, contentType: result.ContentType };
+      return {
+        size: result.ContentLength ?? 0,
+        contentType: result.ContentType,
+        etag: result.ETag?.replaceAll('"', ""),
+      };
     } catch (error) {
       if (error instanceof NotFound || error instanceof NoSuchKey) return null;
       throw error;
@@ -188,7 +202,7 @@ export class ObjectStorage {
   ): Promise<string> {
     const name = options.downloadName?.replace(/[^A-Za-z0-9._-]/g, "_").slice(0, 100);
     return getSignedUrl(
-      this.client,
+      this.publicClient,
       new GetObjectCommand({
         Bucket: this.bucket(purpose),
         Key: assertStorageKey(key),
@@ -216,7 +230,7 @@ export class ObjectStorage {
       throw new StorageKeyError("Uploads live under uploads/");
     if (!(UPLOAD_CONTENT_TYPES as readonly string[]).includes(options.contentType))
       throw new RangeError("Unsupported upload content type");
-    const post = await createPresignedPost(this.client, {
+    const post = await createPresignedPost(this.publicClient, {
       Bucket: this.bucket("quarantine"),
       Key: safeKey,
       Expires: seconds,
@@ -237,12 +251,14 @@ export class ObjectStorage {
 
   destroy(): void {
     this.client.destroy();
+    if (this.publicClient !== this.client) this.publicClient.destroy();
   }
 }
 
 /** Builds the storage config from validated env (api/worker schemas in @ih/config). */
 export function storageConfigFromEnv(env: {
   S3_ENDPOINT?: string | undefined;
+  S3_PUBLIC_ENDPOINT?: string | undefined;
   S3_REGION: string;
   S3_ACCESS_KEY?: string | undefined;
   S3_SECRET_KEY?: string | undefined;
@@ -253,6 +269,7 @@ export function storageConfigFromEnv(env: {
 }): StorageConfig {
   return {
     endpoint: env.S3_ENDPOINT,
+    publicEndpoint: env.S3_PUBLIC_ENDPOINT,
     region: env.S3_REGION,
     accessKeyId: env.S3_ACCESS_KEY,
     secretAccessKey: env.S3_SECRET_KEY,

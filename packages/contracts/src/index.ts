@@ -29,6 +29,9 @@ export const CONFLICT_CODES = [
   "COMMAND_REUSED",
   "STOCK_LIMIT",
   "STOCK_CHANGED",
+  "IMAGE_LIMIT",
+  "UPLOAD_MISSING",
+  "UPLOAD_EXPIRED",
 ] as const;
 export type ConflictCode = (typeof CONFLICT_CODES)[number];
 
@@ -51,3 +54,4 @@ export * from "./catalogue";
 export * from "./products";
 export * from "./variants";
 export * from "./inventory";
+export * from "./media";

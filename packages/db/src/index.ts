@@ -22,3 +22,4 @@ export * from "./catalogue-parents";
 export * from "./products";
 export * from "./variants";
 export * from "./inventory";
+export * from "./media";

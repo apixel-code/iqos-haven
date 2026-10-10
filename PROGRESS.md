@@ -4,19 +4,19 @@
 
 - Date: 2026-10-10
 - Milestone: M4 — catalogue, variants, safe media and inventory (started; M3 gate not closed; M0 review and M1 staging/fixtures still open)
-- Step: 47 (set stock + inventory UI) — done (browser QA not run)
-- Branch: `step/47-inventory-ui` (stacked on local step 46 `0923c1f`; merge dependency PRs in step order)
+- Step: 48 (quarantine media upload authorization) — done
+- Branch: `step/48-media-upload` (stacked on local step 47 `947f097`; merge dependency PRs in step order)
 - See docs/verification.md for actual checks.
 
 ## Next action
 
-1. **Marina:** merge PR #13 (step 32, CI green), then push → PR → green CI → merge `step/33-*` … `step/47-*` in order. None of 33–47 is pushed. The auto-mode classifier blocked Claude from running the merge chain ("merge without review"); Marina either merges herself or allows it.
-2. Then `/step 48`: safe media upload. Check `rg -n "^| 48 " docs/roadmap.md` and the architecture §11 "Media upload" section for the scope.
-   - `media_assets` migration.
-   - Authenticated upload authorization with a quarantine key.
-   - Presigned POST with a content-length range (`@ih/platform` storage, step 26), and size/type limits.
-   - No public bucket.
-   - Processing and readiness come in 49–50.
+1. **Marina:** merge PR #13 (step 32, CI green). Then, in order, push → PR → green CI → merge for `step/33-*` … `step/48-*`. None of 33–48 is pushed. The auto-mode classifier blocked Claude from running the merge chain ("merge without review"); Marina must merge herself or allow it.
+2. Then `/step 49`: the media processing consumer (`MediaConsumer` in the worker). Add it to the `media.uploaded` consumers with a backfill decision (ADR).
+   - Compare the object ETag with `observed_etag`, or copy to a processing key first.
+   - Read with the 8 MiB cap. Verify magic bytes and decoder support, and reject SVG, animated and malformed images.
+   - Set pixel/dimension bombs limits, strip metadata, re-encode derivatives with Sharp into the media bucket, and set `ready` with width, height and sha256, or `rejected` with an error.
+   - Add a durable cleanup schedule for expired, rejected and orphan quarantine objects.
+   - Sharp is a new dependency, so ask Marina before adding it.
 
 BI-02 also gates product publication (51) and the M4 gate. Browser QA is still open for the catalogue/stock screens (42–47) and the step 37/40 forms. Use node@24 PATH; start Docker Desktop before `pnpm infra:up`.
 
@@ -79,7 +79,9 @@ None for step 41 schema work. Real settings/coverage require BI-01/BI-03/BI-09 a
 
 - 46 — append-only stock ledger with AFTER INSERT verify/apply trigger, trigger-depth stock guard, replay-safe adjustments, inventory list/history API, reconciliation query (ADR 0017) — 0923c1f
 
-- 47 — set-stock against the seen balance (STOCK_CHANGED), set/adjust effects with cross-variant unique admin command IDs, admin Stock workspace (ADR 0017) — uncommitted (commit `step(47)` follows this handoff)
+- 47 — set-stock against the seen balance (STOCK_CHANGED), set/adjust effects with cross-variant unique admin command IDs, admin Stock workspace (ADR 0017) — 947f097
+
+- 48 — media_assets + quarantine upload (signed POST policy, HEAD outside tx, ETag, eight-slot limit, public endpoint), media.uploaded (ADR 0018) — uncommitted (commit `step(48)` follows this handoff)
 
 ## Known deviations
 
@@ -87,30 +89,36 @@ None for step 41 schema work. Real settings/coverage require BI-01/BI-03/BI-09 a
 - Event `consumers` lists only implemented consumers (now `system_probe` and `email`); planned ones are documented with roadmap steps and move in with a backfill decision (architecture §8: adding a consumer must not redefine old completions).
 - `audit_log` migration revokes UPDATE/DELETE/TRUNCATE only from a role named `ih_app`; other runtime role names must be revoked at provisioning (trigger blocks mutations regardless).
 
-## Last session handoff (2026-10-10, step 47)
+## Last session handoff (2026-10-10, step 48)
 
-Done: step 47 (ADR 0017 extended).
+Done: step 48 (ADR 0018). The session was interrupted mid-step and resumed from the uncommitted work.
 
-- **Shared command path:** `packages/db/src/inventory.ts` now has `runStockCommand`, used by both `adjustStock` and `setStock`. It does the actor lock, a replay check before and after the row lock, the plan, the movement with its balance, and the audit (`command` kind, no note text).
-- **`setStock`:** the expected balance must match the current one, otherwise `STOCK_CHANGED`. The delta is computed under the lock. The movement is `INITIAL_STOCK` only for a first positive count, otherwise `MANUAL`. A no-op records nothing.
-- **Ledger effects:** `set` vs `adjust`. A partial unique index makes each admin command ID unique across variants and effects; it is in the unapplied step-46 migration.
-- **API:** `POST /v1/admin/inventory/:variantId/set`.
-- **Admin:** a Stock workspace with state tabs, search, add/remove/set forms (notes, per-action command ID that changes on edit) and history.
-- **`invariant-reviewer`:** no blockers. Should-fixes done: initial-only-positive, catch fallback limited to initial, effect separation, UI ID/key/history. Test gaps covered.
+- **Database:** migration `20261010000800_media_assets` and the Prisma `MediaAsset` model.
+- **Contracts:** `packages/contracts/src/media.ts`.
+- **Repository** (`packages/db/src/media.ts`):
+  - authorize: product lock, eight slots, DB-clock expiry;
+  - complete: lock, trashed check, size/type/ETag, reject or upload, audit plus `media.uploaded`;
+  - `abandonMediaUpload` on signing failure.
+- **API** (`apps/api/src/media/*`):
+  - routes: `GET /admin/products/:id/media`, `POST /admin/products/:id/media/uploads`, `POST /admin/media/:assetId/complete`;
+  - `OBJECT_STORAGE` provider.
+- **Platform and config:** `@ih/platform` storage has `publicEndpoint` and HEAD returns an ETag. `@ih/config` adds `S3_PUBLIC_ENDPOINT` (also in `.env.example` and `docs/environment.md`).
+- **Review:** `invariant-reviewer` found no blockers; all should-fixes and nits are done.
 
-Files: `packages/contracts/src/{inventory,index}.ts`, `packages/db/src/inventory.ts`, `packages/db/prisma/migrations/20261010000700_stock_movements/migration.sql`, `apps/api/src/inventory/*`, `apps/admin/{components/inventory-management.tsx,components/workspace-section.tsx,lib/inventory.ts,lib/inventory.test.ts,lib/management.ts}`, `docs/decisions/0017-stock-ledger.md`, `docs/{implementation-status,task-backlog,verification}.md`, `PROGRESS.md`.
+Files: `packages/db/prisma/{schema.prisma,migrations/20261010000800_media_assets/}`, `packages/contracts/src/{media,index}.ts`, `packages/db/src/{media,index}.ts`, `packages/platform/src/storage/{storage,storage.test,storage.int.test}.ts`, `packages/config/src/index.ts`, `apps/api/src/{media/*,infra/infra.module.ts,infra/tokens.ts,app.module.ts}`, `.env.example`, `docs/environment.md`, `docs/decisions/0018-quarantine-media-upload.md`, `docs/{implementation-status,task-backlog,verification}.md`, `PROGRESS.md`.
 
-Tests: `pnpm verify -- --integration` PASS (unit 333, integration 272, gateway 29).
+Tests: `pnpm verify -- --integration` PASS (unit 334, integration 280, gateway 29).
 
 Unfinished:
 
-- Browser QA has not been run.
-- Low-stock events and scheduled reconciliation are step 53.
-- PR #13 and steps 33–47 are not merged or pushed; Marina has to do this.
-- Migrations have not been applied to the dev database.
+- processing, derivatives and cleanup (49);
+- gallery UI and bucket CORS (50 / BI-06);
+- PR #13 and steps 33–48 are not merged or pushed (Marina);
+- migrations are not applied to the dev database.
 
 ## History (summary)
 
+- 2026-10-10 step 47: set-stock + admin Stock workspace (947f097); verify unit 333/integration 272/gateway 29.
 - 2026-10-10 step 46: append-only stock ledger + inventory API (0923c1f); verify unit 331/integration 266/gateway 29.
 - 2026-10-10 step 45: options/variants API + editor (6f93175); verify unit 331/integration 254/gateway 29.
 - 2026-10-10 step 44: product admin API/UI, typed specs, read-only tax reference (5e7cc51); verify unit 328/integration 243/gateway 29.

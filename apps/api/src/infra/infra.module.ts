@@ -9,7 +9,8 @@ import type { ApiEnv } from "@ih/config";
 import { createDatabase, createPool, type Database, type Pool } from "@ih/db";
 import { createLogger, errorSummary } from "@ih/logger";
 import Redis from "ioredis";
-import { API_ENV, CACHE_REDIS, DATABASE, PG_POOL, QUEUE_REDIS } from "./tokens";
+import { ObjectStorage, storageConfigFromEnv } from "@ih/platform";
+import { API_ENV, CACHE_REDIS, DATABASE, OBJECT_STORAGE, PG_POOL, QUEUE_REDIS } from "./tokens";
 /** Test seam: integration tests pass an isolated-schema pool/database they own and close. */
 export interface InfraOverrides {
   readonly pool: Pool;
@@ -27,6 +28,7 @@ export class InfraModule implements OnApplicationShutdown {
     @Inject(DATABASE) private readonly database: Database,
     @Inject(OWNS_DATABASE) private readonly ownsDatabase: boolean,
     @Inject(CACHE_REDIS) private readonly cache: Redis | null,
+    @Inject(OBJECT_STORAGE) private readonly storage: ObjectStorage,
   ) {}
   static register(env: ApiEnv, overrides?: InfraOverrides): DynamicModule {
     return {
@@ -65,6 +67,11 @@ export class InfraModule implements OnApplicationShutdown {
           },
         },
         {
+          // Private buckets only; the API signs uploads and reads metadata (step 48).
+          provide: OBJECT_STORAGE,
+          useFactory: () => new ObjectStorage(storageConfigFromEnv(env)),
+        },
+        {
           // Shared limiter store (replicated profile only); may evict, unlike the queue Redis.
           provide: CACHE_REDIS,
           useFactory: () => {
@@ -82,12 +89,13 @@ export class InfraModule implements OnApplicationShutdown {
           },
         },
       ],
-      exports: [API_ENV, PG_POOL, DATABASE, QUEUE_REDIS, CACHE_REDIS],
+      exports: [API_ENV, PG_POOL, DATABASE, QUEUE_REDIS, CACHE_REDIS, OBJECT_STORAGE],
     };
   }
   async onApplicationShutdown(): Promise<void> {
     this.redis.disconnect();
     this.cache?.disconnect();
+    this.storage.destroy();
     if (!this.ownsDatabase) return;
     await this.database.$disconnect();
     await this.pool.end();

@@ -33,7 +33,10 @@ describe("object storage (real MinIO, service identity)", () => {
     for (const purpose of ["quarantine", "media", "reports"] as const) {
       const key = `${prefix}/${purpose}.txt`;
       await storage.put(purpose, key, "hello", "text/plain");
-      expect(await storage.head(purpose, key)).toEqual({ size: 5, contentType: "text/plain" });
+      expect(await storage.head(purpose, key)).toMatchObject({
+        size: 5,
+        contentType: "text/plain",
+      });
       const object = await storage.get(purpose, key);
       expect(Buffer.from(object!.body).toString()).toBe("hello");
       await storage.delete(purpose, key);
