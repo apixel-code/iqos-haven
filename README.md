@@ -17,7 +17,7 @@ pnpm dev
 
 Through the gateway (as browsers will use it): storefront http://localhost:8080 · admin http://localhost:8081. Direct dev servers: storefront http://localhost:3000 · admin http://localhost:3001 · API: http://localhost:4000/v1/health/ready · Mailpit: http://localhost:8025 · MinIO: http://localhost:9001.
 
-The frontends currently show foundation pages. Backend admin authentication/session/permissions/password reset/invitations/staff administration and durable audit/outbox/effects exist through step 35. Frontend auth/reset pages (step 37), public products, age tickets, checkout and order persistence remain pending. Health responses include dependency checks. Local Compose credentials are development examples only. Wait for services to become healthy and inspect `docker compose logs minio-init` before using object storage.
+The frontends currently show foundation pages. Backend admin authentication/session/permissions/password reset/invitations/staff/fixed-role administration and durable audit/outbox/effects exist through step 36. Frontend auth/reset pages (step 37), public products, age tickets, checkout and order persistence remain pending. Health responses include dependency checks. Local Compose credentials are development examples only. Wait for services to become healthy and inspect `docker compose logs minio-init` before using object storage.
 
 ## Database workflow
 

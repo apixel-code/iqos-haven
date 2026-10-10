@@ -4,17 +4,17 @@
 
 - Date: 2026-10-10
 - Milestone: M3 — identity, permissions, admin access and basic settings (M0 review and M1 staging/fixtures still open)
-- Step: 35 (versioned staff list/edit/deactivate + session revocation) — done
-- Branch: `step/35-staff-administration` (based on local step 34 commit `c7b8386`; merge dependency PRs in step order)
+- Step: 36 (shared last-Owner guard + fixed-role administration/reactivation) — done
+- Branch: `step/36-fixed-role-administration` (based on local step 35 commit `ce7fa14`; merge dependency PRs in step order)
 - See docs/verification.md for actual checks.
 
 ## Next action
 
-Implement `/step 36`: consolidate the shared identity transaction/Owner-role guard and add fixed Owner/Staff role changes/reactivation, with required versions, fresh actor authority, Owner-role → sorted staff-row locks, last-active-Owner protection and atomic session/capability revocation + audit/outbox. Reuse step 35 guards and race tests; never revive revoked invitations. Custom roles stay deferred; frontend auth/reset/invite UI remains step 37. Review/push completed branches and merge via green CI in step order (32–35). No real identities or `.env` secrets changed here.
+Implement `/step 37`: admin login/reset/invite pages, session-aware layout and permission-derived navigation with expired-session recovery. Read the admin prototype symbols/local rules and existing auth contracts first; integrate the real same-origin backend, memory-only token/password handling, no-store session checks and server-denied permissions. Preserve shared fixed-role/last-Owner protections; no demo loginAs or client permission authority. Review/push completed branches and merge through green CI in step order (32–36). No real identities or `.env` secrets changed here.
 
 ## Blockers
 
-None for step 35 implementation or step 36 backend work (identity email delivery to real inboxes still needs the rest of BI-07; local/test use Mailpit). BI-11 blocks real Owner bootstrap (28). Email go-live needs the rest of BI-07 (verified Resend domain, sender address, new-order recipients). Audit retention/pruning needs BI-08. BI-07 is partially answered; the other BI items remain open; M0 needs client decisions; M1 staging needs BI-06.
+None for step 36 implementation or step 37 UI work (identity email delivery to real inboxes still needs the rest of BI-07; local/test use Mailpit). BI-11 blocks real Owner bootstrap (28). Email go-live needs the rest of BI-07 (verified Resend domain, sender address, new-order recipients). Audit retention/pruning needs BI-08. BI-07 is partially answered; the other BI items remain open; M0 needs client decisions; M1 staging needs BI-06.
 
 ## Gates passed
 
@@ -47,7 +47,9 @@ None for step 35 implementation or step 36 backend work (identity email delivery
 
 - 34 — immutable 24-hour invitations, Owner-only issue/reissue/revoke, atomic acceptance with stored role/current inviter authority, common Owner guard, purpose-keyed durable worker email and fail-closed policies (ADR 0007) — c7b8386
 
-- 35 — Owner-only bounded staff list/profile edit/deactivate, versions and last-Owner guard, atomic session/reset/invitation revocation + audit/outbox, identity-version login fence (ADR 0008) — commit `step(35): versioned staff administration and session revocation`
+- 35 — Owner-only bounded staff list/profile edit/deactivate, versions and last-Owner guard, atomic session/reset/invitation revocation + audit/outbox, identity-version login fence (ADR 0008) — ce7fa14
+
+- 36 — shared identity transactions/last-Owner guard, fixed Owner/Staff role changes and reactivation, atomic session/capability cleanup + audit/outbox, recovery runbook (ADR 0009) — commit `step(36): shared identity guard and fixed-role administration`
 
 ## Known deviations
 
@@ -55,22 +57,24 @@ None for step 35 implementation or step 36 backend work (identity email delivery
 - Event `consumers` lists only implemented consumers (now `system_probe` and `email`); planned ones are documented with roadmap steps and move in with a backfill decision (architecture §8: adding a consumer must not redefine old completions).
 - `audit_log` migration revokes UPDATE/DELETE/TRUNCATE only from a role named `ih_app`; other runtime role names must be revoked at provisioning (trigger blocks mutations regardless).
 
-## Last session handoff (2026-10-10, step 35)
+## Last session handoff (2026-10-10, step 36)
 
-Done: step 35 (ADR 0008), backend staff administration. Role changes/reactivation are step 36; admin UI is step 37.
+Done: step 36 (ADR 0009), backend fixed-role changes/reactivation and shared last-Owner enforcement. Admin auth UI is step 37; custom roles deferred.
 
-- `GET /v1/admin/staff`, `PATCH /:id`, `POST /:id/deactivate`: Owner `staff.manage` only; strict contracts/serialization, bounded keyset pagination, normalized profile fields, required optimistic versions, no-store and separate fail-closed write budgets. Unknown role/active/password fields rejected. No hashes or tokens returned.
-- Owner-role → sorted actor/target rows; fresh permission checks and last-active-Owner refusal inside the transaction. Stale writes conflict; genuine no-op/current-version inactive deactivation are idempotent. Concurrent Owner self-deactivations leave one active Owner.
-- Email edits/deactivation atomically revoke all sessions, unused reset tokens and pending invitations issued by the user with audit/outbox. Profile name edits retain existing sessions. Identity-version + password-hash checks under the session-creation lock reject old-identity in-flight logins. Self email edits/deactivation clear the cookie.
-- New IDs-only staff events have no consumers/backfill; no migration or new secret configuration needed. Invariant reviewer: no issues. Reset/invite deployment prerequisites from 33–34 still apply.
+- Shared `identity-transaction.ts`: current authority/errors, Owner-role → sorted actor/target locks, common active-Owner preservation and capability cleanup. Existing profile/deactivate and new role/reactivate mutations use it; invitation/bootstrap retain the same seeded Owner-role lock.
+- `POST /v1/admin/staff/:id/role` (`version`, fixed Owner/Staff role) and `/reactivate` (`version`) require `staff.manage`, strict DTO/serialization, no-store and existing fail-closed staff budgets. HTTP 200 returns sanitized profile; stale/last-Owner 409. No-op at current version preserves audit/version; inactive role edits stay inactive; reactivation retains saved password/role.
+- Actual security changes increment version and revoke sessions, reset links and pending issued invitations atomically with audit/outbox. Old links/sessions stay revoked after reactivation; pending pre-role-change login is fenced by version/hash. Self-demotion clears cookie; login derives new seeded permissions.
+- New IDs-only events have no consumers/backfill. No migration/secrets/config changes. Unavailable-Owner recovery documented; no public bypass. Production recovery without an available authorized Owner needs an independently provisioned/rehearsed operational process before release. Invariant reviewer: no issues.
 
-Files: `packages/db/src/{staff-administration,sessions,index}.ts`, `packages/contracts/src/{auth,events,events.test}.ts`, `apps/api/src/auth/{staff-administration*,auth.module,auth.service,auth.int.test,password-reset.int.test}.ts`, `apps/api/src/security/limit-policies.ts`, `scripts/generate-api-contract.mjs`, `docs/api.openapi.json`, `docs/decisions/0008-staff-administration.md`, `docs/{implementation-status,task-backlog,security-boundaries,verification}.md`, `README.md`, `START-HERE-BN.md`, `PROGRESS.md`.
+Files: `packages/db/src/{identity-transaction,staff-administration}.ts`, `packages/contracts/src/{auth,events,events.test}.ts`, `apps/api/src/auth/{staff-administration.controller,staff-administration.service,staff-role.int.test,auth.int.test}.ts`, `scripts/generate-api-contract.mjs`, `docs/api.openapi.json`, `docs/decisions/0009-fixed-role-administration.md`, `docs/{implementation-status,task-backlog,security-boundaries,verification}.md`, `docs/runbooks/owner-and-data-bootstrap.md`, `README.md`, `START-HERE-BN.md`, `PROGRESS.md`.
 
-Tests: `pnpm verify -- --integration` PASS (unit 278, integration 161, gateway 29), including build/lint/typecheck/format/boundary/reference/infra/contract checks. Ten new API integration tests cover permissions/pagination/sanitization; invalid/duplicate/stale edits; simultaneous edits; all-session/reset cleanup and old-email login rejection; self-cookie clearing; deactivation/issued-invitation cleanup/idempotency; audit rollback; deterministic old-version login lock race; shared limiter outage; concurrent last-Owner preservation. Initial whitespace-name 500 fixed to 400 before the successful run.
+Tests: `pnpm verify -- --integration` PASS (unit 282, integration 172, gateway 29), including build/lint/typecheck/format/boundary/reference/infra/contract checks. Eleven new API tests cover access/strict roles/input, seeded promotion/demotion permissions, all-session/reset/invite cleanup, self-cookie clearing, saved-credential reactivation, inactive role/no-op/stale writes, audit rollback/direct Staff denial, concurrent role/reactivation version winner, actual Owner-lock wait then stale-authority rejection, login fencing, shared-limiter outage and concurrent mixed removals/two self-demotions. Initial default 201 response corrected to documented 200; fixture event query/type issues corrected. Existing cookie test now checks actual expiry against request timing plus exact seven-day DB duration, tolerating DB/app clock skew.
 
-Unfinished: step 36 shared fixed-role/reactivation administration, step 37 auth/reset/invite UI. Real identities BI-11 and email BI-07; production/staging BI-06. No live DB migration, real email, PR push/merge or new milestone gate performed.
+Unfinished: step 37 auth/reset/invite UI and later settings; production identities BI-11, email BI-07, infrastructure/recovery BI-06. No real email, live DB migration, secret provisioning, PR push/merge or new milestone gate performed.
 
 ## History (summary)
+
+- 2026-10-10 step 35: versioned staff list/profile/deactivate, last-Owner enforcement + atomic session/capability cleanup and login fence, ADR 0008 (ce7fa14); verify unit 278/integration 161/gateway 29.
 
 - 2026-10-10 step 34: atomic staff invitations/acceptance + durable purpose-keyed email, common Owner guard, ADR 0007 (c7b8386); verify unit 274/integration 151/gateway 29.
 

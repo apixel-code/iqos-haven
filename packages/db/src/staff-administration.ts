@@ -1,23 +1,24 @@
 import { toAuditEntry, type CommandContext } from "@ih/application";
 import { defineEvent } from "@ih/contracts";
 import { normalizeEmail, normalizeStaffName, type RoleKey } from "@ih/domain";
-import { Prisma, type Database, type Tx } from "./client";
-import { withTransaction, sortedForLocking } from "./transaction";
-import { lockOwnerRole } from "./identity";
+import { Prisma, type Database } from "./client";
+import { withTransaction } from "./transaction";
+import {
+  hasAuthority,
+  lockStaff,
+  preserveActiveOwner,
+  invalidateStaffCapabilities,
+  StaffForbiddenError,
+  StaffConflictError,
+} from "./identity-transaction";
+export {
+  StaffForbiddenError,
+  StaffNotFoundError,
+  StaffConflictError,
+  LastOwnerError,
+} from "./identity-transaction";
 import { PrismaAuditWriter } from "./audit";
 import { PrismaOutboxWriter } from "./outbox";
-export class StaffForbiddenError extends Error {
-  readonly code = "STAFF_FORBIDDEN";
-}
-export class StaffNotFoundError extends Error {
-  readonly code = "STAFF_NOT_FOUND";
-}
-export class StaffConflictError extends Error {
-  readonly code = "STAFF_CONFLICT";
-}
-export class LastOwnerError extends Error {
-  readonly code = "LAST_ACTIVE_OWNER";
-}
 const audit = new PrismaAuditWriter();
 const outbox = new PrismaOutboxWriter();
 const select = {
@@ -47,13 +48,6 @@ function response(row: {
     lastActiveAt: row.lastActiveAt?.toISOString() ?? null,
   };
 }
-async function hasAuthority(tx: Tx | Database, id: string): Promise<boolean> {
-  const rows = await tx.$queryRaw<
-    Array<{ id: string }>
-  >(Prisma.sql`SELECT u.id FROM staff_users u WHERE u.id = ${id}::uuid AND u.active
-    AND EXISTS (SELECT 1 FROM role_permissions rp JOIN permissions p ON p.id = rp.permission_id WHERE rp.role_id = u.role_id AND p.key = 'staff.manage')`);
-  return !!rows[0];
-}
 export async function listStaff(
   db: Database,
   actorId: string,
@@ -69,52 +63,6 @@ export async function listStaff(
   const more = rows.length > query.limit;
   const page = rows.slice(0, query.limit);
   return { items: page.map(response), nextCursor: more ? page.at(-1)!.id : null };
-}
-async function lockStaff(tx: Tx, context: CommandContext, targetId: string) {
-  const ownerRoleId = await lockOwnerRole(tx);
-  if (!context.actorId) throw new StaffForbiddenError();
-  for (const id of sortedForLocking([context.actorId, targetId]))
-    await tx.$queryRaw(Prisma.sql`SELECT id FROM staff_users WHERE id = ${id}::uuid FOR UPDATE`);
-  if (!(await hasAuthority(tx, context.actorId))) throw new StaffForbiddenError();
-  const target = await tx.staffUser.findUnique({
-    where: { id: targetId },
-    include: { role: true },
-  });
-  if (!target) throw new StaffNotFoundError();
-  return { target, ownerRoleId };
-}
-/** Security edits invalidate sessions and durable capabilities under the already-held user lock. */
-async function invalidate(
-  tx: Tx,
-  context: CommandContext,
-  id: string,
-  reason: "deactivated" | "admin_revoked",
-) {
-  await tx.$executeRaw(
-    Prisma.sql`UPDATE sessions SET revoked_at = statement_timestamp(), revoke_reason = ${reason} WHERE user_id = ${id}::uuid AND revoked_at IS NULL`,
-  );
-  await tx.$executeRaw(
-    Prisma.sql`UPDATE password_reset_tokens SET used_at = statement_timestamp() WHERE user_id = ${id}::uuid AND used_at IS NULL`,
-  );
-  const invites = await tx.$queryRaw<
-    Array<{ id: string }>
-  >(Prisma.sql`UPDATE staff_invitation_tokens SET revoked_at = statement_timestamp(), version = version + 1
-    WHERE invited_by = ${id}::uuid AND accepted_at IS NULL AND revoked_at IS NULL RETURNING id`);
-  for (const invite of invites) {
-    await audit.append(
-      tx,
-      toAuditEntry(context, {
-        action: "staff.invitation_revoked",
-        entity: { type: "staff_invitation", id: invite.id },
-        after: { revoked: true },
-        reason: "inviting account security change",
-      }),
-    );
-    await outbox.publish(
-      tx,
-      defineEvent("staff.invitation_revoked", invite.id, { invitationId: invite.id }),
-    );
-  }
 }
 export async function editStaff(
   db: Database,
@@ -138,7 +86,8 @@ export async function editStaff(
       await tx.$executeRaw(
         Prisma.sql`UPDATE staff_users SET name = ${nextName}, email = ${nextEmail}, version = version + 1, updated_at = statement_timestamp() WHERE id = ${id}::uuid`,
       );
-      if (nextEmail !== target.email) await invalidate(tx, context, id, "admin_revoked");
+      if (nextEmail !== target.email)
+        await invalidateStaffCapabilities(tx, context, id, "admin_revoked");
       await audit.append(
         tx,
         toAuditEntry(context, {
@@ -186,15 +135,11 @@ export async function deactivateStaff(
     const { target, ownerRoleId } = await lockStaff(tx, context, id);
     if (target.version !== version) throw new StaffConflictError();
     if (!target.active) return;
-    if (
-      target.roleId === ownerRoleId &&
-      (await tx.staffUser.count({ where: { active: true, roleId: ownerRoleId } })) <= 1
-    )
-      throw new LastOwnerError();
+    await preserveActiveOwner(tx, target, ownerRoleId, { active: false, roleId: target.roleId });
     await tx.$executeRaw(
       Prisma.sql`UPDATE staff_users SET active = false, version = version + 1, updated_at = statement_timestamp() WHERE id = ${id}::uuid`,
     );
-    await invalidate(tx, context, id, "deactivated");
+    await invalidateStaffCapabilities(tx, context, id, "deactivated");
     await audit.append(
       tx,
       toAuditEntry(context, {
@@ -208,5 +153,73 @@ export async function deactivateStaff(
       tx,
       defineEvent("staff.deactivated", id, { userId: id }, target.version + 1),
     );
+  });
+}
+
+/** Fixed launch roles only; grants are immutable seeds, never caller-supplied permissions. */
+export async function changeStaffRole(
+  db: Database,
+  context: CommandContext,
+  id: string,
+  input: { version: number; role: RoleKey },
+) {
+  return withTransaction(db, async (tx) => {
+    const { target, ownerRoleId } = await lockStaff(tx, context, id);
+    if (target.version !== input.version) throw new StaffConflictError();
+    if (input.role !== "owner" && input.role !== "staff")
+      throw new RangeError("Invalid fixed role");
+    const role = await tx.role.findUniqueOrThrow({ where: { key: input.role } });
+    if (target.roleId === role.id)
+      return response(await tx.staffUser.findUniqueOrThrow({ where: { id }, select }));
+    await preserveActiveOwner(tx, target, ownerRoleId, { active: target.active, roleId: role.id });
+    await tx.$executeRaw(
+      Prisma.sql`UPDATE staff_users SET role_id = ${role.id}::uuid, version = version + 1, updated_at = statement_timestamp() WHERE id = ${id}::uuid`,
+    );
+    await invalidateStaffCapabilities(tx, context, id, "admin_revoked");
+    await audit.append(
+      tx,
+      toAuditEntry(context, {
+        action: "staff.role_changed",
+        entity: { type: "staff_user", id },
+        before: { role: target.role.key, version: target.version },
+        after: { role: input.role, version: target.version + 1 },
+      }),
+    );
+    await outbox.publish(
+      tx,
+      defineEvent("staff.role_changed", id, { userId: id }, target.version + 1),
+    );
+    return response(await tx.staffUser.findUniqueOrThrow({ where: { id }, select }));
+  });
+}
+export async function reactivateStaff(
+  db: Database,
+  context: CommandContext,
+  id: string,
+  version: number,
+) {
+  return withTransaction(db, async (tx) => {
+    const { target } = await lockStaff(tx, context, id);
+    if (target.version !== version) throw new StaffConflictError();
+    if (target.active)
+      return response(await tx.staffUser.findUniqueOrThrow({ where: { id }, select }));
+    await tx.$executeRaw(
+      Prisma.sql`UPDATE staff_users SET active = true, version = version + 1, updated_at = statement_timestamp() WHERE id = ${id}::uuid`,
+    );
+    await invalidateStaffCapabilities(tx, context, id, "admin_revoked");
+    await audit.append(
+      tx,
+      toAuditEntry(context, {
+        action: "staff.reactivated",
+        entity: { type: "staff_user", id },
+        before: { active: false, version: target.version },
+        after: { active: true, version: target.version + 1 },
+      }),
+    );
+    await outbox.publish(
+      tx,
+      defineEvent("staff.reactivated", id, { userId: id }, target.version + 1),
+    );
+    return response(await tx.staffUser.findUniqueOrThrow({ where: { id }, select }));
   });
 }

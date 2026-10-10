@@ -69,3 +69,9 @@ export const staffListResponseSchema = z.strictObject({
   items: z.array(staffResponseSchema).max(100),
   nextCursor: z.uuid().nullable(),
 });
+
+export const staffRoleRequestSchema = z.strictObject({
+  version: z.number().int().min(1),
+  role: z.enum(["owner", "staff"]),
+});
+export const staffReactivateRequestSchema = z.strictObject({ version: z.number().int().min(1) });

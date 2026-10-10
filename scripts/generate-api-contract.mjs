@@ -20,6 +20,8 @@ const schemas = Object.fromEntries(
     "StaffListResponse",
     "StaffEditRequest",
     "StaffDeactivateRequest",
+    "StaffRoleRequest",
+    "StaffReactivateRequest",
   ].map((name) => [
     name,
     z.toJSONSchema(contracts[name[0].toLowerCase() + name.slice(1) + "Schema"], {
@@ -101,6 +103,62 @@ const document = {
         requestBody: { required: true, content: content("StaffDeactivateRequest") },
         responses: {
           204: { description: "Deactivated, or already inactive at the supplied current version" },
+          400: { description: "Invalid request", content: content("ErrorEnvelope") },
+          401: { description: "Session required", content: content("ErrorEnvelope") },
+          403: { description: "Permission or Origin denied", content: content("ErrorEnvelope") },
+          404: { description: "Staff member absent", content: content("ErrorEnvelope") },
+          409: {
+            description: "Stale version or last active Owner",
+            content: content("ErrorEnvelope"),
+          },
+          429: { description: "Rate limited", content: content("ErrorEnvelope") },
+          503: {
+            description: "Authoritative limiter unavailable",
+            content: content("ErrorEnvelope"),
+          },
+        },
+      },
+    },
+    "/v1/admin/staff/{id}/role": {
+      post: {
+        operationId: "staffRole",
+        security: [{ adminSession: [] }],
+        description:
+          "Requires staff.manage and current version. Change a fixed Owner/Staff role; last-active-Owner protected. All sessions and durable capabilities revoked.",
+        parameters: [
+          { name: "id", in: "path", required: true, schema: { type: "string", format: "uuid" } },
+        ],
+        requestBody: { required: true, content: content("StaffRoleRequest") },
+        responses: {
+          200: { description: "Current sanitized staff member", content: content("StaffResponse") },
+          400: { description: "Invalid request", content: content("ErrorEnvelope") },
+          401: { description: "Session required", content: content("ErrorEnvelope") },
+          403: { description: "Permission or Origin denied", content: content("ErrorEnvelope") },
+          404: { description: "Staff member absent", content: content("ErrorEnvelope") },
+          409: {
+            description: "Stale version or last active Owner",
+            content: content("ErrorEnvelope"),
+          },
+          429: { description: "Rate limited", content: content("ErrorEnvelope") },
+          503: {
+            description: "Authoritative limiter unavailable",
+            content: content("ErrorEnvelope"),
+          },
+        },
+      },
+    },
+    "/v1/admin/staff/{id}/reactivate": {
+      post: {
+        operationId: "staffReactivate",
+        security: [{ adminSession: [] }],
+        description:
+          "Requires staff.manage and current version. Reactivate an existing account with its saved role/password. Previously revoked capabilities stay revoked; no auto-login.",
+        parameters: [
+          { name: "id", in: "path", required: true, schema: { type: "string", format: "uuid" } },
+        ],
+        requestBody: { required: true, content: content("StaffReactivateRequest") },
+        responses: {
+          200: { description: "Current sanitized staff member", content: content("StaffResponse") },
           400: { description: "Invalid request", content: content("ErrorEnvelope") },
           401: { description: "Session required", content: content("ErrorEnvelope") },
           403: { description: "Permission or Origin denied", content: content("ErrorEnvelope") },

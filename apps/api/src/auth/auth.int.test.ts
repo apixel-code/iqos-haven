@@ -95,12 +95,14 @@ describe("admin authentication and sessions (real PostgreSQL)", () => {
   });
 
   it("signs in with a __Host- session cookie and stores only the token hash", async () => {
+    const startedAt = Date.now();
     const response = await login("  Staff@IqosHaven.test ");
+    const receivedAt = Date.now();
     expect(response.status).toBe(200);
     expect(response.headers.get("cache-control")).toBe("no-store");
     const cookie = response.headers.get("set-cookie")!;
     expect(cookie).toMatch(
-      /^__Host-ih_admin=[A-Za-z0-9_-]{43}; Max-Age=60479\d; Path=\/; Secure; HttpOnly; SameSite=Strict$/,
+      /^__Host-ih_admin=[A-Za-z0-9_-]{43}; Max-Age=\d+; Path=\/; Secure; HttpOnly; SameSite=Strict$/,
     );
     expect(cookie).not.toMatch(/Domain=/i);
     const body = (await response.json()) as {
@@ -119,6 +121,15 @@ describe("admin authentication and sessions (real PostgreSQL)", () => {
       revokedAt: null,
     });
     expect(session.expiresAt.getTime() - session.createdAt.getTime()).toBe(7 * 24 * 3600 * 1000);
+    // Cookie lifetime uses the app clock; DB duration above remains authoritative under clock skew.
+    const maxAge = Number(/Max-Age=(\d+)/.exec(cookie)![1]);
+    expect(maxAge).toBeGreaterThanOrEqual(
+      Math.max(0, Math.floor((session.expiresAt.getTime() - receivedAt) / 1000)),
+    );
+    expect(maxAge).toBeLessThanOrEqual(
+      Math.max(0, Math.floor((session.expiresAt.getTime() - startedAt) / 1000)),
+    );
+
     const raw = await pool.query("SELECT row_to_json(s)::text AS row FROM sessions s");
     expect(raw.rows.map((row) => row.row).join("")).not.toContain(token);
   });

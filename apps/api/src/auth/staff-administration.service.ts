@@ -6,12 +6,14 @@ import {
   ConflictException,
   BadRequestException,
 } from "@nestjs/common";
-import { IdentityValidationError } from "@ih/domain";
+import { IdentityValidationError, type RoleKey } from "@ih/domain";
 import type { CommandContext } from "@ih/application";
 import {
   listStaff,
   editStaff,
   deactivateStaff,
+  changeStaffRole,
+  reactivateStaff,
   StaffForbiddenError,
   StaffNotFoundError,
   StaffConflictError,
@@ -43,6 +45,20 @@ export class StaffAdministrationService {
   async deactivate(context: CommandContext, id: string, version: number) {
     try {
       await deactivateStaff(this.db, context, id.toLowerCase(), version);
+    } catch (error) {
+      this.map(error);
+    }
+  }
+  async role(context: CommandContext, id: string, input: { version: number; role: RoleKey }) {
+    try {
+      return await changeStaffRole(this.db, context, id.toLowerCase(), input);
+    } catch (error) {
+      this.map(error);
+    }
+  }
+  async reactivate(context: CommandContext, id: string, version: number) {
+    try {
+      return await reactivateStaff(this.db, context, id.toLowerCase(), version);
     } catch (error) {
       this.map(error);
     }

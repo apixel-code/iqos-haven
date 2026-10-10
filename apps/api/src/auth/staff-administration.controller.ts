@@ -1,9 +1,22 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, Req, Res } from "@nestjs/common";
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  Param,
+  Patch,
+  Post,
+  Query,
+  Req,
+  Res,
+} from "@nestjs/common";
 import {
   staffListQuerySchema,
   staffIdParamsSchema,
   staffEditRequestSchema,
   staffDeactivateRequestSchema,
+  staffRoleRequestSchema,
+  staffReactivateRequestSchema,
   staffResponseSchema,
   staffListResponseSchema,
 } from "@ih/contracts";
@@ -29,6 +42,13 @@ class StaffEditDto extends createZodDto(staffEditRequestSchema) {
   declare email?: string;
 }
 class StaffDeactivateDto extends createZodDto(staffDeactivateRequestSchema) {
+  declare version: number;
+}
+class StaffRoleDto extends createZodDto(staffRoleRequestSchema) {
+  declare version: number;
+  declare role: "owner" | "staff";
+}
+class StaffReactivateDto extends createZodDto(staffReactivateRequestSchema) {
   declare version: number;
 }
 @RequirePermission("staff.manage")
@@ -86,6 +106,45 @@ export class StaffController {
     );
     if (params.id.toLowerCase() === request.staff!.userId)
       reply.header("Set-Cookie", clearedSessionCookie());
+  }
+  @Post(":id/role")
+  @HttpCode(200)
+  @Serialize(staffResponseSchema)
+  async role(
+    @Param() params: StaffParams,
+    @Body() body: StaffRoleDto,
+    @Req() request: AuthenticatedRequest,
+    @Res({ passthrough: true }) reply: FastifyReply,
+  ) {
+    await this.limit(request, reply);
+    const row = await this.staff.role(
+      { requestId: request.id, actorId: request.staff!.userId },
+      params.id,
+      body,
+    );
+    if (
+      row &&
+      params.id.toLowerCase() === request.staff!.userId &&
+      row.role !== request.staff!.role
+    )
+      reply.header("Set-Cookie", clearedSessionCookie());
+    return row;
+  }
+  @Post(":id/reactivate")
+  @HttpCode(200)
+  @Serialize(staffResponseSchema)
+  async reactivate(
+    @Param() params: StaffParams,
+    @Body() body: StaffReactivateDto,
+    @Req() request: AuthenticatedRequest,
+    @Res({ passthrough: true }) reply: FastifyReply,
+  ) {
+    await this.limit(request, reply);
+    return this.staff.reactivate(
+      { requestId: request.id, actorId: request.staff!.userId },
+      params.id,
+      body.version,
+    );
   }
   private async limit(request: AuthenticatedRequest, reply: FastifyReply) {
     reply.header("Cache-Control", "no-store");

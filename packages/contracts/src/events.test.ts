@@ -30,6 +30,8 @@ describe("event catalogue", () => {
         "report.requested",
         "review.submitted",
         "system.probe",
+        "staff.role_changed",
+        "staff.reactivated",
         "staff.updated",
         "staff.deactivated",
         "staff.invited",
