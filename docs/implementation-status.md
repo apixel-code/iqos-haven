@@ -28,6 +28,7 @@
 - Step 34: Owner-only invitation issue/reissue/revoke, immutable 24-hour hashed snapshots, atomic single-use acceptance with stored role and fresh inviter authority; common Owner lock, existing-account refusal, durable purpose-keyed worker email and fail-closed policies (ADR 0007). Invitation UI remains step 37.
 - Step 35: Owner-only bounded staff list/profile edit/deactivate; optimistic versions, fresh transactional authority checks and sorted locks; last-active-Owner protection; atomic audit/outbox with session/reset/invitation revocation; identity-version fence on login and self-cookie clearing (ADR 0008). Fixed-role/reactivation service follows in step 36, UI step 37.
 - Step 36: shared identity transaction locks/authority/capability cleanup and last-Owner preservation; versioned fixed Owner/Staff role changes and reactivation, atomic audit/outbox and session fencing, self-role cookie clearing (ADR 0009). Custom roles deferred; auth UI remains step 37.
+- Step 37: admin login/forgot/reset/invite pages, memory-only scrubbed fragment capabilities, same-origin cookie requests, dynamic no-store pages and session-aware permission navigation/direct-section denial with focus/periodic refresh and expired-session recovery (ADR 0010). Operational section bodies remain placeholders; browser interaction/visual QA not run because Computer Use permission was unavailable.
 - Uploaded architecture, ordered roadmap, corrected prototypes, derived requirements/design/acceptance/database/security/operational references.
 
 ## Partial or awaiting review
@@ -36,9 +37,9 @@ Milestone 0 documentation exists, but business inputs, final screen states/asset
 
 ## Not implemented
 
-Remaining admin UI and settings; business tables and media processing; catalogue/variants/inventory; Ed25519 age gate; private confirmation capabilities; tax/quote/coupons; transactional checkout/idempotency; operational orders/COD/returns; notifications/reviews/CMS/reports/SEO; production deployment, PITR and recovery drills.
+Remaining operational admin feature UI and settings; business tables and media processing; catalogue/variants/inventory; Ed25519 age gate; private confirmation capabilities; tax/quote/coupons; transactional checkout/idempotency; operational orders/COD/returns; notifications/reviews/CMS/reports/SEO; production deployment, PITR and recovery drills.
 
-No feature becomes complete because a document, exported primitive or demo screen exists. `packages/domain` money/order helpers are building blocks only. `packages/application` remains a use-case placeholder. Gateway and backend authentication exist; frontends remain foundation pages with no commerce or authentication UI integration.
+No feature becomes complete because a document, exported primitive or demo screen exists. `packages/domain` money/order helpers are building blocks only. `packages/application` remains a use-case placeholder. Gateway and backend authentication exist; storefront remains a foundation page, and admin has real auth integration with operational feature workspaces still pending.
 
 ## Next implementation sequence
 
