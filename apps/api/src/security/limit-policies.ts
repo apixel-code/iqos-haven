@@ -86,3 +86,13 @@ export const DELIVERY_MANAGE_POLICY = {
   ...STAFF_MANAGE_POLICY,
   endpoint: "delivery.manage",
 } as const;
+
+/** Catalogue edits are routine Staff work (about 50 products), so budgets are wider than config. */
+export const CATALOG_MANAGE_POLICY: EndpointLimitPolicy<"ip" | "actor"> = {
+  endpoint: "catalog_manage",
+  rules: {
+    ip: { limit: 600, windowMs: 60 * MINUTE },
+    actor: { limit: 300, windowMs: 60 * MINUTE },
+  },
+  outage: "fail_closed",
+};

@@ -2,7 +2,7 @@ import { Catch, HttpException, type ArgumentsHost, type ExceptionFilter } from "
 import { TransactionContentionError } from "@ih/db";
 import { errorSummary, type Logger } from "@ih/logger";
 import type { FastifyReply, FastifyRequest } from "fastify";
-import type { ErrorEnvelope } from "@ih/contracts";
+import { CONFLICT_CODES, type ErrorEnvelope } from "@ih/contracts";
 import { requestId } from "./request-id";
 const ERRORS: Record<number, [string, string]> = {
   400: ["VALIDATION_ERROR", "Invalid request"],
@@ -72,6 +72,14 @@ export class ApiErrorFilter implements ExceptionFilter {
           )
           .map((item) => ({ path: item.path.slice(0, 200), message: item.message }));
       }
+    }
+    // A 409 may name one stable, non-sensitive reason from the allowlist.
+    if (error instanceof HttpException && status === 409) {
+      const response = error.getResponse();
+      const reason =
+        response && typeof response === "object" && "code" in response ? response.code : undefined;
+      if ((CONFLICT_CODES as readonly unknown[]).includes(reason))
+        body.error.code = reason as string;
     }
     if (status >= 500)
       (this.logger ?? req.log).error({ requestId: id, ...errorSummary(error) }, "request failed");

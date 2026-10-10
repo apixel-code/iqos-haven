@@ -20,7 +20,7 @@ const pool = createPool({
 const db = createDatabase(pool, { schema: namespace });
 const key = () => "test-" + randomUUID();
 async function product() {
-  const brand = await db.brand.create({ data: { name: "Synthetic brand", slug: key() } });
+  const brand = await db.brand.create({ data: { name: "Synthetic brand " + key(), slug: key() } });
   const category = await db.category.create({ data: { name: "Synthetic category", slug: key() } });
   const row = await db.product.create({
     data: {
@@ -213,6 +213,23 @@ describe("catalogue constraints (real PostgreSQL, isolated schema)", () => {
     expect((await db.product.findUniqueOrThrow({ where: { id: row.id } })).status).toBe(
       "published",
     );
+  });
+
+  it("refuses to publish a product whose brand or category is trashed", async () => {
+    const { row, brand, category } = await product();
+    await pool.query(
+      "UPDATE products SET tax_treatment_ref='synthetic-vat',tax_treatment_version=1 WHERE id=$1",
+      [row.id],
+    );
+    await pool.query("UPDATE brands SET deleted_at=statement_timestamp() WHERE id=$1", [brand.id]);
+    await rejected("UPDATE products SET status='published' WHERE id=$1", [row.id]);
+    await pool.query("UPDATE brands SET deleted_at=NULL WHERE id=$1", [brand.id]);
+    await pool.query("UPDATE categories SET deleted_at=statement_timestamp() WHERE id=$1", [
+      category.id,
+    ]);
+    await rejected("UPDATE products SET status='published' WHERE id=$1", [row.id]);
+    await pool.query("UPDATE categories SET deleted_at=NULL WHERE id=$1", [category.id]);
+    await pool.query("UPDATE products SET status='published' WHERE id=$1", [row.id]);
   });
 
   it("changes stock only through the ledger flag, starting from zero", async () => {

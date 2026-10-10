@@ -4,6 +4,8 @@ export class ApiError extends Error {
   constructor(
     readonly status: number,
     readonly retryAfter: number | null = null,
+    /** Stable error code from the server envelope, when one was readable. */
+    readonly code: string | null = null,
   ) {
     super("Request could not be completed");
   }

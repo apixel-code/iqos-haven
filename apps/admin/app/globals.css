@@ -376,6 +376,24 @@ h2 {
   font: inherit;
   font-size: 0.8rem;
 }
+.tab-list {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.tab-list button[aria-selected="true"] {
+  border-color: var(--ink);
+  background: var(--surface);
+}
+.danger-button {
+  border: 1px solid var(--err);
+  border-radius: 7px;
+  padding: 10px 14px;
+  background: transparent;
+  color: var(--err);
+  font: inherit;
+  font-size: 0.8rem;
+}
 .record-list {
   display: grid;
   gap: 16px;

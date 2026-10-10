@@ -20,7 +20,7 @@ export async function managementRequest<T>(
   signal?: AbortSignal,
 ): Promise<T> {
   if (
-    !/^\/(settings|staff|delivery-areas)(?:[/?]|$)/.test(path) ||
+    !/^\/(settings|staff|delivery-areas|brands)(?:[/?]|$)/.test(path) ||
     path.includes("..") ||
     path.includes("#")
   )
@@ -37,7 +37,18 @@ export async function managementRequest<T>(
   });
   if (!response.ok) {
     const seconds = Number(response.headers.get("Retry-After"));
-    throw new ApiError(response.status, Number.isFinite(seconds) && seconds > 0 ? seconds : null);
+    let code: string | null = null;
+    try {
+      const envelope = (await response.json()) as { error?: { code?: unknown } };
+      if (typeof envelope.error?.code === "string") code = envelope.error.code.slice(0, 64);
+    } catch {
+      code = null;
+    }
+    throw new ApiError(
+      response.status,
+      Number.isFinite(seconds) && seconds > 0 ? seconds : null,
+      code,
+    );
   }
   return schema.parse(response.status === 204 ? undefined : await response.json());
 }
@@ -138,6 +149,12 @@ export function deliveryCommand(version: number, data: FormData) {
 export function managementError(error: unknown, mutation = false) {
   if (error instanceof FormValidationError) return error.message;
   if (error instanceof ApiError) {
+    if (error.status === 409 && error.code === "IN_USE")
+      return "Published products still use this record. Move or unpublish them first.";
+    if (error.status === 409 && error.code === "DUPLICATE")
+      return "That name or link is already used (including in Trash). Choose another.";
+    if (error.status === 409 && error.code === "TRASHED")
+      return "This record is in Trash. Restore it before making changes.";
     if (error.status === 409)
       return "This change conflicts with current data or account rules. Reload current values before trying again.";
     if (error.status === 403) return "You no longer have access to this action.";

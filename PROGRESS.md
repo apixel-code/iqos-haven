@@ -4,16 +4,16 @@
 
 - Date: 2026-10-10
 - Milestone: M4 — catalogue, variants, safe media and inventory (started; M3 gate not closed; M0 review and M1 staging/fixtures still open)
-- Step: 41 (catalogue schema and constraints) — done
-- Branch: `step/41-catalogue-schema` (stacked on local step 40 `4ed00a9`; merge dependency PRs in step order)
+- Step: 42 (brands CRUD, ordering, active/trash/restore) — done (browser QA not run)
+- Branch: `step/42-brands` (stacked on local step 41 `f3fd9ba`; merge dependency PRs in step order)
 - See docs/verification.md for actual checks.
 
 ## Next action
 
-1. Ask Marina whether to merge PR #13 (step 32, CI green) and then push/PR/merge the stacked local branches `step/33-*` … `step/41-*` in order, each after green CI (none of 33–41 is pushed yet).
-2. Then `/step 42`: Brands CRUD, ordering, active/trash/restore (`BrandsController` + admin UI). Use `catalog.read` and `catalog.write`/`catalog.trash` permissions with `@Serialize`. The repository bumps `version` and `updated_at`, and expected-version conflicts are handled. Trashing is reference-aware: block it while published products still use the brand. Add audit/outbox entries in the same transaction. Add allowed-, denied- and invalid-input int tests. Hard purge stays Owner-only (`catalog.purge`).
+1. **Marina:** merge PR #13 (step 32, CI green). Then push, open a PR, wait for green CI and merge for `step/33-*` … `step/42-*` in order; none of 33–42 is pushed. The auto-mode classifier blocked Claude from running this chain ("merge without review"). Marina must merge herself, or allow it.
+2. Then `/step 43`: categories CRUD/order/active/trash/restore (`CategoriesController` + admin UI). Reuse the step-42 pattern (ADR 0014): `lockCatalogueActor`, stable 409 reasons, the `catalog.changed` event with `entityType: "category"`, a field policy for Owner-only SEO, and a redirect on slug rename. Trash is refused with `IN_USE` while live published products use the category; the `products_live_parents` trigger already covers categories. Add case-insensitive unique category names (new migration).
 
-Carry forward manual UI QA from step 40. Use node@24 PATH; start Docker Desktop before `pnpm infra:up`.
+Browser QA is still open for the Brands screen (42) and the step 37/40 forms. Use node@24 PATH; start Docker Desktop before `pnpm infra:up`.
 
 ## Blockers
 
@@ -62,7 +62,9 @@ None for step 41 schema work. Real settings/coverage require BI-01/BI-03/BI-09 a
 
 - 40 — real versioned settings/staff/invitation/delivery forms, session-safe drafts and conflict recovery; actual-origin browser checks and responsive layouts (ADR 0013), manual UI QA partial — 4ed00a9
 
-- 41 — catalogue schema: normalized slugs + locked cross-table redirect claims, fils bounds, publish completeness, canonical option signatures, global SKU, one default/primary, ledger-only stock guard, RESTRICT FKs and no runtime DELETE/TRUNCATE — uncommitted (commit `step(41)` follows this handoff)
+- 41 — catalogue schema: normalized slugs + locked cross-table redirect claims, fils bounds, publish completeness, canonical option signatures, global SKU, one default/primary, ledger-only stock guard, RESTRICT FKs and no runtime DELETE/TRUNCATE — f3fd9ba
+
+- 42 — brand admin API/UI: versioned CRUD, keyset order, reference-aware soft trash/restore, Owner-only SEO, slug redirects, stable 409 reasons, case-insensitive names, published-needs-live-parent trigger (ADR 0014) — uncommitted (commit `step(42)` follows this handoff)
 
 ## Known deviations
 
@@ -70,26 +72,32 @@ None for step 41 schema work. Real settings/coverage require BI-01/BI-03/BI-09 a
 - Event `consumers` lists only implemented consumers (now `system_probe` and `email`); planned ones are documented with roadmap steps and move in with a backfill decision (architecture §8: adding a consumer must not redefine old completions).
 - `audit_log` migration revokes UPDATE/DELETE/TRUNCATE only from a role named `ih_app`; other runtime role names must be revoked at provisioning (trigger blocks mutations regardless).
 
-## Last session handoff (2026-10-10, step 41)
+## Last session handoff (2026-10-10, step 42)
 
-Done: step 41 catalogue schema (migration `20261010000400_catalogue`, Prisma models, `packages/db/src/catalogue.int.test.ts`). Picked up the uncommitted WIP from the previous session, verified it, and applied the `invariant-reviewer` should-fixes:
+Done: step 42 (ADR 0014).
 
-- a stock-ledger-only trigger (new variants start at zero; changes need the transaction-local `ih.stock_ledger` flag)
-- runtime role denied DELETE/TRUNCATE on brands/categories/products/variants and TRUNCATE on the rest
-- compare-at must be above base
-- published requires a positive price, plus a puff count for disposables
-- positive publish tests and a tighter asset-key regex
+- **API** at `/v1/admin/brands`:
+  - Operations: list (live/trashed, keyset by sort order), detail, create, edit, trash and restore.
+  - Permissions: `catalog.read/write/trash`, rechecked in the transaction with an actor `FOR SHARE` lock.
+  - SEO is Owner-only: stripped for other callers by field policy, and writing it needs `seo.write`.
+  - Writes require the expected version. 409 responses carry a stable reason: `VERSION_CONFLICT`, `DUPLICATE`, `TRASHED` or `IN_USE`. The error filter has an allowlist for these.
+  - A slug rename inserts a direct redirect, and renaming back reclaims the old slug.
+  - Audit and the IDs-only `catalog.changed` event are written atomically.
+  - Limit: `catalog_manage` fail-closed.
+- **Migration `20261010000500_catalogue_parents`:** case-insensitive unique brand names, plus a trigger that refuses a published product whose brand or category is trashed. The parent is locked `FOR SHARE`, so trash and publish serialize.
+- **Admin:** Brands workspace with Brands | Trash, create form with suggested slug, edit cards, "Show in store", display order, trash/restore with confirmation, and specific 409 messages.
+- **`invariant-reviewer`:** no blockers. All 5 should-fixes and the listed test gaps were addressed.
+- **Step-41 test fix:** catalogue test brands now use unique names.
 
-Service-layer duties (version/`updated_at`, image count, option membership, rename-reclaim of an own redirect) are recorded in the migration comment.
+Files: `packages/contracts/src/{catalogue,index,events}.ts`, `packages/db/src/{brands,index,catalogue.int.test}.ts`, `packages/db/prisma/migrations/20261010000500_catalogue_parents/`, `apps/api/src/catalogue/*`, `apps/api/src/{app.module.ts,http/error.filter.ts,security/limit-policies.ts}`, `apps/admin/{components/brand-management.tsx,components/workspace-section.tsx,lib/catalogue.ts,lib/catalogue.test.ts,lib/management.ts,lib/auth.ts,lib/navigation.ts,lib/navigation.test.ts,app/globals.css}`, `docs/decisions/0014-brand-administration.md`, `docs/{implementation-status,task-backlog,verification}.md`, `PROGRESS.md`.
 
-Files: `packages/db/prisma/{schema.prisma,migrations/20261010000400_catalogue/migration.sql}`, `packages/db/src/catalogue.int.test.ts`, `docs/{implementation-status,task-backlog,verification}.md`, `PROGRESS.md`.
+Tests: `pnpm verify -- --integration` PASS (unit 322, integration 222, gateway 29).
 
-Tests: `pnpm verify -- --integration` PASS (unit 316, integration 206, gateway 29).
-
-Unfinished: PR #13 is open (CI green) but not merged. Steps 33–41 are committed only locally. Steps 40 and 37 still need manual UI QA. There is no catalogue data yet (business approval). The M3 gate is not closed.
+Unfinished: the Brands screen has not been checked in a browser. Logos wait for media (steps 48–50); purge is step 51. PR #13 and steps 33–42 are still unmerged/unpushed and need Marina (see Next action). The migrations have not been applied to the dev database.
 
 ## History (summary)
 
+- 2026-10-10 step 41: catalogue schema + review fixes (ledger-only stock guard, runtime DELETE/TRUNCATE revoked, publish completeness) (f3fd9ba); verify unit 316/integration 206/gateway 29.
 - 2026-10-10 step 40: permission-gated settings/staff/invitation/delivery forms, ADR 0013 (4ed00a9); verify unit 316/integration 191/gateway 29; manual mobile and new-password browser QA open.
 - 2026-10-10 step 39: Dubai-only versioned areas/flat-fee/ETA API and shared-lock selection, ADR 0012 (b0213a5); verify unit 304/integration 191/gateway 29. BI-03 values unconfigured.
 
