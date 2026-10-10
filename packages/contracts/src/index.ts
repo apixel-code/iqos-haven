@@ -28,6 +28,7 @@ export const CONFLICT_CODES = [
   "INITIAL_STOCK_EXISTS",
   "COMMAND_REUSED",
   "STOCK_LIMIT",
+  "STOCK_CHANGED",
 ] as const;
 export type ConflictCode = (typeof CONFLICT_CODES)[number];
 

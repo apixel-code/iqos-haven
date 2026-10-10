@@ -6,7 +6,12 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import type { CommandContext } from "@ih/application";
-import type { InventoryQuery, StockAdjustmentRequest, StockMovementsQuery } from "@ih/contracts";
+import type {
+  InventoryQuery,
+  StockAdjustmentRequest,
+  StockMovementsQuery,
+  StockSetRequest,
+} from "@ih/contracts";
 import {
   adjustStock,
   CatalogueConflictError,
@@ -14,6 +19,7 @@ import {
   CatalogueNotFoundError,
   listInventory,
   listStockMovements,
+  setStock,
   type Database,
 } from "@ih/db";
 import { DATABASE } from "../infra/tokens";
@@ -41,5 +47,8 @@ export class InventoryService {
   }
   adjust(context: CommandContext, variantId: string, input: StockAdjustmentRequest) {
     return this.execute(() => adjustStock(this.db, context, variantId, input));
+  }
+  set(context: CommandContext, variantId: string, input: StockSetRequest) {
+    return this.execute(() => setStock(this.db, context, variantId, input));
   }
 }

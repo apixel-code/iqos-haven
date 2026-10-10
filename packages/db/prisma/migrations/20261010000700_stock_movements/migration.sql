@@ -25,6 +25,10 @@ CREATE TABLE stock_movements (
 -- INITIAL_STOCK happens at most once per variant, as its first movement (checked in the trigger).
 CREATE UNIQUE INDEX stock_movements_one_initial ON stock_movements(variant_id) WHERE reason='INITIAL_STOCK';
 CREATE INDEX stock_movements_variant ON stock_movements(variant_id, created_at, id);
+-- An admin command ID (adjust/set) names one user action on one variant: unique across variants.
+-- Order effects (later steps) reuse one command across several variants with their own effects.
+CREATE UNIQUE INDEX stock_movements_admin_command ON stock_movements(command_id)
+ WHERE effect IN ('adjust','set');
 
 CREATE FUNCTION stock_movements_apply() RETURNS trigger LANGUAGE plpgsql AS $$
 DECLARE balance INTEGER;

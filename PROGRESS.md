@@ -4,19 +4,21 @@
 
 - Date: 2026-10-10
 - Milestone: M4 — catalogue, variants, safe media and inventory (started; M3 gate not closed; M0 review and M1 staging/fixtures still open)
-- Step: 46 (stock ledger + inventory read/adjust API) — done
-- Branch: `step/46-stock-ledger` (stacked on local step 45 `6f93175`; merge dependency PRs in step order)
+- Step: 47 (set stock + inventory UI) — done (browser QA not run)
+- Branch: `step/47-inventory-ui` (stacked on local step 46 `0923c1f`; merge dependency PRs in step order)
 - See docs/verification.md for actual checks.
 
 ## Next action
 
-1. **Marina:** merge PR #13 (step 32, CI green). Then, in order, push, open a PR, wait for green CI and merge `step/33-*` … `step/46-*`. None of 33–46 is pushed yet. The auto-mode classifier blocked Claude from running this merge chain ("merge without review"), so Marina either merges herself or allows it.
-2. Then `/step 47`: admin add/remove/set stock with optimistic conflicts.
-   - Add a set-stock command with an expected current balance and a reason. Under the variant row lock, compute delta = target − current. If the balance differs from the expected value, return a stable 409. Write a MANUAL (or appropriate) movement with the correct `balance_after`.
-   - Inventory UI: list with stock states/filters, movement history, add/remove/set dialogs with reason + note, and a command ID generated per user action (kept across retries).
-   - Reuse ADR 0017 (`adjustStock` replay pattern).
+1. **Marina:** merge PR #13 (step 32, CI green), then push → PR → green CI → merge `step/33-*` … `step/47-*` in order. None of 33–47 is pushed. The auto-mode classifier blocked Claude from running the merge chain ("merge without review"); Marina either merges herself or allows it.
+2. Then `/step 48`: safe media upload. Check `rg -n "^| 48 " docs/roadmap.md` and the architecture §11 "Media upload" section for the scope.
+   - `media_assets` migration.
+   - Authenticated upload authorization with a quarantine key.
+   - Presigned POST with a content-length range (`@ih/platform` storage, step 26), and size/type limits.
+   - No public bucket.
+   - Processing and readiness come in 49–50.
 
-BI-02 also gates product publication (51) and the M4 gate. Browser QA is still open for the catalogue screens (42–45) and the step 37/40 forms. Use node@24 PATH; start Docker Desktop before `pnpm infra:up`.
+BI-02 also gates product publication (51) and the M4 gate. Browser QA is still open for the catalogue/stock screens (42–47) and the step 37/40 forms. Use node@24 PATH; start Docker Desktop before `pnpm infra:up`.
 
 ## Blockers
 
@@ -75,7 +77,9 @@ None for step 41 schema work. Real settings/coverage require BI-01/BI-03/BI-09 a
 
 - 45 — options/variants API + editor: product-lock serialized rules, exact canonical combinations, global SKUs, one active default, deactivate-only, product-level events (ADR 0016) — 6f93175
 
-- 46 — append-only stock ledger with AFTER INSERT verify/apply trigger, trigger-depth stock guard, replay-safe adjustments, inventory list/history API, reconciliation query (ADR 0017) — uncommitted (commit `step(46)` follows this handoff)
+- 46 — append-only stock ledger with AFTER INSERT verify/apply trigger, trigger-depth stock guard, replay-safe adjustments, inventory list/history API, reconciliation query (ADR 0017) — 0923c1f
+
+- 47 — set-stock against the seen balance (STOCK_CHANGED), set/adjust effects with cross-variant unique admin command IDs, admin Stock workspace (ADR 0017) — uncommitted (commit `step(47)` follows this handoff)
 
 ## Known deviations
 
@@ -83,36 +87,31 @@ None for step 41 schema work. Real settings/coverage require BI-01/BI-03/BI-09 a
 - Event `consumers` lists only implemented consumers (now `system_probe` and `email`); planned ones are documented with roadmap steps and move in with a backfill decision (architecture §8: adding a consumer must not redefine old completions).
 - `audit_log` migration revokes UPDATE/DELETE/TRUNCATE only from a role named `ih_app`; other runtime role names must be revoked at provisioning (trigger blocks mutations regardless).
 
-## Last session handoff (2026-10-10, step 46)
+## Last session handoff (2026-10-10, step 47)
 
-Done: step 46 (ADR 0017).
+Done: step 47 (ADR 0017 extended).
 
-- **Migration `20261010000700_stock_movements`:**
-  - Append-only ledger (triggers plus revokes).
-  - AFTER INSERT trigger that applies the delta, verifies `balance_after` (`IH002`) and requires initial stock to be the first movement (`IH001`).
-  - Variant stock cap of 100,000,000.
-  - The step-41 flag guard is replaced by a `pg_trigger_depth()` guard.
-- **Prisma:** `StockMovement` model.
-- **Contracts:** `packages/contracts/src/inventory.ts`.
-- **Repository `packages/db/src/inventory.ts`:**
-  - list, history (REPEATABLE READ), `adjustStock`. The command ID is checked before and after the row lock and is unique across variants; a unique-loss path reads the winner. Balance and limit pre-checks.
-  - `stockReconciliationMismatches`, which checks both sum and latest balance.
-- **API:** `/v1/admin/inventory`.
-- **Review:** `invariant-reviewer` found 2 blockers (concurrent duplicate false conflict; BEFORE-trigger drift under ON CONFLICT). Both fixed, together with all should-fixes and the test gaps.
+- **Shared command path:** `packages/db/src/inventory.ts` now has `runStockCommand`, used by both `adjustStock` and `setStock`. It does the actor lock, a replay check before and after the row lock, the plan, the movement with its balance, and the audit (`command` kind, no note text).
+- **`setStock`:** the expected balance must match the current one, otherwise `STOCK_CHANGED`. The delta is computed under the lock. The movement is `INITIAL_STOCK` only for a first positive count, otherwise `MANUAL`. A no-op records nothing.
+- **Ledger effects:** `set` vs `adjust`. A partial unique index makes each admin command ID unique across variants and effects; it is in the unapplied step-46 migration.
+- **API:** `POST /v1/admin/inventory/:variantId/set`.
+- **Admin:** a Stock workspace with state tabs, search, add/remove/set forms (notes, per-action command ID that changes on edit) and history.
+- **`invariant-reviewer`:** no blockers. Should-fixes done: initial-only-positive, catch fallback limited to initial, effect separation, UI ID/key/history. Test gaps covered.
 
-Files: `packages/db/prisma/{schema.prisma,migrations/20261010000700_stock_movements/}`, `packages/contracts/src/{inventory,index}.ts`, `packages/db/src/{inventory,index,catalogue.int.test}.ts`, `apps/api/src/inventory/*`, `apps/api/src/{app.module.ts,security/limit-policies.ts}`, `docs/decisions/0017-stock-ledger.md`, `docs/{implementation-status,task-backlog,verification}.md`, `PROGRESS.md`.
+Files: `packages/contracts/src/{inventory,index}.ts`, `packages/db/src/inventory.ts`, `packages/db/prisma/migrations/20261010000700_stock_movements/migration.sql`, `apps/api/src/inventory/*`, `apps/admin/{components/inventory-management.tsx,components/workspace-section.tsx,lib/inventory.ts,lib/inventory.test.ts,lib/management.ts}`, `docs/decisions/0017-stock-ledger.md`, `docs/{implementation-status,task-backlog,verification}.md`, `PROGRESS.md`.
 
-Tests: `pnpm verify -- --integration` PASS (unit 331, integration 266, gateway 29).
+Tests: `pnpm verify -- --integration` PASS (unit 333, integration 272, gateway 29).
 
 Unfinished:
 
-- set-stock and the inventory UI (step 47);
-- scheduled reconciliation and low-stock alerts (step 53);
-- PR #13 and steps 33–46 are not merged or pushed (Marina);
-- migrations have not been applied to the dev database.
+- Browser QA has not been run.
+- Low-stock events and scheduled reconciliation are step 53.
+- PR #13 and steps 33–47 are not merged or pushed; Marina has to do this.
+- Migrations have not been applied to the dev database.
 
 ## History (summary)
 
+- 2026-10-10 step 46: append-only stock ledger + inventory API (0923c1f); verify unit 331/integration 266/gateway 29.
 - 2026-10-10 step 45: options/variants API + editor (6f93175); verify unit 331/integration 254/gateway 29.
 - 2026-10-10 step 44: product admin API/UI, typed specs, read-only tax reference (5e7cc51); verify unit 328/integration 243/gateway 29.
 - 2026-10-10 step 43: category admin on a shared brand/category module (9be9e18); verify unit 323/integration 230/gateway 29.

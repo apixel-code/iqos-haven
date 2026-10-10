@@ -87,6 +87,22 @@ export const stockAdjustmentResponseSchema = z.strictObject({
   /** True when this command ID had already been applied and nothing changed now. */
   replayed: z.boolean(),
 });
+/**
+ * Absolute set from a physical count (step 47): applied only if the balance still equals the one
+ * the user saw; the server computes the delta under the row lock. Always explained.
+ */
+export const stockSetRequestSchema = z.strictObject({
+  commandId: z.uuid(),
+  expectedStockOnHand: z.number().int().min(0).max(100_000_000),
+  targetStockOnHand: z.number().int().min(0).max(100_000_000),
+  note: catalogueText(1, 500),
+});
+export const stockSetResponseSchema = z.strictObject({
+  item: inventoryItemSchema,
+  /** Null when the target already equals the balance (nothing recorded). */
+  movement: stockMovementSchema.nullable(),
+  replayed: z.boolean(),
+});
 export const inventoryVariantParamsSchema = z.strictObject({ variantId: z.uuid() });
 
 export type StockAdjustmentRequest = z.input<typeof stockAdjustmentRequestSchema>;
@@ -95,3 +111,5 @@ export type InventoryQuery = z.input<typeof inventoryQuerySchema>;
 export type StockMovement = z.infer<typeof stockMovementSchema>;
 export type StockMovementsQuery = z.input<typeof stockMovementsQuerySchema>;
 export type StockAdjustmentResponse = z.infer<typeof stockAdjustmentResponseSchema>;
+export type StockSetRequest = z.input<typeof stockSetRequestSchema>;
+export type StockSetResponse = z.infer<typeof stockSetResponseSchema>;

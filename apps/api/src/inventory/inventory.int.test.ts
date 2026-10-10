@@ -10,6 +10,7 @@ import {
 import type { InventoryItem, StockAdjustmentResponse, StockMovement } from "@ih/contracts";
 import {
   adjustStock,
+  setStock,
   createDatabase,
   createPool,
   stockReconciliationMismatches,
@@ -368,6 +369,130 @@ describe("stock ledger and inventory through the real API and PostgreSQL", () =>
     ).rejects.toMatchObject({ code: "23503" });
     expect((await db.variant.findUniqueOrThrow({ where: { id: v.id } })).stockOnHand).toBe(5);
     expect(await stockReconciliationMismatches(db)).toEqual([]);
+  });
+
+  const set = (variantId: string, body: Record<string, unknown>) =>
+    call(`/${variantId}/set`, "POST", { commandId: randomUUID(), note: "Shelf count", ...body });
+
+  it("sets stock from a count: initial first, then manual deltas computed under the lock", async () => {
+    const v = await freshVariant();
+    const first = (await (
+      await set(v.id, { expectedStockOnHand: 0, targetStockOnHand: 12 })
+    ).json()) as { item: InventoryItem; movement: StockMovement };
+    expect(first.movement).toMatchObject({ reason: "INITIAL_STOCK", delta: 12, balanceAfter: 12 });
+    const second = (await (
+      await set(v.id, { expectedStockOnHand: 12, targetStockOnHand: 9 })
+    ).json()) as { item: InventoryItem; movement: StockMovement };
+    expect(second.movement).toMatchObject({ reason: "MANUAL", delta: -3, balanceAfter: 9 });
+    expect(second.movement.note).toBe("Shelf count");
+    const same = (await (
+      await set(v.id, { expectedStockOnHand: 9, targetStockOnHand: 9 })
+    ).json()) as { item: InventoryItem; movement: StockMovement | null };
+    expect(same.movement).toBeNull();
+    expect(await db.stockMovement.count({ where: { variantId: v.id } })).toBe(2);
+  });
+
+  it("refuses a set based on a stale balance with STOCK_CHANGED", async () => {
+    const v = await freshVariant();
+    await set(v.id, { expectedStockOnHand: 0, targetStockOnHand: 10 });
+    await adjust(v.id, { reason: "MANUAL", delta: -2, note: "Sold in store" });
+    expect(await code(await set(v.id, { expectedStockOnHand: 10, targetStockOnHand: 15 }))).toBe(
+      "STOCK_CHANGED",
+    );
+    expect((await db.variant.findUniqueOrThrow({ where: { id: v.id } })).stockOnHand).toBe(8);
+    for (const body of [
+      { expectedStockOnHand: 8, targetStockOnHand: -1 },
+      { expectedStockOnHand: 8, targetStockOnHand: 100_000_001 },
+      { expectedStockOnHand: 8, targetStockOnHand: 5, note: "" },
+      { expectedStockOnHand: 8, targetStockOnHand: 5.5 },
+    ])
+      expect((await set(v.id, body)).status).toBe(400);
+  });
+
+  it("concurrent sets from the same view: one wins, the rest see STOCK_CHANGED", async () => {
+    const v = await freshVariant();
+    await set(v.id, { expectedStockOnHand: 0, targetStockOnHand: 10 });
+    const results = await Promise.allSettled(
+      [4, 6, 8, 12].map((target) =>
+        setStock(db, { actorId: ownerId, requestId: randomUUID() }, v.id, {
+          commandId: randomUUID(),
+          expectedStockOnHand: 10,
+          targetStockOnHand: target,
+          note: "Count",
+        }),
+      ),
+    );
+    expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+    for (const r of results)
+      if (r.status === "rejected")
+        expect((r.reason as CatalogueConflictError).reason).toBe("STOCK_CHANGED");
+    expect(await stockReconciliationMismatches(db)).toEqual([]);
+  });
+
+  it("replays a retried set and refuses a reused command for another target", async () => {
+    const v = await freshVariant();
+    await set(v.id, { expectedStockOnHand: 0, targetStockOnHand: 5 });
+    const body = {
+      commandId: randomUUID(),
+      expectedStockOnHand: 5,
+      targetStockOnHand: 7,
+      note: "Recount",
+    };
+    const first = (await (await call(`/${v.id}/set`, "POST", body)).json()) as {
+      replayed: boolean;
+    };
+    const again = (await (await call(`/${v.id}/set`, "POST", body)).json()) as {
+      replayed: boolean;
+      item: InventoryItem;
+    };
+    expect([first.replayed, again.replayed]).toEqual([false, true]);
+    expect(again.item.stockOnHand).toBe(7);
+    expect(await code(await call(`/${v.id}/set`, "POST", { ...body, targetStockOnHand: 9 }))).toBe(
+      "COMMAND_REUSED",
+    );
+  });
+
+  it("replays a retried first set and applies concurrent duplicates once", async () => {
+    const v = await freshVariant();
+    const body = {
+      commandId: randomUUID(),
+      expectedStockOnHand: 0,
+      targetStockOnHand: 6,
+      note: "Opening count",
+    };
+    const results = await Promise.all(
+      [1, 2, 3].map(() => setStock(db, { actorId: ownerId, requestId: randomUUID() }, v.id, body)),
+    );
+    expect(results.filter((r) => !r.replayed)).toHaveLength(1);
+    expect(results[0]!.movement?.reason).toBe("INITIAL_STOCK");
+    // A later retry still replays even though the balance now differs from the expected 0.
+    const late = (await (await call(`/${v.id}/set`, "POST", body)).json()) as { replayed: boolean };
+    expect(late.replayed).toBe(true);
+    const audit = await db.auditLog.findMany({ where: { entityId: v.id } });
+    expect(audit).toHaveLength(1);
+    expect(JSON.stringify(audit[0]!.diff)).toContain('"set"');
+    expect(JSON.stringify(audit[0]!.diff)).not.toContain("Opening count");
+  });
+
+  it("never treats a set command ID as an adjustment (or the reverse)", async () => {
+    const v = await freshVariant();
+    const commandId = randomUUID();
+    await call(`/${v.id}/set`, "POST", {
+      commandId,
+      expectedStockOnHand: 0,
+      targetStockOnHand: 3,
+      note: "Count",
+    });
+    expect(
+      await code(
+        await call(`/${v.id}/adjustments`, "POST", {
+          commandId,
+          reason: "INITIAL_STOCK",
+          delta: 3,
+          note: "Count",
+        }),
+      ),
+    ).toBe("COMMAND_REUSED");
   });
 
   it("forbids ledger tampering and direct stock writes", async () => {

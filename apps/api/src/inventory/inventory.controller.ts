@@ -8,9 +8,12 @@ import {
   stockAdjustmentResponseSchema,
   stockMovementsQuerySchema,
   stockMovementsResponseSchema,
+  stockSetRequestSchema,
+  stockSetResponseSchema,
   type InventoryQuery,
   type StockAdjustmentRequest,
   type StockMovementsQuery,
+  type StockSetRequest,
 } from "@ih/contracts";
 import type { FastifyReply } from "fastify";
 import { RequirePermission, type AuthenticatedRequest } from "../auth/access";
@@ -25,6 +28,7 @@ class MovementsQueryDto extends createZodDto(stockMovementsQuerySchema) {}
 class ParamsDto extends createZodDto(inventoryVariantParamsSchema) {
   declare variantId: string;
 }
+class SetDto extends createZodDto(stockSetRequestSchema) {}
 /** Refined object: validated whole by the pipe. */
 class AdjustmentDto {
   static readonly schema = stockAdjustmentRequestSchema;
@@ -67,6 +71,25 @@ export class InventoryController {
     );
   }
 
+  /** Absolute set from a count with the balance the user saw (step 47). */
+  @Post(":variantId/set")
+  @HttpCode(200)
+  @RequirePermission("inventory.adjust")
+  @Serialize(stockSetResponseSchema)
+  async set(
+    @Param() params: ParamsDto,
+    @Body() body: SetDto,
+    @Req() request: AuthenticatedRequest,
+    @Res({ passthrough: true }) reply: FastifyReply,
+  ) {
+    const input = body as unknown as StockSetRequest;
+    return this.inventory.set(
+      await this.mutation(request, reply, input.commandId),
+      params.variantId,
+      input,
+    );
+  }
+
   @Post(":variantId/adjustments")
   @HttpCode(200)
   @RequirePermission("inventory.adjust")
@@ -77,6 +100,15 @@ export class InventoryController {
     @Req() request: AuthenticatedRequest,
     @Res({ passthrough: true }) reply: FastifyReply,
   ) {
+    const input = body as unknown as StockAdjustmentRequest;
+    return this.inventory.adjust(
+      await this.mutation(request, reply, input.commandId),
+      params.variantId,
+      input,
+    );
+  }
+
+  private async mutation(request: AuthenticatedRequest, reply: FastifyReply, commandId: string) {
     reply.header("Cache-Control", "no-store");
     const header = request.headers["x-ih-client-ip"];
     await this.limits.enforce(
@@ -88,11 +120,6 @@ export class InventoryController {
       request,
       reply,
     );
-    const input = body as unknown as StockAdjustmentRequest;
-    return this.inventory.adjust(
-      { requestId: request.id, actorId: request.staff!.userId, commandId: input.commandId },
-      params.variantId,
-      input,
-    );
+    return { requestId: request.id, actorId: request.staff!.userId, commandId };
   }
 }

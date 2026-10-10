@@ -5,12 +5,16 @@ import {
   stockAdjustmentResponseSchema,
   stockMovementSchema,
   stockMovementsQuerySchema,
+  stockSetRequestSchema,
+  stockSetResponseSchema,
   type InventoryItem,
   type InventoryQuery,
   type StockAdjustmentRequest,
   type StockAdjustmentResponse,
   type StockMovement,
   type StockMovementsQuery,
+  type StockSetRequest,
+  type StockSetResponse,
 } from "@ih/contracts";
 import { toAuditEntry, type CommandContext } from "@ih/application";
 import { Prisma, type Database, type Tx } from "./client";
@@ -153,47 +157,62 @@ function databaseCode(error: unknown): unknown {
 export const MAX_STOCK = 100_000_000;
 
 /**
- * The committed adjustment for this command ID, if any. A command ID names one user action, so
- * reusing it for another variant or another payload is refused (COMMAND_REUSED).
+ * The committed movement for this command ID, if any. A command ID names one user action, so a
+ * different variant or payload is refused (COMMAND_REUSED); `same` decides payload equality.
  */
+type CommandRow = MovementRow & { variantId: string; effect: string };
 async function existingCommand(
   tx: Database | Tx,
-  variantId: string,
-  command: { commandId: string; reason: string; delta: number; note?: string | undefined },
+  commandId: string,
+  same: (row: CommandRow) => boolean,
 ) {
-  const [row] = await tx.$queryRaw<Array<MovementRow & { variantId: string }>>(Prisma.sql`
-    SELECT q.*, m.variant_id AS "variantId" FROM (${MOVEMENT}
-      WHERE m.command_id=${command.commandId} AND m.effect='adjust') q
+  const [row] = await tx.$queryRaw<Array<CommandRow>>(Prisma.sql`
+    SELECT q.*, m.variant_id AS "variantId", m.effect FROM (${MOVEMENT}
+      WHERE m.command_id=${commandId} AND m.effect IN ('adjust','set')) q
     JOIN stock_movements m ON m.id=q.id`);
   if (!row) return null;
-  const same =
-    row.variantId === variantId &&
-    row.reason === command.reason &&
-    row.delta === command.delta &&
-    row.note === (command.note ?? null);
-  if (!same) throw new CatalogueConflictError("COMMAND_REUSED");
+  if (!same(row)) throw new CatalogueConflictError("COMMAND_REUSED");
   return row;
 }
 
-export async function adjustStock(
+interface StockCommand {
+  readonly commandId: string;
+  /** Ledger effect of the admin command: `adjust` (relative) or `set` (absolute count). */
+  readonly effect: "adjust" | "set";
+  readonly note: string | null;
+  /** Whether a committed movement is this same command (replay); effect is compared too. */
+  readonly same: (row: CommandRow) => boolean;
+  /** Decides the movement under the row lock; null records nothing. */
+  readonly plan: (before: {
+    stock: number;
+    movements: boolean;
+  }) => { reason: StockMovement["reason"]; delta: number } | null;
+}
+type StockResult = { item: InventoryItem; movement: StockMovement | null; replayed: boolean };
+
+/**
+ * One stock command: actor share lock → replay check → variant FOR UPDATE → replay re-check (a
+ * concurrent duplicate may have committed while waiting) → plan → movement with the balance
+ * computed under the lock → audit. A lost unique race reads the committed winner afresh.
+ */
+async function runStockCommand(
   db: Database,
   context: CommandContext,
   variantId: string,
-  input: StockAdjustmentRequest,
-): Promise<StockAdjustmentResponse> {
-  const command = stockAdjustmentRequestSchema.parse(input);
+  command: StockCommand,
+): Promise<StockResult> {
+  const same = (row: CommandRow) => row.effect === command.effect && command.same(row);
+  let plannedReason: StockMovement["reason"] | null = null;
+  const replay = async (tx: Database | Tx, row: MovementRow) => ({
+    item: (await loadItem(tx, variantId))!,
+    movement: movement(row),
+    replayed: true,
+  });
   try {
     return await withTransaction(db, async (tx) => {
       await lockCatalogueActor(tx, context.actorId, ["inventory.adjust"], true);
-      const replay = await existingCommand(tx, variantId, command);
-      if (replay) {
-        const current = await loadItem(tx, variantId);
-        return stockAdjustmentResponseSchema.parse({
-          item: current,
-          movement: movement(replay),
-          replayed: true,
-        });
-      }
+      const early = await existingCommand(tx, command.commandId, same);
+      if (early) return replay(tx, early);
       const [before] = await tx.$queryRaw<Array<{ stock: number; movements: boolean }>>(
         Prisma.sql`
           SELECT stock_on_hand AS stock,
@@ -201,27 +220,23 @@ export async function adjustStock(
           FROM variants WHERE id=${variantId}::uuid FOR UPDATE`,
       );
       if (!before) throw new CatalogueNotFoundError();
-      // A concurrent duplicate may have committed while this request waited for the row lock;
-      // re-read (new statement, new snapshot) so it replays instead of failing a stock check.
-      const raced = await existingCommand(tx, variantId, command);
-      if (raced)
-        return stockAdjustmentResponseSchema.parse({
-          item: await loadItem(tx, variantId),
-          movement: movement(raced),
-          replayed: true,
-        });
-      if (command.reason === "INITIAL_STOCK" && before.movements)
+      const raced = await existingCommand(tx, command.commandId, same);
+      if (raced) return replay(tx, raced);
+      const planned = command.plan(before);
+      plannedReason = planned?.reason ?? null;
+      if (!planned)
+        return { item: (await loadItem(tx, variantId))!, movement: null, replayed: false };
+      if (planned.reason === "INITIAL_STOCK" && before.movements)
         throw new CatalogueConflictError("INITIAL_STOCK_EXISTS");
-      const balance = before.stock + command.delta;
+      const balance = before.stock + planned.delta;
       if (balance < 0) throw new CatalogueConflictError("INSUFFICIENT_STOCK");
       if (balance > MAX_STOCK) throw new CatalogueConflictError("STOCK_LIMIT");
       // Computed under the row lock; the trigger applies the delta and verifies this balance.
       const [inserted] = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
         INSERT INTO stock_movements (variant_id, delta, balance_after, reason, note, command_id,
-          actor_id)
-        VALUES (${variantId}::uuid, ${command.delta}, ${balance}, ${command.reason},
-          ${command.note ?? null},
-          ${command.commandId}, ${context.actorId}::uuid)
+          effect, actor_id)
+        VALUES (${variantId}::uuid, ${planned.delta}, ${balance}, ${planned.reason},
+          ${command.note}, ${command.commandId}, ${command.effect}, ${context.actorId}::uuid)
         RETURNING id`);
       const [row] = await tx.$queryRaw<MovementRow[]>(
         Prisma.sql`${MOVEMENT} WHERE m.id=${inserted!.id}::uuid`,
@@ -234,36 +249,86 @@ export async function adjustStock(
           before: { stockOnHand: before.stock },
           after: {
             stockOnHand: row!.balanceAfter,
-            delta: command.delta,
-            reason: command.reason,
+            delta: planned.delta,
+            reason: planned.reason,
+            command: command.effect,
             // The note is free text written by staff; the audit only records that one was given.
-            noteProvided: command.note !== undefined,
+            noteProvided: command.note !== null,
           },
         }),
       );
-      return stockAdjustmentResponseSchema.parse({
-        item: await loadItem(tx, variantId),
-        movement: movement(row!),
-        replayed: false,
-      });
+      return { item: (await loadItem(tx, variantId))!, movement: movement(row!), replayed: false };
     });
   } catch (error) {
     // Stock checks run under the row lock, so a CHECK failure here is a bug and stays loud.
-    const code = databaseCode(error);
-    if (code === "23505") {
+    if (databaseCode(error) === "23505") {
       // A concurrent request with the same command won; read the committed winner afresh.
-      const winner = await existingCommand(db, variantId, command);
-      if (winner)
-        return stockAdjustmentResponseSchema.parse({
-          item: await loadItem(db, variantId),
-          movement: movement(winner),
-          replayed: true,
-        });
-      if (command.reason === "INITIAL_STOCK")
+      const winner = await existingCommand(db, command.commandId, same);
+      if (winner) return replay(db, winner);
+      // Otherwise the only expected unique loss is a concurrent first INITIAL_STOCK movement.
+      if (plannedReason === "INITIAL_STOCK")
         throw new CatalogueConflictError("INITIAL_STOCK_EXISTS");
     }
     throw error;
   }
+}
+
+/** Relative add/remove with a reason (step 46). */
+export async function adjustStock(
+  db: Database,
+  context: CommandContext,
+  variantId: string,
+  input: StockAdjustmentRequest,
+): Promise<StockAdjustmentResponse> {
+  const command = stockAdjustmentRequestSchema.parse(input);
+  const note = command.note ?? null;
+  const result = await runStockCommand(db, context, variantId, {
+    commandId: command.commandId,
+    effect: "adjust",
+    note,
+    same: (row) =>
+      row.variantId === variantId &&
+      row.reason === command.reason &&
+      row.delta === command.delta &&
+      row.note === note,
+    plan: () => ({ reason: command.reason, delta: command.delta }),
+  });
+  return stockAdjustmentResponseSchema.parse(result);
+}
+
+/**
+ * Absolute set from a count (step 47): refused with STOCK_CHANGED unless the balance still equals
+ * the one the user saw; the delta is computed under the row lock. The first movement of a variant
+ * is INITIAL_STOCK, later ones MANUAL. A target equal to the balance records nothing, so that
+ * command ID is not tracked (the admin UI uses a fresh ID per opened action).
+ */
+export async function setStock(
+  db: Database,
+  context: CommandContext,
+  variantId: string,
+  input: StockSetRequest,
+): Promise<StockSetResponse> {
+  const command = stockSetRequestSchema.parse(input);
+  const result = await runStockCommand(db, context, variantId, {
+    commandId: command.commandId,
+    effect: "set",
+    note: command.note,
+    same: (row) =>
+      row.variantId === variantId &&
+      (row.reason === "MANUAL" || row.reason === "INITIAL_STOCK") &&
+      row.balanceAfter === command.targetStockOnHand &&
+      row.balanceAfter - row.delta === command.expectedStockOnHand &&
+      row.note === command.note,
+    plan: (before) => {
+      if (before.stock !== command.expectedStockOnHand)
+        throw new CatalogueConflictError("STOCK_CHANGED");
+      const delta = command.targetStockOnHand - before.stock;
+      if (delta === 0) return null;
+      // Initial stock only adds units as the first movement; anything else is a manual count.
+      return { reason: !before.movements && delta > 0 ? "INITIAL_STOCK" : "MANUAL", delta };
+    },
+  });
+  return stockSetResponseSchema.parse(result);
 }
 
 /**

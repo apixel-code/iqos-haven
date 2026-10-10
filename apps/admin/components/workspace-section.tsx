@@ -6,6 +6,7 @@ import { DeliveryManagement } from "./delivery-management";
 import { StaffManagement } from "./staff-management";
 import { CatalogueParentManagement } from "./catalogue-parent-management";
 import { ProductManagement } from "./product-management";
+import { InventoryManagement } from "./inventory-management";
 import { sections } from "../lib/navigation";
 export function WorkspaceSection({ sectionKey }: { sectionKey: string }) {
   const session = useSession();
@@ -29,6 +30,8 @@ export function WorkspaceSection({ sectionKey }: { sectionKey: string }) {
         <DeliveryManagement />
       ) : sectionKey === "staff" ? (
         <StaffManagement />
+      ) : sectionKey === "inventory" ? (
+        <InventoryManagement permissions={session.permissions} />
       ) : sectionKey === "products" ? (
         <ProductManagement permissions={session.permissions} />
       ) : sectionKey === "brands" ? (

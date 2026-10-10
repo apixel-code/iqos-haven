@@ -279,3 +279,21 @@ The variants card has not been exercised in a browser.
 - **Permissions:** 403 without `inventory.adjust`, while reads still work.
 
 DB test: the movement must state the correct resulting balance (`IH002` otherwise).
+
+## Step 47 — set stock and inventory UI (2026-10-10, local)
+
+`pnpm verify -- --integration` passed:
+
+- unit 333, including admin 42;
+- integration 272, including api 161;
+- gateway 29.
+
+`inventory.int.test.ts` grew to 18 tests:
+
+- **Initial and later sets:** the first count records `INITIAL_STOCK`. Later counts record the computed `MANUAL` delta with its note. A count equal to the balance records nothing.
+- **Stale balance:** a set based on a stale balance gets `STOCK_CHANGED` and changes nothing. Bad targets and notes get 400.
+- **Concurrent sets:** four concurrent sets from the same view give exactly one winner. The rest get `STOCK_CHANGED`, and the reconciliation query stays empty.
+- **Retries:** a retried set replays, including a first set retried after the balance moved. Three concurrent duplicates apply once. Audit records the command kind and no note text.
+- **Reused IDs:** a reused ID with another target gets `COMMAND_REUSED`. So does a set ID used for an adjustment.
+
+The admin unit tests cover the add/remove/set command builders. The Stock screen has not been exercised in a browser.

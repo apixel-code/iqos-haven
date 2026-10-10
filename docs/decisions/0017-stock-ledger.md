@@ -2,7 +2,7 @@
 
 - Date: 2026-10-10
 - Status: accepted
-- Step(s): 46 (extended by 47, 53, 73–79, 86)
+- Step(s): 46, 47 (extended by 53, 73–79, 86)
 
 ## Context
 
@@ -46,6 +46,25 @@ Step 41 guarded `variants.stock_on_hand` with a transaction-local session flag. 
 - **Replay:** sending the same `commandId` and payload again returns the original movement (`replayed: true`). A command ID names one action, so reusing it with a different payload or for another variant is `COMMAND_REUSED`.
 - Adjusting a trashed product's or an inactive variant's stock is allowed, because physical stock still exists (for example, recording damage before a purge). When a concurrent duplicate loses on the unique key, the request rolls back and reads the committed winner in a fresh transaction (architecture §5).
 
+**Set stock (step 47).** `POST /v1/admin/inventory/:variantId/set` takes `{ commandId, expectedStockOnHand, targetStockOnHand, note }`.
+
+- It runs through the same command path as adjustments (`runStockCommand`).
+- Under the variant row lock, a balance that no longer equals the one the user saw is refused with 409 `STOCK_CHANGED`. Otherwise the server computes `delta = target − current` and records it:
+  - as `INITIAL_STOCK` if the variant has no movements yet;
+  - as `MANUAL` (with the note) otherwise.
+- `INITIAL_STOCK` is used only for a first movement that adds units; every other set is `MANUAL`.
+- Sets are recorded with ledger effect `set`, adjustments with `adjust`. An admin command ID is unique across variants and effects (partial unique index), so a set ID can never replay as an adjustment, or the reverse (`COMMAND_REUSED`).
+- A target equal to the balance records nothing (`movement: null`). That command ID is therefore not tracked; the UI uses a fresh ID per opened action.
+- A retried set replays, even after the balance has moved on. The same command ID with another target is `COMMAND_REUSED`.
+
+**Inventory UI (step 47).**
+
+- An All/In stock/Low/Out list with SKU or product search.
+- Per variant: Add stock (restock), Remove stock (correction or damage, note required), Set count (against the displayed balance, note required), and a newest-first history.
+- Each opened action gets its own command ID. It is reused only when that unchanged action is retried, and any edit to the form generates a new one.
+- After a change, the variant's history reloads.
+- The UI states that zero stock keeps a product published (shown as Out of Stock).
+
 **Reads** (`inventory.read`):
 
 - `GET /v1/admin/inventory` lists variants with their stock state (`out` at 0, `low` at or below the threshold, otherwise `in_stock`). Zero stock never unpublishes. Filters: product, state, and a literal SKU/name search. Keyset paging by variant id.
@@ -61,7 +80,6 @@ Step 41 guarded `variants.stock_on_hand` with a transaction-local session flag. 
 
 ## Consequences
 
-- Step 47 adds set-stock (expected balance → computed delta) and the inventory UI.
 - Orders (73–79) insert sale, release and return movements with order references and effect names; the reason CHECK is widened then.
 - Low-stock crossing events (step 53) read the movement balances.
 - Every stock write in any later step must be a movement insert with a correct `balance_after`, computed under the variant lock. There is no other path.
