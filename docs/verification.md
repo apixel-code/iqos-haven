@@ -227,3 +227,29 @@ Initial React effect lint and formatting failures were corrected before the gree
 - **Permissions:** without the `catalog.write` grant, writes give 403 while reads still work.
 
 The Products screen has not been exercised in a browser.
+
+## Step 45 — product options and variants (2026-10-10, local)
+
+Verification: `pnpm verify -- --integration` PASS (unit 331 incl. admin 40; integration 254 incl. api 143; gateway 29).
+
+`variants.int.test.ts` (11 tests) covers:
+
+- **No-option products:** a product without options gets exactly one active default `{}` variant. A second one is `DUPLICATE`, and an inactive first variant is `DEFAULT_REQUIRED`.
+- **Combinations:** canonical lower-case flavour/nicotine combinations. Missing, extra or unknown values are `INVALID_COMBINATION`. A key-order or case variant of an existing combination is `DUPLICATE`.
+- **SKUs:** global uppercase uniqueness, and malformed SKUs get 400.
+- **Option structure and values:**
+  - Structure is locked once variants exist, including the single-variant case (`OPTIONS_IN_USE`). A used value cannot be removed.
+  - Unused values can be removed, and the product version increases.
+  - A stale product version is `VERSION_CONFLICT`. Bad option payloads get 400.
+- **Default variant:**
+  - The default cannot be unset or deactivated.
+  - The default moves atomically, and the old default can then be deactivated.
+  - A stale variant version is `VERSION_CONFLICT`.
+- **Stock:** it never appears in bodies (400).
+- **Concurrency:**
+  - Four concurrent first variants end with exactly one default.
+  - Option value removal racing variant creation never leaves a variant on a removed value.
+- **Audit and events:** audit lists option values, and there is exactly one product-level `catalog.changed` per change (none keyed by variant).
+- **Access:** without `catalog.write`, Staff get 403 on POST, PUT and PATCH. Reads still work. Unknown products get 404 and trashed products get `TRASHED`.
+
+The variants card has not been exercised in a browser.

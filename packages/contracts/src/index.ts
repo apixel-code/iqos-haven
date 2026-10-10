@@ -21,6 +21,9 @@ export const CONFLICT_CODES = [
   "TRASHED",
   "PARENT_UNAVAILABLE",
   "PUBLISH_REQUIREMENTS",
+  "OPTIONS_IN_USE",
+  "INVALID_COMBINATION",
+  "DEFAULT_REQUIRED",
 ] as const;
 export type ConflictCode = (typeof CONFLICT_CODES)[number];
 
@@ -41,3 +44,4 @@ export * from "./settings";
 export * from "./delivery";
 export * from "./catalogue";
 export * from "./products";
+export * from "./variants";

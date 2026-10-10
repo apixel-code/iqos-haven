@@ -11,6 +11,7 @@ import { slugify } from "../lib/catalogue";
 import { filsToAed, managementRequest } from "../lib/management";
 import { formatExtraSpecs, productCreateCommand, productUpdateCommand } from "../lib/products";
 import { ResourceNotice, useManagementResource } from "./management-resource";
+import { ProductVariants } from "./product-variants";
 
 type Status = "all" | "published" | "draft";
 
@@ -203,20 +204,30 @@ function ProductEditor({
       </section>
     );
   return (
-    <ProductForm
-      key={row ? `${row.id}-${row.version}` : "new"}
-      row={row}
-      resource={product}
-      canWrite={canWrite}
-      canSeo={canSeo}
-      brands={brands.data?.items ?? []}
-      categories={categories.data?.items ?? []}
-      onSaved={(saved) => {
-        if (id) product.setData(saved);
-        else onDone(saved.id);
-      }}
-      onBack={onBack}
-    />
+    <>
+      <ProductForm
+        key={row ? `${row.id}-${row.version}` : "new"}
+        row={row}
+        resource={product}
+        canWrite={canWrite}
+        canSeo={canSeo}
+        brands={brands.data?.items ?? []}
+        categories={categories.data?.items ?? []}
+        onSaved={(saved) => {
+          if (id) product.setData(saved);
+          else onDone(saved.id);
+        }}
+        onBack={onBack}
+      />
+      {row && (
+        <ProductVariants
+          productId={row.id}
+          productSlug={row.slug}
+          canWrite={canWrite}
+          onProductChanged={product.reload}
+        />
+      )}
+    </>
   );
 }
 

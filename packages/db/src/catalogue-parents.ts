@@ -10,6 +10,7 @@ import {
   categoryUpdateRequestSchema,
   defineEvent,
   type BrandCreateRequest,
+  type ConflictCode,
   type BrandResponse,
   type BrandsQuery,
   type BrandStateRequest,
@@ -34,10 +35,7 @@ import { PrismaOutboxWriter } from "./outbox";
  */
 export class CatalogueForbiddenError extends Error {}
 export class CatalogueConflictError extends Error {
-  constructor(
-    readonly reason:
-      "VERSION_CONFLICT" | "DUPLICATE" | "TRASHED" | "PARENT_UNAVAILABLE" | "PUBLISH_REQUIREMENTS",
-  ) {
+  constructor(readonly reason: Exclude<ConflictCode, "IN_USE">) {
     super(reason);
   }
 }

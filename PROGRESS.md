@@ -4,20 +4,22 @@
 
 - Date: 2026-10-10
 - Milestone: M4 — catalogue, variants, safe media and inventory (started; M3 gate not closed; M0 review and M1 staging/fixtures still open)
-- Step: 44 (product create/edit/detail/list, typed specs) — done (browser QA not run)
-- Branch: `step/44-products` (stacked on local step 43 `9be9e18`; merge dependency PRs in step order)
+- Step: 45 (options, variant combinations, SKU management) — done (browser QA not run)
+- Branch: `step/45-variants` (stacked on local step 44 `5e7cc51`; merge dependency PRs in step order)
 - See docs/verification.md for actual checks.
 
 ## Next action
 
-1. **Marina:** merge PR #13 (step 32, CI green). Then, in order, push, open a PR, wait for green CI and merge `step/33-*` … `step/44-*`. None of 33–44 is pushed. The auto-mode classifier blocked Claude from running the merge chain ("merge without review"). Marina either merges herself or allows it.
-2. Then `/step 45`: real option combinations and SKU management (`VariantsController`, variant editor), using the step-41 `product_options`/`variants` constraints (canonical option signature, global SKU, one default).
-   - Lock order: parents FOR SHARE → product FOR UPDATE → variants in sorted ID order.
-   - A product with no options has only its default variant.
-   - Stock stays at zero; the ledger is step 46.
-   - Reuse the ADR 0015 shape.
+1. **Marina:** merge PR #13 (step 32, CI green). Then push, open a PR, wait for green CI and merge for `step/33-*` … `step/45-*`, in order. None of 33–45 is pushed. The auto-mode classifier blocked Claude from running the merge chain ("merge without review"); Marina must merge herself or allow it.
+2. Then `/step 46`: build the initial stock ledger and the read/adjust service.
+   - Add a `stock_movements` migration (append-only; signed delta, balance_after, reason INITIAL_STOCK/RESTOCK/MANUAL/DAMAGE, command reference, actor; unique command/variant/effect).
+   - Add an `InventoryController` with read and adjust endpoints. Writes set the transaction-local `ih.stock_ledger` flag (step-41 trigger) and use conditional nonnegative updates.
+   - Lock order: product FOR UPDATE before variants in sorted ID order (ADR 0016).
+   - Variant PATCH already locks variants before reading them.
+   - Permissions: `inventory.read` / `inventory.adjust`.
+   - Add reconciliation of balances against ledger sums.
 
-BI-02 now also gates product publication (step 51) and the M4 gate; see business-inputs. Browser QA is still open for the Brands/Categories/Products screens (42–44) and the step 37/40 forms. Use node@24 PATH; start Docker Desktop before `pnpm infra:up`.
+BI-02 also gates product publication (51) and the M4 gate. Browser QA is still open for the catalogue screens (42–45) and the step 37/40 forms. Use node@24 PATH; start Docker Desktop before `pnpm infra:up`.
 
 ## Blockers
 
@@ -72,7 +74,9 @@ None for step 41 schema work. Real settings/coverage require BI-01/BI-03/BI-09 a
 
 - 43 — category admin API/UI on a shared brand/category repository and component: case-insensitive names, IN_USE trash refusal, category-namespace redirects (ADR 0014) — 9be9e18
 
-- 44 — product admin API/UI: draft-first, typed disposable/kit specs, integer fils + compare-at, parent locks, ordered checks with PARENT_UNAVAILABLE/PUBLISH_REQUIREMENTS, read-only tax reference until BI-02 (ADR 0015) — uncommitted (commit `step(44)` follows this handoff)
+- 44 — product admin API/UI: draft-first, typed disposable/kit specs, integer fils + compare-at, parent locks, ordered checks with PARENT_UNAVAILABLE/PUBLISH_REQUIREMENTS, read-only tax reference until BI-02 (ADR 0015) — 5e7cc51
+
+- 45 — options/variants API + editor: product-lock serialized rules, exact canonical combinations, global SKUs, one active default, deactivate-only, product-level events (ADR 0016) — uncommitted (commit `step(45)` follows this handoff)
 
 ## Known deviations
 
@@ -80,37 +84,34 @@ None for step 41 schema work. Real settings/coverage require BI-01/BI-03/BI-09 a
 - Event `consumers` lists only implemented consumers (now `system_probe` and `email`); planned ones are documented with roadmap steps and move in with a backfill decision (architecture §8: adding a consumer must not redefine old completions).
 - `audit_log` migration revokes UPDATE/DELETE/TRUNCATE only from a role named `ih_app`; other runtime role names must be revoked at provisioning (trigger blocks mutations regardless).
 
-## Last session handoff (2026-10-10, step 44)
+## Last session handoff (2026-10-10, step 45)
 
-Done: step 44 (ADR 0015).
+Done: step 45 (ADR 0016).
 
-- **Contracts:** `packages/contracts/src/products.ts` holds strict, type-discriminated create/update bodies.
-  - Typed specs: disposable `liquidMl`/`batteryMah`/`rechargeable`/`charging`; kit `batteryMah`/`maxOutputW`/`podCapacityMl`/`coilOhm`/`charging`/`display`/`inTheBox`.
-  - Up to 12 extra rows. Decimals are pattern strings.
-  - Integer fils, and compare-at must be above base.
-  - Text rejects NUL; this also applies to the brand/category text fields.
-- **Repository:** `packages/db/src/products.ts`.
-  - Locks the actor, then parents FOR SHARE, then the product FOR UPDATE.
-  - Checks run in order: 404 → VERSION_CONFLICT → TRASHED → PARENT_UNAVAILABLE (only on a parent move or for a published product) → PUBLISH_REQUIREMENTS (published rules checked up front).
-  - Slug redirects, audit change flags and `catalog.changed`.
-  - `mapCatalogueError` no longer maps CHECK failures.
-- **API:** `/v1/admin/products`. Tax treatment is read-only and null until BI-02. A business-inputs note records that BI-02 also gates publication.
-- **Admin:** a Products workspace with a list (tabs, filters, search) and a draft editor with type-specific spec fields.
-- **Review:** `invariant-reviewer` found no blockers; its 3 should-fixes and the test gaps are done.
+- **Contracts** `packages/contracts/src/variants.ts`: options flavour/nicotine/colour with canonical values, `partialRecord` attributes, uppercase SKUs, conflict codes `OPTIONS_IN_USE` / `INVALID_COMBINATION` / `DEFAULT_REQUIRED`.
+- **Repository** `packages/db/src/variants.ts`:
+  - The product `FOR UPDATE` lock serializes all option and variant changes.
+  - Variant PATCH locks the target and the current default before reading them.
+  - The snapshot read runs under REPEATABLE READ.
+  - Audit lists option values. Each change emits one product-level `catalog.changed`.
+- **API:** `GET /products/:id/variants`, `PUT /products/:id/options`, `POST/PATCH /products/:id/variants[/:variantId]`.
+- **Admin:** an "Options & variants" card in the product editor, with missing-combination generation (SKU suffix `-V01`).
+- **Review:** `invariant-reviewer` found no blockers. All 4 should-fixes, the nits and the test gaps are done.
 
-Files: `packages/contracts/src/{products,catalogue,index}.ts`, `packages/db/src/{products,catalogue-parents,index}.ts`, `apps/api/src/catalogue/{products.controller,products.service,products.int.test,catalogue.module}.ts`, `apps/admin/{components/product-management.tsx,components/workspace-section.tsx,lib/products.ts,lib/products.test.ts,lib/management.ts}`, `docs/decisions/0015-product-administration.md`, `docs/{business-inputs,implementation-status,task-backlog,verification}.md`, `PROGRESS.md`.
+Files: `packages/contracts/src/{variants,index}.ts`, `packages/db/src/{variants,catalogue-parents,index}.ts`, `apps/api/src/catalogue/{variants.controller,variants.service,variants.int.test,catalogue.module}.ts`, `apps/admin/{components/product-variants.tsx,components/product-management.tsx,lib/variants.ts,lib/variants.test.ts,lib/management.ts}`, `docs/decisions/0016-product-options-and-variants.md`, `docs/{implementation-status,task-backlog,verification}.md`, `PROGRESS.md`.
 
-Tests: `pnpm verify -- --integration` PASS (unit 328, integration 243, gateway 29).
+Tests: `pnpm verify -- --integration` PASS (unit 331, integration 254, gateway 29).
 
 Unfinished:
 
-- Browser QA has not been done for the Brands/Categories/Products screens.
-- Coming in later steps: variants/SKU (45), stock (46–47), images (48–50), publish/trash/purge (51).
-- PR #13 and steps 33–44 are not merged or pushed; Marina needs to do that.
-- Migrations have not been applied to the dev database.
+- Browser QA of the catalogue screens has not been done.
+- Later steps: stock ledger (46–47), images (48–50), publish (51; needs BI-02).
+- PR #13 and steps 33–45 are not merged or pushed; Marina must do this.
+- Migrations are not applied to the dev database.
 
 ## History (summary)
 
+- 2026-10-10 step 44: product admin API/UI, typed specs, read-only tax reference (5e7cc51); verify unit 328/integration 243/gateway 29.
 - 2026-10-10 step 43: category admin on a shared brand/category module (9be9e18); verify unit 323/integration 230/gateway 29.
 - 2026-10-10 step 42: brand admin API/UI, reference-aware trash, Owner-only SEO, published-needs-live-parent trigger, ADR 0014 (231a726); verify unit 322/integration 222/gateway 29.
 - 2026-10-10 step 41: catalogue schema + review fixes (ledger-only stock guard, runtime DELETE/TRUNCATE revoked, publish completeness) (f3fd9ba); verify unit 316/integration 206/gateway 29.

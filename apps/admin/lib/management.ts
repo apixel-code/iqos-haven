@@ -15,7 +15,7 @@ export const emptyResponse: ResponseContract<undefined> = {
 export async function managementRequest<T>(
   path: string,
   schema: ResponseContract<T>,
-  method: "GET" | "POST" | "PATCH" = "GET",
+  method: "GET" | "POST" | "PATCH" | "PUT" = "GET",
   body?: unknown,
   signal?: AbortSignal,
 ): Promise<T> {
