@@ -1,0 +1,111 @@
+// Local browser-QA backend (see README.md): built API + media worker loop on an isolated
+// `ih_test_*` schema of the TEST database (never the dev database). Synthetic accounts only.
+// Stop with SIGINT; drop the schema afterwards with `node qa-server.cjs --drop <schema>`.
+const { createRequire } = require("node:module");
+const { randomUUID } = require("node:crypto");
+const root = require("node:path").resolve(__dirname, "../..");
+const api = createRequire(root + "/apps/api/package.json");
+const worker = createRequire(root + "/apps/worker/package.json");
+api("reflect-metadata");
+process.chdir(root);
+const config = api("@ih/config");
+const { createDatabase, createPool } = api("@ih/db");
+const { applyMigrations } = api("@ih/db/testing");
+const { Argon2PasswordHasher, ObjectStorage, storageConfigFromEnv } = api("@ih/platform");
+const { createLogger } = api("@ih/logger");
+
+config.loadLocalEnvFile();
+const { DATABASE_TEST_URL } = config.loadEnv(config.integrationTestEnvSchema);
+config.assertTestDatabase(DATABASE_TEST_URL, process.env.DATABASE_URL);
+
+async function drop(schema) {
+  if (!/^ih_test_[0-9a-f]{32}$/.test(schema)) throw new Error("not a QA schema");
+  const pool = createPool({ connectionString: DATABASE_TEST_URL, applicationName: "ih-qa-drop" });
+  await pool.query(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`);
+  await pool.end();
+  console.log("dropped", schema);
+}
+
+async function main() {
+  if (process.argv[2] === "--drop") return drop(process.argv[3]);
+  const namespace = "ih_test_" + randomUUID().replaceAll("-", "");
+  const pool = createPool({
+    connectionString: DATABASE_TEST_URL,
+    applicationName: "ih-qa",
+    searchPath: namespace,
+  });
+  const db = createDatabase(pool, { schema: namespace });
+  await applyMigrations(pool, namespace);
+  const hasher = new Argon2PasswordHasher({ memoryKib: 19456, timeCost: 2, parallelism: 1 });
+  const password = "copper-lantern-river-71";
+  for (const [email, key] of [
+    ["owner.qa@iqoshaven.test", "owner"],
+    ["staff.qa@iqoshaven.test", "staff"],
+  ]) {
+    const role = await db.role.findUniqueOrThrow({ where: { key } });
+    await db.staffUser.create({
+      data: {
+        email,
+        name: key === "owner" ? "Owner QA" : "Staff QA",
+        roleId: role.id,
+        passwordHash: await hasher.hash(password),
+      },
+    });
+  }
+  const env = config.apiEnvSchema.parse({
+    ...process.env,
+    NODE_ENV: "development",
+    APP_ENV: "development",
+    LOG_LEVEL: "warn",
+    DATABASE_URL: DATABASE_TEST_URL,
+    ARGON2_MEMORY_KIB: 19456,
+    ARGON2_TIME_COST: 2,
+    ARGON2_PARALLELISM: 1,
+  });
+  const { createApp } = api(root + "/apps/api/dist/bootstrap.js");
+  const app = await createApp(env, { pool, database: db });
+  await app.listen(4000, "127.0.0.1");
+
+  // Media processing loop (the real worker consumer, driven directly for this schema).
+  const sharp = worker("sharp");
+  sharp.concurrency(1);
+  const { createMediaConsumer } = worker(root + "/apps/worker/dist/media.js");
+  const { EffectRunner } = worker(root + "/apps/worker/dist/effects.js");
+  const log = createLogger({ service: "qa-worker", level: "warn" });
+  const storage = new ObjectStorage(storageConfigFromEnv(env));
+  const runner = new EffectRunner({
+    db,
+    owner: "qa-worker",
+    log,
+    handlers: [createMediaConsumer({ db, storage, log })],
+  });
+  let stopping = false;
+  (async () => {
+    while (!stopping) {
+      const effects = await db.consumerEffect.findMany({
+        where: { consumer: "media_processor", status: { in: ["pending", "queued", "retry"] } },
+        take: 5,
+      });
+      for (const e of effects)
+        await runner
+          .run({ eventId: e.eventId, effectId: e.id, consumer: "media_processor" })
+          .catch(() => undefined);
+      await new Promise((r) => setTimeout(r, 1500));
+    }
+  })();
+  console.log(`QA backend ready on :4000 schema=${namespace}`);
+  const stop = async () => {
+    stopping = true;
+    await app.close();
+    storage.destroy();
+    await db.$disconnect();
+    await pool.end();
+    process.exit(0);
+  };
+  process.on("SIGINT", stop);
+  process.on("SIGTERM", stop);
+}
+main().catch((error) => {
+  console.error("QA backend failed:", error.message);
+  process.exit(1);
+});
