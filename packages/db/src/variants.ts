@@ -15,6 +15,7 @@ import { Prisma, type Database, type Tx } from "./client";
 import { withTransaction } from "./transaction";
 import { PrismaAuditWriter } from "./audit";
 import { PrismaOutboxWriter } from "./outbox";
+import { assertStillPublishable } from "./publication";
 import {
   CatalogueConflictError,
   CatalogueNotFoundError,
@@ -192,6 +193,7 @@ export async function writeProductOptions(
         },
         { options: values(command.options), version: productVersion + 1 },
       );
+      await assertStillPublishable(tx, productId);
       await productChanged(tx, productId);
       return snapshot(tx, productId);
     });
@@ -246,6 +248,7 @@ export async function createVariant(
           version: 1,
         },
       );
+      await assertStillPublishable(tx, productId);
       await productChanged(tx, productId);
       return snapshot(tx, productId);
     });
@@ -330,6 +333,7 @@ export async function updateVariant(
           view(previousDefault, previousDefault.version),
           view({ ...previousDefault, isDefault: false }, previousDefault.version + 1),
         );
+      await assertStillPublishable(tx, productId);
       await productChanged(tx, productId);
       return snapshot(tx, productId);
     });

@@ -34,6 +34,7 @@ export const CONFLICT_CODES = [
   "UPLOAD_EXPIRED",
   "MEDIA_NOT_READY",
   "ORDER_MISMATCH",
+  "NOT_TRASHED",
 ] as const;
 export type ConflictCode = (typeof CONFLICT_CODES)[number];
 

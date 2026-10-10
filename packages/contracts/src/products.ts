@@ -108,10 +108,11 @@ export const productSummarySchema = productResponseSchema.pick({
   basePriceFils: true,
   isNew: true,
   version: true,
+  trashedAt: true,
   updatedAt: true,
 });
 export const productsQuerySchema = z.strictObject({
-  status: z.enum(["all", "draft", "published"]).default("all"),
+  status: z.enum(["all", "draft", "published", "trashed"]).default("all"),
   brandId: z.uuid().optional(),
   categoryId: z.uuid().optional(),
   q: z.string().trim().min(1).max(100).optional(),
@@ -132,3 +133,35 @@ export type ProductUpdateRequest = z.input<typeof productUpdateRequestSchema>;
 export type ProductResponse = z.infer<typeof productResponseSchema>;
 export type ProductSummary = z.infer<typeof productSummarySchema>;
 export type ProductsQuery = z.input<typeof productsQuerySchema>;
+
+// --- Publication, trash and purge (step 51, ADR 0021) ---
+/** Publish, unpublish, trash, restore and purge all name the version the user saw. */
+export const productStateRequestSchema = z.strictObject({ version });
+export const PUBLISH_REQUIREMENTS = [
+  /** Approved VAT/excise treatment (BI-02). */
+  "tax_treatment",
+  "active_variant",
+  "default_variant",
+  "image",
+  "description",
+  "price",
+  "puff_count",
+  "live_brand_category",
+  "not_trashed",
+] as const;
+export const productReadinessSchema = z.strictObject({
+  productId: z.uuid(),
+  version: z.number().int().positive(),
+  status: z.enum(["draft", "published"]),
+  ready: z.boolean(),
+  missing: z.array(z.enum(PUBLISH_REQUIREMENTS)),
+});
+export type ProductStateRequest = z.infer<typeof productStateRequestSchema>;
+export type ProductReadiness = z.infer<typeof productReadinessSchema>;
+export type PublishRequirement = (typeof PUBLISH_REQUIREMENTS)[number];
+export const productPurgeResponseSchema = z.strictObject({
+  purged: z.literal(true),
+  storageObjects: z.number().int().min(0),
+  /** Private objects whose deletion failed (logged; bucket lifecycle is the backstop). */
+  failedDeletes: z.number().int().min(0),
+});

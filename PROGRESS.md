@@ -4,20 +4,20 @@
 
 - Date: 2026-10-10
 - Milestone: M4 — catalogue, variants, safe media and inventory (started; M3 gate not closed; M0 review and M1 staging/fixtures still open)
-- Step: 50 (product image gallery + editor) — done (browser QA not run)
-- Branch: `step/50-product-gallery` (stacked on local step 49 `3e9b5f7`; merge dependency PRs in step order)
+- Step: 51 (publication, trash/restore, purge) — done; browser QA PASS for steps 42–51 admin screens
+- Branch: `step/51-publication` (stacked on local step 50 `a22ae8a`; merge dependency PRs in step order)
 - See docs/verification.md for actual checks.
 
 ## Next action
 
-1. **Marina:** merge PR #13 (step 32, CI green). Then, in order, push → PR → green CI → merge `step/33-*` … `step/50-*`. None of 33–50 is pushed. The auto-mode classifier blocked Claude from running the merge chain ("merge without review"), so Marina either merges herself or allows it.
-2. Then `/step 51`: publication, trash/restore and reference-aware hard purge (`rg -n "^| 51 " docs/roadmap.md`).
-   - **Publish:** require an approved tax treatment (BI-02, still OPEN; publication stays blocked until it is answered), at least one active variant with an active default, at least one gallery image, a description, a live brand/category (trigger) and price rules.
-   - **Trash/restore:** products.
-   - **Owner-only `catalog.purge`:** blocked by historical references; decide what happens to the derivatives of removed/purged media.
-   - Staff may publish/trash/restore. History is never cascade-deleted.
+1. **Marina: merge.** Merge PR #13 (step 32, CI green), then push → PR → green CI → merge `step/33-*` … `step/51-*` in order. None of 33–51 is pushed.
+   - Marina asked Claude to merge on 2026-10-10, but the auto-mode classifier still refused the sequential merge chain.
+   - Either Marina merges on GitHub, or she adds a Claude Code permission rule allowing `gh pr merge` / `git push` for this repo, and Claude reruns the prepared chain.
+2. **Then `/step 52`: catalogue cache and internal invalidation.** Check the row with `rg -n "^| 52 " docs/roadmap.md`.
+   - The `catalog.changed` → `storefront_revalidate` consumer needs a backfill decision.
+   - The internal HMAC route is from step 26.
 
-BI-02 gates real publication, so ask Marina whether to build step 51 with publish failing closed (`PUBLISH_REQUIREMENTS`) until the tax treatment exists. Browser QA is still open for the catalogue/stock/gallery screens (42–50) and the step 37/40 forms. Use node@24 PATH; start Docker Desktop before `pnpm infra:up`.
+BI-02 gates real publication and the M4 gate. Use node@24 PATH; start Docker Desktop before `pnpm infra:up`. Browser QA harness: `qa-server.cjs` + `qa.mjs` in the session scratchpad. It is not in the repo; consider adding a committed Playwright harness later.
 
 ## Blockers
 
@@ -84,7 +84,9 @@ None for step 41 schema work. Real settings/coverage require BI-01/BI-03/BI-09 a
 
 - 49 — media_processor consumer (magic/decoder/bomb/animation/APNG checks, Sharp WebP derivatives, ETag pin), backfill function, hourly quarantine cleanup with grace (ADR 0019) — 3e9b5f7
 
-- 50 — product gallery: ready-asset-only attach (DB triggers both ways), 8/primary/order under product lock, removal frees slot, 10-min signed previews, admin Images card (ADR 0020) — uncommitted (commit `step(50)` follows this handoff)
+- 50 — product gallery: ready-asset-only attach (DB triggers both ways), 8/primary/order under product lock, removal frees slot, 10-min signed previews, admin Images card (ADR 0020) — 4bdbeed (+ a22ae8a browser-QA fix: stable product editor contract)
+
+- 51 — readiness/publish/unpublish/trash/restore + Owner-only purge via SECURITY DEFINER function, published products stay publishable, admin Publishing card + Trash tab (ADR 0021) — uncommitted (commit `step(51)` follows this handoff)
 
 ## Known deviations
 
@@ -92,36 +94,34 @@ None for step 41 schema work. Real settings/coverage require BI-01/BI-03/BI-09 a
 - Event `consumers` lists only implemented consumers (now `system_probe` and `email`); planned ones are documented with roadmap steps and move in with a backfill decision (architecture §8: adding a consumer must not redefine old completions).
 - `audit_log` migration revokes UPDATE/DELETE/TRUNCATE only from a role named `ih_app`; other runtime role names must be revoked at provisioning (trigger blocks mutations regardless).
 
-## Last session handoff (2026-10-10, step 50)
+## Last session handoff (2026-10-10, step 51)
 
-Done: step 50 (ADR 0020).
+Done:
 
-- **Migration `20261010001000_product_gallery`:**
-  - `product_images.media_asset_id`;
-  - a ready/same-product trigger (`FOR SHARE`);
-  - a guard that keeps attached assets `ready`;
-  - a new media state, `removed`.
-- **Repository `packages/db/src/gallery.ts`:** read, attach, update, reorder and remove, all under the product lock, with audit and `catalog.changed`.
-- **API `/v1/admin/products/:id/images`** (`GET`/`POST`/`PATCH :imageId`/`PUT order`/`POST :imageId/remove`):
-  - Previews are 10-minute signed links to derivatives.
-  - New conflict codes: `MEDIA_NOT_READY`, `ORDER_MISMATCH`.
-- **Cleanup:** originals of removed assets are now also purged after 24 h.
-- **Admin:** an Images card in the product editor (`product-images.tsx`, `lib/media.ts`).
-- **`invariant-reviewer`:** found 2 UI blockers — polling reloaded and unmounted the card and could abort an upload, and an upload failure blocked the card. Both are fixed, along with all should-fixes (DB guard triggers, removed purge, derivative completeness, expired/pending copy, mutation snapshot) and the test gaps.
+- **Browser QA for steps 42–50:** first pass 19/19 with a fix, then 27/27 including step 51. The QA found a real bug: the "Add product" editor looped forever. Fixed in `a22ae8a`.
+- **Step 51 (ADR 0021):**
+  - Migration `20261010001100_product_purge`: the `catalogue_purge_product` SECURITY DEFINER function with a pinned search_path.
+  - `packages/db/src/publication.ts`: readiness, state changes with the parent lock re-checked, purge, and `assertStillPublishable`. The last is wired into product, variant/option and gallery writes.
+  - API: publication controller/service, including storage deletes after commit.
+  - Admin: Publishing card, Trash tab with restore and a confirmed purge.
+  - Contracts: readiness/purge schemas and `NOT_TRASHED`.
+- **`invariant-reviewer`:** no blockers. Should-fixes are done: parent-lock recheck, zero-price variant, orphan backstop documented, purge schema. Test gaps are covered.
+- **Merge:** attempted again on Marina's request. The classifier denied it, so nothing was pushed.
 
-Files: `packages/db/prisma/{schema.prisma,migrations/20261010001000_product_gallery/}`, `packages/db/src/{gallery,media,index,catalogue.int.test}.ts`, `packages/contracts/src/{media,index}.ts`, `apps/api/src/media/{gallery.controller,gallery.service,gallery.int.test,media.module}.ts`, `apps/admin/{components/product-images.tsx,components/product-management.tsx,lib/media.ts,lib/media.test.ts,lib/management.ts}`, `docs/decisions/0020-product-gallery.md`, `docs/{implementation-status,task-backlog,verification}.md`, `PROGRESS.md`.
+Files: `packages/db/prisma/migrations/20261010001100_product_purge/`, `packages/db/src/{publication,products,variants,gallery,index}.ts`, `packages/contracts/src/{products,index}.ts`, `apps/api/src/catalogue/{publication.controller,publication.service,publication.int.test,products.int.test,catalogue.module}.ts`, `apps/admin/{components/product-publishing.tsx,components/product-management.tsx,lib/publication.ts,lib/publication.test.ts,lib/management.ts,lib/catalogue.test.ts}`, `docs/decisions/0021-publication-trash-purge.md`, `docs/{implementation-status,task-backlog,verification}.md`, `PROGRESS.md`.
 
-Tests: `pnpm verify -- --integration` PASS (unit 345, integration 293, gateway 29).
+Tests: `pnpm verify -- --integration` PASS (unit 346, integration 305, gateway 29). Browser QA 27/27 PASS.
 
 Unfinished:
 
-- Browser QA has not been done, including the real upload with bucket CORS (BI-06).
-- Storefront image serving waits for the age-gated steps 56–60.
-- PR #13 and steps 33–50 are not merged or pushed; Marina has to do this.
+- PR #13 and steps 33–51 are not merged.
+- BI-02 still blocks real publishing.
 - Migrations are not applied to the dev database.
+- Real mobile touch/keyboard QA and reset/invite submission have not been done.
 
 ## History (summary)
 
+- 2026-10-10 step 50: product gallery (4bdbeed) + browser QA fix (a22ae8a); verify unit 345/integration 293/gateway 29.
 - 2026-10-10 step 49: media validation, Sharp derivatives, quarantine cleanup (3e9b5f7); verify unit 342/integration 286/gateway 29.
 - 2026-10-10 step 48: quarantine media upload authorization (16d3867); verify unit 334/integration 280/gateway 29.
 - 2026-10-10 step 47: set-stock + admin Stock workspace (947f097); verify unit 333/integration 272/gateway 29.

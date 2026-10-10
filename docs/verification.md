@@ -420,3 +420,41 @@ The admin unit tests cover the upload pre-check, form field order, rejection cop
 - Dark theme via the in-app toggle (the app uses its own theme switch, not the OS preference).
 - Reset/invite new-password submission.
 - Storefront.
+
+## Step 51 — publication, trash/restore and purge (2026-10-10, local)
+
+`pnpm verify -- --integration` PASS (unit 346; integration 305 incl. api 188; gateway 29).
+
+`publication.int.test.ts` (12 tests):
+
+- **BI-02 gate:** a complete product still reports `tax_treatment`, and publish answers `PUBLISH_REQUIREMENTS`.
+- **Requirements:** every missing requirement is listed, including a zero-price variant override.
+- **Publish and move to draft:**
+  - Staff can do both once the product is ready. Zero stock does not block publishing.
+  - A repeated publish is a no-op. A stale version gets `VERSION_CONFLICT`.
+  - Each change writes exactly one audit entry and an event.
+- **Concurrency:**
+  - Three concurrent publishes give one audit entry.
+  - Publishing racing removal of the last image never leaves a published product without an image.
+- **Published products stay publishable:** removing the last image, deactivating the default, and shortening the description below 20 characters are all refused with `PUBLISH_REQUIREMENTS` and rolled back.
+- **Trash and restore:**
+  - Trashing a published product makes it a trashed draft. Publish then gets `TRASHED`, and a second trash gets `TRASHED`.
+  - The Trash list shows `trashedAt`.
+  - Restore brings it back as a draft; restoring again gets `NOT_TRASHED`.
+- **Purge:**
+  - A live product gets `NOT_TRASHED`, and Staff get 403.
+  - The Owner purge removes the product, variants and media rows plus 4 storage objects in real MinIO, and writes an audit entry.
+  - Stock history blocks purge with `IN_USE` and nothing is deleted.
+  - The DB function refuses a live product even when called directly (`IH003`).
+- **Permissions:** without the publish or trash grant → 403. Unknown product → 404, anonymous → 401.
+
+**Browser QA through the gateway (27/27 PASS)** extended the step-50 journey:
+
+- the Publishing card explains the accountant-dependent tax treatment, and Publish stays disabled;
+- move to trash, the Trash tab, and a purge refused because of stock history;
+- restore as a draft;
+- a history-free product purged by the Owner after ticking "I understand this cannot be undone" (the button is disabled until then);
+- Staff see no permanent delete;
+- no unexpected failed requests.
+
+The QA schema was dropped afterwards.

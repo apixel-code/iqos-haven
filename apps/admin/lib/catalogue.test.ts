@@ -115,7 +115,7 @@ describe("catalogue conflict messages", () => {
     );
     expect(error).toBeInstanceOf(ApiError);
     expect((error as ApiError).code).toBe("IN_USE");
-    expect(managementError(error, true)).toContain("Published products");
+    expect(managementError(error, true)).toContain("published products or stock history");
     expect(managementError(new ApiError(409, null, "DUPLICATE"), true)).toContain("already used");
     expect(managementError(new ApiError(409, null, "TRASHED"), true)).toContain("Restore");
     expect(managementError(new ApiError(409), true)).toContain("Reload");

@@ -42,6 +42,14 @@
 - Step 48 (ADR 0018): `media_assets` and the quarantine upload flow.
 - Step 49 (ADR 0019): `media_processor` consumer (worker, external effect).
 - Step 50 (ADR 0020): product image gallery.
+- Step 51 (ADR 0021): product readiness, publish and move-to-draft (`catalog.publish`), trash and restore (`catalog.trash`), and Owner-only purge (`catalog.purge`).
+  - Readiness requires: tax treatment, an active variant and active default, an image, a description of at least 20 characters, non-zero prices, puffs and live parents.
+  - Publishing fails closed until BI-02 provides an approved tax treatment.
+  - Published products cannot be edited out of readiness.
+  - Trash takes a product off the store; restore brings it back as a draft.
+  - Purge is a SECURITY DEFINER DB function with a pinned search_path. It refuses live products and products with stock history, and deletes storage after commit.
+  - Admin has a Publishing card and a Trash tab with a confirmed permanent delete.
+  - Browser QA PASS.
   - Only ready assets of the same product can be attached, enforced by DB triggers in both directions.
   - Eight images, one primary and a dense order, all serialized by the product lock; alt text; atomic audit and `catalog.changed`.
   - Removal marks the asset `removed`, which frees its slot; its original is purged after 24 h.

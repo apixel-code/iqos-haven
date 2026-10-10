@@ -386,7 +386,7 @@ describe("product administration through the real API and PostgreSQL", () => {
     } while (cursor);
     expect(seen).toEqual([...seen].sort().reverse());
     expect(new Set(seen).size).toBe(seen.length);
-    for (const bad of ["?limit=101", "?status=trashed", "?q=" + "x".repeat(101), "?after=1"])
+    for (const bad of ["?limit=101", "?status=archived", "?q=" + "x".repeat(101), "?after=1"])
       expect((await call(bad)).status).toBe(400);
   });
 

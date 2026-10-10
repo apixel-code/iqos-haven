@@ -17,6 +17,7 @@ import { Prisma, type Database, type Tx } from "./client";
 import { withTransaction } from "./transaction";
 import { PrismaAuditWriter } from "./audit";
 import { PrismaOutboxWriter } from "./outbox";
+import { assertStillPublishable } from "./publication";
 import {
   CatalogueConflictError,
   CatalogueNotFoundError,
@@ -273,6 +274,7 @@ export async function removeGalleryImage(
             version=version+1, updated_at=statement_timestamp()
           WHERE id=${row.id}::uuid`);
     }
+    await assertStillPublishable(tx, productId);
     await record(tx, context, productId, "removed", imageId, {
       mediaAssetId: image.mediaAssetId,
       wasPrimary: image.isPrimary,

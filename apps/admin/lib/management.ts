@@ -151,7 +151,7 @@ export function managementError(error: unknown, mutation = false) {
   if (error instanceof FormValidationError) return error.message;
   if (error instanceof ApiError) {
     if (error.status === 409 && error.code === "IN_USE")
-      return "Published products still use this record. Move or unpublish them first.";
+      return "Other records still depend on this (published products or stock history), so it is kept.";
     if (error.status === 409 && error.code === "DUPLICATE")
       return "That name or link is already used (including in Trash). Choose another.";
     if (error.status === 409 && error.code === "IMAGE_LIMIT")

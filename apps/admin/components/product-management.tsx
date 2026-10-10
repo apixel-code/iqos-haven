@@ -5,7 +5,10 @@ import {
   categoriesResponseSchema,
   productResponseSchema,
   productsResponseSchema,
+  productReadinessSchema,
+  productPurgeResponseSchema,
   type ProductResponse,
+  type ProductSummary,
 } from "@ih/contracts";
 import { slugify } from "../lib/catalogue";
 import { filsToAed, managementRequest, type ResponseContract } from "../lib/management";
@@ -13,8 +16,9 @@ import { formatExtraSpecs, productCreateCommand, productUpdateCommand } from "..
 import { ResourceNotice, useManagementResource } from "./management-resource";
 import { ProductVariants } from "./product-variants";
 import { ProductImages } from "./product-images";
+import { ProductPublishing } from "./product-publishing";
 
-type Status = "all" | "published" | "draft";
+type Status = "all" | "published" | "draft" | "trashed";
 
 // Module-level contracts: the resource reloads when its contract identity changes, so these
 // must never be recreated per render (that caused an endless reload of the editor).
@@ -36,18 +40,21 @@ export function ProductManagement({ permissions }: { permissions: readonly strin
         id={editing === "new" ? null : editing}
         canWrite={canWrite}
         canSeo={canSeo}
+        permissions={permissions}
         onDone={(id) => setEditing(id)}
         onBack={() => setEditing(null)}
       />
     );
-  return <ProductList canWrite={canWrite} onOpen={setEditing} />;
+  return <ProductList canWrite={canWrite} permissions={permissions} onOpen={setEditing} />;
 }
 
 function ProductList({
   canWrite,
+  permissions,
   onOpen,
 }: {
   canWrite: boolean;
+  permissions: readonly string[];
   onOpen: (id: string | "new") => void;
 }) {
   const [status, setStatus] = useState<Status>("all");
@@ -78,7 +85,7 @@ function ProductList({
         )}
       </header>
       <div className="tab-list" role="tablist" aria-label="Product status">
-        {(["all", "published", "draft"] as const).map((value) => (
+        {(["all", "published", "draft", "trashed"] as const).map((value) => (
           <button
             key={value}
             type="button"
@@ -87,7 +94,13 @@ function ProductList({
             aria-selected={status === value}
             onClick={() => reset(() => setStatus(value))}
           >
-            {value === "all" ? "All" : value === "published" ? "Published" : "Drafts"}
+            {value === "all"
+              ? "All"
+              : value === "published"
+                ? "Published"
+                : value === "draft"
+                  ? "Drafts"
+                  : "Trash"}
           </button>
         ))}
       </div>
@@ -146,15 +159,24 @@ function ProductList({
                   {product.type === "kit" ? "Kit" : "Disposable"}
                   {product.isNew ? " · New" : ""}
                 </p>
-                <div className="form-actions">
-                  <button
-                    type="button"
-                    className="secondary-button"
-                    onClick={() => onOpen(product.id)}
-                  >
-                    {canWrite ? "Edit product" : "View product"}
-                  </button>
-                </div>
+                {status === "trashed" ? (
+                  <TrashedActions
+                    product={product}
+                    permissions={permissions}
+                    run={products.run}
+                    onDone={() => products.reload()}
+                  />
+                ) : (
+                  <div className="form-actions">
+                    <button
+                      type="button"
+                      className="secondary-button"
+                      onClick={() => onOpen(product.id)}
+                    >
+                      {canWrite ? "Edit product" : "View product"}
+                    </button>
+                  </div>
+                )}
               </article>
             ))}
           </div>
@@ -182,16 +204,74 @@ function ProductList({
   );
 }
 
+/** Trash view: restore (`catalog.trash`) or Owner-only permanent deletion (`catalog.purge`). */
+function TrashedActions({
+  product,
+  permissions,
+  run,
+  onDone,
+}: {
+  product: ProductSummary;
+  permissions: readonly string[];
+  run: ReturnType<typeof useManagementResource>["run"];
+  onDone: () => void;
+}) {
+  const [understood, setUnderstood] = useState(false);
+  const act = async (command: "restore" | "purge") => {
+    const body = { version: product.version };
+    const path = `/products/${product.id}/${command}`;
+    const outcome = await run<unknown>((signal) =>
+      command === "restore"
+        ? managementRequest(path, productReadinessSchema, "POST", body, signal)
+        : managementRequest(path, productPurgeResponseSchema, "POST", body, signal),
+    );
+    if (outcome.ok) onDone();
+  };
+  return (
+    <div className="form-actions">
+      {permissions.includes("catalog.trash") && (
+        <button type="button" className="secondary-button" onClick={() => void act("restore")}>
+          Restore as draft
+        </button>
+      )}
+      {permissions.includes("catalog.purge") && (
+        <>
+          <label>
+            <input
+              type="checkbox"
+              checked={understood}
+              onChange={(e) => setUnderstood(e.target.checked)}
+            />{" "}
+            I understand this cannot be undone
+          </label>
+          <button
+            type="button"
+            className="danger-button"
+            disabled={!understood}
+            onClick={() => {
+              if (window.confirm(`Delete ${product.name} permanently?`)) void act("purge");
+            }}
+          >
+            Delete permanently
+          </button>
+        </>
+      )}
+    </div>
+  );
+}
+
 function ProductEditor({
   id,
   canWrite,
   canSeo,
+  permissions,
   onDone,
   onBack,
 }: {
   id: string | null;
   canWrite: boolean;
   canSeo: boolean;
+  permissions: readonly string[];
   onDone: (id: string) => void;
   onBack: () => void;
 }) {
@@ -227,6 +307,14 @@ function ProductEditor({
         }}
         onBack={onBack}
       />
+      {row && (
+        <ProductPublishing
+          key={`${row.id}-${row.version}`}
+          productId={row.id}
+          permissions={permissions}
+          onChanged={product.reload}
+        />
+      )}
       {row && <ProductImages productId={row.id} canWrite={canWrite} />}
       {row && (
         <ProductVariants

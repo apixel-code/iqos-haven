@@ -16,6 +16,7 @@ import { Prisma, type Database, type Tx } from "./client";
 import { withTransaction } from "./transaction";
 import { PrismaAuditWriter } from "./audit";
 import { PrismaOutboxWriter } from "./outbox";
+import { assertStillPublishable } from "./publication";
 import {
   CatalogueConflictError,
   CatalogueForbiddenError,
@@ -108,8 +109,13 @@ const like = (term: string) => "%" + term.replace(/[\\%_]/g, (c) => "\\" + c) + 
 export async function listProducts(db: Database, actorId: string, input: ProductsQuery) {
   const query = productsQuerySchema.parse(input);
   await lockCatalogueActor(db, actorId, ["catalog.read"], false);
-  const filters = [Prisma.sql`p.deleted_at IS NULL`];
-  if (query.status !== "all") filters.push(Prisma.sql`p.status=${query.status}`);
+  const filters = [
+    query.status === "trashed"
+      ? Prisma.sql`p.deleted_at IS NOT NULL`
+      : Prisma.sql`p.deleted_at IS NULL`,
+  ];
+  if (query.status === "draft" || query.status === "published")
+    filters.push(Prisma.sql`p.status=${query.status}`);
   if (query.brandId) filters.push(Prisma.sql`p.brand_id=${query.brandId}::uuid`);
   if (query.categoryId) filters.push(Prisma.sql`p.category_id=${query.categoryId}::uuid`);
   if (query.q) filters.push(Prisma.sql`p.name ILIKE ${like(query.q)}`);
@@ -130,6 +136,7 @@ export async function listProducts(db: Database, actorId: string, input: Product
       basePriceFils: full.basePriceFils,
       isNew: full.isNew,
       version: full.version,
+      trashedAt: full.trashedAt,
       updatedAt: full.updatedAt,
     });
   });
@@ -303,6 +310,7 @@ export async function updateProduct(
         await tx.$executeRaw(Prisma.sql`
           INSERT INTO slug_redirects (entity_type, old_slug, product_id)
           VALUES ('product', ${row.slug}, ${id}::uuid)`);
+      await assertStillPublishable(tx, id);
       const updated = (await load(tx, id))!;
       await record(tx, context, "updated", row, updated, {
         specsChanged,
