@@ -3,14 +3,17 @@
 ## Current position
 
 - Date: 2026-10-10
-- Milestone: M3 — identity, permissions, admin access and basic settings (M0 review and M1 staging/fixtures still open)
-- Step: 40 (settings/staff/delivery management forms) — implemented; final manual UI QA partial
-- Branch: `step/40-admin-management-forms` (based on local step 39 commit `b0213a5`; merge dependency PRs in step order)
+- Milestone: M4 — catalogue, variants, safe media and inventory (started; M3 gate not closed; M0 review and M1 staging/fixtures still open)
+- Step: 41 (catalogue schema and constraints) — done
+- Branch: `step/41-catalogue-schema` (stacked on local step 40 `4ed00a9`; merge dependency PRs in step order)
 - See docs/verification.md for actual checks.
 
 ## Next action
 
-Implement `/step 41`: catalogue schema/query constraints (brands, categories, products, options, variants, images, slug redirects), following database-contract and roadmap bounds, unique SKU/slug/option signatures, versions and safe FK behavior. Keep real catalogue data pending business approval. Carry forward manual UI QA: real mobile touch/keyboard and reset/invite browser new-password submission. Review/push branches through green CI in step order (32–40).
+1. Ask Marina whether to merge PR #13 (step 32, CI green) and then push/PR/merge the stacked local branches `step/33-*` … `step/41-*` in order, each after green CI (none of 33–41 is pushed yet).
+2. Then `/step 42`: Brands CRUD, ordering, active/trash/restore (`BrandsController` + admin UI). Use `catalog.read` and `catalog.write`/`catalog.trash` permissions with `@Serialize`. The repository bumps `version` and `updated_at`, and expected-version conflicts are handled. Trashing is reference-aware: block it while published products still use the brand. Add audit/outbox entries in the same transaction. Add allowed-, denied- and invalid-input int tests. Hard purge stays Owner-only (`catalog.purge`).
+
+Carry forward manual UI QA from step 40. Use node@24 PATH; start Docker Desktop before `pnpm infra:up`.
 
 ## Blockers
 
@@ -57,7 +60,9 @@ None for step 41 schema work. Real settings/coverage require BI-01/BI-03/BI-09 a
 
 - 39 — Dubai-only stable delivery areas and versioned flat fee/ETA API, disabled threshold, atomic audit/outbox and locked inactive-area selection denial (ADR 0012) — b0213a5
 
-- 40 — real versioned settings/staff/invitation/delivery forms, session-safe drafts and conflict recovery; actual-origin browser checks and responsive layouts (ADR 0013), manual UI QA partial — commit `step(40): admin settings staff and delivery forms`
+- 40 — real versioned settings/staff/invitation/delivery forms, session-safe drafts and conflict recovery; actual-origin browser checks and responsive layouts (ADR 0013), manual UI QA partial — 4ed00a9
+
+- 41 — catalogue schema: normalized slugs + locked cross-table redirect claims, fils bounds, publish completeness, canonical option signatures, global SKU, one default/primary, ledger-only stock guard, RESTRICT FKs and no runtime DELETE/TRUNCATE — uncommitted (commit `step(41)` follows this handoff)
 
 ## Known deviations
 
@@ -65,18 +70,27 @@ None for step 41 schema work. Real settings/coverage require BI-01/BI-03/BI-09 a
 - Event `consumers` lists only implemented consumers (now `system_probe` and `email`); planned ones are documented with roadmap steps and move in with a backfill decision (architecture §8: adding a consumer must not redefine old completions).
 - `audit_log` migration revokes UPDATE/DELETE/TRUNCATE only from a role named `ih_app`; other runtime role names must be revoked at provisioning (trigger blocks mutations regardless).
 
-## Last session handoff (2026-10-10, step 40)
+## Last session handoff (2026-10-10, step 41)
 
-Done: real permission-gated settings/staff/invitation/delivery forms (ADR 0013), strict same-origin contracts, versions/conflict reload, exact integer fees, abort/generation fencing and memory-only drafts. Background session verification retains drafts and pauses writes; revoked/denied access clears protected content. Independent delivery permission; no prototype defaults or invented versions/delivery claims.
+Done: step 41 catalogue schema (migration `20261010000400_catalogue`, Prisma models, `packages/db/src/catalogue.int.test.ts`). Picked up the uncommitted WIP from the previous session, verified it, and applied the `invariant-reviewer` should-fixes:
 
-Files: `apps/admin/components/{management-resource,settings-management,staff-management,delivery-management,session-shell,workspace-section}.tsx`, `apps/admin/lib/{management,management.test,navigation,navigation.test}.ts`, `apps/admin/app/globals.css`, `docs/decisions/0013-admin-management-forms.md`, `docs/{implementation-status,task-backlog,security-boundaries,verification}.md`, `README.md`, `START-HERE-BN.md`, `PROGRESS.md`.
+- a stock-ledger-only trigger (new variants start at zero; changes need the transaction-local `ih.stock_ledger` flag)
+- runtime role denied DELETE/TRUNCATE on brands/categories/products/variants and TRUNCATE on the rest
+- compare-at must be above base
+- published requires a positive price, plus a puff count for disposables
+- positive publish tests and a tighter asset-key regex
 
-Tests: `pnpm verify -- --integration` PASS (unit 316, integration 191, gateway 29); admin 25 tests including 12 new; final admin production build PASS after mobile overflow/field alignment CSS fixes. Invariant review: no issues. Real gateway browser PASS: Owner/Staff login/navigation/direct denial, settings stale conflict/reload and focus draft retention, 29-fils fee/area updates, last-Owner rejection, staff edit/deactivate/reactivate, invitation queued receipt, logout and revoked-session recovery. Desktop light/dark and 375px layouts inspected; reset/invite fragments scrubbed.
+Service-layer duties (version/`updated_at`, image count, option membership, rename-reclaim of an own redirect) are recorded in the migration comment.
 
-Unfinished: browser reset/invite new-password submission (Computer Use requires user handoff), real mobile touch/keyboard QA; approved business/provisioning inputs. No M3 gate closure, live migration, `.env`/dependency changes, real emails/identities or push/merge. QA used isolated schema/synthetic identities with email disabled; Guest window/servers closed and QA schema absent after shutdown.
+Files: `packages/db/prisma/{schema.prisma,migrations/20261010000400_catalogue/migration.sql}`, `packages/db/src/catalogue.int.test.ts`, `docs/{implementation-status,task-backlog,verification}.md`, `PROGRESS.md`.
+
+Tests: `pnpm verify -- --integration` PASS (unit 316, integration 206, gateway 29).
+
+Unfinished: PR #13 is open (CI green) but not merged. Steps 33–41 are committed only locally. Steps 40 and 37 still need manual UI QA. There is no catalogue data yet (business approval). The M3 gate is not closed.
 
 ## History (summary)
 
+- 2026-10-10 step 40: permission-gated settings/staff/invitation/delivery forms, ADR 0013 (4ed00a9); verify unit 316/integration 191/gateway 29; manual mobile and new-password browser QA open.
 - 2026-10-10 step 39: Dubai-only versioned areas/flat-fee/ETA API and shared-lock selection, ADR 0012 (b0213a5); verify unit 304/integration 191/gateway 29. BI-03 values unconfigured.
 
 - 2026-10-10 step 38: typed Owner-only versioned settings API and atomic metadata-only audit/IDs-only events, ADR 0011 (be7b4e7); verify unit 297/integration 180/gateway 29. Real settings unconfigured.
