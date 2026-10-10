@@ -17,3 +17,4 @@ export * from "./staff-invitations";
 export * from "./staff-administration";
 
 export * from "./settings";
+export * from "./delivery";

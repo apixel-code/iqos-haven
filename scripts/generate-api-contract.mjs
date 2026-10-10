@@ -22,6 +22,12 @@ const schemas = Object.fromEntries(
     "StaffDeactivateRequest",
     "StaffRoleRequest",
     "StaffReactivateRequest",
+    "DeliveryConfigurationWriteRequest",
+    "DeliveryConfigurationResponse",
+    "DeliveryAreaCreateRequest",
+    "DeliveryAreaUpdateRequest",
+    "DeliveryAreaResponse",
+    "DeliveryAreasResponse",
     "SettingsWriteRequest",
     "SettingResponse",
     "SettingsResponse",
@@ -54,15 +60,115 @@ for (const name of ["SettingsWriteRequest", "SettingResponse", "SettingsResponse
 const content = (name) => ({
   "application/json": { schema: { $ref: "#/components/schemas/" + name } },
 });
+const deliveryErrors = {
+  400: { description: "Strict input validation failed", content: content("ErrorEnvelope") },
+  401: { description: "Session required", content: content("ErrorEnvelope") },
+  403: {
+    description: "delivery.manage or admin Origin required",
+    content: content("ErrorEnvelope"),
+  },
+};
+const deliveryMutationErrors = {
+  ...deliveryErrors,
+  409: {
+    description: "Duplicate code/name or stale version; reload current data",
+    content: content("ErrorEnvelope"),
+  },
+  429: { description: "Rate limited", content: content("ErrorEnvelope") },
+  503: { description: "Authoritative limiter unavailable", content: content("ErrorEnvelope") },
+};
 const document = {
   openapi: "3.0.3",
   info: {
     title: "Iqos Haven — implemented API contracts",
     version: "0.0.0",
     description:
-      "Implemented health, identity and staff administration contracts. Browser identity commands require the configured admin Origin and JSON bodies; responses are no-store. Identity UI is roadmap step 37.",
+      "Implemented health, identity, staff, settings and delivery administration contracts. Browser identity commands require the configured admin Origin and JSON bodies; responses are no-store. Identity UI is roadmap step 37.",
   },
   paths: {
+    "/v1/admin/delivery-areas": {
+      get: {
+        operationId: "deliveryAreasList",
+        security: [{ adminSession: [] }],
+        description:
+          "Requires delivery.manage. No-store list of active and inactive Dubai areas; no public selection endpoint. No prototype areas seeded.",
+        parameters: [
+          {
+            name: "limit",
+            in: "query",
+            schema: { type: "integer", minimum: 1, maximum: 100, default: 50 },
+          },
+          { name: "after", in: "query", schema: { type: "string", format: "uuid" } },
+        ],
+        responses: {
+          200: {
+            description: "Bounded areas ordered by immutable ID",
+            content: content("DeliveryAreasResponse"),
+          },
+          ...deliveryErrors,
+        },
+      },
+      post: {
+        operationId: "deliveryAreaCreate",
+        security: [{ adminSession: [] }],
+        description:
+          "Owner configuration with delivery.manage; admin Origin/JSON. Create a client-approved Dubai area. Stable unique code and case-insensitive unique name; no zone fee/delete. Atomic audit and IDs-only event.",
+        requestBody: { required: true, content: content("DeliveryAreaCreateRequest") },
+        responses: {
+          201: {
+            description: "Created area at version 1",
+            content: content("DeliveryAreaResponse"),
+          },
+          ...deliveryMutationErrors,
+        },
+      },
+    },
+    "/v1/admin/delivery-areas/{id}": {
+      patch: {
+        operationId: "deliveryAreaUpdate",
+        security: [{ adminSession: [] }],
+        description:
+          "Requires delivery.manage and expected version. Replace name/active state; code/emirate/ID immutable. Deactivate rather than delete. No-op preserves metadata; atomic audit/outbox.",
+        parameters: [
+          { name: "id", in: "path", required: true, schema: { type: "string", format: "uuid" } },
+        ],
+        requestBody: { required: true, content: content("DeliveryAreaUpdateRequest") },
+        responses: {
+          200: { description: "Current versioned area", content: content("DeliveryAreaResponse") },
+          404: { description: "Area not found", content: content("ErrorEnvelope") },
+          ...deliveryMutationErrors,
+        },
+      },
+    },
+    "/v1/admin/delivery-areas/configuration": {
+      get: {
+        operationId: "deliveryConfigurationRead",
+        security: [{ adminSession: [] }],
+        description:
+          "Requires delivery.manage. One flat Dubai fee/ETA; absent configuration is null/version 0. No defaults; no-store. Unknown query fields rejected.",
+        responses: {
+          200: {
+            description: "Current configuration",
+            content: content("DeliveryConfigurationResponse"),
+          },
+          ...deliveryErrors,
+        },
+      },
+      patch: {
+        operationId: "deliveryConfigurationWrite",
+        security: [{ adminSession: [] }],
+        description:
+          "Requires delivery.manage, admin Origin/JSON and expected version. 0 creates, null clears without deleting history. Integer fils; free threshold remains null (disabled). Atomic metadata-only audit/IDs-only event. Changes require quote re-acceptance in later pricing steps.",
+        requestBody: { required: true, content: content("DeliveryConfigurationWriteRequest") },
+        responses: {
+          200: {
+            description: "Current versioned configuration",
+            content: content("DeliveryConfigurationResponse"),
+          },
+          ...deliveryMutationErrors,
+        },
+      },
+    },
     "/v1/admin/settings": {
       get: {
         operationId: "settingsRead",

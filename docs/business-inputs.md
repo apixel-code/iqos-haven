@@ -24,3 +24,5 @@ When an answer arrives, write the decision in the Answer column and, if it shape
 - 2026-10-09 — BI-07 email provider and scope — chat with Marina — Resend; domain verification pending; new-order email only at launch, others later. Still needed: verified sending domain, sender address (e.g. orders@…), who receives new-order email.
 
 - 2026-10-10 — Step 38 schema/API implemented with all settings initially unconfigured; BI-01/BI-09 and remaining BI-07 are still unanswered. No prototype contact, WhatsApp wording, recipients or provider secrets seeded; real configuration/communications activation awaits existing client decisions (ADR 0011).
+
+Step 39 implements the Dubai area/flat-fee/ETA schema and Owner-only API with no seeded areas or business values. BI-03 remains OPEN: obtain the approved coverage/exclusions, exact integer-fils flat fee and ETA before activating real areas/configuration. Free threshold remains disabled; approval alone needs a later reviewed enabling policy/UI change. Backend selection fails closed for unconfigured fees and inactive areas.

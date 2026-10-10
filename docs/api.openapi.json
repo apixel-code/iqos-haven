@@ -3,9 +3,280 @@
   "info": {
     "title": "Iqos Haven — implemented API contracts",
     "version": "0.0.0",
-    "description": "Implemented health, identity and staff administration contracts. Browser identity commands require the configured admin Origin and JSON bodies; responses are no-store. Identity UI is roadmap step 37."
+    "description": "Implemented health, identity, staff, settings and delivery administration contracts. Browser identity commands require the configured admin Origin and JSON bodies; responses are no-store. Identity UI is roadmap step 37."
   },
   "paths": {
+    "/v1/admin/delivery-areas": {
+      "get": {
+        "operationId": "deliveryAreasList",
+        "security": [{ "adminSession": [] }],
+        "description": "Requires delivery.manage. No-store list of active and inactive Dubai areas; no public selection endpoint. No prototype areas seeded.",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": { "type": "integer", "minimum": 1, "maximum": 100, "default": 50 }
+          },
+          { "name": "after", "in": "query", "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Bounded areas ordered by immutable ID",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/DeliveryAreasResponse" }
+              }
+            }
+          },
+          "400": {
+            "description": "Strict input validation failed",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
+            }
+          },
+          "401": {
+            "description": "Session required",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
+            }
+          },
+          "403": {
+            "description": "delivery.manage or admin Origin required",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "deliveryAreaCreate",
+        "security": [{ "adminSession": [] }],
+        "description": "Owner configuration with delivery.manage; admin Origin/JSON. Create a client-approved Dubai area. Stable unique code and case-insensitive unique name; no zone fee/delete. Atomic audit and IDs-only event.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/DeliveryAreaCreateRequest" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created area at version 1",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/DeliveryAreaResponse" }
+              }
+            }
+          },
+          "400": {
+            "description": "Strict input validation failed",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
+            }
+          },
+          "401": {
+            "description": "Session required",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
+            }
+          },
+          "403": {
+            "description": "delivery.manage or admin Origin required",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
+            }
+          },
+          "409": {
+            "description": "Duplicate code/name or stale version; reload current data",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
+            }
+          },
+          "429": {
+            "description": "Rate limited",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
+            }
+          },
+          "503": {
+            "description": "Authoritative limiter unavailable",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
+            }
+          }
+        }
+      }
+    },
+    "/v1/admin/delivery-areas/{id}": {
+      "patch": {
+        "operationId": "deliveryAreaUpdate",
+        "security": [{ "adminSession": [] }],
+        "description": "Requires delivery.manage and expected version. Replace name/active state; code/emirate/ID immutable. Deactivate rather than delete. No-op preserves metadata; atomic audit/outbox.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/DeliveryAreaUpdateRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Current versioned area",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/DeliveryAreaResponse" }
+              }
+            }
+          },
+          "400": {
+            "description": "Strict input validation failed",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
+            }
+          },
+          "401": {
+            "description": "Session required",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
+            }
+          },
+          "403": {
+            "description": "delivery.manage or admin Origin required",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
+            }
+          },
+          "404": {
+            "description": "Area not found",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
+            }
+          },
+          "409": {
+            "description": "Duplicate code/name or stale version; reload current data",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
+            }
+          },
+          "429": {
+            "description": "Rate limited",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
+            }
+          },
+          "503": {
+            "description": "Authoritative limiter unavailable",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
+            }
+          }
+        }
+      }
+    },
+    "/v1/admin/delivery-areas/configuration": {
+      "get": {
+        "operationId": "deliveryConfigurationRead",
+        "security": [{ "adminSession": [] }],
+        "description": "Requires delivery.manage. One flat Dubai fee/ETA; absent configuration is null/version 0. No defaults; no-store. Unknown query fields rejected.",
+        "responses": {
+          "200": {
+            "description": "Current configuration",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/DeliveryConfigurationResponse" }
+              }
+            }
+          },
+          "400": {
+            "description": "Strict input validation failed",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
+            }
+          },
+          "401": {
+            "description": "Session required",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
+            }
+          },
+          "403": {
+            "description": "delivery.manage or admin Origin required",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
+            }
+          }
+        }
+      },
+      "patch": {
+        "operationId": "deliveryConfigurationWrite",
+        "security": [{ "adminSession": [] }],
+        "description": "Requires delivery.manage, admin Origin/JSON and expected version. 0 creates, null clears without deleting history. Integer fils; free threshold remains null (disabled). Atomic metadata-only audit/IDs-only event. Changes require quote re-acceptance in later pricing steps.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/DeliveryConfigurationWriteRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Current versioned configuration",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/DeliveryConfigurationResponse" }
+              }
+            }
+          },
+          "400": {
+            "description": "Strict input validation failed",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
+            }
+          },
+          "401": {
+            "description": "Session required",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
+            }
+          },
+          "403": {
+            "description": "delivery.manage or admin Origin required",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
+            }
+          },
+          "409": {
+            "description": "Duplicate code/name or stale version; reload current data",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
+            }
+          },
+          "429": {
+            "description": "Rate limited",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
+            }
+          },
+          "503": {
+            "description": "Authoritative limiter unavailable",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
+            }
+          }
+        }
+      }
+    },
     "/v1/admin/settings": {
       "get": {
         "operationId": "settingsRead",
@@ -964,6 +1235,175 @@
           "version": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 }
         },
         "required": ["version"],
+        "additionalProperties": false
+      },
+      "DeliveryConfigurationWriteRequest": {
+        "type": "object",
+        "properties": {
+          "version": { "type": "integer", "minimum": 0, "maximum": 2147483646 },
+          "value": {
+            "nullable": true,
+            "type": "object",
+            "properties": {
+              "flatFeeFils": { "type": "integer", "minimum": 0, "maximum": 1000000000 },
+              "etaText": { "type": "string", "minLength": 1, "maxLength": 500 },
+              "freeThresholdFils": { "type": "string", "nullable": true, "enum": [null] }
+            },
+            "required": ["flatFeeFils", "etaText", "freeThresholdFils"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["version", "value"],
+        "additionalProperties": false
+      },
+      "DeliveryConfigurationResponse": {
+        "type": "object",
+        "properties": {
+          "version": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+          "value": {
+            "nullable": true,
+            "type": "object",
+            "properties": {
+              "flatFeeFils": { "type": "integer", "minimum": 0, "maximum": 1000000000 },
+              "etaText": { "type": "string", "minLength": 1, "maxLength": 500 },
+              "freeThresholdFils": { "type": "string", "nullable": true, "enum": [null] }
+            },
+            "required": ["flatFeeFils", "etaText", "freeThresholdFils"],
+            "additionalProperties": false
+          },
+          "updatedAt": {
+            "nullable": true,
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          },
+          "updatedBy": {
+            "nullable": true,
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          }
+        },
+        "required": ["version", "value", "updatedAt", "updatedBy"],
+        "additionalProperties": false
+      },
+      "DeliveryAreaCreateRequest": {
+        "type": "object",
+        "properties": {
+          "code": { "type": "string", "pattern": "^[a-z][a-z0-9_-]{0,63}$" },
+          "name": { "type": "string", "minLength": 1, "maxLength": 100 },
+          "active": { "type": "boolean" }
+        },
+        "required": ["code", "name", "active"],
+        "additionalProperties": false
+      },
+      "DeliveryAreaUpdateRequest": {
+        "type": "object",
+        "properties": {
+          "version": { "type": "integer", "minimum": 1, "maximum": 2147483646 },
+          "name": { "type": "string", "minLength": 1, "maxLength": 100 },
+          "active": { "type": "boolean" }
+        },
+        "required": ["version", "name", "active"],
+        "additionalProperties": false
+      },
+      "DeliveryAreaResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "code": { "type": "string" },
+          "name": { "type": "string", "minLength": 1, "maxLength": 100 },
+          "emirate": { "type": "string", "enum": ["dubai"] },
+          "active": { "type": "boolean" },
+          "version": {
+            "type": "integer",
+            "minimum": 0,
+            "exclusiveMinimum": true,
+            "maximum": 9007199254740991
+          },
+          "updatedBy": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          }
+        },
+        "required": [
+          "id",
+          "code",
+          "name",
+          "emirate",
+          "active",
+          "version",
+          "updatedBy",
+          "updatedAt"
+        ],
+        "additionalProperties": false
+      },
+      "DeliveryAreasResponse": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "maxItems": 100,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "code": { "type": "string" },
+                "name": { "type": "string", "minLength": 1, "maxLength": 100 },
+                "emirate": { "type": "string", "enum": ["dubai"] },
+                "active": { "type": "boolean" },
+                "version": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "exclusiveMinimum": true,
+                  "maximum": 9007199254740991
+                },
+                "updatedBy": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "updatedAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                }
+              },
+              "required": [
+                "id",
+                "code",
+                "name",
+                "emirate",
+                "active",
+                "version",
+                "updatedBy",
+                "updatedAt"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "nextCursor": {
+            "nullable": true,
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          }
+        },
+        "required": ["items", "nextCursor"],
         "additionalProperties": false
       },
       "SettingsWriteRequest": {

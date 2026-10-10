@@ -81,3 +81,8 @@ export const SETTINGS_MANAGE_POLICY = {
   ...STAFF_MANAGE_POLICY,
   endpoint: "settings.manage",
 } as const;
+
+export const DELIVERY_MANAGE_POLICY = {
+  ...STAFF_MANAGE_POLICY,
+  endpoint: "delivery.manage",
+} as const;

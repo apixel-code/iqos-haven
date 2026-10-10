@@ -8,6 +8,7 @@ import { InfraModule, type InfraOverrides } from "./infra/infra.module";
 import { AuthModule } from "./auth/auth.module";
 import { SecurityModule } from "./security/security.module";
 import { InternalModule } from "./internal/internal.module";
+import { DeliveryModule } from "./delivery/delivery.module";
 import { SettingsModule } from "./settings/settings.module";
 import { requestId } from "./http/request-id";
 @Module({})
@@ -42,6 +43,7 @@ export class AppModule {
         SecurityModule,
         AuthModule,
         SettingsModule,
+        DeliveryModule,
         ReliabilityModule,
         HealthModule,
         ...testModules,

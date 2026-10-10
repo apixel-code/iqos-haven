@@ -4,17 +4,17 @@
 
 - Date: 2026-10-10
 - Milestone: M3 — identity, permissions, admin access and basic settings (M0 review and M1 staging/fixtures still open)
-- Step: 38 (typed store/contact/notification/WhatsApp settings schema + Owner-only API) — done; step 37 visual browser QA pending
-- Branch: `step/38-settings-api` (based on local step 37 commit `f0071e8`; merge dependency PRs in step order)
+- Step: 39 (Dubai delivery areas + one flat fee/ETA configuration) — done; step 37 visual browser QA pending
+- Branch: `step/39-delivery-configuration` (based on local step 38 commit `be7b4e7`; merge dependency PRs in step order)
 - See docs/verification.md for actual checks.
 
 ## Next action
 
-Implement `/step 39`: delivery areas, flat fees and ETA schema/API, using the roadmap and delivery/settings contracts. Keep unanswered BI-03 real areas/fees/ETA unconfigured; enforce strict bounded inputs, current permissions, expected versions and atomic audit/outbox. Step 37 desktop/mobile browser QA remains pending (Computer Use unavailable). Review/push completed branches through green CI in step order (32–38).
+Implement `/step 40`: settings/staff/delivery-area admin forms using the real step-35/36/38/39 APIs and auth/RBAC acceptance. Read the roadmap, focused prototype-map symbols and ADRs 0008–0012; keep missing business values visibly unconfigured, use current versions and reload on conflict. Verify actual admin-origin sessions/permissions and desktop/mobile login/reset/invite/session recovery when Computer Use is available. Review/push completed branches through green CI in step order (32–39).
 
 ## Blockers
 
-None for step 38 implementation or step 39 schema/API. Real settings need BI-01/BI-09 and remaining BI-07 contact, sender and recipient inputs; real delivery configuration needs BI-03. Step 37 browser QA remains blocked by unavailable browser surface/Computer Use permission. BI-11 blocks real Owner bootstrap; BI-06 blocks staging provisioning. No milestone gate changes.
+None for step 39 backend implementation or step 40 forms. Real settings need BI-01/BI-09 and remaining BI-07 contact, sender and recipient inputs; real delivery configuration needs BI-03. Step 37 browser QA remains blocked by unavailable browser surface/Computer Use permission. BI-11 blocks real Owner bootstrap; BI-06 blocks staging provisioning. No milestone gate changes.
 
 ## Gates passed
 
@@ -53,7 +53,9 @@ None for step 38 implementation or step 39 schema/API. Real settings need BI-01/
 
 - 37 — admin auth/reset/invite forms, dynamic no-store session shell and permission navigation/direct-section gate, memory-only fragment capabilities, real gateway auth checks (ADR 0010); visual/interactive QA pending — f0071e8
 
-- 38 — typed Owner-only settings read/replace API, unconfigured groups, versioned atomic audit/outbox and strict validation (ADR 0011) — commit `step(38): typed settings API with versioned atomic updates`
+- 38 — typed Owner-only settings read/replace API, unconfigured groups, versioned atomic audit/outbox and strict validation (ADR 0011) — be7b4e7
+
+- 39 — Dubai-only stable delivery areas and versioned flat fee/ETA API, disabled threshold, atomic audit/outbox and locked inactive-area selection denial (ADR 0012) — commit `step(39): versioned Dubai delivery configuration and areas`
 
 ## Known deviations
 
@@ -61,21 +63,23 @@ None for step 38 implementation or step 39 schema/API. Real settings need BI-01/
 - Event `consumers` lists only implemented consumers (now `system_probe` and `email`); planned ones are documented with roadmap steps and move in with a backfill decision (architecture §8: adding a consumer must not redefine old completions).
 - `audit_log` migration revokes UPDATE/DELETE/TRUNCATE only from a role named `ih_app`; other runtime role names must be revoked at provisioning (trigger blocks mutations regardless).
 
-## Last session handoff (2026-10-10, step 38)
+## Last session handoff (2026-10-10, step 39)
 
-Done: step 38 settings schema/API (ADR 0011). Four groups are explicit null/version 0 until configured; no prototype or real values seeded. Owner-only GET/PATCH uses strict complete-group contracts, current `settings.manage`, no-store responses and fail-closed mutation limits.
+Done: step 39 Dubai-only areas and one flat delivery fee/ETA schema/API (ADR 0012). Real BI-03 values remain unconfigured; no prototype areas/fee/ETA seeded, no milestone gate claim.
 
-- Additive settings migration: allowed immutable keys, bounded positive versions, JSON object/null and Staff actor FK. Expected version 0 creates version 1; competing creates/updates conflict; unchanged replacements preserve metadata; null clears preserve version history.
-- Transactions lock the Owner role, actor and setting in order, recheck authority and atomically save settings, metadata-only audit and IDs-only `settings.updated` outbox. Audit/outbox contain no contact, recipient or template content. No email delivery or WhatsApp automation activated.
-- Strict domains, HTTPS social links without credentials, E.164 numbers, bounded email recipients and approved template placeholders. Only implemented new-order email configuration is exposed; low-stock/daily digest remain deferred. Invariant reviewer: no issues.
+- Owner-only `delivery.manage` bounded list/create/edit/configuration routes with strict contracts, no-store and fail-closed IP/actor mutation limits. Stable area code/ID/emirate, case-insensitive name uniqueness and expected-version updates; unchanged writes preserve metadata. Deactivate rather than delete. Configuration version 0 creates; null clears preserving history; free threshold only supports disabled null.
+- Common Owner-role/actor locks recheck current authority. Each mutation saves metadata-only audit and IDs-only outbox atomically. DB enforces Dubai identity, name/code uniqueness, positive versions and strict integer-fee/ETA/off-threshold configuration. No audit/event configuration contents or network calls in transactions.
+- Internal tracked-transaction selection locks configuration before area with FOR SHARE, returns versioned snapshot fields and rejects inactive/missing/non-Dubai areas or unconfigured policy. Later quote/order steps must take earlier resource locks and enforce re-acceptance. No public selection/checkout endpoint introduced.
 
-Files: `packages/contracts/src/{settings.ts,index.ts,events.ts,events.test.ts}`, `packages/db/{prisma/schema.prisma,prisma/migrations/20261010000200_settings/migration.sql,src/settings.ts,src/index.ts}`, `apps/api/src/{settings/**,app.module.ts,security/limit-policies.ts}`, `scripts/generate-api-contract.mjs`, `docs/api.openapi.json`, `docs/decisions/0011-settings-api.md`, `docs/{implementation-status,task-backlog,security-boundaries,business-inputs,verification}.md`, `docs/runbooks/owner-and-data-bootstrap.md`, `README.md`, `START-HERE-BN.md`, `PROGRESS.md`.
+Files: `packages/contracts/src/{delivery.ts,index.ts,events.ts,events.test.ts}`, `packages/domain/src/{delivery.ts,delivery.test.ts,index.ts}`, `packages/db/{prisma/schema.prisma,prisma/migrations/20261010000300_delivery_configuration/migration.sql,src/delivery.ts,src/index.ts}`, `apps/api/src/{delivery/**,app.module.ts,security/limit-policies.ts}`, `scripts/generate-api-contract.mjs`, `docs/api.openapi.json`, `docs/decisions/0012-delivery-configuration.md`, `docs/{implementation-status,task-backlog,security-boundaries,business-inputs,verification}.md`, `docs/runbooks/owner-and-data-bootstrap.md`, `README.md`, `START-HERE-BN.md`, `PROGRESS.md`.
 
-Tests: `pnpm verify -- --integration` PASS (unit 297, integration 180, gateway 29), including production builds/lint/typecheck/format/boundary/reference/infra/contract checks. Eight new real Nest/PostgreSQL integration tests cover authorization, strict inputs, concurrent creation/version conflicts/no-ops, null clear, audit privacy/rollback, DB constraints, deterministic actor-demotion lock race and shared-limiter outage. All migrations applied only to isolated test schemas. Initial DTO typing and generated-contract formatting failures fixed before the green full run; generator now uses the repository Prettier config.
+Tests: final `pnpm verify -- --integration` PASS after the reviewed raw SQL uniqueness mapping fix (unit 304, integration 191, gateway 29), including production builds/lint/typecheck/format/boundary/reference/infra/contract checks; targeted API PASS (96 tests, 11 new). New tests cover strict Owner/Staff/anonymous access, unconfigured/no-seed state, integer fee/off threshold, unique/stable areas, pagination, concurrent edits/configuration, no-ops/null clear, audit/outbox rollback, real DB constraints, deterministic configuration/area shared-lock waits and actor-demotion race, limiter outage. Rename-collision regression now checks 409 with unchanged version/audit. Initial DTO typing fixed; invariant review found raw P2010/23505 mapping gap (fixed), second review: no issues.
 
-Unfinished: step 39 delivery configuration, step 40 admin forms/auth acceptance and step 37 browser visual/interactive QA. Real settings/delivery inputs pending. No live migration, `.env` changes, new dependencies, real email/identities, PR push/merge or M3 gate closure.
+Unfinished: step 40 admin forms/auth acceptance; step 37 browser desktop/mobile/interactive QA (surfaces unavailable/Computer Use denied); BI-03 approved real delivery data and other business/provisioning inputs. No live migration, `.env` changes, dependencies, real emails/identities, PR push/merge or M3 gate closure. Tests use isolated schemas/local sinks.
 
 ## History (summary)
+
+- 2026-10-10 step 38: typed Owner-only versioned settings API and atomic metadata-only audit/IDs-only events, ADR 0011 (be7b4e7); verify unit 297/integration 180/gateway 29. Real settings unconfigured.
 
 - 2026-10-10 step 37: admin auth/session-aware navigation, ADR 0010 (f0071e8); verify unit 295/integration 172/gateway 29 and nine gateway HTTP checks. Browser visual/interactive QA not run (unavailable surfaces/Computer Use denied).
 
