@@ -9,6 +9,7 @@ import { staffInvitationEmailPlanner } from "./staff-invitation-email";
 import { passwordResetEmailPlanner } from "./password-reset-email";
 import { createEmailAdapter } from "./email";
 import { createMediaCleanupJob, createMediaConsumer } from "./media";
+import { createStockReconciliationJob } from "./inventory";
 import { createRevalidateConsumer, revalidateTargetFromEnv } from "./revalidate";
 import { ObjectStorage, storageConfigFromEnv } from "@ih/platform";
 import sharp from "sharp";
@@ -66,7 +67,10 @@ async function main(): Promise<void> {
     db: database,
     owner,
     log,
-    jobs: [createMediaCleanupJob({ db: database, storage, log })],
+    jobs: [
+      createMediaCleanupJob({ db: database, storage, log }),
+      createStockReconciliationJob({ db: database, log }),
+    ],
   });
   let effectWorkers: { stop(): Promise<void> } | undefined;
   let runtime: WorkerRuntime | undefined;

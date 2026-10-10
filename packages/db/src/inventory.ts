@@ -1,4 +1,5 @@
 import {
+  defineEvent,
   inventoryItemSchema,
   inventoryQuerySchema,
   stockAdjustmentRequestSchema,
@@ -16,10 +17,12 @@ import {
   type StockSetRequest,
   type StockSetResponse,
 } from "@ih/contracts";
+import { crossedIntoLowStock } from "@ih/domain";
 import { toAuditEntry, type CommandContext } from "@ih/application";
 import { Prisma, type Database, type Tx } from "./client";
 import { withTransaction } from "./transaction";
 import { PrismaAuditWriter } from "./audit";
+import { PrismaOutboxWriter } from "./outbox";
 import {
   CatalogueConflictError,
   CatalogueNotFoundError,
@@ -175,6 +178,29 @@ async function existingCommand(
   return row;
 }
 
+/**
+ * Low-stock transition (roadmap step 53, ADR 0023). Call in the transaction of every change to a
+ * variant's stock or threshold, with both levels read under the variant row lock: that lock is
+ * what makes a crossing emit exactly once. Writes one IDs-only `inventory.low` event when the
+ * change moves the variant from above its threshold to at/below it; nothing otherwise, so a
+ * variant re-arms only by rising above the threshold. Stock is never a reason to unpublish.
+ */
+export async function publishLowStockCrossing(
+  tx: Tx,
+  variantId: string,
+  cause: "stock" | "threshold",
+  before: { stock: number; threshold: number },
+  after: { stock: number; threshold: number },
+  variantVersion?: number,
+): Promise<boolean> {
+  if (!crossedIntoLowStock(before, after)) return false;
+  await new PrismaOutboxWriter().publish(
+    tx,
+    defineEvent("inventory.low", variantId, { variantId, cause }, variantVersion),
+  );
+  return true;
+}
+
 interface StockCommand {
   readonly commandId: string;
   /** Ledger effect of the admin command: `adjust` (relative) or `set` (absolute count). */
@@ -213,9 +239,11 @@ async function runStockCommand(
       await lockCatalogueActor(tx, context.actorId, ["inventory.adjust"], true);
       const early = await existingCommand(tx, command.commandId, same);
       if (early) return replay(tx, early);
-      const [before] = await tx.$queryRaw<Array<{ stock: number; movements: boolean }>>(
+      const [before] = await tx.$queryRaw<
+        Array<{ stock: number; threshold: number; movements: boolean }>
+      >(
         Prisma.sql`
-          SELECT stock_on_hand AS stock,
+          SELECT stock_on_hand AS stock, low_stock_threshold AS threshold,
             EXISTS (SELECT 1 FROM stock_movements WHERE variant_id=${variantId}::uuid) AS movements
           FROM variants WHERE id=${variantId}::uuid FOR UPDATE`,
       );
@@ -257,6 +285,11 @@ async function runStockCommand(
           },
         }),
       );
+      // No aggregate version: a movement does not bump the variant version (ADR 0023).
+      await publishLowStockCrossing(tx, variantId, "stock", before, {
+        stock: row!.balanceAfter,
+        threshold: before.threshold,
+      });
       return { item: (await loadItem(tx, variantId))!, movement: movement(row!), replayed: false };
     });
   } catch (error) {
@@ -333,7 +366,7 @@ export async function setStock(
 
 /**
  * Variants whose balance differs from the sum of their ledger, or from the balance recorded by
- * their latest movement (should always be empty; alerting arrives with step 53).
+ * their latest movement (should always be empty; the worker's `inventory.reconciliation` job reports any).
  */
 export async function stockReconciliationMismatches(db: Database) {
   return db.$queryRaw<

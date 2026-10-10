@@ -474,3 +474,20 @@ The QA schema was dropped afterwards.
 - **Gateway:** `/api/v1/internal/revalidate` stays unreachable (existing checks).
 
 Not covered: a real store read through the cache (step 58), and the invalidation-lag alert (observability step).
+
+## Step 53 — low-stock transitions (2026-10-11, local)
+
+`pnpm verify -- --integration`: exit 0. Unit 378, integration 321, gateway 29.
+
+- **Rule (unit, `packages/domain/src/inventory.test.ts`):** above → at/below crosses; already low, partial restock and restock above do not; threshold edits follow the same rule; one alert per excursion over a stock sequence.
+- **Real API + PostgreSQL (`apps/api/src/inventory/low-stock.int.test.ts`):**
+  - one IDs-only `inventory.low` event on reaching the threshold, none while low, silent re-arm above it, a second event on the next crossing;
+  - zero stock leaves the product published and the variant active;
+  - ten concurrent removals crossing together emit exactly one event;
+  - a replayed and a concurrently duplicated command emit once;
+  - a counted set emits; a refused (stale) set and a no-change set emit nothing;
+  - a threshold edit emits once with cause `threshold` and the new variant version, does not repeat while low, and lowering it re-arms;
+  - event and movement share one inserting transaction.
+- **`invariant-reviewer`:** no blockers, no should-fix.
+
+Not covered: the notification/email consumers (step 92) and stock writers from orders (steps 75–76, 85–86), which must call `publishLowStockCrossing`. The reconciliation job has no dedicated test; its query is asserted empty in the inventory tests.

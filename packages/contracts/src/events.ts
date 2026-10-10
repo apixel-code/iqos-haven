@@ -182,7 +182,9 @@ export const EVENT_CATALOGUE = {
   "inventory.low": define({
     schemaVersion: 1,
     aggregateType: "variant",
-    payload: z.strictObject({ variantId: id }),
+    // Emitted once per crossing from above the threshold to at/below it (step 53, ADR 0023).
+    // `cause` says which side moved; consumers load current stock themselves.
+    payload: z.strictObject({ variantId: id, cause: z.enum(["stock", "threshold"]) }),
     consumers: [],
     plannedConsumers: { notification: 92, email: 92 },
   }),

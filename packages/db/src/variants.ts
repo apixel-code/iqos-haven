@@ -16,6 +16,7 @@ import { withTransaction } from "./transaction";
 import { PrismaAuditWriter } from "./audit";
 import { PrismaOutboxWriter } from "./outbox";
 import { assertStillPublishable } from "./publication";
+import { publishLowStockCrossing } from "./inventory";
 import {
   CatalogueConflictError,
   CatalogueNotFoundError,
@@ -301,6 +302,15 @@ export async function updateVariant(
           low_stock_threshold=${command.lowStockThreshold}, active=${command.active},
           is_default=${command.isDefault}, version=version+1, updated_at=statement_timestamp()
         WHERE id=${variantId}::uuid`);
+      // The variant row is locked, so its stock cannot move while the threshold is re-evaluated.
+      await publishLowStockCrossing(
+        tx,
+        variantId,
+        "threshold",
+        { stock: row.stockOnHand, threshold: row.lowStockThreshold },
+        { stock: row.stockOnHand, threshold: command.lowStockThreshold },
+        row.version + 1,
+      );
       const view = (v: { sku: string; active: boolean; isDefault: boolean }, version: number) => ({
         productId,
         sku: v.sku,
