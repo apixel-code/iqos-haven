@@ -1,10 +1,13 @@
+import { generateKeyPairSync } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import {
+  adminEnvSchema,
   apiEnvSchema,
   assertTestDatabase,
   emailIntegrationTestEnvSchema,
   loadEnv,
   redisInstance,
+  storefrontEnvSchema,
   workerEnvSchema,
 } from "./index";
 
@@ -113,6 +116,127 @@ describe("catalogue cache configuration", () => {
     expect(() => loadEnv(workerEnvSchema, staging)).toThrow(/INTERNAL_SERVICE_KEY/);
     expect(loadEnv(workerEnvSchema, { ...staging, ...deployedWorker }).API_INTERNAL_URL).toBe(
       "http://api.internal:4000",
+    );
+  });
+});
+
+describe("age gate configuration", () => {
+  const base = {
+    DATABASE_URL: "postgres://u:p@localhost:5432/db",
+    QUEUE_REDIS_URL: "redis://localhost:6379",
+  };
+  const key = (byte: string) => Buffer.alloc(32, byte).toString("base64url");
+  const store = { API_INTERNAL_URL: "http://localhost:4000" };
+  const pair = (() => {
+    const generated = generateKeyPairSync("ed25519");
+    return {
+      seed: generated.privateKey
+        .export({ format: "der", type: "pkcs8" })
+        .subarray(-32)
+        .toString("base64url"),
+      publicKey: generated.publicKey
+        .export({ format: "der", type: "spki" })
+        .subarray(-32)
+        .toString("base64url"),
+    };
+  })();
+  const deployedStore = {
+    ...store,
+    AGE_TICKET_KEY_ID: "k1",
+    AGE_TICKET_PRIVATE_KEY: pair.seed,
+    AGE_TICKET_PUBLIC_KEYS: `k1:${pair.publicKey}`,
+  };
+  it("parses the verifier key ring and refuses malformed or duplicate entries", () => {
+    expect(loadEnv(apiEnvSchema, base)).toMatchObject({
+      AGE_TICKET_PUBLIC_KEYS: [],
+      AGE_POLICY_VERSION: "unapproved",
+    });
+    expect(
+      loadEnv(apiEnvSchema, { ...base, AGE_TICKET_PUBLIC_KEYS: ` k1:${key("a")}, k2:${key("b")} ` })
+        .AGE_TICKET_PUBLIC_KEYS,
+    ).toEqual([
+      { kid: "k1", publicKey: key("a") },
+      { kid: "k2", publicKey: key("b") },
+    ]);
+    for (const bad of [
+      `k1:${key("a")},k1:${key("b")}`,
+      "k1:short",
+      `k1:${key("a")}:extra`,
+      key("a"),
+    ])
+      expect(() => loadEnv(apiEnvSchema, { ...base, AGE_TICKET_PUBLIC_KEYS: bad })).toThrow(
+        /AGE_TICKET_PUBLIC_KEYS/,
+      );
+  });
+  it("refuses the unapproved policy in production (BI-04)", () => {
+    const production = { ...deployedStore, APP_ENV: "production", NODE_ENV: "production" };
+    expect(() => loadEnv(storefrontEnvSchema, production)).toThrow(/AGE_POLICY_VERSION/);
+    expect(
+      loadEnv(storefrontEnvSchema, { ...production, AGE_POLICY_VERSION: "2026-11" })
+        .AGE_POLICY_VERSION,
+    ).toBe("2026-11");
+    expect(
+      loadEnv(storefrontEnvSchema, { ...deployedStore, APP_ENV: "staging" }).AGE_POLICY_VERSION,
+    ).toBe("unapproved");
+  });
+  it("refuses to start a deployment without keys", () => {
+    const staging = { ...store, APP_ENV: "staging" };
+    expect(() => loadEnv(storefrontEnvSchema, staging)).toThrow(/AGE_TICKET_PUBLIC_KEYS/);
+    expect(() =>
+      loadEnv(storefrontEnvSchema, { ...staging, AGE_TICKET_PUBLIC_KEYS: `k1:${pair.publicKey}` }),
+    ).toThrow(/AGE_TICKET_PRIVATE_KEY/);
+    expect(() => loadEnv(apiEnvSchema, { ...base, APP_ENV: "staging" })).toThrow(
+      /AGE_TICKET_PUBLIC_KEYS/,
+    );
+  });
+  it("caps the remembered acceptance at 30 days", () => {
+    expect(loadEnv(storefrontEnvSchema, store).AGE_TICKET_TTL_DAYS).toBe(30);
+    expect(() => loadEnv(storefrontEnvSchema, { ...store, AGE_TICKET_TTL_DAYS: "31" })).toThrow(
+      /AGE_TICKET_TTL_DAYS/,
+    );
+  });
+  it("gives the signing key to the storefront only, as a complete, self-verifiable identity", () => {
+    const signer = { AGE_TICKET_KEY_ID: "k1", AGE_TICKET_PRIVATE_KEY: pair.seed };
+    expect(() => loadEnv(storefrontEnvSchema, { ...store, ...signer })).toThrow(
+      /AGE_TICKET_KEY_ID/,
+    );
+    expect(() =>
+      loadEnv(storefrontEnvSchema, {
+        ...store,
+        AGE_TICKET_KEY_ID: "k1",
+        AGE_TICKET_PUBLIC_KEYS: `k1:${pair.publicKey}`,
+      }),
+    ).toThrow(/AGE_TICKET_PRIVATE_KEY/);
+    // The listed public key must belong to the private key (a rotation slip locks shoppers out).
+    expect(() =>
+      loadEnv(storefrontEnvSchema, {
+        ...store,
+        ...signer,
+        AGE_TICKET_PUBLIC_KEYS: `k1:${key("a")}`,
+      }),
+    ).toThrow(/AGE_TICKET_PRIVATE_KEY/);
+    const ok = loadEnv(storefrontEnvSchema, deployedStore);
+    expect(ok.AGE_TICKET_PRIVATE_KEY).toBe(pair.seed);
+    // Other services never keep the key, and refuse to start with it once deployed.
+    const leaked = {
+      ...base,
+      ...deployedWorker,
+      ...signer,
+      AGE_POLICY_VERSION: "2026-11",
+      AGE_TICKET_PUBLIC_KEYS: `k1:${pair.publicKey}`,
+    };
+    for (const schema of [apiEnvSchema, workerEnvSchema]) {
+      const parsed = loadEnv(schema, { ...base, ...signer }) as Record<string, unknown>;
+      expect(JSON.stringify(parsed)).not.toContain(pair.seed);
+      expect(() => loadEnv(schema, { ...leaked, APP_ENV: "staging" })).toThrow(
+        /AGE_TICKET_PRIVATE_KEY/,
+      );
+    }
+    expect(() => loadEnv(adminEnvSchema, { ...store, ...signer, APP_ENV: "staging" })).toThrow(
+      /AGE_TICKET_PRIVATE_KEY/,
+    );
+    expect(JSON.stringify(loadEnv(adminEnvSchema, { ...store, ...signer }))).not.toContain(
+      key("s"),
     );
   });
 });

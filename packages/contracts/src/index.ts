@@ -37,6 +37,8 @@ export const CONFLICT_CODES = [
   "NOT_TRASHED",
 ] as const;
 export type ConflictCode = (typeof CONFLICT_CODES)[number];
+/** 403 code of a store route reached without a valid age ticket (step 55). */
+export const AGE_VERIFICATION_REQUIRED = "AGE_VERIFICATION_REQUIRED";
 
 export const healthStatusSchema = z.enum(["ok", "degraded", "down"]);
 export const dependencyStatusSchema = z.enum(["up", "down"]);

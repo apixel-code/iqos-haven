@@ -30,6 +30,10 @@ try {
         ...process.env,
         NODE_ENV: action === "dev" ? "development" : "production",
         APP_ENV: env.APP_ENV,
+        // Only the storefront may see the age-ticket signing key (a shared local .env has it).
+        ...(app === "storefront"
+          ? {}
+          : { AGE_TICKET_PRIVATE_KEY: undefined, AGE_TICKET_KEY_ID: undefined }),
       },
     },
   );

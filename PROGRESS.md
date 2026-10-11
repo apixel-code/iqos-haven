@@ -3,23 +3,23 @@
 ## Current position
 
 - Date: 2026-10-11
-- Milestone: M4 — catalogue, variants, safe media and inventory (started; M3 gate not closed; M0 review and M1 staging/fixtures still open)
-- Step: 54 (catalogue/inventory acceptance pass) — done; M4 steps complete, M4 gate waits for BI-02; next is 55 (M5)
-- Branch: `step/54-catalogue-acceptance` (stacked on local `step/53-low-stock`; merge dependency PRs in step order)
+- Milestone: M5 — age boundary and storefront browsing (started; M4 steps done, gate waits for BI-02; M3 gate not closed; M0 review and M1 staging/fixtures still open)
+- Step: 55 (age-ticket signer/verifier, key ring, API AgeGuard) — done with BI-04 values as configuration; next is 56
+- Branch: `step/55-age-ticket` (stacked on local `step/54-catalogue-acceptance`; merge dependency PRs in step order)
 - See docs/verification.md for actual checks.
 
 ## Next action
 
 **Start of a new session:**
 
-- Git: you are on `step/54-catalogue-acceptance`, which is clean. Steps 33–54 are local, stacked commits; only `main` (through step 31) is on GitHub.
-- New work: branch the next step from `step/54-catalogue-acceptance`. Do not branch from `main` until the chain is merged.
+- Git: you are on `step/55-age-ticket`, which is clean. Steps 33–55 are local, stacked commits; only `main` (through step 31) is on GitHub.
+- New work: branch the next step from `step/55-age-ticket`. Do not branch from `main` until the chain is merged.
 - Toolchain: prefix commands with `export PATH="/opt/homebrew/opt/node@24/bin:$HOME/.docker/bin:$PATH"`. If Docker is down, run `open -a Docker` and then `pnpm infra:up`.
 
-1. **Marina merges on GitHub (her decision, 2026-10-10).** PR #13 (step 32) first, then `step/33-*` … `step/54-*` in order: push → PR → green CI → merge. Claude's merge chain was denied by the classifier twice; Claude can push branches and open PRs if asked.
-2. **Then `/step 55` (M5 — age gate and storefront).** Find the row with `rg -n "^| 55 " docs/roadmap.md`. **BI-04 (OPEN) BLOCKS steps 55–57** and BI-05 blocks 57: check `docs/business-inputs.md` first and build only what does not depend on the missing input.
+1. **Marina merges on GitHub (her decision, 2026-10-10).** PR #13 (step 32) first, then `step/33-*` … `step/55-*` in order: push → PR → green CI → merge. Claude's merge chain was denied by the classifier twice; Claude can push branches and open PRs if asked.
+2. **Then `/step 56` (accept/reject routes, routing gate, restricted page) — ask Marina first.** BI-04 is OPEN: minimum age and gate copy are unknown. Buildable without it: storefront route handlers that sign with `@ih/platform/age-ticket`, the `ih_age` cookie (Secure, HttpOnly, SameSite=Lax), safe local return URL, rejection cookie, Origin check and rate limit, `proxy.ts` gate, with placeholder copy.
    - Every later stock writer (orders, steps 75–76, 85–86) must call `publishLowStockCrossing` in its transaction (ADR 0023).
-3. **Step 58 (store catalogue API) is the first cache reader.** Use `CatalogueCacheService.getOrLoad`, build keys from validated input, run `AgeGuard` before the read, and map `CacheOverloadedError` to 503 (ADR 0022).
+3. **Step 58 (store catalogue API) is the first cache reader.** Mark routes `@AgeVerified()` + `@Serialize`, send `Cache-Control: private, no-store` and `Vary: Cookie` on success, use `CatalogueCacheService.getOrLoad` with keys from validated input, and map `CacheOverloadedError` to 503 (ADR 0022, 0024).
 4. **Local invalidation call:** to exercise the worker → API call in dev, set `INTERNAL_SERVICE_KEYS` and the worker's `INTERNAL_SERVICE_*` in `.env` (see `.env.example`). Without them the effect completes as `skipped:not_configured`.
 5. **Browser QA for later admin steps:** use `scripts/browser-qa/` (README). `/tmp/ih-qa` does not survive; reinstall `playwright-core` there (or any directory) and set `QA_PLAYWRIGHT_DIR`.
 
@@ -27,7 +27,7 @@ BI-02 gates real publication and the M4 gate.
 
 ## Blockers
 
-BI-04 (OPEN) blocks steps 55–57; BI-05 (OPEN) blocks step 57. BI-02 blocks real publication and so the M4 gate. Real settings/coverage require BI-01/BI-03/BI-09 and remaining BI-07 inputs. New-password browser submission needs user handoff under Computer Use policy; real mobile interaction QA remains open. BI-11 blocks real Owner bootstrap; BI-06 blocks staging. No milestone gate changes.
+BI-04 (OPEN) blocks the policy values of steps 55–57 (step 55 built with placeholders; production refuses the `unapproved` policy); BI-05 (OPEN) blocks step 57. BI-02 blocks real publication and so the M4 gate. Real settings/coverage require BI-01/BI-03/BI-09 and remaining BI-07 inputs. New-password browser submission needs user handoff under Computer Use policy; real mobile interaction QA remains open. BI-11 blocks real Owner bootstrap; BI-06 blocks staging. No milestone gate changes.
 
 ## Gates passed
 
@@ -50,7 +50,8 @@ BI-04 (OPEN) blocks steps 55–57; BI-05 (OPEN) blocks step 57. BI-02 blocks rea
 - 51 — readiness/publish/unpublish/trash/restore + Owner-only purge via SECURITY DEFINER function, published products stay publishable, admin Publishing card + Trash tab (ADR 0021) — 395ddd9; browser QA harness in `scripts/browser-qa/`
 - 52 — catalogue cache owner: bounded LRU (entries/bytes/TTL ≤ 60 s), shared cache-Redis backend with local fallback, post-commit local invalidation, signed `/v1/internal/revalidate`, worker `storefront_revalidate` effect, storefront no-second-cache lint (ADR 0022) — 00e4bfc
 - 53 — low-stock transitions: pure crossing rule, one IDs-only `inventory.low` event per crossing from stock commands and threshold edits under the variant lock, silent re-arm, zero never unpublishes, hourly ledger reconciliation job (ADR 0023) — 8adc131
-- 54 — acceptance pass: `productAvailability` sold-out rule, cross-module API acceptance test, browser QA 32/32 with media + invalidation consumers — `step(54)` commit on `step/54-catalogue-acceptance`
+- 54 — acceptance pass: `productAvailability` sold-out rule, cross-module API acceptance test, browser QA 32/32 with media + invalidation consumers — 5e65bda
+- 55 — age ticket: Ed25519 `v1.kid.payload.signature` signer/verifier and key ring, `@AgeVerified()` API guard (403 `AGE_VERIFICATION_REQUIRED`, fail closed), private key storefront-only by schema, `pnpm age:keygen`, rotation runbook (ADR 0024; BI-04 values in config) — `step(55)` commit on `step/55-age-ticket`
 
 ## Known deviations
 
@@ -58,26 +59,31 @@ BI-04 (OPEN) blocks steps 55–57; BI-05 (OPEN) blocks step 57. BI-02 blocks rea
 - Event `consumers` lists only implemented consumers (now `system_probe`, `email`, `media_processor`, `storefront_revalidate`); planned ones are documented with roadmap steps and move in with a backfill decision (architecture §8: adding a consumer must not redefine old completions).
 - `audit_log` migration revokes UPDATE/DELETE/TRUNCATE only from a role named `ih_app`; other runtime role names must be revoked at provisioning (trigger blocks mutations regardless).
 
-## Last session handoff (2026-10-11, step 54)
+## Last session handoff (2026-10-11, step 55)
 
 Done:
 
-- **Step 54:** `@ih/domain` `productAvailability`; `apps/api/src/catalogue/acceptance.int.test.ts` (SKU conflicts, option sold-out, adjustments racing sets, cache propagation); browser QA harness now runs the invalidation consumer with a per-run worker key and a loopback status probe, plus new duplicate-SKU, sold-out, low-stock-event and propagation checks.
-- No production behaviour changed in this step, so `invariant-reviewer` was not run.
+- **Step 55 (ADR 0024)**, built without BI-04 on Marina's decision (2026-10-11):
+  - `@ih/platform` `age/age-ticket.ts` (+ `@ih/platform/age-ticket` subpath): sign, verify, key ring, cookie reader.
+  - `@ih/config`: verifier and signer fields, policy/TTL placeholders, deployed-environment rules, private key refused outside the storefront.
+  - API: `AgeTicketVerifier`, `@AgeVerified()` in the global `AccessGuard`, 403 `AGE_VERIFICATION_REQUIRED`.
+  - `pnpm age:keygen`, `docs/runbooks/age-ticket-keys.md`, admin launcher strips the signing key.
+- **`invariant-reviewer`:** no blockers; both should-fixes and the nits are done.
 
-Files: `packages/domain/src/{inventory,inventory.test}.ts`, `apps/api/src/catalogue/acceptance.int.test.ts`, `scripts/browser-qa/{qa-server.cjs,qa.mjs,README.md}`, `docs/{implementation-status,task-backlog,verification}.md`, `PROGRESS.md`.
+Files: `packages/platform/src/age/`, `packages/platform/{package.json,src/index.ts}`, `packages/config/src/{index,index.test}.ts`, `packages/contracts/src/index.ts`, `apps/api/src/auth/{age,age.int.test,access,auth.module}.ts`, `apps/api/src/http/error.filter.ts`, `scripts/{age-keygen.mjs,next-app.cjs}`, `package.json`, `CLAUDE.md` (command list), `.env.example`, `docs/decisions/0024-age-ticket.md`, `docs/runbooks/age-ticket-keys.md`, `docs/{business-inputs,implementation-status,task-backlog,verification}.md`, `PROGRESS.md`.
 
-Tests: `pnpm verify -- --integration` PASS (unit 381, integration 325, gateway 29). Browser QA 32/32 PASS.
+Tests: `pnpm verify -- --integration` PASS (unit 396, integration 330, gateway 29).
 
 Unfinished:
 
-- PR #13 and steps 33–54 are not merged (Marina merges on GitHub).
-- M4 gate not passed: publish needs BI-02.
-- `inventory.low` has no consumer until step 92. Nothing reads the catalogue cache until step 58; shared-Redis backend tested with a fake client only.
-- Migrations are not applied to the dev database. Real mobile QA and reset/invite submission are not done.
+- PR #13 and steps 33–55 are not merged (Marina merges on GitHub).
+- BI-04: approved policy version, lifetime, minimum age, gate copy, re-check frequency.
+- No storefront gate routes or store endpoints yet (56, 58). Local `.env` has no age keys; run `pnpm age:keygen` when step 56 needs them.
+- M4 gate not passed (BI-02). `inventory.low` has no consumer until step 92. Migrations are not applied to the dev database. Real mobile QA is not done.
 
 ## History (summary)
 
+- 2026-10-11 step 54: catalogue/inventory acceptance pass (5e65bda); verify unit 381/integration 325/gateway 29; browser QA 32/32.
 - 2026-10-11 step 53: low-stock transitions + reconciliation job (8adc131); verify unit 378/integration 321/gateway 29.
 - 2026-10-10 step 52: catalogue cache owner + invalidation (00e4bfc); verify unit 362/integration 314/gateway 29.
 - 2026-10-10 step 51: publication, trash/restore, purge (395ddd9) + browser QA 27/27 and harness (9f48d34); verify unit 346/integration 305/gateway 29.

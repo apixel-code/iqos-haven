@@ -27,6 +27,7 @@
     "verify": "node scripts/verify.mjs",
     "bootstrap:owner": "pnpm --filter @ih/api bootstrap:owner",
     "identity:benchmark": "pnpm --filter @ih/api identity:benchmark",
+    "age:keygen": "node scripts/age-keygen.mjs",
     "test:gateway": "node scripts/check-gateway.mjs"
   },
   "devDependencies": {

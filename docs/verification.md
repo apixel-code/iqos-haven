@@ -514,3 +514,14 @@ Not covered: the notification/email consumers (step 92) and stock writers from o
 The QA schema was dropped afterwards. Two harness fixes: the script resolved the repo path wrongly when it contains spaces, and the staff-settings check raced the client render.
 
 **M4 gate: NOT passed.** Create variant product, process image and set stock are demonstrated; publish is refused by design until BI-02 supplies an approved tax treatment. Not covered: real mobile touch/keyboard QA; a real cache Redis; storefront display of sold-out options (steps 58–61).
+
+## Step 55 — age-ticket signer, verifier and key ring (2026-10-11, local)
+
+`pnpm verify -- --integration`: exit 0. Unit 396, integration 330, gateway 29.
+
+- **Ticket (unit, `packages/platform/src/age/age-ticket.test.ts`):** round trip for both audiences; expiry exactly at `exp`; 60 s skew bound; signing and accepting above 30 days refused; tampering with version, key id, payload or signature refused; a relabelled key id fails the signature; unknown and retired keys refused; rotation overlap works; wrong audience, changed policy and any non-exact claim set refused even when correctly signed; key material validated; conflicting or oversized cookies read as none.
+- **Configuration (unit):** key ring parsing; `unapproved` policy refused in production; 30-day cap; staging/production need keys; the storefront's private key must match its listed public key; API, worker and admin never keep the private key and refuse it when deployed.
+- **API guard (`apps/api/src/auth/age.int.test.ts`, real API, probe store route):** product data only with a valid ticket; previous key accepted during rotation; expired, future-dated, tampered, other-policy and malformed tickets answer 403 `AGE_VERIFICATION_REQUIRED` with no product data and `no-store`; crawler user agents, headers, query flags and an Owner session do not pass; a second conflicting cookie is refused; no configured key refuses everything.
+- **`invariant-reviewer`:** no blockers and no forgery path. Fixed: key-pair consistency check, keys required when deployed, canonical key encoding, refusal log at debug level.
+
+Not covered (later steps): storefront accept/reject routes and cookie attributes (56), generic preview (57), real store endpoints and their cache headers (58). BI-04 values are placeholders.

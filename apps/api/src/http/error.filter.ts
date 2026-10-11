@@ -2,7 +2,7 @@ import { Catch, HttpException, type ArgumentsHost, type ExceptionFilter } from "
 import { TransactionContentionError } from "@ih/db";
 import { errorSummary, type Logger } from "@ih/logger";
 import type { FastifyReply, FastifyRequest } from "fastify";
-import { CONFLICT_CODES, type ErrorEnvelope } from "@ih/contracts";
+import { AGE_VERIFICATION_REQUIRED, CONFLICT_CODES, type ErrorEnvelope } from "@ih/contracts";
 import { requestId } from "./request-id";
 const ERRORS: Record<number, [string, string]> = {
   400: ["VALIDATION_ERROR", "Invalid request"],
@@ -80,6 +80,21 @@ export class ApiErrorFilter implements ExceptionFilter {
         response && typeof response === "object" && "code" in response ? response.code : undefined;
       if ((CONFLICT_CODES as readonly unknown[]).includes(reason))
         body.error.code = reason as string;
+    }
+    // A 403 from the age gate is distinguishable so the storefront can route to the gate.
+    if (error instanceof HttpException && status === 403) {
+      const response = error.getResponse();
+      if (
+        response &&
+        typeof response === "object" &&
+        "code" in response &&
+        response.code === AGE_VERIFICATION_REQUIRED
+      )
+        body.error = {
+          ...body.error,
+          code: AGE_VERIFICATION_REQUIRED,
+          message: "Age check required",
+        };
     }
     if (status >= 500)
       (this.logger ?? req.log).error({ requestId: id, ...errorSummary(error) }, "request failed");

@@ -3,6 +3,7 @@ import { APP_GUARD, DiscoveryModule } from "@nestjs/core";
 import { StaffController } from "./staff-administration.controller";
 import { StaffAdministrationService } from "./staff-administration.service";
 import { AccessGuard, AccessPolicyCheck } from "./access";
+import { AgeTicketVerifier } from "./age";
 import {
   StaffInvitationController,
   StaffInvitationAcceptController,
@@ -27,6 +28,7 @@ import { SerializeInterceptor } from "./serialize";
   ],
   providers: [
     AuthService,
+    AgeTicketVerifier,
     StaffAdministrationService,
     PasswordResetService,
     StaffInvitationService,
@@ -34,6 +36,6 @@ import { SerializeInterceptor } from "./serialize";
     AccessPolicyCheck,
     { provide: APP_GUARD, useClass: AccessGuard },
   ],
-  exports: [AuthService, SerializeInterceptor],
+  exports: [AuthService, AgeTicketVerifier, SerializeInterceptor],
 })
 export class AuthModule {}

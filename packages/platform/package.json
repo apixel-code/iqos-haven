@@ -9,6 +9,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./age-ticket": {
+      "types": "./dist/age/age-ticket.d.ts",
+      "default": "./dist/age/age-ticket.js"
     }
   },
   "files": [
