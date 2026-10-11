@@ -5,18 +5,18 @@
 - Date: 2026-10-11
 - Milestone: M6 — customers, pricing, coupons and server quote: step 65 done. M5: all steps (55–64) done; gate demonstrated locally with seeded data, awaiting Marina's decision. M4 steps done, gate waits for BI-02; M3 gate not closed; M0 review and M1 staging/fixtures still open
 - Step: 65 (guest customers, addresses, phone identity) — done; next is 66
-- Branch: `step/65-guest-customer-schema` (stacked on `step/64-shell-gate-verification`; not pushed, no PR yet)
+- Branch: `step/65-guest-customer-schema` (stacked on `step/64-shell-gate-verification`; pushed, PR #46)
 - See docs/verification.md for actual checks.
 
 ## Next action
 
 **Start of a new session:**
 
-- Git: you are on `step/65-guest-customer-schema` (local only: push it and open a PR against `main` when Marina asks). Steps 33–64 are stacked branches, pushed on 2026-10-11 with one PR each against `main`: #14 (step 33) … #45 (step 64), all CI green when opened. `main` holds steps through 31; PR #13 is step 32.
+- Git: you are on `step/65-guest-customer-schema` (pushed 2026-10-11, PR #46 against `main`). Steps 33–64 are stacked branches, pushed on 2026-10-11 with one PR each against `main`: #14 (step 33) … #45 (step 64), all CI green when opened. `main` holds steps through 31; PR #13 is step 32.
 - New work: branch the next step from `step/65-guest-customer-schema`. Do not branch from `main` until the chain is merged.
 - Toolchain: prefix commands with `export PATH="/opt/homebrew/opt/node@24/bin:$HOME/.docker/bin:$PATH"`. If Docker is down, run `open -a Docker` and then `pnpm infra:up`.
 
-1. **Marina merges on GitHub (her decision, 2026-10-10).** Merge with a merge commit, strictly in order: PR #13 (step 32), then #14 … #45 (steps 33–64). Each later PR shows earlier commits until those are merged. Claude's merge chain was denied by the classifier twice; Claude can push branches and open PRs if asked.
+1. **Marina merges on GitHub (her decision, 2026-10-10).** Merge with a merge commit, strictly in order: PR #13 (step 32), then #14 … #46 (steps 33–65). Each later PR shows earlier commits until those are merged. Claude's merge chain was denied by the classifier twice; Claude can push branches and open PRs if asked.
 2. **Marina: decide the M5 gate.** Evidence: `pnpm test:gate` (real API + storefront + gateway, 1803 checks) and the browser pass in docs/verification.md "Step 64". Caveat: the products are seeded, because publishing through the admin waits for BI-02.
 3. **Then `/step 66` (address, phone, Dubai-area and quantity validation).** Find the row with `rg -n "^| 66 " docs/roadmap.md`. BI-03 (delivery areas/fee) blocks 66 and 70: build the validators without real areas. BI-02 (tax) blocks 67, 70, 72. Open client question on which phone numbers may order (business-inputs questions log, 2026-10-11).
    - Customers (ADR 0034): reuse `normalizePhone`/`normalizeCustomerName`/`normalizeTextLine` from `@ih/domain` and the storage bounds in `packages/contracts/src/customers.ts`. `lockCustomerForOrder`/`saveCustomerAddress` are for the order transaction only (steps 75–76): call `saveCustomerAddress` after `lockDeliverySelection`, and that transaction must write the audit entry and events.
@@ -89,7 +89,7 @@ Tests: `pnpm verify -- --integration` PASS (unit 496, integration 369, gateway 2
 
 Unfinished:
 
-- `step/65-guest-customer-schema` is not pushed and has no PR. PRs #13–#45 (steps 32–64) are still open (Marina merges on GitHub, in order).
+- PRs #13–#46 (steps 32–65) are open and not merged (Marina merges on GitHub, in order).
 - M5 gate awaits Marina's decision.
 - "Old snapshots independent" is only provable with order tables (step 73). Client question on allowed phone numbers is not asked yet.
 - Migrations are not applied to the dev database.
