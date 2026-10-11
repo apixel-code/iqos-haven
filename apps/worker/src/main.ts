@@ -5,7 +5,14 @@ import { createDatabase, createPool } from "@ih/db";
 import { createLogger, errorSummary } from "@ih/logger";
 import { bounded } from "./lifecycle";
 import { createEmailConsumer } from "@ih/application";
+import { staffInvitationEmailPlanner } from "./staff-invitation-email";
+import { passwordResetEmailPlanner } from "./password-reset-email";
 import { createEmailAdapter } from "./email";
+import { createMediaCleanupJob, createMediaConsumer } from "./media";
+import { createStockReconciliationJob } from "./inventory";
+import { createRevalidateConsumer, revalidateTargetFromEnv } from "./revalidate";
+import { ObjectStorage, storageConfigFromEnv } from "@ih/platform";
+import sharp from "sharp";
 import { EffectRunner, startEffectWorkers, systemProbeHandler } from "./effects";
 import { BullEffectEnqueuer, createQueueConnection } from "./queue";
 import { EffectReconciler } from "./reconciler";
@@ -30,22 +37,41 @@ async function main(): Promise<void> {
   const owner = `${hostname()}:${process.pid}:${randomUUID().slice(0, 8)}`;
   const relay = new OutboxRelay({ db: database, enqueuer, owner, log });
   const email = createEmailAdapter(env, log);
-  // No event routes to email yet: planners arrive with their features (steps 78/92, BI-07).
+  // Identity steps wire new reset/invitation types; prior consumer snapshots stay unchanged.
   const emailConsumer = createEmailConsumer({
     adapter: email.adapter,
     from: env.EMAIL_FROM ?? "no-reply@iqoshaven.local",
-    planners: {},
+    planners: {
+      "staff.password_reset_requested": passwordResetEmailPlanner(database, env),
+      "staff.invited": staffInvitationEmailPlanner(database, env),
+    },
   });
+  // Image processing is CPU/memory heavy: one libvips thread per job, bounded worker concurrency.
+  sharp.concurrency(1);
+  const storage = new ObjectStorage(storageConfigFromEnv(env));
+  const mediaConsumer = createMediaConsumer({ db: database, storage, log });
+  const revalidateTarget = revalidateTargetFromEnv(env);
+  if (!revalidateTarget)
+    log.warn("cache invalidation not configured; relying on the catalogue cache TTL");
+  const revalidateConsumer = createRevalidateConsumer({ target: revalidateTarget, log });
   const runner = new EffectRunner({
     db: database,
     owner,
     log,
-    handlers: [systemProbeHandler, emailConsumer],
+    handlers: [systemProbeHandler, emailConsumer, mediaConsumer, revalidateConsumer],
     retries: enqueuer,
   });
   const reconciler = new EffectReconciler({ db: database, enqueuer, log });
   // Scheduled jobs (daily summary, rollups, cleanup) register here in their roadmap steps.
-  const scheduler = new Scheduler({ db: database, owner, log, jobs: [] });
+  const scheduler = new Scheduler({
+    db: database,
+    owner,
+    log,
+    jobs: [
+      createMediaCleanupJob({ db: database, storage, log }),
+      createStockReconciliationJob({ db: database, log }),
+    ],
+  });
   let effectWorkers: { stop(): Promise<void> } | undefined;
   let runtime: WorkerRuntime | undefined;
   let starting: Promise<WorkerRuntime> | undefined;
@@ -65,6 +91,7 @@ async function main(): Promise<void> {
         await effectWorkers?.stop();
         await enqueuer.close();
         email.close();
+        storage.destroy();
         // Waits for active jobs; the shutdown deadline bounds it.
         await (runtime ?? started)?.stop();
       } finally {

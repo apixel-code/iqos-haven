@@ -28,6 +28,7 @@ const db = createDatabase(pool, { schema: namespace });
 const fast = { memoryKib: 19_456, timeCost: 2, parallelism: 1 };
 const hasher = new Argon2PasswordHasher(fast);
 const PASSWORD = "copper-lantern-river-71";
+const ADMIN_ORIGIN = "http://localhost:8081";
 
 let app: INestApplication;
 let base: string;
@@ -53,6 +54,7 @@ const login = (email: string, password = PASSWORD, extra: Record<string, unknown
   fetch(`${base}/v1/auth/login`, {
     method: "POST",
     headers: {
+      origin: ADMIN_ORIGIN,
       "content-type": "application/json",
       "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_5) Chrome/126.0 Safari/537.36",
       "x-ih-client-ip": "203.0.113.77",
@@ -93,12 +95,14 @@ describe("admin authentication and sessions (real PostgreSQL)", () => {
   });
 
   it("signs in with a __Host- session cookie and stores only the token hash", async () => {
+    const startedAt = Date.now();
     const response = await login("  Staff@IqosHaven.test ");
+    const receivedAt = Date.now();
     expect(response.status).toBe(200);
     expect(response.headers.get("cache-control")).toBe("no-store");
     const cookie = response.headers.get("set-cookie")!;
     expect(cookie).toMatch(
-      /^__Host-ih_admin=[A-Za-z0-9_-]{43}; Max-Age=60479\d; Path=\/; Secure; HttpOnly; SameSite=Strict$/,
+      /^__Host-ih_admin=[A-Za-z0-9_-]{43}; Max-Age=\d+; Path=\/; Secure; HttpOnly; SameSite=Strict$/,
     );
     expect(cookie).not.toMatch(/Domain=/i);
     const body = (await response.json()) as {
@@ -117,6 +121,15 @@ describe("admin authentication and sessions (real PostgreSQL)", () => {
       revokedAt: null,
     });
     expect(session.expiresAt.getTime() - session.createdAt.getTime()).toBe(7 * 24 * 3600 * 1000);
+    // Cookie lifetime uses the app clock; DB duration above remains authoritative under clock skew.
+    const maxAge = Number(/Max-Age=(\d+)/.exec(cookie)![1]);
+    expect(maxAge).toBeGreaterThanOrEqual(
+      Math.max(0, Math.floor((session.expiresAt.getTime() - receivedAt) / 1000)),
+    );
+    expect(maxAge).toBeLessThanOrEqual(
+      Math.max(0, Math.floor((session.expiresAt.getTime() - startedAt) / 1000)),
+    );
+
     const raw = await pool.query("SELECT row_to_json(s)::text AS row FROM sessions s");
     expect(raw.rows.map((row) => row.row).join("")).not.toContain(token);
   });
@@ -164,7 +177,11 @@ describe("admin authentication and sessions (real PostgreSQL)", () => {
     const first = tokenOf(await login("staff@iqoshaven.test"))!;
     const second = await fetch(`${base}/v1/auth/login`, {
       method: "POST",
-      headers: { "content-type": "application/json", cookie: `__Host-ih_admin=${first}` },
+      headers: {
+        origin: ADMIN_ORIGIN,
+        "content-type": "application/json",
+        cookie: `__Host-ih_admin=${first}`,
+      },
       body: JSON.stringify({ email: "staff@iqoshaven.test", password: PASSWORD }),
     });
     expect(second.status).toBe(200);
@@ -176,6 +193,7 @@ describe("admin authentication and sessions (real PostgreSQL)", () => {
     const user = await staff("racing@iqoshaven.test", "staff");
     const created = await createSession(db, {
       userId: user.id,
+      expectedUserVersion: user.version,
       expectedPasswordHash: "$argon2id$v=19$m=19456,t=2,p=1$c3RhbGU$c3RhbGU", // a hash it no longer has
       tokenHash: sha("racing-token"),
       ipNetwork: null,
@@ -188,7 +206,7 @@ describe("admin authentication and sessions (real PostgreSQL)", () => {
     const token = tokenOf(await login("staff@iqoshaven.test"))!;
     const response = await fetch(`${base}/v1/auth/logout`, {
       method: "POST",
-      headers: { cookie: `__Host-ih_admin=${token}` },
+      headers: { origin: ADMIN_ORIGIN, cookie: `__Host-ih_admin=${token}` },
     });
     expect(response.status).toBe(204);
     expect(response.headers.get("set-cookie")).toBe(

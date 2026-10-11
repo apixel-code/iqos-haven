@@ -44,12 +44,15 @@ pnpm dev | pnpm --filter @ih/<app> dev
 pnpm lint && pnpm typecheck
 pnpm test                     # unit (no infra needed)
 pnpm test:int                 # *.int.test.ts against real PostgreSQL/Redis
+pnpm test:age-preview         # built storefront over HTTP: unverified = generic preview only
+pnpm test:gate                # real API + storefront + gateway: age boundary end to end (needs Docker + infra)
 pnpm db:generate              # Prisma client only
 pnpm db:migration:create       # reviewed Prisma SQL migration
 pnpm db:migrate
 pnpm format
 pnpm bootstrap:owner --email <a> --name "<n>"   # one-time first Owner (password prompted)
 pnpm identity:benchmark       # argon2id cost on this machine
+pnpm age:keygen [kid]         # Ed25519 age-ticket key pair (private key: storefront only)
 ```
 
 Keep in sync with root package.json. If a script is missing, add it — don't guess variants.

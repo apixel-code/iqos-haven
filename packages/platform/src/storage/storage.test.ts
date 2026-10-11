@@ -81,3 +81,24 @@ describe("presigned links", () => {
     expect(upload.url).toContain("ih-quarantine");
   });
 });
+
+describe("public endpoint for browser-facing links", () => {
+  it("signs uploads for the public host while service calls keep the private endpoint", async () => {
+    const split = new ObjectStorage({
+      endpoint: "http://minio.internal:9000",
+      publicEndpoint: "https://storage.example.test",
+      region: "me-central-1",
+      accessKeyId: "test-access",
+      secretAccessKey: "test-secret-value",
+      forcePathStyle: true,
+      buckets: { quarantine: "q", media: "m", reports: "r" },
+    });
+    const upload = await split.presignQuarantineUpload("uploads/x/original", {
+      expiresInSeconds: 60,
+      contentType: "image/png",
+    });
+    expect(new URL(upload.url).host).toBe("storage.example.test");
+    expect(upload.url).not.toContain("minio.internal");
+    split.destroy();
+  });
+});

@@ -18,6 +18,9 @@ describe("event catalogue", () => {
   it("covers the architecture §8 initial events plus the synthetic probe", () => {
     expect(Object.keys(EVENT_CATALOGUE).sort()).toEqual(
       [
+        "settings.updated",
+        "delivery.area_updated",
+        "delivery.configuration_updated",
         "catalog.changed",
         "content.published",
         "inventory.low",
@@ -30,6 +33,15 @@ describe("event catalogue", () => {
         "report.requested",
         "review.submitted",
         "system.probe",
+        "staff.role_changed",
+        "staff.reactivated",
+        "staff.updated",
+        "staff.deactivated",
+        "staff.invited",
+        "staff.invitation_revoked",
+        "staff.invitation_accepted",
+        "staff.password_reset",
+        "staff.password_reset_requested",
       ].sort(),
     );
   });
@@ -54,9 +66,14 @@ describe("event catalogue", () => {
     expect(required.filter((consumer) => planned.includes(consumer))).toEqual([]);
   });
 
-  it("only wires consumers whose handlers exist (step 19: the synthetic probe)", () => {
+  it("only wires consumers whose handlers exist (probe, email, media, revalidation)", () => {
     const wired = entries.flatMap(([, definition]) => definition.consumers as readonly string[]);
-    expect([...new Set(wired)]).toEqual(["system_probe"]);
+    expect([...new Set(wired)].sort()).toEqual([
+      "email",
+      "media_processor",
+      "storefront_revalidate",
+      "system_probe",
+    ]);
   });
 });
 

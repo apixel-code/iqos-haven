@@ -1,6 +1,16 @@
 import { Global, Module } from "@nestjs/common";
 import { APP_GUARD, DiscoveryModule } from "@nestjs/core";
+import { StaffController } from "./staff-administration.controller";
+import { StaffAdministrationService } from "./staff-administration.service";
 import { AccessGuard, AccessPolicyCheck } from "./access";
+import { AgeTicketVerifier } from "./age";
+import {
+  StaffInvitationController,
+  StaffInvitationAcceptController,
+} from "./staff-invitation.controller";
+import { StaffInvitationService } from "./staff-invitation.service";
+import { PasswordResetController } from "./password-reset.controller";
+import { PasswordResetService } from "./password-reset.service";
 import { AuthController } from "./auth.controller";
 import { AuthService } from "./auth.service";
 import { SerializeInterceptor } from "./serialize";
@@ -9,13 +19,23 @@ import { SerializeInterceptor } from "./serialize";
 @Global()
 @Module({
   imports: [DiscoveryModule],
-  controllers: [AuthController],
+  controllers: [
+    AuthController,
+    StaffController,
+    PasswordResetController,
+    StaffInvitationController,
+    StaffInvitationAcceptController,
+  ],
   providers: [
     AuthService,
+    AgeTicketVerifier,
+    StaffAdministrationService,
+    PasswordResetService,
+    StaffInvitationService,
     SerializeInterceptor,
     AccessPolicyCheck,
     { provide: APP_GUARD, useClass: AccessGuard },
   ],
-  exports: [AuthService, SerializeInterceptor],
+  exports: [AuthService, AgeTicketVerifier, SerializeInterceptor],
 })
 export class AuthModule {}

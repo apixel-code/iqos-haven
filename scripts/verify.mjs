@@ -8,10 +8,13 @@ const checks = [
   "test:boundaries",
   "test:infra",
   "test:package",
+  // Built storefront over HTTP: unverified requests get the generic preview only.
+  "test:age-preview",
   "contracts:check",
 ];
 // Integration needs real PostgreSQL/Redis/MinIO/Mailpit and Docker (gateway check).
-if (process.argv.includes("--integration")) checks.push("test:int", "test:gateway");
+// `test:gate` runs the real API, storefront and gateway together (Milestone 5 age boundary).
+if (process.argv.includes("--integration")) checks.push("test:int", "test:gateway", "test:gate");
 const command = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
 for (const check of checks) {
   const result = spawnSync(command, [check], {

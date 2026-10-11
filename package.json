@@ -27,7 +27,10 @@
     "verify": "node scripts/verify.mjs",
     "bootstrap:owner": "pnpm --filter @ih/api bootstrap:owner",
     "identity:benchmark": "pnpm --filter @ih/api identity:benchmark",
-    "test:gateway": "node scripts/check-gateway.mjs"
+    "age:keygen": "node scripts/age-keygen.mjs",
+    "test:gateway": "node scripts/check-gateway.mjs",
+    "test:age-preview": "node scripts/check-age-preview.mjs",
+    "test:gate": "node scripts/check-gate-e2e.cjs"
   },
   "devDependencies": {
     "@eslint/js": "9.39.5",

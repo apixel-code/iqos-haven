@@ -92,6 +92,7 @@ export class AuthService implements OnModuleInit {
     const session = await createSession(this.db, {
       userId: candidate.id,
       expectedPasswordHash: currentHash,
+      expectedUserVersion: candidate.version,
       tokenHash: hashSessionToken(token),
       ipNetwork: ipNetwork(client.ip),
       clientLabel: clientLabel(client.userAgent),

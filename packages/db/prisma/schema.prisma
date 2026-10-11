@@ -104,12 +104,13 @@ model ScheduledRun {
 /// Fixed launch roles (roadmap step 27): owner, staff. Custom roles are deferred.
 /// The owner row is also the common identity guard locked before Owner membership changes.
 model Role {
-  id          String           @id @default(dbgenerated("uuidv7()")) @db.Uuid
-  key         String           @unique @db.VarChar(32)
-  name        String           @db.VarChar(64)
-  createdAt   DateTime         @default(dbgenerated("statement_timestamp()")) @map("created_at") @db.Timestamptz(6)
+  id          String                 @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  key         String                 @unique @db.VarChar(32)
+  name        String                 @db.VarChar(64)
+  createdAt   DateTime               @default(dbgenerated("statement_timestamp()")) @map("created_at") @db.Timestamptz(6)
   permissions RolePermission[]
   staff       StaffUser[]
+  invitations StaffInvitationToken[]
 
   @@map("roles")
 }
@@ -138,20 +139,26 @@ model RolePermission {
 
 /// Admin users. Never deleted (deactivate). Email stored normalized (trimmed, lower case).
 model StaffUser {
-  id                  String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
-  email               String    @unique @db.VarChar(254)
-  passwordHash        String    @map("password_hash") @db.VarChar(255)
-  name                String    @db.VarChar(100)
-  roleId              String    @map("role_id") @db.Uuid
-  role                Role      @relation(fields: [roleId], references: [id], onDelete: Restrict, onUpdate: Restrict)
-  active              Boolean   @default(true)
+  settingsUpdates     Setting[]
+  deliveryAreaUpdates DeliveryArea[]
+  stockMovements      StockMovement[]
+  mediaUploads        MediaAsset[]
+  id                  String                 @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  email               String                 @unique @db.VarChar(254)
+  passwordHash        String                 @map("password_hash") @db.VarChar(255)
+  name                String                 @db.VarChar(100)
+  roleId              String                 @map("role_id") @db.Uuid
+  role                Role                   @relation(fields: [roleId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  active              Boolean                @default(true)
   /// Deferred MFA: encrypted TOTP secret only, never plaintext.
-  totpSecretEncrypted Bytes?    @map("totp_secret_encrypted")
-  lastActiveAt        DateTime? @map("last_active_at") @db.Timestamptz(6)
-  createdAt           DateTime  @default(dbgenerated("statement_timestamp()")) @map("created_at") @db.Timestamptz(6)
-  updatedAt           DateTime  @default(dbgenerated("statement_timestamp()")) @map("updated_at") @db.Timestamptz(6)
-  version             Int       @default(1)
+  totpSecretEncrypted Bytes?                 @map("totp_secret_encrypted")
+  lastActiveAt        DateTime?              @map("last_active_at") @db.Timestamptz(6)
+  createdAt           DateTime               @default(dbgenerated("statement_timestamp()")) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime               @default(dbgenerated("statement_timestamp()")) @map("updated_at") @db.Timestamptz(6)
+  version             Int                    @default(1)
   sessions            Session[]
+  passwordResets      PasswordResetToken[]
+  invitationsSent     StaffInvitationToken[] @relation("Inviter")
 
   @@index([roleId])
   @@map("staff_users")
@@ -175,4 +182,326 @@ model Session {
 
   @@index([userId])
   @@map("sessions")
+}
+
+/// Verifier only. The worker derives the secret with a dedicated key kept outside PostgreSQL.
+model PasswordResetToken {
+  id            String    @id @db.Uuid
+  userId        String    @map("user_id") @db.Uuid
+  user          StaffUser @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  tokenHash     Bytes     @unique @map("token_hash")
+  keyId         String    @map("key_id") @db.VarChar(32)
+  userVersion   Int       @map("user_version")
+  recipientHash Bytes     @map("recipient_hash")
+  createdAt     DateTime  @default(dbgenerated("statement_timestamp()")) @map("created_at") @db.Timestamptz(6)
+  expiresAt     DateTime  @map("expires_at") @db.Timestamptz(6)
+  usedAt        DateTime? @map("used_at") @db.Timestamptz(6)
+
+  @@index([userId])
+  @@map("password_reset_tokens")
+}
+
+/// Immutable recipient/role snapshots; secret lives only as a hashed verifier.
+model StaffInvitationToken {
+  id         String    @id @db.Uuid
+  email      String    @db.VarChar(254)
+  name       String    @db.VarChar(100)
+  roleId     String    @map("role_id") @db.Uuid
+  role       Role      @relation(fields: [roleId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  invitedBy  String    @map("invited_by") @db.Uuid
+  inviter    StaffUser @relation("Inviter", fields: [invitedBy], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  tokenHash  Bytes     @unique @map("token_hash")
+  keyId      String    @map("key_id") @db.VarChar(32)
+  createdAt  DateTime  @default(dbgenerated("statement_timestamp()")) @map("created_at") @db.Timestamptz(6)
+  expiresAt  DateTime  @map("expires_at") @db.Timestamptz(6)
+  acceptedAt DateTime? @map("accepted_at") @db.Timestamptz(6)
+  revokedAt  DateTime? @map("revoked_at") @db.Timestamptz(6)
+  version    Int       @default(1)
+
+  @@index([invitedBy])
+  @@map("staff_invitation_tokens")
+}
+
+/// Versioned typed configuration; absent or JSON-null values are unconfigured (step 38).
+model Setting {
+  key       String    @id @db.VarChar(64)
+  value     Json
+  version   Int       @default(1)
+  updatedBy String    @map("updated_by") @db.Uuid
+  updater   StaffUser @relation(fields: [updatedBy], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  updatedAt DateTime  @default(dbgenerated("statement_timestamp()")) @map("updated_at") @db.Timestamptz(6)
+
+  @@map("settings")
+}
+
+model DeliveryArea {
+  id        String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  code      String    @unique @db.VarChar(64)
+  name      String    @db.VarChar(100)
+  emirate   String    @default("dubai") @db.VarChar(16)
+  active    Boolean   @default(false)
+  version   Int       @default(1)
+  updatedBy String    @map("updated_by") @db.Uuid
+  updater   StaffUser @relation(fields: [updatedBy], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  updatedAt DateTime  @default(dbgenerated("statement_timestamp()")) @map("updated_at") @db.Timestamptz(6)
+  addresses CustomerAddress[]
+
+  @@map("delivery_areas")
+}
+
+/// Guest customer keyed by normalized phone (step 65). Not an account: no credentials.
+model Customer {
+  id           String            @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  phoneE164    String            @unique @map("phone_e164") @db.VarChar(16)
+  displayName  String            @map("display_name") @db.VarChar(100)
+  firstOrderAt DateTime?         @map("first_order_at") @db.Timestamptz(6)
+  noShow       Boolean           @default(false) @map("no_show")
+  version      Int               @default(1)
+  createdAt    DateTime          @default(dbgenerated("statement_timestamp()")) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime          @default(dbgenerated("statement_timestamp()")) @map("updated_at") @db.Timestamptz(6)
+  addresses    CustomerAddress[]
+
+  @@map("customers")
+}
+
+/// Immutable saved address; orders keep their own snapshot (step 73).
+model CustomerAddress {
+  id         String       @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  customerId String       @map("customer_id") @db.Uuid
+  customer   Customer     @relation(fields: [customerId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  areaId     String       @map("area_id") @db.Uuid
+  area       DeliveryArea @relation(fields: [areaId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  type       String       @db.VarChar(16)
+  building   String       @db.VarChar(150)
+  unit       String?      @db.VarChar(50)
+  street     String?      @db.VarChar(150)
+  makani     String?      @db.VarChar(10)
+  notes      String?      @db.VarChar(500)
+  createdAt  DateTime     @default(dbgenerated("statement_timestamp()")) @map("created_at") @db.Timestamptz(6)
+
+  @@index([customerId, createdAt(sort: Desc), id(sort: Desc)], map: "customer_addresses_customer")
+  @@map("customer_addresses")
+}
+
+model Brand {
+  id          String         @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  name        String         @db.VarChar(150)
+  slug        String         @unique @db.VarChar(150)
+  logoKey     String?        @map("logo_key") @db.VarChar(512)
+  description String         @default("")
+  active      Boolean        @default(false)
+  sortOrder   Int            @default(0) @map("sort_order")
+  seo         Json           @default("{}")
+  version     Int            @default(1)
+  deletedAt   DateTime?      @map("deleted_at") @db.Timestamptz(6)
+  createdAt   DateTime       @default(dbgenerated("statement_timestamp()")) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime       @default(dbgenerated("statement_timestamp()")) @map("updated_at") @db.Timestamptz(6)
+  products    Product[]
+  redirects   SlugRedirect[]
+
+  @@map("brands")
+}
+
+model Category {
+  id        String         @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  name      String         @db.VarChar(150)
+  slug      String         @unique @db.VarChar(150)
+  imageKey  String?        @map("image_key") @db.VarChar(512)
+  active    Boolean        @default(false)
+  sortOrder Int            @default(0) @map("sort_order")
+  seo       Json           @default("{}")
+  version   Int            @default(1)
+  deletedAt DateTime?      @map("deleted_at") @db.Timestamptz(6)
+  createdAt DateTime       @default(dbgenerated("statement_timestamp()")) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime       @default(dbgenerated("statement_timestamp()")) @map("updated_at") @db.Timestamptz(6)
+  products  Product[]
+  redirects SlugRedirect[]
+
+  @@map("categories")
+}
+
+model Product {
+  id                  String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  name                String    @db.VarChar(150)
+  slug                String    @unique @db.VarChar(150)
+  brandId             String    @map("brand_id") @db.Uuid
+  categoryId          String    @map("category_id") @db.Uuid
+  brand               Brand     @relation(fields: [brandId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  category            Category  @relation(fields: [categoryId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  type                String    @db.VarChar(16)
+  puffCount           Int?      @map("puff_count")
+  status              String    @default("draft") @db.VarChar(16)
+  basePriceFils       BigInt    @map("base_price_fils")
+  compareAtPriceFils  BigInt?   @map("compare_at_price_fils")
+  taxTreatmentRef     String?   @map("tax_treatment_ref") @db.VarChar(100)
+  taxTreatmentVersion Int?      @map("tax_treatment_version")
+  specs               Json      @default("{}")
+  description         String    @default("")
+  seo                 Json      @default("{}")
+  isNew               Boolean   @default(false) @map("is_new")
+  version             Int       @default(1)
+  deletedAt           DateTime? @map("deleted_at") @db.Timestamptz(6)
+  createdAt           DateTime  @default(dbgenerated("statement_timestamp()")) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime  @default(dbgenerated("statement_timestamp()")) @map("updated_at") @db.Timestamptz(6)
+
+  options   ProductOption[]
+  variants  Variant[]
+  media     MediaAsset[]
+  images    ProductImage[]
+  redirects SlugRedirect[]
+  search    ProductSearch?
+
+  @@index([brandId], map: "products_brand")
+  @@index([categoryId], map: "products_category")
+  @@map("products")
+}
+
+model ProductOption {
+  id            String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  productId     String   @map("product_id") @db.Uuid
+  product       Product  @relation(fields: [productId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  name          String   @db.VarChar(64)
+  allowedValues Json     @map("allowed_values")
+  sortOrder     Int      @default(0) @map("sort_order")
+  version       Int      @default(1)
+  createdAt     DateTime @default(dbgenerated("statement_timestamp()")) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime @default(dbgenerated("statement_timestamp()")) @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([productId, name])
+  @@map("product_options")
+}
+
+model Variant {
+  id                String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  productId         String   @map("product_id") @db.Uuid
+  product           Product  @relation(fields: [productId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  sku               String   @unique @db.VarChar(64)
+  attributes        Json     @default("{}")
+  /// Generated by PostgreSQL from normalized attributes; callers cannot supply it.
+  optionSignature   String   @default(dbgenerated()) @map("option_signature")
+  priceOverrideFils BigInt?  @map("price_override_fils")
+  stockOnHand       Int      @default(0) @map("stock_on_hand")
+  lowStockThreshold Int      @default(0) @map("low_stock_threshold")
+  active            Boolean  @default(false)
+  isDefault         Boolean  @default(false) @map("is_default")
+  version           Int      @default(1)
+  createdAt         DateTime @default(dbgenerated("statement_timestamp()")) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime @default(dbgenerated("statement_timestamp()")) @map("updated_at") @db.Timestamptz(6)
+
+  stockMovements StockMovement[]
+
+  @@unique([productId, optionSignature])
+  @@index([productId, active], map: "variants_availability")
+  @@map("variants")
+}
+
+/// Append-only stock ledger (step 46). Inserting a row applies `delta` to the variant in the same
+/// statement (DB trigger) and records `balanceAfter`; it is the only way to change stock.
+model StockMovement {
+  id           String     @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  variantId    String     @map("variant_id") @db.Uuid
+  variant      Variant    @relation(fields: [variantId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  delta        Int
+  /// Set by the database trigger; any value supplied by a caller is overwritten.
+  balanceAfter Int        @map("balance_after")
+  reason       String     @db.VarChar(24)
+  note         String?    @db.VarChar(500)
+  commandId    String     @map("command_id") @db.VarChar(128)
+  effect       String     @default("adjust") @db.VarChar(32)
+  actorId      String?    @map("actor_id") @db.Uuid
+  actor        StaffUser? @relation(fields: [actorId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  createdAt    DateTime   @default(dbgenerated("statement_timestamp()")) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([commandId, variantId, effect])
+  @@index([variantId, createdAt, id], map: "stock_movements_variant")
+  @@map("stock_movements")
+}
+
+model ProductImage {
+  id           String     @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  productId    String     @map("product_id") @db.Uuid
+  product      Product    @relation(fields: [productId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  assetKey     String     @map("asset_key") @db.VarChar(512)
+  isPrimary    Boolean    @default(false) @map("is_primary")
+  sortOrder    Int        @default(0) @map("sort_order")
+  alt          String     @default("") @db.VarChar(500)
+  width        Int
+  height       Int
+  mime         String     @db.VarChar(32)
+  /// The processed (ready) media asset this image shows (step 50).
+  mediaAssetId String     @unique @map("media_asset_id") @db.Uuid
+  mediaAsset   MediaAsset @relation(fields: [mediaAssetId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  version      Int        @default(1)
+  createdAt    DateTime   @default(dbgenerated("statement_timestamp()")) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime   @default(dbgenerated("statement_timestamp()")) @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([productId, assetKey])
+  @@index([productId, sortOrder, id], map: "product_images_order")
+  @@map("product_images")
+}
+
+/// Search projection (step 60): derived text and tsvector per product, written only by
+/// database triggers. The GIN indexes (tsvector, trigram) are defined in the migration.
+model ProductSearch {
+  productId  String                  @id @map("product_id") @db.Uuid
+  product    Product                 @relation(fields: [productId], references: [id], onDelete: Cascade, onUpdate: Restrict)
+  searchText String                  @map("search_text")
+  document   Unsupported("tsvector")
+  updatedAt  DateTime                @default(dbgenerated("statement_timestamp()")) @map("updated_at") @db.Timestamptz(6)
+
+  @@map("product_search")
+}
+
+model SlugRedirect {
+  id         String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  entityType String    @map("entity_type") @db.VarChar(16)
+  oldSlug    String    @map("old_slug") @db.VarChar(150)
+  brandId    String?   @map("brand_id") @db.Uuid
+  categoryId String?   @map("category_id") @db.Uuid
+  productId  String?   @map("product_id") @db.Uuid
+  brand      Brand?    @relation(fields: [brandId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  category   Category? @relation(fields: [categoryId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  product    Product?  @relation(fields: [productId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  version    Int       @default(1)
+  createdAt  DateTime  @default(dbgenerated("statement_timestamp()")) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime  @default(dbgenerated("statement_timestamp()")) @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([entityType, oldSlug])
+  @@index([brandId], map: "redirects_brand")
+  @@index([categoryId], map: "redirects_category")
+  @@index([productId], map: "redirects_product")
+  @@map("slug_redirects")
+}
+
+/// Quarantine upload record (step 48). Bytes are untrusted until processing (step 49) marks the
+/// asset `ready`; only ready assets may become product images.
+model MediaAsset {
+  id                 String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  productId          String    @map("product_id") @db.Uuid
+  product            Product   @relation(fields: [productId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  uploadedBy         String    @map("uploaded_by") @db.Uuid
+  uploader           StaffUser @relation(fields: [uploadedBy], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  quarantineKey      String    @unique @map("quarantine_key") @db.VarChar(512)
+  declaredType       String    @map("declared_type") @db.VarChar(32)
+  declaredBytes      Int       @map("declared_bytes")
+  state              String    @default("pending") @db.VarChar(16)
+  observedBytes      Int?      @map("observed_bytes")
+  observedType       String?   @map("observed_type") @db.VarChar(32)
+  observedEtag       String?   @map("observed_etag") @db.VarChar(128)
+  width              Int?
+  height             Int?
+  sha256             String?   @db.Char(64)
+  derivativeKeys     Json      @default("{}") @map("derivative_keys")
+  error              String?   @db.VarChar(64)
+  uploadExpiresAt    DateTime  @map("upload_expires_at") @db.Timestamptz(6)
+  /// When the private quarantine original was deleted (cleanup, step 49).
+  quarantinePurgedAt DateTime? @map("quarantine_purged_at") @db.Timestamptz(6)
+  version            Int       @default(1)
+  createdAt          DateTime  @default(dbgenerated("statement_timestamp()")) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime  @default(dbgenerated("statement_timestamp()")) @map("updated_at") @db.Timestamptz(6)
+
+  image ProductImage?
+
+  @@index([productId, createdAt, id], map: "media_assets_product")
+  @@map("media_assets")
 }

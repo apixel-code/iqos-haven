@@ -2,6 +2,7 @@
 
 - No business logic. Prices, stock, totals, coupons, order state come from the API. Never compute a payable total client-side except for display of the server quote.
 - Allowed server code here: age-ticket signer route handlers (accept/reject), `proxy.ts` routing gate, metadata/robots/sitemap handlers. Nothing else talks to the DB.
+- Routing gate is `proxy.ts` (deny by default, ADR 0025): a new route is restricted unless added to `isPublicPath` in `lib/age/policy.ts`. Only `lib/age/runtime.ts` reads the signing key.
 - Age gate: product name/image/price/JSON-LD must not appear in HTML, RSC payload, metadata or OG tags before a verified cookie. Generic preview only. No user-agent bypass.
 - Product/catalogue fetches: `cache: "no-store"` / private. Don't add a second persistent cache.
 - Device state (cart variant IDs, wishlist, compare, recently viewed) may use localStorage. Checkout name/phone/address: React state only. Remove legacy `co` key on load.

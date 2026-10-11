@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "node ../../scripts/next-app.cjs storefront start",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "test": "vitest run"
   },
   "dependencies": {
     "@fontsource/jetbrains-mono": "5.3.0",
@@ -17,7 +18,10 @@
     "next": "16.4.0",
     "react": "19.3.0",
     "react-dom": "19.3.0",
-    "@ih/config": "workspace:*"
+    "@ih/config": "workspace:*",
+    "@ih/platform": "workspace:*",
+    "@ih/contracts": "workspace:*",
+    "zod": "4.6.5"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "4.3.3",

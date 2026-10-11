@@ -6,3 +6,7 @@ export * from "./permissions";
 export * from "./identity";
 export * from "./session";
 export * from "./field-policy";
+export * from "./delivery";
+export * from "./inventory";
+export * from "./search";
+export * from "./customer";

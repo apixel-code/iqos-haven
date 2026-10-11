@@ -13,6 +13,32 @@ export const errorEnvelopeSchema = z.strictObject({
   }),
 });
 export type ErrorEnvelope = z.infer<typeof errorEnvelopeSchema>;
+/** Stable 409 reasons a client may act on; anything else stays the generic CONFLICT. */
+export const CONFLICT_CODES = [
+  "VERSION_CONFLICT",
+  "DUPLICATE",
+  "IN_USE",
+  "TRASHED",
+  "PARENT_UNAVAILABLE",
+  "PUBLISH_REQUIREMENTS",
+  "OPTIONS_IN_USE",
+  "INVALID_COMBINATION",
+  "DEFAULT_REQUIRED",
+  "INSUFFICIENT_STOCK",
+  "INITIAL_STOCK_EXISTS",
+  "COMMAND_REUSED",
+  "STOCK_LIMIT",
+  "STOCK_CHANGED",
+  "IMAGE_LIMIT",
+  "UPLOAD_MISSING",
+  "UPLOAD_EXPIRED",
+  "MEDIA_NOT_READY",
+  "ORDER_MISMATCH",
+  "NOT_TRASHED",
+] as const;
+export type ConflictCode = (typeof CONFLICT_CODES)[number];
+/** 403 code of a store route reached without a valid age ticket (step 55). */
+export const AGE_VERIFICATION_REQUIRED = "AGE_VERIFICATION_REQUIRED";
 
 export const healthStatusSchema = z.enum(["ok", "degraded", "down"]);
 export const dependencyStatusSchema = z.enum(["up", "down"]);
@@ -27,3 +53,12 @@ export const readinessResponseSchema = z.object({
 export type ReadinessResponse = z.infer<typeof readinessResponseSchema>;
 export * from "./events";
 export * from "./auth";
+export * from "./settings";
+export * from "./delivery";
+export * from "./catalogue";
+export * from "./products";
+export * from "./variants";
+export * from "./inventory";
+export * from "./media";
+export * from "./store";
+export * from "./customers";

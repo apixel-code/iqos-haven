@@ -9,7 +9,7 @@ const NONCE_TIMEOUT_MS = 2_000;
 /**
  * Private service-auth framework. Replay protection is shared by every API instance through the
  * queue Redis (SET NX EX); if Redis is unreachable, internal calls are denied (fail closed).
- * Internal controllers arrive with their features (e.g. step 52 catalogue invalidation).
+ * Internal controllers live with their features (catalogue invalidation: `cache/`, step 52).
  */
 @Global()
 @Module({

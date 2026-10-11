@@ -7,7 +7,8 @@ import { createLogger } from "@ih/logger";
 import { AppModule } from "./app.module";
 import type { InfraOverrides } from "./infra/infra.module";
 import { requestId } from "./http/request-id";
-import { ApiErrorFilter } from "./http/error.filter";
+import { ApiErrorFilter, errorEnvelope } from "./http/error.filter";
+import { checkBrowserRequest } from "./security/browser-request";
 import { ZodValidationPipe } from "./http/zod-validation.pipe";
 export async function createApp(
   env: ApiEnv,
@@ -22,6 +23,20 @@ export async function createApp(
     req.id = id;
     reply.header("x-request-id", id);
     done();
+  });
+  // Origin/CSRF and content-type rules run before body parsing, routing and authentication.
+  const origins = { admin: env.ADMIN_ORIGINS, store: env.STOREFRONT_ORIGINS };
+  adapter.getInstance().addHook("onRequest", (req, reply, done) => {
+    const verdict = checkBrowserRequest(
+      req.raw as Parameters<typeof checkBrowserRequest>[0],
+      origins,
+    );
+    if (verdict.ok) return done();
+    req.log.warn({ reason: verdict.reason }, "browser request rejected");
+    void reply
+      .code(verdict.status)
+      .header("cache-control", "no-store")
+      .send(errorEnvelope(verdict.status, req.id));
   });
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule.register(env, overrides, testModules),

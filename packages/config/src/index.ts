@@ -1,3 +1,4 @@
+import { createPrivateKey, createPublicKey } from "node:crypto";
 import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { z } from "zod";
@@ -173,6 +174,8 @@ const bucketName = (fallback: string) =>
  */
 export const storageEnvFields = {
   S3_ENDPOINT: httpUrl.optional(),
+  /** Browser-facing endpoint for presigned upload/download URLs (defaults to S3_ENDPOINT). */
+  S3_PUBLIC_ENDPOINT: httpUrl.optional(),
   S3_REGION: z
     .string()
     .regex(/^[a-z]{2}(-[a-z]+)+-\d$/, "must be a region like me-central-1")
@@ -188,6 +191,7 @@ const storageSafety = (
   value: {
     APP_ENV: DeploymentEnv;
     S3_ENDPOINT?: string | undefined;
+    S3_PUBLIC_ENDPOINT?: string | undefined;
     S3_ACCESS_KEY?: string | undefined;
     S3_SECRET_KEY?: string | undefined;
   },
@@ -203,6 +207,16 @@ const storageSafety = (
     ctx.addIssue({
       code: "custom",
       path: ["S3_ENDPOINT"],
+      message: "must be https outside development",
+    });
+  if (
+    value.S3_PUBLIC_ENDPOINT &&
+    (value.APP_ENV === "staging" || value.APP_ENV === "production") &&
+    new URL(value.S3_PUBLIC_ENDPOINT).protocol !== "https:"
+  )
+    ctx.addIssue({
+      code: "custom",
+      path: ["S3_PUBLIC_ENDPOINT"],
       message: "must be https outside development",
     });
 };
@@ -274,6 +288,326 @@ const signerComplete = (
     });
 };
 
+/**
+ * Browser origins and rate limiting (roadmap step 32, architecture §11). State-changing
+ * cookie-authenticated requests must carry an Origin from these lists. Defaults are the local
+ * gateway ports; staging/production must set https origins explicitly.
+ */
+const originList = (fallback: string) =>
+  z
+    .string()
+    .default(fallback)
+    .transform((value) =>
+      value
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean),
+    )
+    .pipe(
+      z
+        .array(httpUrl.refine((value) => new URL(value).origin === value, "must be a bare origin"))
+        .min(1)
+        .max(10),
+    );
+export const securityEnvFields = {
+  ADMIN_ORIGINS: originList("http://localhost:8081"),
+  STOREFRONT_ORIGINS: originList("http://localhost:8080"),
+  /** budget: local limiter is authoritative (one API process); replicated: shared cache Redis. */
+  RATE_LIMIT_PROFILE: z.enum(["budget", "replicated"]).default("budget"),
+  /** Keyed-hash secret for limiter keys; identical on all replicas. Required when replicated. */
+  RATE_LIMIT_KEY_SECRET: z.string().min(32).optional(),
+  RATE_LIMIT_LOCAL_MAX_KEYS: z.coerce.number().int().min(1000).max(1_000_000).default(50_000),
+  /** Maximum API replicas; local outage fallbacks divide cluster budgets by this. */
+  RATE_LIMIT_MAX_REPLICAS: z.coerce.number().int().min(1).max(64).default(1),
+};
+const securitySafety = (
+  value: {
+    APP_ENV: DeploymentEnv;
+    ADMIN_ORIGINS: string[];
+    STOREFRONT_ORIGINS: string[];
+    RATE_LIMIT_PROFILE: "budget" | "replicated";
+    RATE_LIMIT_KEY_SECRET?: string | undefined;
+    CACHE_REDIS_URL?: string | undefined;
+  },
+  ctx: z.RefinementCtx,
+) => {
+  const deployed = value.APP_ENV === "staging" || value.APP_ENV === "production";
+  for (const field of ["ADMIN_ORIGINS", "STOREFRONT_ORIGINS"] as const) {
+    if (deployed && value[field].some((origin) => !origin.startsWith("https://")))
+      ctx.addIssue({ code: "custom", path: [field], message: "must be https outside development" });
+  }
+  if (value.ADMIN_ORIGINS.some((origin) => value.STOREFRONT_ORIGINS.includes(origin)))
+    ctx.addIssue({
+      code: "custom",
+      path: ["ADMIN_ORIGINS"],
+      message: "admin and storefront origins must differ",
+    });
+  if (value.RATE_LIMIT_PROFILE === "replicated") {
+    if (!value.CACHE_REDIS_URL)
+      ctx.addIssue({
+        code: "custom",
+        path: ["CACHE_REDIS_URL"],
+        message: "required when replicated",
+      });
+    if (!value.RATE_LIMIT_KEY_SECRET)
+      ctx.addIssue({
+        code: "custom",
+        path: ["RATE_LIMIT_KEY_SECRET"],
+        message: "required when replicated",
+      });
+  }
+};
+
+/**
+ * Catalogue read cache budgets (roadmap step 52, architecture §9). The API process owns the
+ * cache: bounded entries/bytes, TTL at most 60 s, bounded concurrent database misses. The
+ * replicated profile (RATE_LIMIT_PROFILE) shares entries through CACHE_REDIS_URL instead.
+ */
+export const catalogueCacheEnvFields = {
+  CATALOG_CACHE_TTL_SECONDS: z.coerce.number().int().min(1).max(60).default(60),
+  CATALOG_CACHE_MAX_ENTRIES: z.coerce.number().int().min(1).max(100_000).default(2_000),
+  CATALOG_CACHE_MAX_BYTES: z.coerce
+    .number()
+    .int()
+    .min(65_536)
+    .max(512 * 1024 * 1024)
+    .default(32 * 1024 * 1024),
+  CATALOG_CACHE_MAX_CONCURRENT_MISSES: z.coerce.number().int().min(1).max(64).default(8),
+  CATALOG_CACHE_MAX_QUEUED_MISSES: z.coerce.number().int().min(0).max(10_000).default(200),
+};
+
+/**
+ * Age gate (roadmap step 55, architecture §9, ADR 0024). Verifiers (API, storefront) get only
+ * public keys as "kid:base64urlRaw32" entries; several key ids allow rotation and a revoked key
+ * is removed. The private key exists only in the storefront schema. The policy version and the
+ * ticket lifetime are business input BI-04: "unapproved" is refused in production.
+ */
+const rawEd25519Key = z
+  .string()
+  .regex(/^[A-Za-z0-9_-]+$/, "must be base64url")
+  .refine((value) => Buffer.from(value, "base64url").length === 32, "must decode to 32 bytes")
+  .refine(
+    (value) => Buffer.from(value, "base64url").toString("base64url") === value,
+    "must be canonical base64url",
+  );
+/** Raw public key (base64url) of a raw Ed25519 seed, to check a signer against its key ring. */
+function ed25519PublicKey(seed: string): string {
+  const privateKey = createPrivateKey({
+    key: Buffer.concat([
+      Buffer.from("302e020100300506032b657004220420", "hex"),
+      Buffer.from(seed, "base64url"),
+    ]),
+    format: "der",
+    type: "pkcs8",
+  });
+  return createPublicKey(privateKey)
+    .export({ format: "der", type: "spki" })
+    .subarray(-32)
+    .toString("base64url");
+}
+export const UNAPPROVED_AGE_POLICY = "unapproved";
+export const ageVerifierEnvFields = {
+  AGE_TICKET_PUBLIC_KEYS: z
+    .string()
+    .default("")
+    .transform((value, ctx) => {
+      const keys: Array<{ kid: string; publicKey: string }> = [];
+      for (const entry of value
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean)) {
+        const [kid, publicKey, ...rest] = entry.split(":");
+        if (
+          rest.length ||
+          !keyId.safeParse(kid).success ||
+          !rawEd25519Key.safeParse(publicKey).success
+        ) {
+          ctx.addIssue({ code: "custom", message: "entries are kid:base64urlPublicKey" });
+          return z.NEVER;
+        }
+        if (keys.some((key) => key.kid === kid)) {
+          ctx.addIssue({ code: "custom", message: "duplicate key id" });
+          return z.NEVER;
+        }
+        keys.push({ kid: kid!, publicKey: publicKey! });
+      }
+      if (keys.length > 8) {
+        ctx.addIssue({ code: "custom", message: "at most 8 keys" });
+        return z.NEVER;
+      }
+      return keys;
+    }),
+  AGE_POLICY_VERSION: z
+    .string()
+    .regex(/^[a-z0-9][a-z0-9._-]{0,31}$/)
+    .default(UNAPPROVED_AGE_POLICY),
+};
+/** Storefront only: the signing identity and the remembered-acceptance lifetime. */
+export const ageSignerEnvFields = {
+  AGE_TICKET_KEY_ID: keyId.optional(),
+  AGE_TICKET_PRIVATE_KEY: rawEd25519Key.optional(),
+  /** 30 days is the architecture's proposal; the approved value is BI-04. Hard cap 30. */
+  AGE_TICKET_TTL_DAYS: z.coerce.number().int().min(1).max(30).default(30),
+};
+const ageSafety = (
+  value: {
+    APP_ENV: DeploymentEnv;
+    AGE_POLICY_VERSION: string;
+    AGE_TICKET_PUBLIC_KEYS: Array<{ kid: string; publicKey: string }>;
+    AGE_TICKET_KEY_ID?: string | undefined;
+    AGE_TICKET_PRIVATE_KEY?: string | undefined;
+  },
+  ctx: z.RefinementCtx,
+  /** The storefront signs; every other verifier only needs public keys. */
+  role: "verifier" | "signer" = "verifier",
+) => {
+  const deployed = value.APP_ENV === "staging" || value.APP_ENV === "production";
+  // Without keys every store route is refused: safe, but a deployment must not start that way.
+  if (deployed && !value.AGE_TICKET_PUBLIC_KEYS.length)
+    ctx.addIssue({
+      code: "custom",
+      path: ["AGE_TICKET_PUBLIC_KEYS"],
+      message: "required outside development",
+    });
+  if (deployed && role === "signer" && !value.AGE_TICKET_PRIVATE_KEY)
+    ctx.addIssue({
+      code: "custom",
+      path: ["AGE_TICKET_PRIVATE_KEY"],
+      message: "the storefront needs its signing key outside development",
+    });
+  if (value.APP_ENV === "production" && value.AGE_POLICY_VERSION === UNAPPROVED_AGE_POLICY)
+    ctx.addIssue({
+      code: "custom",
+      path: ["AGE_POLICY_VERSION"],
+      message: "production needs the approved age policy version",
+    });
+  if (Boolean(value.AGE_TICKET_KEY_ID) !== Boolean(value.AGE_TICKET_PRIVATE_KEY))
+    ctx.addIssue({
+      code: "custom",
+      path: ["AGE_TICKET_PRIVATE_KEY"],
+      message: "key id and private key are set together",
+    });
+  // A signer whose own verifiers would reject its tickets is a misconfiguration: the key id
+  // must be listed, and the listed public key must belong to this private key.
+  if (value.AGE_TICKET_KEY_ID && value.AGE_TICKET_PRIVATE_KEY) {
+    const listed = value.AGE_TICKET_PUBLIC_KEYS.find((key) => key.kid === value.AGE_TICKET_KEY_ID);
+    if (!listed)
+      ctx.addIssue({
+        code: "custom",
+        path: ["AGE_TICKET_KEY_ID"],
+        message: "signing key id must be in AGE_TICKET_PUBLIC_KEYS",
+      });
+    else if (listed.publicKey !== ed25519PublicKey(value.AGE_TICKET_PRIVATE_KEY))
+      ctx.addIssue({
+        code: "custom",
+        path: ["AGE_TICKET_PRIVATE_KEY"],
+        message: "does not match the public key listed for its key id",
+      });
+  }
+};
+
+/**
+ * For every service except the storefront: the age-ticket private key must not be in its
+ * environment once deployed. The value itself is never kept, only whether one was present.
+ */
+export const foreignAgeSigningKeyField = {
+  AGE_TICKET_PRIVATE_KEY: z
+    .string()
+    .optional()
+    .transform((value) => (value ? ("present" as const) : undefined)),
+};
+const noForeignAgeSigningKey = (
+  value: { APP_ENV: DeploymentEnv; AGE_TICKET_PRIVATE_KEY?: "present" | undefined },
+  ctx: z.RefinementCtx,
+) => {
+  if (
+    value.AGE_TICKET_PRIVATE_KEY &&
+    (value.APP_ENV === "staging" || value.APP_ENV === "production")
+  )
+    ctx.addIssue({
+      code: "custom",
+      path: ["AGE_TICKET_PRIVATE_KEY"],
+      message: "only the storefront may hold the age-ticket signing key",
+    });
+};
+
+/** Purpose-specific reset key ring (first entry signs; old entries retained for delivery overlap). */
+export const resetEnvFields = {
+  PASSWORD_RESET_KEYS: serviceKeysSchema
+    .refine(
+      (keys) => keys.every((key) => key.service === "reset"),
+      "Reset keys require reset service",
+    )
+    .transform((keys) => {
+      return keys.map(({ keyId, secret }) => ({ keyId, secret }));
+    }),
+  PASSWORD_RESET_ORIGIN: httpUrl
+    .refine((value) => new URL(value).origin === value, "must be a bare origin")
+    .optional(),
+};
+const resetSafety = (
+  value: {
+    APP_ENV: DeploymentEnv;
+    PASSWORD_RESET_KEYS: unknown[];
+    PASSWORD_RESET_ORIGIN?: string | undefined;
+  },
+  ctx: z.RefinementCtx,
+) => {
+  if (value.PASSWORD_RESET_KEYS.length && !value.PASSWORD_RESET_ORIGIN)
+    ctx.addIssue({
+      code: "custom",
+      path: ["PASSWORD_RESET_ORIGIN"],
+      message: "required with reset keys",
+    });
+  if (
+    (value.APP_ENV === "production" || value.APP_ENV === "staging") &&
+    value.PASSWORD_RESET_ORIGIN &&
+    !value.PASSWORD_RESET_ORIGIN.startsWith("https://")
+  )
+    ctx.addIssue({
+      code: "custom",
+      path: ["PASSWORD_RESET_ORIGIN"],
+      message: "must be https outside development",
+    });
+};
+
+export const invitationEnvFields = {
+  STAFF_INVITATION_KEYS: serviceKeysSchema
+    .refine(
+      (keys) => keys.every((key) => key.service === "invite"),
+      "Invitation keys require invite service",
+    )
+    .transform((keys) => keys.map(({ keyId, secret }) => ({ keyId, secret }))),
+  STAFF_INVITATION_ORIGIN: httpUrl
+    .refine((value) => new URL(value).origin === value, "must be a bare origin")
+    .optional(),
+};
+const invitationSafety = (
+  value: {
+    APP_ENV: DeploymentEnv;
+    STAFF_INVITATION_KEYS: unknown[];
+    STAFF_INVITATION_ORIGIN?: string | undefined;
+  },
+  ctx: z.RefinementCtx,
+) => {
+  if (value.STAFF_INVITATION_KEYS.length && !value.STAFF_INVITATION_ORIGIN)
+    ctx.addIssue({
+      code: "custom",
+      path: ["STAFF_INVITATION_ORIGIN"],
+      message: "required with invitation keys",
+    });
+  if (
+    (value.APP_ENV === "production" || value.APP_ENV === "staging") &&
+    value.STAFF_INVITATION_ORIGIN &&
+    !value.STAFF_INVITATION_ORIGIN.startsWith("https://")
+  )
+    ctx.addIssue({
+      code: "custom",
+      path: ["STAFF_INVITATION_ORIGIN"],
+      message: "must be https outside development",
+    });
+};
+
 export const apiEnvSchema = baseEnvSchema
   .extend({
     API_PORT: port.default(4000),
@@ -285,10 +619,36 @@ export const apiEnvSchema = baseEnvSchema
     ...storageEnvFields,
     INTERNAL_SERVICE_KEYS: serviceKeysSchema,
     ...passwordHashEnvFields,
+    ...resetEnvFields,
+    ...invitationEnvFields,
+    ...securityEnvFields,
+    ...catalogueCacheEnvFields,
+    ...ageVerifierEnvFields,
+    ...foreignAgeSigningKeyField,
   })
   .superRefine((value, ctx) => {
+    ageSafety({ ...value, AGE_TICKET_PRIVATE_KEY: undefined }, ctx);
+    noForeignAgeSigningKey(value, ctx);
     separateCacheRedis(value, ctx);
     storageSafety(value, ctx);
+    securitySafety(value, ctx);
+    if (
+      value.STAFF_INVITATION_ORIGIN &&
+      !value.ADMIN_ORIGINS.includes(value.STAFF_INVITATION_ORIGIN)
+    )
+      ctx.addIssue({
+        code: "custom",
+        path: ["STAFF_INVITATION_ORIGIN"],
+        message: "must be an allowed admin origin",
+      });
+    resetSafety(value, ctx);
+    invitationSafety(value, ctx);
+    if (value.PASSWORD_RESET_ORIGIN && !value.ADMIN_ORIGINS.includes(value.PASSWORD_RESET_ORIGIN))
+      ctx.addIssue({
+        code: "custom",
+        path: ["PASSWORD_RESET_ORIGIN"],
+        message: "must be an allowed admin origin",
+      });
   });
 export type ApiEnv = z.infer<typeof apiEnvSchema>;
 /** One-time first-Owner bootstrap CLI (runtime role; no other services needed). */
@@ -307,24 +667,64 @@ export const workerEnvSchema = baseEnvSchema
     WORKER_CONCURRENCY: z.coerce.number().int().min(1).max(32).default(4),
     WORKER_STARTUP_TIMEOUT_MS: z.coerce.number().int().min(1000).max(120000).default(15000),
     ...emailEnvFields,
+    ...resetEnvFields,
+    ...invitationEnvFields,
     ...storageEnvFields,
     ...serviceSignerFields,
+    /** Private API base URL for signed invalidation calls (step 52). */
+    API_INTERNAL_URL: httpUrl.optional(),
+    ...foreignAgeSigningKeyField,
   })
   .superRefine((value, ctx) => {
+    noForeignAgeSigningKey(value, ctx);
     separateCacheRedis(value, ctx);
     emailSafety(value, ctx);
+    resetSafety(value, ctx);
+    invitationSafety(value, ctx);
     storageSafety(value, ctx);
     signerComplete(value, ctx);
+    // Deployed workers must be able to invalidate the API cache; locally the TTL is enough.
+    if (value.APP_ENV === "staging" || value.APP_ENV === "production")
+      for (const field of ["API_INTERNAL_URL", "INTERNAL_SERVICE_KEY"] as const)
+        if (!value[field])
+          ctx.addIssue({
+            code: "custom",
+            path: [field],
+            message: "required outside development for cache invalidation",
+          });
   });
 export type WorkerEnv = z.infer<typeof workerEnvSchema>;
-export const storefrontEnvSchema = baseEnvSchema.extend({
-  STOREFRONT_PORT: port.default(3000),
-  API_INTERNAL_URL: httpUrl,
-});
-export const adminEnvSchema = baseEnvSchema.extend({
-  ADMIN_PORT: port.default(3001),
-  API_INTERNAL_URL: httpUrl,
-});
+export const storefrontEnvSchema = baseEnvSchema
+  .extend({
+    STOREFRONT_PORT: port.default(3000),
+    API_INTERNAL_URL: httpUrl,
+    ...ageVerifierEnvFields,
+    ...ageSignerEnvFields,
+    /** Origins the age decision POSTs are accepted from (the storefront's own). */
+    STOREFRONT_ORIGINS: securityEnvFields.STOREFRONT_ORIGINS,
+    /** How long an under-age answer keeps the device on the restricted page (BI-04). */
+    AGE_RESTRICTED_MINUTES: z.coerce.number().int().min(1).max(1440).default(15),
+  })
+  .superRefine((value, ctx) => {
+    ageSafety(value, ctx, "signer");
+    if (
+      (value.APP_ENV === "staging" || value.APP_ENV === "production") &&
+      value.STOREFRONT_ORIGINS.some((origin) => !origin.startsWith("https://"))
+    )
+      ctx.addIssue({
+        code: "custom",
+        path: ["STOREFRONT_ORIGINS"],
+        message: "must be https outside development",
+      });
+  });
+export type StorefrontEnv = z.infer<typeof storefrontEnvSchema>;
+export const adminEnvSchema = baseEnvSchema
+  .extend({
+    ADMIN_PORT: port.default(3001),
+    API_INTERNAL_URL: httpUrl,
+    ...foreignAgeSigningKeyField,
+  })
+  .superRefine(noForeignAgeSigningKey);
 export const migrationEnvSchema = baseEnvSchema.extend({ DATABASE_MIGRATION_URL: postgresUrl });
 export const integrationTestEnvSchema = z.object({ DATABASE_TEST_URL: postgresUrl });
 /** Email integration tests: a local SMTP sink and its HTTP API (Mailpit). Test-only. */

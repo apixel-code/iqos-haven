@@ -22,3 +22,16 @@ When an answer arrives, write the decision in the Answer column and, if it shape
 <!-- YYYY-MM-DD — question — asked via — answer -->
 
 - 2026-10-09 — BI-07 email provider and scope — chat with Marina — Resend; domain verification pending; new-order email only at launch, others later. Still needed: verified sending domain, sender address (e.g. orders@…), who receives new-order email.
+
+- 2026-10-10 — Step 38 schema/API implemented with all settings initially unconfigured; BI-01/BI-09 and remaining BI-07 are still unanswered. No prototype contact, WhatsApp wording, recipients or provider secrets seeded; real configuration/communications activation awaits existing client decisions (ADR 0011).
+
+Step 39 implements the Dubai area/flat-fee/ETA schema and Owner-only API with no seeded areas or business values. BI-03 remains OPEN: obtain the approved coverage/exclusions, exact integer-fils flat fee and ETA before activating real areas/configuration. Free threshold remains disabled; approval alone needs a later reviewed enabling policy/UI change. Backend selection fails closed for unconfigured fees and inactive areas.
+
+- 2026-10-10 — Step 44 (ADR 0015): products keep a read-only, null VAT/excise treatment reference until BI-02 provides approved treatments (step 67). Because publication requires that reference (step-41 CHECK), BI-02 also gates product publication (step 51) and therefore the M4 gate. Drafts can be prepared meanwhile.
+- 2026-10-11 — Step 55 (ADR 0024): built without BI-04 on Marina's decision. Waiting on BI-04: approved `AGE_POLICY_VERSION` (production refuses `unapproved`), approved remembered-acceptance lifetime (`AGE_TICKET_TTL_DAYS`, 30 proposed, hard cap 30), minimum age and gate copy (step 56 UI), re-check frequency.
+- 2026-10-11 — Step 56 (ADR 0025): gate built with prototype wording and 18 as the minimum age. Waiting on BI-04: confirmed minimum age, final gate/restricted copy, rejection duration (`AGE_RESTRICTED_MINUTES`, 15 placeholder). Also needed from the client: the trade licence number shown in the prototype gate footer (omitted for now).
+- 2026-10-11 — Step 57 (ADR 0026): generic preview and crawler policy built with indexing and product previews off. Waiting on BI-05: any decision to index or preview products. Waiting on BI-04/legal: final text for `/responsible-use`, `/terms`, `/privacy`, required health-warning wording, a logo for the link-preview image.
+- 2026-10-11 — Step 63 (ADR 0032): the privacy policy text (BI-04/legal) should say that the age confirmation, cart, saved items, comparison and recently viewed products are kept on the customer's device and not sent to the store.
+- 2026-10-11 — Step 64 (ADR 0033): built without BI-01/BI-09. WhatsApp links appear only when the Owner sets the number in admin settings; message wording is the prototype's until BI-09. Waiting on BI-01: contact copy/page, logo, trade licence line; BI-04: footer health-warning wording.
+
+- 2026-10-11 — Step 65 (ADR 0034): which phone numbers may place an order? Built: UAE mobiles and landlines in any common spelling, and foreign numbers only with a country code; toll-free/service numbers refused. To ask the client (affects step 66 validation and checkout copy): UAE mobile only, or also landlines and foreign numbers? — not asked yet — no answer.

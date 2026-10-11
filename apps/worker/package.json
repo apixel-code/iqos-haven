@@ -13,18 +13,20 @@
     "test:int": "vitest run --config vitest.int.config.ts"
   },
   "dependencies": {
+    "@ih/application": "workspace:*",
     "@ih/config": "workspace:*",
+    "@ih/contracts": "workspace:*",
     "@ih/db": "workspace:*",
+    "@ih/domain": "workspace:*",
     "@ih/logger": "workspace:*",
+    "@ih/platform": "workspace:*",
     "bullmq": "6.3.11",
     "ioredis": "6.0.0",
-    "@ih/contracts": "workspace:*",
-    "@ih/application": "workspace:*",
-    "@ih/domain": "workspace:*",
-    "nodemailer": "10.0.16"
+    "nodemailer": "10.0.16",
+    "sharp": "0.35.5"
   },
   "devDependencies": {
-    "tsx": "4.23.15",
-    "@types/nodemailer": "8.0.2"
+    "@types/nodemailer": "8.0.2",
+    "tsx": "4.23.15"
   }
 }

@@ -50,6 +50,92 @@ interface EventDefinition<P extends z.ZodType> {
 const define = <P extends z.ZodType>(definition: EventDefinition<P>) => definition;
 
 export const EVENT_CATALOGUE = {
+  "delivery.configuration_updated": define({
+    schemaVersion: 1,
+    aggregateType: "setting",
+    payload: z.strictObject({ key: z.literal("delivery") }),
+    consumers: [],
+    plannedConsumers: {},
+  }),
+  "delivery.area_updated": define({
+    schemaVersion: 1,
+    aggregateType: "delivery_area",
+    payload: z.strictObject({ areaId: id }),
+    consumers: [],
+    plannedConsumers: {},
+  }),
+  "settings.updated": define({
+    schemaVersion: 1,
+    aggregateType: "setting",
+    payload: z.strictObject({ key: z.enum(["store", "contact", "notifications", "whatsapp"]) }),
+    consumers: [],
+    plannedConsumers: {},
+  }),
+  "staff.role_changed": define({
+    schemaVersion: 1,
+    aggregateType: "staff_user",
+    payload: z.strictObject({ userId: id }),
+    consumers: [],
+    plannedConsumers: {},
+  }),
+  "staff.reactivated": define({
+    schemaVersion: 1,
+    aggregateType: "staff_user",
+    payload: z.strictObject({ userId: id }),
+    consumers: [],
+    plannedConsumers: {},
+  }),
+  "staff.updated": define({
+    schemaVersion: 1,
+    aggregateType: "staff_user",
+    payload: z.strictObject({ userId: id }),
+    consumers: [],
+    plannedConsumers: {},
+  }),
+  "staff.deactivated": define({
+    schemaVersion: 1,
+    aggregateType: "staff_user",
+    payload: z.strictObject({ userId: id }),
+    consumers: [],
+    plannedConsumers: {},
+  }),
+  // Step 34 introduces new types only, with no historical effects to backfill.
+  "staff.invited": define({
+    schemaVersion: 1,
+    aggregateType: "staff_invitation",
+    payload: z.strictObject({ invitationId: id }),
+    consumers: ["email"],
+    plannedConsumers: {},
+  }),
+  "staff.invitation_revoked": define({
+    schemaVersion: 1,
+    aggregateType: "staff_invitation",
+    payload: z.strictObject({ invitationId: id }),
+    consumers: [],
+    plannedConsumers: {},
+  }),
+  "staff.invitation_accepted": define({
+    schemaVersion: 1,
+    aggregateType: "staff_user",
+    payload: z.strictObject({ userId: id }),
+    consumers: [],
+    plannedConsumers: {},
+  }),
+  "staff.password_reset": define({
+    schemaVersion: 1,
+    aggregateType: "staff_user",
+    payload: z.strictObject({ userId: id }),
+    consumers: [],
+    plannedConsumers: {},
+  }),
+  // New event in step 33: no historical rows to replay/backfill; old events are unchanged.
+  "staff.password_reset_requested": define({
+    schemaVersion: 1,
+    aggregateType: "staff_user",
+    payload: z.strictObject({ resetId: id }),
+    consumers: ["email"],
+    plannedConsumers: {},
+  }),
   /** Synthetic event for the Milestone 2 gate and operational smoke checks. */
   "system.probe": define({
     schemaVersion: 1,
@@ -96,7 +182,9 @@ export const EVENT_CATALOGUE = {
   "inventory.low": define({
     schemaVersion: 1,
     aggregateType: "variant",
-    payload: z.strictObject({ variantId: id }),
+    // Emitted once per crossing from above the threshold to at/below it (step 53, ADR 0023).
+    // `cause` says which side moved; consumers load current stock themselves.
+    payload: z.strictObject({ variantId: id, cause: z.enum(["stock", "threshold"]) }),
     consumers: [],
     plannedConsumers: { notification: 92, email: 92 },
   }),
@@ -107,8 +195,10 @@ export const EVENT_CATALOGUE = {
       entityType: z.enum(["brand", "category", "product", "variant"]),
       entityId: id,
     }),
-    consumers: [],
-    plannedConsumers: { storefront_revalidate: 52 },
+    // Step 52 (ADR 0022): earlier events keep their empty snapshot. No backfill: the cache starts
+    // empty with the process and every entry expires within 60 s.
+    consumers: ["storefront_revalidate"],
+    plannedConsumers: {},
   }),
   "content.published": define({
     schemaVersion: 1,
@@ -128,8 +218,9 @@ export const EVENT_CATALOGUE = {
     schemaVersion: 1,
     aggregateType: "media_asset",
     payload: z.strictObject({ mediaAssetId: id }),
-    consumers: [],
-    plannedConsumers: { media_processor: 49 },
+    // Step 49 (ADR 0019): no events existed before the processor, so there is nothing to backfill.
+    consumers: ["media_processor"],
+    plannedConsumers: {},
   }),
   "report.requested": define({
     schemaVersion: 1,
@@ -217,3 +308,13 @@ function jobId(parts: readonly string[]): string {
   if (id.includes(":")) throw new RangeError("Invalid queue job ID");
   return id;
 }
+
+/**
+ * Body of the private `POST /v1/internal/revalidate` call (step 52). IDs only; the API decides
+ * what to drop. `eventId` is for correlation in logs.
+ */
+export const internalRevalidateRequestSchema = z.strictObject({
+  scope: z.literal("catalogue"),
+  eventId: id,
+});
+export type InternalRevalidateRequest = z.infer<typeof internalRevalidateRequestSchema>;
