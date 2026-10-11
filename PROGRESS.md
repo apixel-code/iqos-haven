@@ -12,11 +12,11 @@
 
 **Start of a new session:**
 
-- Git: you are on `step/64-shell-gate-verification`, which is clean. Steps 33–64 are stacked branches, all pushed to GitHub on 2026-10-11 (no PRs opened for 33–64 yet); `main` holds steps through 31 and PR #13 is step 32.
+- Git: you are on `step/64-shell-gate-verification`, which is clean. Steps 33–64 are stacked branches, pushed on 2026-10-11 with one PR each against `main`: #14 (step 33) … #45 (step 64), all CI green when opened. `main` holds steps through 31; PR #13 is step 32.
 - New work: branch the next step from `step/64-shell-gate-verification`. Do not branch from `main` until the chain is merged.
 - Toolchain: prefix commands with `export PATH="/opt/homebrew/opt/node@24/bin:$HOME/.docker/bin:$PATH"`. If Docker is down, run `open -a Docker` and then `pnpm infra:up`.
 
-1. **Marina merges on GitHub (her decision, 2026-10-10).** PR #13 (step 32) first, then `step/33-*` … `step/64-*` in order: open a PR → green CI → merge (the branches are already pushed). Claude's merge chain was denied by the classifier twice; Claude can push branches and open PRs if asked.
+1. **Marina merges on GitHub (her decision, 2026-10-10).** Merge with a merge commit, strictly in order: PR #13 (step 32), then #14 … #45 (steps 33–64). Each later PR shows earlier commits until those are merged. Claude's merge chain was denied by the classifier twice; Claude can push branches and open PRs if asked.
 2. **Marina: decide the M5 gate.** Evidence: `pnpm test:gate` (real API + storefront + gateway, 1803 checks) and the browser pass in docs/verification.md "Step 64". Caveat: the products are seeded, because publishing through the admin waits for BI-02.
 3. **Then `/step 65` (M6 — quote and pricing).** Find the row with `rg -n "^| 65 " docs/roadmap.md` and check `docs/business-inputs.md`: BI-02 (tax) blocks 67, 70, 72; BI-03 (delivery areas/fee) blocks 66, 70.
    - Storefront pages: use `storeRead`; no `loading.tsx` under `(shop)`; never export data from a `"use client"` file to a server component; add new URLs to `scripts/check-age-preview.mjs` and, for anything touching the age boundary, `scripts/check-gate-e2e.cjs`.
@@ -91,7 +91,7 @@ Tests: `pnpm verify -- --integration` PASS (unit 491, integration 358, gateway 2
 
 Unfinished:
 
-- PR #13 and steps 33–64 are not merged (branches pushed 2026-10-11; Marina merges on GitHub).
+- PRs #13–#45 (steps 32–64) are open with green CI and not merged (Marina merges on GitHub, in order). CI now also runs `test:age-preview` and `test:gate`.
 - M5 gate awaits Marina's decision (seeded data; BI-02 blocks real publishing).
 - BI-01/BI-09: contact copy, WhatsApp number and wording; BI-04: footer warning wording. No mobile menu sheet, help pages or content sections yet.
 - Migrations are not applied to the dev database.
