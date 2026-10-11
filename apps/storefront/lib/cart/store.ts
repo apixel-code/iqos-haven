@@ -6,6 +6,8 @@ import {
   CART_STORAGE_KEY,
   EMPTY_CART,
   parseCart,
+  removeLine,
+  setLineQuantity,
   type AddResult,
   type Cart,
   type CartLine,
@@ -64,4 +66,14 @@ export function addToCart(line: Omit<CartLine, "quantity">, quantity: number): A
   const result = addLine(read(), line, quantity);
   if (result.cart !== cached.cart) write(result.cart);
   return result;
+}
+
+export function setCartQuantity(variantId: string, quantity: number): void {
+  const next = setLineQuantity(read(), variantId, quantity);
+  if (next !== cached.cart) write(next);
+}
+
+export function removeFromCart(variantId: string): void {
+  const next = removeLine(read(), variantId);
+  if (next !== cached.cart) write(next);
 }

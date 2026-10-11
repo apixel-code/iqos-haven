@@ -12,6 +12,9 @@ import {
 import { isIP } from "node:net";
 import {
   storeBrandsResponseSchema,
+  storeCartLinesQuerySchema,
+  storeCartLinesResponseSchema,
+  type StoreCartLinesQuery,
   storeCategoriesResponseSchema,
   storeProductParamsSchema,
   storeProductResponseSchema,
@@ -25,11 +28,12 @@ import type { FastifyReply, FastifyRequest } from "fastify";
 import { AgeVerified } from "../auth/access";
 import { Serialize } from "../auth/serialize";
 import { createZodDto } from "../http/zod-validation.pipe";
-import { STORE_CATALOG_POLICY } from "../security/limit-policies";
+import { STORE_CART_POLICY, STORE_CATALOG_POLICY } from "../security/limit-policies";
 import { RateLimitService } from "../security/rate-limit.service";
 import { StoreCatalogService } from "./store-catalog.service";
 
 class ProductsQueryDto extends createZodDto(storeProductsQuerySchema) {}
+class CartLinesQueryDto extends createZodDto(storeCartLinesQuerySchema) {}
 class ProductParamsDto extends createZodDto(storeProductParamsSchema) {
   declare slug: string;
 }
@@ -85,6 +89,26 @@ export class StoreCatalogController {
   @Serialize(storeCategoriesResponseSchema)
   categories(@Req() request: FastifyRequest, @Res({ passthrough: true }) reply: FastifyReply) {
     return this.read(request, reply, () => this.catalog.categories());
+  }
+
+  /** Refresh for the device cart: which of these variants can still be shown, and how. */
+  @Get("cart/lines")
+  @AgeVerified()
+  @Serialize(storeCartLinesResponseSchema)
+  async cartLines(
+    @Query() query: CartLinesQueryDto,
+    @Req() request: FastifyRequest,
+    @Res({ passthrough: true }) reply: FastifyReply,
+  ) {
+    reply.header("Cache-Control", "private, no-store").header("Vary", "Cookie");
+    const header = request.headers["x-ih-client-ip"];
+    await this.limits.enforce(
+      STORE_CART_POLICY,
+      { ip: typeof header === "string" && isIP(header) ? header : request.ip },
+      request,
+      reply,
+    );
+    return this.catalog.cartLines((query as unknown as StoreCartLinesQuery).variant);
   }
 
   @Get("products")

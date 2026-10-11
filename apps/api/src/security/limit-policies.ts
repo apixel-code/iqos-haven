@@ -127,3 +127,10 @@ export const STORE_SUGGEST_POLICY: EndpointLimitPolicy<"ip"> = {
   rules: { ip: perMinute(120) },
   outage: { fallback: { ip: perMinute(60) }, processCeiling: perMinute(3000) },
 };
+
+/** Device-cart refresh (step 62): one uncached indexed read per cart view or change. */
+export const STORE_CART_POLICY: EndpointLimitPolicy<"ip"> = {
+  endpoint: "store_cart",
+  rules: { ip: perMinute(120) },
+  outage: { fallback: { ip: perMinute(60) }, processCeiling: perMinute(3000) },
+};

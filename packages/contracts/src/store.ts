@@ -221,3 +221,36 @@ export const storeSuggestResponseSchema = z.strictObject({
   brands: z.array(z.strictObject({ slug: z.string(), name: z.string() })).max(4),
 });
 export type StoreSuggestResponse = z.infer<typeof storeSuggestResponseSchema>;
+
+// --- Device cart refresh (roadmap step 62) ---
+export const STORE_CART_MAX_LINES = 50;
+/** Variant IDs held in the shopper's device cart; one value or a repeated parameter. */
+export const storeCartLinesQuerySchema = z.strictObject({
+  variant: list(z.uuid(), STORE_CART_MAX_LINES),
+});
+export type StoreCartLinesQuery = z.infer<typeof storeCartLinesQuerySchema>;
+/**
+ * Current display data for the variants that can still be shown. A requested variant that is
+ * missing from `lines` is no longer available (deactivated, unpublished or removed): the cart
+ * says so and never replaces it. Prices are a preview; the quote decides what is charged.
+ */
+export const storeCartLinesResponseSchema = z.strictObject({
+  lines: z
+    .array(
+      z.strictObject({
+        variantId: z.uuid(),
+        productSlug: catalogueSlugSchema,
+        name: z.string(),
+        brand: z.string(),
+        /** Option values in the product's option order, e.g. "grape ice · 20 mg". */
+        options: z.string(),
+        priceFils: productFilsSchema,
+        compareAtPriceFils: productFilsSchema.nullable(),
+        available: z.boolean(),
+        image: storeImageSchema.nullable(),
+      }),
+    )
+    .max(STORE_CART_MAX_LINES),
+});
+export type StoreCartLinesResponse = z.infer<typeof storeCartLinesResponseSchema>;
+export type StoreCartLine = StoreCartLinesResponse["lines"][number];

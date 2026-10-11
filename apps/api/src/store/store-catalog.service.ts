@@ -6,6 +6,7 @@ import {
   disposableSpecsSchema,
   kitSpecsSchema,
   type StoreBrandsResponse,
+  type StoreCartLinesResponse,
   type StoreCategoriesResponse,
   type StoreImage,
   type StoreProductCard,
@@ -18,6 +19,7 @@ import {
   listStoreBrands,
   listStoreCategories,
   listStoreProducts,
+  readStoreCartLines,
   readStoreProduct,
   type Database,
   type StoreImageRow,
@@ -86,6 +88,22 @@ export class StoreCatalogService {
       variantCount: row.variantCount,
       soldOut: row.soldOut,
       image: row.image ? await this.image(row.image) : null,
+    };
+  }
+
+  /**
+   * Current data for the variants in a device cart. Not cached: the ID list is the shopper's own,
+   * and a cart should see a deactivated or sold-out variant as soon as possible.
+   */
+  async cartLines(variantIds: readonly string[]): Promise<StoreCartLinesResponse> {
+    const rows = await readStoreCartLines(this.db, variantIds);
+    return {
+      lines: await Promise.all(
+        rows.map(async ({ image, ...row }) => ({
+          ...row,
+          image: image ? await this.image(image) : null,
+        })),
+      ),
     };
   }
 

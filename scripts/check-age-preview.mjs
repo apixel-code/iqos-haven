@@ -34,6 +34,7 @@ const RESTRICTED = [
   "/_next/image",
   "/_next/image?url=%2Fmedia%2Fhalo.webp&w=640&q=75",
   "/_next/image?url=https%3A%2F%2Fmedia.example%2Forbe-halo.webp&w=640&q=75",
+  "/cart",
 ];
 // Words from the product URLs above: they must never come back in a body or in metadata.
 const PRODUCT_TOKENS = /halo|orbe|grape/i;
@@ -561,6 +562,17 @@ try {
   const badSlug = apiCalls.length;
   await page("/p/Not_A_Slug", 404);
   check(apiCalls.length === badSlug, "an impossible slug is refused without an API call");
+
+  // Cart page: the server renders only the frame; the cart itself is device state.
+  const cartPage = await page("/cart");
+  check(
+    cartPage.includes("Your cart") && cartPage.includes("<title>Your cart · Iqos Haven</title>"),
+    "cart page frame renders",
+  );
+  check(
+    !/AED|Halo/.test(cartPage.replace(/<script[\s\S]*?<\/script>/g, "")),
+    "cart page carries no catalogue data from the server",
+  );
 
   // Search: term, filters and the similar-results notice; only contract parameters reach the API.
   const found = await page(

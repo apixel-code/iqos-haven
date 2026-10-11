@@ -10,9 +10,11 @@ import {
 } from "@ih/config";
 import {
   AGE_VERIFICATION_REQUIRED,
+  storeCartLinesResponseSchema,
   storeProductResponseSchema,
   storeProductsResponseSchema,
   type StoreBrandsResponse,
+  type StoreCartLinesResponse,
   type StoreCategoriesResponse,
   type StoreProductResponse,
   type StoreProductsResponse,
@@ -568,6 +570,93 @@ describe("gated store catalogue reads (real API, PostgreSQL, Ed25519 ticket)", (
     expect((await json<StoreProductResponse>(`/products/${seeded.slug}`)).specs).toEqual({
       extra: [],
     });
+  });
+
+  it("refreshes device-cart variants: current price and stock, hidden ones simply absent", async () => {
+    const b = await parent("brand", "Cart brand");
+    const seeded = await product({
+      brandId: b.id,
+      categoryId: category.id,
+      name: "Cart Product",
+      basePriceFils: 4900,
+      compareAtPriceFils: 5900,
+      variants: [
+        [{ flavour: "grape ice", nicotine: "20 mg" }, null, 3, true],
+        [{ flavour: "mint", nicotine: "50 mg" }, 4500, 0, true],
+        [{ flavour: "retired", nicotine: "20 mg" }, null, 9, false],
+      ],
+      images: 1,
+    });
+    await db.productOption.createMany({
+      data: [
+        { productId: seeded.id, name: "nicotine", allowedValues: ["20 mg", "50 mg"], sortOrder: 1 },
+        {
+          productId: seeded.id,
+          name: "flavour",
+          allowedValues: ["grape ice", "mint"],
+          sortOrder: 0,
+        },
+      ],
+    });
+    const draft = await product({ brandId: b.id, categoryId: category.id, status: "draft" });
+    const [grape, mint, retired] = seeded.variants;
+    const lines = async (ids: string[]) => {
+      const response = await get(`/cart/lines?${ids.map((id) => `variant=${id}`).join("&")}`);
+      expect(response.status).toBe(200);
+      expect(response.headers.get("cache-control")).toBe("private, no-store");
+      const text = await response.text();
+      return { text, body: JSON.parse(text) as StoreCartLinesResponse };
+    };
+    const { text, body } = await lines([
+      mint!.id,
+      grape!.id,
+      retired!.id,
+      draft.variants[0]!.id,
+      randomUUID(),
+      grape!.id,
+    ]);
+    expect(storeCartLinesResponseSchema.safeParse(body).success).toBe(true);
+    const byId = new Map(body.lines.map((line) => [line.variantId, line]));
+    // Inactive, draft and unknown variants are absent; a repeated ID appears once.
+    expect([...byId.keys()].sort()).toEqual([grape!.id, mint!.id].sort());
+    expect(byId.get(grape!.id)).toMatchObject({
+      productSlug: seeded.slug,
+      name: "Cart Product",
+      brand: "Cart brand",
+      options: "grape ice · 20 mg",
+      priceFils: 4900,
+      compareAtPriceFils: 5900,
+      available: true,
+    });
+    expect(byId.get(mint!.id)).toMatchObject({
+      options: "mint · 50 mg",
+      priceFils: 4500,
+      available: false,
+    });
+    expect(byId.get(grape!.id)!.image?.urls.thumb).toContain(seeded.assets[0]!);
+    for (const secret of [...seeded.variants.map((v) => v.sku), "stock", "sku", "version"])
+      expect(text, secret).not.toContain(secret);
+
+    // Not cached: a price change and a deactivation show on the next read.
+    await pool.query("UPDATE variants SET price_override_fils=5200 WHERE id=$1", [grape!.id]);
+    await pool.query("UPDATE variants SET active=false WHERE id=$1", [mint!.id]);
+    const after = await lines([grape!.id, mint!.id]);
+    expect(after.body.lines).toHaveLength(1);
+    expect(after.body.lines[0]).toMatchObject({ variantId: grape!.id, priceFils: 5200 });
+    // Unpublishing the product removes every line.
+    await pool.query("UPDATE products SET status='draft' WHERE id=$1", [seeded.id]);
+    expect((await lines([grape!.id])).body.lines).toEqual([]);
+
+    for (const query of [
+      "",
+      "variant=not-a-uuid",
+      "variant=" + Array.from({ length: 51 }, () => randomUUID()).join("&variant="),
+      `variant=${randomUUID()}&other=1`,
+    ])
+      expect((await get(`/cart/lines?${query}`)).status, query.slice(0, 40)).toBe(400);
+    const unverified = await get(`/cart/lines?variant=${grape!.id}`, {});
+    expect(unverified.status).toBe(403);
+    expect(await unverified.text()).not.toContain("Cart Product");
   });
 
   it("limits reads per client address", async () => {

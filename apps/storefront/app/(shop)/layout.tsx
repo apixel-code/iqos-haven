@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { CartLink } from "@/components/cart-link";
 import { SearchBox } from "@/components/search-box";
 import { AGE_COPY } from "@/lib/age/copy";
 import { SITE } from "@/lib/site";
@@ -27,7 +28,7 @@ export default function ShopLayout({ children }: { children: ReactNode }) {
           </Link>
           <SearchBox />
           <nav aria-label="Catalogue">
-            <ul className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
+            <ul className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
               {NAV.map((item) => (
                 <li key={item.href}>
                   <Link href={item.href} prefetch={false} className="text-ink-2 hover:text-ink">
@@ -35,6 +36,9 @@ export default function ShopLayout({ children }: { children: ReactNode }) {
                   </Link>
                 </li>
               ))}
+              <li>
+                <CartLink />
+              </li>
             </ul>
           </nav>
         </div>

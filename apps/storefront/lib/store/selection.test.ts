@@ -1,5 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { addLine, CART_LIMITS, cartCount, EMPTY_CART, parseCart, type Cart } from "../cart/cart";
+import {
+  addLine,
+  CART_LIMITS,
+  cartCount,
+  cartView,
+  EMPTY_CART,
+  parseCart,
+  removeLine,
+  setLineQuantity,
+  type Cart,
+} from "../cart/cart";
 import {
   impliedChoices,
   offeredOptions,
@@ -206,5 +216,136 @@ describe("device cart", () => {
       JSON.stringify({ v: 1, lines: [{ ...JSON.parse(stored).lines[0], quantity: 99 }] }),
     ])
       expect(parseCart(bad), String(bad)).toEqual(EMPTY_CART);
+  });
+});
+
+describe("cart editing and view", () => {
+  const A = "00000000-0000-4000-8000-0000000000a1";
+  const B = "00000000-0000-4000-8000-0000000000b2";
+  const C = "00000000-0000-4000-8000-0000000000c3";
+  const stored = (variantId: string, quantity: number, priceFils: number) => ({
+    variantId,
+    productSlug: "halo",
+    quantity,
+    snapshot: { name: "Halo 7K", brand: "Orbe", options: "mint · 20 mg", priceFils },
+  });
+  const cart: Cart = { v: 1, lines: [stored(A, 2, 4900), stored(B, 1, 2500), stored(C, 3, 1000)] };
+  const fresh = (variantId: string, priceFils: number, available = true) => ({
+    variantId,
+    productSlug: "halo-renamed",
+    name: "Halo 7K Pro",
+    brand: "Orbe",
+    options: "mint · 20 mg",
+    priceFils,
+    available,
+  });
+
+  /** Server answers by variant; `null` = asked and not returned. */
+  const known = (...entries: Array<[string, ReturnType<typeof fresh> | null]>) => new Map(entries);
+
+  it("sets a quantity within the limits and removes a line", () => {
+    expect(setLineQuantity(cart, A, 5).lines[0]!.quantity).toBe(5);
+    expect(setLineQuantity(cart, A, 99).lines[0]!.quantity).toBe(CART_LIMITS.maxQuantity);
+    expect(setLineQuantity(cart, A, 0).lines[0]!.quantity).toBe(1);
+    // Nothing to change: the same object comes back, so nothing is rewritten.
+    expect(setLineQuantity(cart, A, 2)).toBe(cart);
+    expect(setLineQuantity(cart, "unknown", 4)).toBe(cart);
+    expect(removeLine(cart, B).lines.map((line) => line.variantId)).toEqual([A, C]);
+    expect(removeLine(cart, "unknown")).toBe(cart);
+  });
+
+  it("shows the device snapshot, unconfirmed, until the server has answered", () => {
+    const view = cartView(cart, known());
+    expect(view.confirmed).toBe(false);
+    expect(view.lines.map((line) => line.status)).toEqual([
+      "unconfirmed",
+      "unconfirmed",
+      "unconfirmed",
+    ]);
+    expect(view.subtotalFils).toBe(2 * 4900 + 2500 + 3 * 1000);
+    expect(view.itemCount).toBe(6);
+  });
+
+  it("uses the server's price and name, flags changes, and keeps integer fils", () => {
+    const view = cartView(
+      cart,
+      known([A, fresh(A, 5200)], [B, fresh(B, 2500)], [C, fresh(C, 1000)]),
+    );
+    expect(view.confirmed).toBe(true);
+    expect(view.lines[0]).toMatchObject({
+      status: "ok",
+      name: "Halo 7K Pro",
+      productSlug: "halo-renamed",
+      unitPriceFils: 5200,
+      lineTotalFils: 10400,
+      previousUnitPriceFils: 4900,
+    });
+    expect(view.lines[1]!.previousUnitPriceFils).toBeNull();
+    expect(view.subtotalFils).toBe(10400 + 2500 + 3000);
+    expect(Number.isInteger(view.subtotalFils)).toBe(true);
+    expect(view.blockedCount).toBe(0);
+  });
+
+  it("keeps sold-out and withdrawn lines visible, flagged and out of the subtotal", () => {
+    // B is sold out; C is not returned at all (deactivated, unpublished or removed).
+    const view = cartView(cart, known([A, fresh(A, 4900)], [B, fresh(B, 2500, false)], [C, null]));
+    expect(view.lines.map((line) => [line.variantId, line.status])).toEqual([
+      [A, "ok"],
+      [B, "sold_out"],
+      [C, "unavailable"],
+    ]);
+    // The withdrawn line still shows what the shopper added, from the device snapshot.
+    expect(view.lines[2]).toMatchObject({ name: "Halo 7K", quantity: 3, unitPriceFils: 1000 });
+    expect(view.blockedCount).toBe(2);
+    expect(view.itemCount).toBe(2);
+    expect(view.subtotalFils).toBe(2 * 4900);
+    // Nothing is substituted: the view has exactly the cart's variants, in the cart's order.
+    expect(view.lines.map((line) => line.variantId)).toEqual(
+      cart.lines.map((line) => line.variantId),
+    );
+  });
+
+  it("keeps a line flagged when another line changes and nothing new is known", () => {
+    // The server said: A fine, B sold out, C withdrawn. The shopper then removes C and adds D.
+    const answers = known([A, fresh(A, 4900)], [B, fresh(B, 2500, false)], [C, null]);
+    const D = "00000000-0000-4000-8000-0000000000d4";
+    const changed: Cart = {
+      v: 1,
+      lines: [stored(A, 2, 4900), stored(B, 1, 2500), stored(D, 1, 700)],
+    };
+    const view = cartView(changed, answers);
+    expect(view.lines.map((line) => line.status)).toEqual(["ok", "sold_out", "unconfirmed"]);
+    // B is still not counted; only the new, unconfirmed line is shown from its snapshot.
+    expect(view.subtotalFils).toBe(2 * 4900 + 700);
+    expect(view.blockedCount).toBe(1);
+    expect(view.confirmed).toBe(false);
+  });
+
+  it("drops repeated variant IDs from stored text, keeping the first line", () => {
+    const text = JSON.stringify({
+      v: 1,
+      lines: [stored(A, 2, 4900), stored(B, 1, 2500), stored(A, 9, 1)],
+    });
+    expect(parseCart(text).lines.map((line) => [line.variantId, line.quantity])).toEqual([
+      [A, 2],
+      [B, 1],
+    ]);
+  });
+
+  it("ignores server lines the cart does not hold", () => {
+    const view = cartView(
+      { v: 1, lines: [stored(A, 1, 4900)] },
+      known([A, fresh(A, 4900)], [B, fresh(B, 1)]),
+    );
+    expect(view.lines).toHaveLength(1);
+    expect(view.subtotalFils).toBe(4900);
+  });
+
+  it("handles an empty cart", () => {
+    expect(cartView(EMPTY_CART, known())).toMatchObject({
+      lines: [],
+      subtotalFils: 0,
+      itemCount: 0,
+    });
   });
 });

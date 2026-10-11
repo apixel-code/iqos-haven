@@ -217,6 +217,14 @@ export function BuyBox({
         className={`min-h-5 text-sm ${feedback?.kind === "error" ? "text-error" : "text-success"}`}
       >
         {feedback?.text}
+        {feedback?.kind === "added" && (
+          <>
+            {" "}
+            <a href="/cart" className="font-medium text-ink underline underline-offset-2">
+              View cart
+            </a>
+          </>
+        )}
       </p>
     </div>
   );

@@ -327,3 +327,47 @@ export async function readStoreProduct(
     { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead },
   );
 }
+
+export interface StoreCartLineRow {
+  variantId: string;
+  productSlug: string;
+  name: string;
+  brand: string;
+  options: string;
+  priceFils: number;
+  compareAtPriceFils: number | null;
+  available: boolean;
+  image: StoreImageRow | null;
+}
+
+/**
+ * Current data for device-cart variants (roadmap step 62). Returns only active variants of
+ * visible products; any other requested ID is simply absent, so a hidden or removed variant is
+ * indistinguishable from one that never existed. Stock is reported as a yes/no.
+ */
+export async function readStoreCartLines(
+  db: Database,
+  variantIds: readonly string[],
+): Promise<StoreCartLineRow[]> {
+  if (!variantIds.length) return [];
+  return db.$queryRaw<StoreCartLineRow[]>(Prisma.sql`
+    SELECT cv.id AS "variantId", p.slug AS "productSlug", p.name, b.name AS brand,
+      coalesce((SELECT string_agg(cv.attributes->>o.name, ' · ' ORDER BY o.sort_order, o.id)
+        FROM product_options o WHERE o.product_id=p.id AND cv.attributes ? o.name), '')
+        AS options,
+      coalesce(cv.price_override_fils, p.base_price_fils)::int AS "priceFils",
+      CASE WHEN p.compare_at_price_fils > coalesce(cv.price_override_fils, p.base_price_fils)
+        THEN p.compare_at_price_fils::int END AS "compareAtPriceFils",
+      cv.stock_on_hand > 0 AS available,
+      (SELECT jsonb_build_object('alt', i.alt, 'width', i.width, 'height', i.height,
+          'derivativeKeys', m.derivative_keys)
+        FROM product_images i JOIN media_assets m ON m.id=i.media_asset_id
+        WHERE i.product_id=p.id AND m.state='ready'
+        ORDER BY i.is_primary DESC, i.sort_order, i.id LIMIT 1) AS image
+    FROM variants cv
+    JOIN products p ON p.id=cv.product_id
+    JOIN brands b ON b.id=p.brand_id
+    JOIN categories c ON c.id=p.category_id
+    WHERE cv.id = ANY(${[...variantIds]}::uuid[]) AND cv.active AND ${VISIBLE_PRODUCT}
+    ORDER BY cv.id LIMIT 50`);
+}

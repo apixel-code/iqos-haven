@@ -669,3 +669,27 @@ Not covered: suggestions in a browser through the gateway (the serve mode has no
 - **`invariant-reviewer`:** no blockers. Fixed afterwards (covered by unit tests and `pnpm verify`, not by a second browser run): ambiguous matches offer nothing; the related section cannot fail the page; legacy keys are cleared on every page, not only when the cart is used; a failed storage write no longer loses the addition; store slugs use the slug schema.
 
 Not covered: the quick-add dialog itself in a browser (it needs the gateway to reach the API; the serve mode has none) — its buy box is the same component exercised on the product page; real product images in the gallery; swipe gestures; the cart page (step 62).
+
+## Step 62 — device cart, quantities and availability (2026-10-11, local)
+
+`pnpm verify -- --integration`: exit 0. Unit 478 (storefront 76), integration 356, gateway 29, age-preview 1676.
+
+**Real API + PostgreSQL (`store-catalog.int.test.ts`, cart refresh):** only active variants of visible products are returned; inactive, draft and unknown IDs are absent and a repeated ID appears once; name, brand, option text in option order, price (override or base), previous price, in-stock flag and thumbnail are correct; no SKU, stock count or version in the body; a price change, a deactivation and an unpublish show on the next read (not cached); empty, malformed, 51-ID and extra-parameter requests answer 400; no ticket answers 403 with no product data.
+
+**Unit (`selection.test.ts`, cart section):** quantity limits and remove; unconfirmed view from the device snapshot; server price and name applied with a price-change note; sold-out and withdrawn lines stay visible, flagged and out of the subtotal; a flagged line stays flagged when another line changes and nothing new is known; repeated IDs in stored text are dropped; integer fils throughout.
+
+**`pnpm test:age-preview`:** `/cart` is gated; the server-rendered frame carries no catalogue data.
+
+**Real browser (headless Chromium, refresh route stubbed in the browser, 20 checks, screenshots reviewed at 360 px and 1280 px):**
+
+- header count; the refresh asks for exactly the cart's variant IDs;
+- "Price changed from AED 45 to AED 47 since you added it."; sold-out and no-longer-available lines flagged with their own text, quantity locked, struck-through totals;
+- subtotal counts only buyable lines at current prices (2 × 47 + 49 = AED 143); "Remove the unavailable items before checking out."; checkout disabled;
+- a quantity change updates the total, persists and does not refetch;
+- removing one line while the next refresh fails leaves the sold-out line flagged and uncounted;
+- a failed refresh on load keeps the cart from the snapshot and says the figures are confirmed at checkout;
+- empty state; "View cart" after adding on the product page; the only storage key is `ih_cart_v1`.
+
+- **`invariant-reviewer`:** no blockers. Fixed: server answers are kept per variant, so changing another line cannot clear a flag; stored duplicates dropped; neutral "Loading your cart…" frame before the device cart is read.
+
+Not covered: the refresh through the real gateway in a browser (the route itself is covered by the API test; the browser run stubs it); checkout (not built).
