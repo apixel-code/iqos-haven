@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ORDER_LIMITS } from "@ih/domain";
 import { catalogueSlugSchema } from "./catalogue";
 import { disposableSpecsSchema, kitSpecsSchema, productFilsSchema } from "./products";
 
@@ -223,7 +224,7 @@ export const storeSuggestResponseSchema = z.strictObject({
 export type StoreSuggestResponse = z.infer<typeof storeSuggestResponseSchema>;
 
 // --- Device cart refresh (roadmap step 62) ---
-export const STORE_CART_MAX_LINES = 50;
+export const STORE_CART_MAX_LINES = ORDER_LIMITS.maxLines;
 /** Variant IDs held in the shopper's device cart; one value or a repeated parameter. */
 export const storeCartLinesQuerySchema = z.strictObject({
   variant: list(z.uuid(), STORE_CART_MAX_LINES),

@@ -1,7 +1,7 @@
 # 0034 — Guest customers, saved addresses and the phone identity
 
 - Date: 2026-10-11
-- Status: accepted
+- Status: accepted; phone rule narrowed to UAE mobiles only by ADR 0035
 - Step(s): 65 (validation rules: 66; order snapshots: 73; order transaction: 75–76; admin customer views: 90)
 
 ## Context

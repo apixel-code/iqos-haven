@@ -13,7 +13,7 @@ import {
   type DeliveryAreasQuery,
   type DeliveryConfigurationWriteRequest,
 } from "@ih/contracts";
-import { deliveryForArea } from "@ih/domain";
+import { deliveryForArea, DeliveryUnavailableError, isDeliverableArea } from "@ih/domain";
 import { toAuditEntry, type CommandContext } from "@ih/application";
 import { Prisma, type Database, type Tx } from "./client";
 import { withTransaction, isUnitOfWork } from "./transaction";
@@ -182,6 +182,22 @@ export async function writeDeliveryConfiguration(
       await tx.setting.findUniqueOrThrow({ where: { key: "delivery" } }),
     );
   });
+}
+/**
+ * Checkout validation before a quote: the chosen area must exist, be active and be in Dubai.
+ * Unknown and inactive areas are indistinguishable (`DeliveryUnavailableError`). Takes no lock:
+ * the quote/order transaction decides again under `lockDeliverySelection`.
+ */
+export async function readDeliverableArea(db: Database | Tx, areaId: string) {
+  // A malformed ID must look like an unknown area, not like a database error.
+  if (!/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(areaId))
+    throw new DeliveryUnavailableError();
+  const area = await db.deliveryArea.findUnique({
+    where: { id: areaId },
+    select: { id: true, code: true, name: true, active: true, emirate: true },
+  });
+  if (!area || !isDeliverableArea(area)) throw new DeliveryUnavailableError();
+  return { id: area.id, code: area.code, name: area.name };
 }
 /** Internal quote/order primitive. Caller must hold earlier resource locks; retains shared
  * settings then area locks until commit so edits/deactivation cannot invalidate the snapshot. */

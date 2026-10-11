@@ -759,3 +759,21 @@ Not covered: WhatsApp links opening the app; the mobile menu sheet (not built); 
 **`invariant-reviewer`:** no blockers. Done: zero-width/invisible characters refused and a name needs a letter or digit; call-order and caller rules documented on the primitives; version cannot decrease. Left as documented limits: trunk zero after a non-UAE country code; display name follows the latest typed name.
 
 Not covered: "old snapshots independent" end to end, because order tables arrive in step 73 (what exists is checked: immutable addresses, no cascade, no delete); address saving against concurrent area/setting edits (step 75); the migration on the dev database (not applied).
+
+## Step 66 — checkout input validation (2026-10-11, local)
+
+`pnpm verify -- --integration`: exit 0, twice (before and after the review fixes). Unit 509 (domain 123, contracts 65), integration 371 (db 72), gateway 29, age-preview 1847, gate 1803.
+
+**Unit (`customer.test.ts`, `order-lines.test.ts`, `checkout.test.ts`):**
+
+- Phone: ten spellings of one UAE mobile give one value; landlines, foreign numbers, toll-free and malformed input are refused.
+- Contact: both fields reported together with the form's wording; unknown fields and oversized input refused.
+- Address: normalized output fits the storage bounds of step 65; a unit is required for an apartment and an office, not for a villa; all seven fields reported in one pass; bounds accepted exactly; Makani must be 10 digits (spaces and Arabic-Indic digits accepted); `feeFils`, `emirate` or any other extra field is refused.
+- Lines: repeats merged and sorted; empty, 51 lines, quantities 0, −1, 1.5, 11, NaN, 1e21, 2^53 and a string are refused; two lines of one variant that together exceed 10 are refused; a line carrying `priceFils` is refused.
+- The device cart's limits equal the server's.
+
+**Integration (`customers.int.test.ts`, real PostgreSQL):** an active area is accepted; an inactive, unknown or malformed area ID is refused the same way; deactivation takes effect on the next read; the validators' output is stored unchanged by the step-65 customer primitives.
+
+**`invariant-reviewer`:** no blockers. Done: a malformed area ID no longer reaches the database; Arabic-Indic digits accepted in the Makani number; villa-with-unit intent tested. Kept on purpose and recorded in ADR 0035: any `5x` mobile prefix is accepted.
+
+Not covered: these rules behind a real route or in the checkout form (steps 71, 77); real areas (BI-03); a concurrent area deactivation during an order (step 75).

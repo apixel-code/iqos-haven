@@ -3,9 +3,9 @@
 ## Current position
 
 - Date: 2026-10-11
-- Milestone: M6 — customers, pricing, coupons and server quote: step 65 done. M5: PASSED 2026-10-11. M4 steps done, gate waits for BI-02; M3 gate not closed; M0 review and M1 staging/fixtures still open
-- Step: 65 (guest customers, addresses, phone identity) — done; next is 66
-- Branch: `main` holds everything through step 65 (PR #46 merged 2026-10-11 as ed2fff5, carrying steps 32–65; no PRs open)
+- Milestone: M6 — customers, pricing, coupons and server quote: steps 65–66 done. M5: PASSED 2026-10-11. M4 steps done, gate waits for BI-02; M3 gate not closed; M0 review and M1 staging/fixtures still open
+- Step: 66 (checkout input validation) — done; next is 68 (67 waits for BI-02 except its tax-independent part)
+- Branch: `step/66-checkout-validation` (from `main`, which holds everything through step 65; PR open, Marina merges)
 - See docs/verification.md for actual checks.
 
 ## Next action
@@ -16,8 +16,11 @@
 - Toolchain: prefix commands with `export PATH="/opt/homebrew/opt/node@24/bin:$HOME/.docker/bin:$PATH"`. If Docker is down, run `open -a Docker` and then `pnpm infra:up`.
 - Marina's decisions (2026-10-11): build what the open business inputs do not block; BI-03 → build without real areas or fees (Owner enters them later); BI-02 → no assumed tax rates, build only the tax-independent parts.
 
-3. **Then `/step 66` (address, phone, Dubai-area and quantity validation).** Find the row with `rg -n "^| 66 " docs/roadmap.md`. BI-03 (delivery areas/fee) blocks 66 and 70: build the validators without real areas. BI-02 (tax) blocks 67, 70, 72. Open client question on which phone numbers may order (business-inputs questions log, 2026-10-11).
-   - Customers (ADR 0034): reuse `normalizePhone`/`normalizeCustomerName`/`normalizeTextLine` from `@ih/domain` and the storage bounds in `packages/contracts/src/customers.ts`. `lockCustomerForOrder`/`saveCustomerAddress` are for the order transaction only (steps 75–76): call `saveCustomerAddress` after `lockDeliverySelection`, and that transaction must write the audit entry and events.
+1. **Marina merges the step-66 PR on GitHub** ("Create a merge commit"); then `git checkout main && git pull --ff-only`.
+2. **Next step: `/step 68` (percentage-coupon schema), then 69.** Neither is blocked. Step 67 (pricing) may be started for its tax-independent part only (integer fils, half-up rounding, allocation); the tax formula waits for BI-02. Step 70 waits for BI-02 and BI-03.
+3. **Rules that carry forward:**
+   - Checkout input (ADR 0035): parse with `checkoutContactSchema`, `checkoutAddressSchema` and `orderLinesSchema` from `@ih/contracts`; never add a second copy of a rule or message. The route must map issues to the error envelope `fields` without echoing typed values. Pre-check the area with `readDeliverableArea`; the transaction decides again with `lockDeliverySelection`.
+   - Customers (ADR 0034): `lockCustomerForOrder`/`saveCustomerAddress` are for the order transaction only (steps 75–76): call `saveCustomerAddress` after `lockDeliverySelection`, and that transaction must write the audit entry and events.
    - Storefront pages: use `storeRead`; no `loading.tsx` under `(shop)`; never export data from a `"use client"` file to a server component; add new URLs to `scripts/check-age-preview.mjs` and, for anything touching the age boundary, `scripts/check-gate-e2e.cjs`.
    - Manual look with real data: `pnpm build && pnpm test:gate -- --serve` (prints URL, cookie, a variant ID). With stub data: `pnpm test:age-preview -- --serve`.
    - The step-60 migration creates `pg_trgm` in schema `public`: the migration role needs that right on staging/production.
@@ -67,7 +70,8 @@ BI-01 and BI-09 (OPEN) block the contact copy and WhatsApp number/wording of ste
 - 62 — device cart UI: `GET /v1/store/cart/lines` refresh, line states that never remove or substitute, `/cart` page, header count, preview subtotal in fils (ADR 0031) — ef4fbbf
 - 63 — device lists `ih_lists_v1` (saved, compare, recently viewed; slugs only), `GET /v1/store/product-cards`, heart on cards and product page, `/wishlist`, `/compare`, recently-viewed rail (ADR 0032) — 42da99d
 - 64 — store shell and home shell, `GET /v1/store/info` + WhatsApp links only when configured, `pnpm test:gate` real-stack age-boundary check (ADR 0033; BI-01/BI-09 pending) — 82ce9b9
-- 65 — `customers` + `customer_addresses` (phone-keyed, no credentials, immutable phone and address rows, no runtime delete), `normalizePhone`, transaction-only customer primitives (ADR 0034) — `step(65)` commit on `step/65-guest-customer-schema`
+- 65 — `customers` + `customer_addresses` (phone-keyed, no credentials, immutable phone and address rows, no runtime delete), `normalizePhone`, transaction-only customer primitives (ADR 0034) — 209e62f
+- 66 — shared checkout validators (contact, address by type, Makani, notes, merged and capped lines), UAE-mobile-only phone, `readDeliverableArea` (ADR 0035; BI-03 pending) — `step(66)` commit on `step/66-checkout-validation`
 
 ## Known deviations
 
@@ -75,25 +79,27 @@ BI-01 and BI-09 (OPEN) block the contact copy and WhatsApp number/wording of ste
 - Event `consumers` lists only implemented consumers (now `system_probe`, `email`, `media_processor`, `storefront_revalidate`); planned ones are documented with roadmap steps and move in with a backfill decision (architecture §8: adding a consumer must not redefine old completions).
 - `audit_log` migration revokes UPDATE/DELETE/TRUNCATE only from a role named `ih_app`; other runtime role names must be revoked at provisioning (trigger blocks mutations regardless).
 
-## Last session handoff (2026-10-11, step 65)
+## Last session handoff (2026-10-11, step 66)
 
 Done:
 
-- **Step 65 (ADR 0034):** migration `20261011000200_customers`; `Customer`/`CustomerAddress` Prisma models; `@ih/domain` `normalizePhone`, `normalizeCustomerName`, `normalizeTextLine`; `@ih/contracts` `phoneE164Schema`, `customerAddressSchema`; `@ih/db` `lockCustomerForOrder`, `saveCustomerAddress`, `markCustomerFirstOrder`, `findCustomerByPhone`. No route or UI.
-- **`invariant-reviewer`:** no blockers; should-fixes done (invisible characters, documented caller/call-order rules, version cannot decrease).
+- **Decisions recorded (Marina, 2026-10-11):** M5 gate passed; orders from UAE mobiles only; build around open BI-02/BI-03 without assumed values. PR #46 merged steps 32–65 into `main`.
+- **Step 66 (ADR 0035):** `@ih/contracts` `checkout.ts` (`checkoutContactSchema`, `checkoutAddressSchema`, `orderLinesSchema`, `CHECKOUT_MESSAGES`, `CHECKOUT_BOUNDS`); `@ih/domain` UAE-mobile-only `normalizePhone`, `toAsciiDigits`, `ORDER_LIMITS`, `mergeOrderLines`, `isDeliverableArea`; `@ih/db` `readDeliverableArea`. `@ih/contracts` now depends on `@ih/domain`. No route or form.
+- **`invariant-reviewer`:** no blockers; fixes done; any `5x` mobile prefix accepted on purpose (ADR 0035).
 
-Files: `packages/db/prisma/{schema.prisma,migrations/20261011000200_customers/migration.sql}`, `packages/db/src/{customers.ts,customers.int.test.ts,index.ts}`, `packages/domain/src/{customer.ts,customer.test.ts,index.ts}`, `packages/contracts/src/{customers.ts,index.ts}`, `docs/decisions/0034-guest-customers-and-phone-identity.md`, `docs/{business-inputs,implementation-status,task-backlog,verification}.md`, `PROGRESS.md`.
+Files: `packages/contracts/{package.json,src/checkout.ts,src/checkout.test.ts,src/store.ts,src/index.ts}`, `packages/domain/src/{customer.ts,customer.test.ts,order-lines.ts,order-lines.test.ts,delivery.ts,index.ts}`, `packages/db/src/{delivery.ts,customers.int.test.ts}`, `apps/storefront/lib/store/selection.test.ts`, `pnpm-lock.yaml`, `docs/decisions/{0034,0035}-*.md`, `docs/{business-inputs,implementation-status,task-backlog,verification}.md`, `PROGRESS.md`.
 
-Tests: `pnpm verify -- --integration` PASS (unit 496, integration 369, gateway 29, age-preview 1847, gate 1803). The run before it failed two unrelated API integration tests on database connection timeouts and passed on rerun; watch for a repeat.
+Tests: `pnpm verify -- --integration` PASS (unit 509, integration 371, gateway 29, age-preview 1847, gate 1803).
 
 Unfinished:
 
-- Nothing is waiting to be merged: PR #46 carried steps 32–65 into `main`.
-- "Old snapshots independent" is only provable with order tables (step 73). Phone rule decided by Marina on 2026-10-11: UAE mobile only (applied in step 66).
+- The step-66 PR waits for Marina's merge.
+- No store endpoint lists active areas for the checkout form yet; real areas, fee and ETA wait for BI-03.
 - Migrations are not applied to the dev database.
 
 ## History (summary)
 
+- 2026-10-11 step 65: guest customers, addresses, phone identity (209e62f, merged with PR #46); verify unit 496/integration 369/gateway 29/age-preview 1847/gate 1803.
 - 2026-10-11 step 64: store shell, WhatsApp links, `pnpm test:gate` (82ce9b9); verify unit 491/integration 358/gateway 29/age-preview 1847/gate 1803.
 - 2026-10-11 step 63: saved items, compare, recently viewed (42da99d); verify unit 486/integration 357/gateway 29/age-preview 1828.
 - 2026-10-11 step 62: device cart UI and refresh route (ef4fbbf); verify unit 478/integration 356/gateway 29/age-preview 1676.

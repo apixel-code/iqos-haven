@@ -22,6 +22,7 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
+    "@ih/domain": "workspace:*",
     "zod": "4.6.5"
   },
   "devDependencies": {}

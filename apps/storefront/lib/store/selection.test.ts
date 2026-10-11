@@ -1,3 +1,4 @@
+import { ORDER_LIMITS, STORE_CART_MAX_LINES } from "@ih/contracts";
 import { describe, expect, it } from "vitest";
 import {
   addLine,
@@ -347,5 +348,16 @@ describe("cart editing and view", () => {
       subtotalFils: 0,
       itemCount: 0,
     });
+  });
+});
+
+describe("cart limits", () => {
+  it("are the limits the server applies to a quote or order", () => {
+    // The device cart keeps its own literals so client code does not bundle the validators.
+    expect(CART_LIMITS).toEqual({
+      maxLines: ORDER_LIMITS.maxLines,
+      maxQuantity: ORDER_LIMITS.maxLineQuantity,
+    });
+    expect(STORE_CART_MAX_LINES).toBe(ORDER_LIMITS.maxLines);
   });
 });
