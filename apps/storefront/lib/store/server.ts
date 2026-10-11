@@ -1,7 +1,9 @@
+import type { StoreInfoResponse } from "@ih/contracts";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { isIP } from "node:net";
-import { AGE_CHECK_PATH } from "../age/policy";
+import { cache } from "react";
+import { AGE_RECHECK_PATH } from "../age/policy";
 import { storefrontEnv } from "../env";
 import {
   AgeRequiredError,
@@ -29,7 +31,7 @@ export async function storeRead<T>(read: (api: StoreApi, shopper: ShopperContext
   try {
     return await read(api, await shopper());
   } catch (error) {
-    if (error instanceof AgeRequiredError) redirect(AGE_CHECK_PATH);
+    if (error instanceof AgeRequiredError) redirect(AGE_RECHECK_PATH);
     throw error;
   }
 }
@@ -50,3 +52,20 @@ export async function restartOnStaleCursor<T>(
     throw error;
   }
 }
+
+/**
+ * Shell settings for this request (currently the WhatsApp number). Read once per request even
+ * when the layout and the page both ask. If it cannot be read the shell simply has no WhatsApp
+ * links; an optional extra must never take a page down or send the shopper anywhere.
+ */
+export const storeInfo = cache(async (): Promise<StoreInfoResponse> => {
+  api ??= createStoreApi({ baseUrl: storefrontEnv().API_INTERNAL_URL });
+  try {
+    return await api.info(await shopper());
+  } catch (error) {
+    // Never redirect from the shell: a page that needs catalogue data decides that itself.
+    if (error instanceof StoreApiError || error instanceof AgeRequiredError)
+      return { whatsappNumber: null };
+    throw error;
+  }
+});

@@ -16,6 +16,7 @@ import {
   storeCartLinesResponseSchema,
   type StoreCartLinesQuery,
   storeCategoriesResponseSchema,
+  storeInfoResponseSchema,
   storeProductCardsQuerySchema,
   storeProductCardsResponseSchema,
   type StoreProductCardsQuery,
@@ -83,6 +84,13 @@ export class StoreCatalogController {
       }
       throw error;
     }
+  }
+
+  @Get("info")
+  @AgeVerified()
+  @Serialize(storeInfoResponseSchema)
+  info(@Req() request: FastifyRequest, @Res({ passthrough: true }) reply: FastifyReply) {
+    return this.read(request, reply, () => this.catalog.info());
   }
 
   @Get("brands")

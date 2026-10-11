@@ -272,3 +272,16 @@ export const storeProductCardsResponseSchema = z.strictObject({
     .max(STORE_CARDS_MAX),
 });
 export type StoreProductCardsResponse = z.infer<typeof storeProductCardsResponseSchema>;
+
+// --- Store info for the shell (roadmap step 64) ---
+/**
+ * The few Owner settings a shopper's pages need. `whatsappNumber` is null until the Owner has
+ * configured it (business input BI-09); the storefront then shows no WhatsApp links at all.
+ */
+export const storeInfoResponseSchema = z.strictObject({
+  whatsappNumber: z
+    .string()
+    .regex(/^\+[1-9]\d{7,14}$/)
+    .nullable(),
+});
+export type StoreInfoResponse = z.infer<typeof storeInfoResponseSchema>;

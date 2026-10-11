@@ -7,6 +7,12 @@ import { AGE_COOKIE, type AgeTicketResult } from "@ih/platform/age-ticket";
 export const RESTRICTED_COOKIE = "ih_age_restricted";
 export const AGE_CHECK_PATH = "/age-check";
 export const RESTRICTED_PATH = "/restricted";
+/**
+ * Where a shopper goes when the API refuses a ticket this storefront accepted (keys or policy
+ * out of step, or a ticket that expired between the two checks). `recheck` makes the gate show
+ * the age question instead of bouncing the still-"valid" ticket straight back, which would loop.
+ */
+export const AGE_RECHECK_PATH = `${AGE_CHECK_PATH}?recheck=1`;
 /** Exact paths: a future route under /api/age/ is gated unless it is added here. */
 const DECISION_PATHS: readonly string[] = ["/api/age/accept", "/api/age/reject"];
 /**
@@ -80,11 +86,12 @@ export function gateAction(input: {
   const { pathname, search, ticket, restricted } = input;
   if (ticket.ok) {
     // An accepted shopper has no reason to see the gate pages again.
-    if (pathname === AGE_CHECK_PATH)
-      return {
-        kind: "redirect",
-        location: safeReturnPath(new URLSearchParams(search).get("return")),
-      };
+    if (pathname === AGE_CHECK_PATH) {
+      const params = new URLSearchParams(search);
+      // Asked to confirm again: show the question; accepting issues a fresh ticket.
+      if (params.get("recheck") === "1") return { kind: "allow" };
+      return { kind: "redirect", location: safeReturnPath(params.get("return")) };
+    }
     if (pathname === RESTRICTED_PATH) return { kind: "redirect", location: "/" };
     return { kind: "allow" };
   }

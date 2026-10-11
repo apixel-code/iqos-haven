@@ -411,3 +411,15 @@ export async function readStoreProductCards(
     ORDER BY r.position LIMIT 24`);
   return rows.map(({ requested, ...row }) => ({ requested, row }));
 }
+
+/**
+ * Owner settings shown to shoppers (roadmap step 64). Only the WhatsApp number is read; nothing
+ * else in `settings` (recipients, templates, legal name) leaves the database through this.
+ */
+export async function readStoreInfo(db: Database): Promise<{ whatsappNumber: string | null }> {
+  const [row] = await db.$queryRaw<Array<{ number: string | null }>>(Prisma.sql`
+    SELECT value->>'number' AS number FROM settings WHERE key='whatsapp'`);
+  const number = row?.number ?? null;
+  // Written through a validated contract; anything else is treated as not configured.
+  return { whatsappNumber: number && /^\+[1-9]\d{7,14}$/.test(number) ? number : null };
+}

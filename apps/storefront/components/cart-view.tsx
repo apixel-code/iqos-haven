@@ -5,7 +5,9 @@ import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { storeCartLinesResponseSchema, type StoreCartLine } from "@ih/contracts";
 import { CART_LIMITS, cartView, type CartViewLine } from "@/lib/cart/cart";
 import { removeFromCart, setCartQuantity, useCart } from "@/lib/cart/store";
+import { SITE } from "@/lib/site";
 import { displayAed } from "@/lib/store/listing";
+import { whatsappHref, WHATSAPP_MESSAGES } from "@/lib/whatsapp";
 import { RecentlyViewed } from "./recently-viewed";
 
 /** Outcome of the latest refresh, tagged with the variant set it was for. */
@@ -23,7 +25,7 @@ const STATUS_TEXT: Partial<Record<CartViewLine["status"], string>> = {
  * variants changes. A line that is sold out or no longer offered stays visible and flagged; it
  * is never replaced by another variant and never counted in the subtotal.
  */
-export function CartView() {
+export function CartView({ whatsappNumber }: { whatsappNumber: string | null }) {
   const cart = useCart();
   // Only the set of variants matters for the refresh, not their quantities.
   const key = useMemo(
@@ -211,6 +213,26 @@ export function CartView() {
               );
             })}
           </ul>
+          {/* Sends nothing: it opens WhatsApp with the cart written out for the shopper to send. */}
+          {(() => {
+            const buyable = view.lines.filter(
+              (line) => line.status === "ok" || line.status === "unconfirmed",
+            );
+            const href = buyable.length
+              ? whatsappHref(whatsappNumber, WHATSAPP_MESSAGES.cart(SITE.name, buyable))
+              : null;
+            return href ? (
+              <a
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex w-fit flex-col rounded-md border border-line bg-surface px-4 py-3 text-sm hover:border-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+              >
+                <b className="font-semibold">Prefer to order on WhatsApp?</b>
+                <span className="text-ink-2">Send this cart to our team</span>
+              </a>
+            ) : null;
+          })()}
         </div>
         <aside
           aria-label="Order summary"

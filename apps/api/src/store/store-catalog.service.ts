@@ -9,6 +9,7 @@ import {
   type StoreCartLinesResponse,
   type StoreCategoriesResponse,
   type StoreImage,
+  type StoreInfoResponse,
   type StoreProductCard,
   type StoreProductCardsResponse,
   type StoreProductResponse,
@@ -22,6 +23,7 @@ import {
   listStoreProducts,
   readStoreCartLines,
   readStoreProductCards,
+  readStoreInfo,
   readStoreProduct,
   type Database,
   type StoreImageRow,
@@ -117,6 +119,11 @@ export class StoreCatalogService {
         found.map(async ({ requested, row }) => ({ requested, card: await this.card(row) })),
       ),
     };
+  }
+
+  /** Shell settings. Cached like other catalogue reads: a change shows within the cache TTL. */
+  info(): Promise<StoreInfoResponse> {
+    return this.cache.getOrLoad("store:info", () => readStoreInfo(this.db));
   }
 
   brands(): Promise<StoreBrandsResponse> {

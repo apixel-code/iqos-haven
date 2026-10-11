@@ -99,6 +99,7 @@ const card = (name, overrides = {}) => ({
   ...overrides,
 });
 const CATALOGUE = {
+  "/v1/store/info": { whatsappNumber: "+971501234567" },
   "/v1/store/brands": {
     items: [
       { name: "Orbe", slug: "orbe", description: "Synthetic brand story.", productCount: 2 },
@@ -561,9 +562,12 @@ try {
     `${renamed.status} ${renamed.headers.get("location")}`,
   );
   await page("/p/unknown-product", 404);
-  const badSlug = apiCalls.length;
+  // The shell still reads its settings; the product itself is never asked for.
+  const productCalls = () =>
+    apiCalls.filter((call) => call.path.startsWith("/v1/store/products/")).length;
+  const badSlug = productCalls();
   await page("/p/Not_A_Slug", 404);
-  check(apiCalls.length === badSlug, "an impossible slug is refused without an API call");
+  check(productCalls() === badSlug, "an impossible slug is refused without a product API call");
 
   // Cart page: the server renders only the frame; the cart itself is device state.
   const cartPage = await page("/cart");
@@ -588,6 +592,40 @@ try {
       `${path} carries no catalogue data from the server`,
     );
   }
+
+  // Home shell and WhatsApp links (number from the Owner's settings; none without it).
+  const home = await page("/");
+  for (const text of [
+    "Shop by category",
+    "New in",
+    "Orbe Halo Grape",
+    "Shop by brand",
+    "Skip to content",
+    "Help &amp; legal",
+    "Cash on delivery",
+    "contain nicotine",
+  ])
+    check(home.includes(text), `home shell shows "${text}"`);
+  check(
+    home.includes(
+      'href="https://wa.me/971501234567?text=Hi%20Iqos%20Haven%2C%20I%20have%20a%20question."',
+    ),
+    "footer WhatsApp link uses the configured number and a prepared message",
+  );
+  check(
+    /rel="noopener noreferrer"[^>]*>Chat on WhatsApp|Chat on WhatsApp/.test(home),
+    "WhatsApp link is present",
+  );
+  check(
+    (await page("/p/orbe-halo-7k")).includes(
+      "https://wa.me/971501234567?text=Hi%20Iqos%20Haven%2C%20I%20have%20a%20question%20about%20Orbe%20Halo%207K%20(AED%2045).",
+    ),
+    "product page WhatsApp link names the product and its price",
+  );
+  CATALOGUE["/v1/store/info"] = { whatsappNumber: null };
+  const noNumber = await page("/");
+  check(!noNumber.includes("wa.me"), "no WhatsApp link without a configured number");
+  CATALOGUE["/v1/store/info"] = { whatsappNumber: "+971501234567" };
 
   // Search: term, filters and the similar-results notice; only contract parameters reach the API.
   const found = await page(
@@ -672,9 +710,17 @@ try {
   const sentBack = await get("/shop", verified);
   check(
     sentBack.status === 307 &&
-      new URL(sentBack.headers.get("location"), ORIGIN).pathname === "/age-check",
-    "API refusal returns the shopper to the age check",
+      new URL(sentBack.headers.get("location"), ORIGIN).pathname === "/age-check" &&
+      new URL(sentBack.headers.get("location"), ORIGIN).searchParams.get("recheck") === "1",
+    "API refusal returns the shopper to the age question",
     `${sentBack.status} ${sentBack.headers.get("location")}`,
+  );
+  // The gate must show the question there, not bounce the still-valid ticket back (a loop).
+  const recheck = await get("/age-check?recheck=1", verified);
+  check(
+    recheck.status === 200 && (await recheck.text()).includes("Are you 18 or older?"),
+    "the recheck page shows the age question to a shopper whose ticket the storefront accepts",
+    String(recheck.status),
   );
   // An API outage is an error page without catalogue data or technical detail.
   apiMode = "down";

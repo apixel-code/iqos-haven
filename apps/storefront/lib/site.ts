@@ -21,3 +21,14 @@ export const POLICY_PAGES = [
   { path: "/privacy", title: "Privacy policy" },
 ] as const;
 export type PolicyPath = (typeof POLICY_PAGES)[number]["path"];
+
+/**
+ * Primary navigation. Kept here, not in a client component file: a value exported from a
+ * "use client" module is a client reference when a server component imports it, not an array.
+ */
+export const PRIMARY_NAV = [
+  { href: "/shop", label: "Shop" },
+  { href: "/disposable-vapes", label: "Disposables" },
+  { href: "/vape-kits", label: "Vape kits" },
+  { href: "/brands", label: "Brands" },
+] as const;

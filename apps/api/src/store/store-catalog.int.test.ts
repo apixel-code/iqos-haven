@@ -17,6 +17,7 @@ import {
   type StoreBrandsResponse,
   type StoreCartLinesResponse,
   type StoreCategoriesResponse,
+  type StoreInfoResponse,
   type StoreProductCardsResponse,
   type StoreProductResponse,
   type StoreProductsResponse,
@@ -711,6 +712,51 @@ describe("gated store catalogue reads (real API, PostgreSQL, Ed25519 ticket)", (
     const unverified = await get(`/product-cards?slug=${first.slug}`, {});
     expect(unverified.status).toBe(403);
     expect(await unverified.text()).not.toContain("Saved One");
+  });
+
+  it("gives the shell only the configured WhatsApp number, behind the age ticket", async () => {
+    await cache.invalidate();
+    expect(await json<StoreInfoResponse>("/info")).toEqual({ whatsappNumber: null });
+    await db.setting.create({
+      data: {
+        key: "whatsapp",
+        updatedBy: staffId,
+        value: {
+          number: "+971501234567",
+          templates: {
+            orderConfirmation: "Private template {{order_number}}",
+            statusUpdate: null,
+            support: null,
+          },
+        },
+      },
+    });
+    await db.setting.create({
+      data: {
+        key: "notifications",
+        updatedBy: staffId,
+        value: {
+          inApp: true,
+          newOrderEmail: { enabled: true, recipients: ["owner@iqoshaven.test"] },
+        },
+      },
+    });
+    await cache.invalidate();
+    const response = await get("/info");
+    const text = await response.text();
+    expect(JSON.parse(text)).toEqual({ whatsappNumber: "+971501234567" });
+    expect(response.headers.get("cache-control")).toBe("private, no-store");
+    for (const secret of ["Private template", "owner@iqoshaven.test", "templates", "recipients"])
+      expect(text).not.toContain(secret);
+    const unverified = await get("/info", {});
+    expect(unverified.status).toBe(403);
+    expect(await unverified.text()).not.toContain("+971501234567");
+    // A value that is not a phone number is treated as not configured.
+    await pool.query(
+      `UPDATE settings SET value='{"number":"call me"}'::jsonb WHERE key='whatsapp'`,
+    );
+    await cache.invalidate();
+    expect(await json<StoreInfoResponse>("/info")).toEqual({ whatsappNumber: null });
   });
 
   it("limits reads per client address", async () => {

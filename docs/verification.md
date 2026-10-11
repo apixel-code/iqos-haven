@@ -716,3 +716,27 @@ Not covered: the refresh through the real gateway in a browser (the route itself
 - **`invariant-reviewer`:** no blockers. Fixed afterwards (verified by `pnpm verify`, not by a second browser run): the comparison follows renames, so "Remove" works on a renamed kit; a product remembered under two slugs is shown once.
 
 Not covered: these features through the real gateway in a browser; the compare page with a renamed kit in a browser; a control to clear recently viewed (not built).
+
+## Step 64 — store shell, WhatsApp links and age-boundary verification (2026-10-11, local)
+
+`pnpm verify -- --integration`: exit 0. Unit 491 (storefront 89), integration 358, gateway 29, age-preview 1847, gate 1803.
+
+**`pnpm test:gate` (new): real built API on an isolated schema + real built storefront + real gateway container, over HTTP through the gateway.** Seeded: one published product, one draft, and Owner settings with a WhatsApp number, a private message template and a notification recipient.
+
+- **Refused, cold and again after a verified shopper warmed the API cache:** twelve page URLs (plain and as RSC requests, including the image optimizer) redirect to the age check; nine API routes answer 403 `AGE_VERIFICATION_REQUIRED`; no product name, price, WhatsApp number or other setting in any body; all `no-store`. Tried eight ways: no cookie, crawler user agent, preview fetcher, forged headers, junk cookie, ticket signed by another key, expired ticket, ticket for another policy.
+- **Accept/reject through the gateway:** accept without an Origin is 403; accept sets an HttpOnly, Secure cookie and redirects to the local return path; reject clears it and the browser is sent to the restricted page.
+- **Verified shopper:** home, shop, brand, search, product and cart pages render with the product, price and options, `private, no-store`; the draft product is a 404 and never appears; the footer carries the WhatsApp link; store info is exactly the number; product list, detail, suggestions, cart refresh (visible variants only, stock as yes/no) and saved-item cards work through the gateway; no SKU, template or recipient anywhere.
+- **Storefront origin:** admin, auth, internal and health API routes answer 404.
+
+**API (`store-catalog.int.test.ts`):** store info returns only the configured number behind the ticket; templates and recipients never leave; a value that is not a phone number reads as not configured.
+
+**Unit:** WhatsApp link building (no link without a valid number; the message cannot change the URL; wording per context); the recheck path shows the age question instead of looping.
+
+**`pnpm test:age-preview`:** home shell content, WhatsApp links with and without a configured number, API refusal → `/age-check?recheck=1` which shows the question.
+
+**Real browser through the real gateway (headless Chromium, 14 checks, screenshots reviewed at 360 px and 1280 px):** home; search suggestions; navigation marks the current section; the quick-add dialog opens with nothing preselected, refuses to add without a choice, blocks the sold-out option and stores exactly the chosen variant; the cart is confirmed by the API with the right subtotal; saved items load; no failed requests or page errors on the journey; a browser without the ticket is redirected and its direct API call gets 403. This closes the earlier "only run with stubs" gaps for quick add, suggestions, cart refresh and saved items. The browser pass ran before the review fixes below; those are covered by `pnpm verify`.
+
+- **This step's own run found a bug in new code:** the shell imported its navigation list from a client component file, so verified pages answered 500. Fixed by moving the list to a shared module; `test:gate` and `test:age-preview` now cover it.
+- **`invariant-reviewer`:** no blockers. Fixed: no redirect loop when the API refuses a ticket the storefront accepts; the seeded Owner in the gate check has a random password; the gate check now proves settings do not leak. One flaky false positive in the gate check (a random request ID containing "4900") was fixed by matching the price as data.
+
+Not covered: WhatsApp links opening the app; the mobile menu sheet (not built); real content sections (step 97); real mobile touch testing; staging. Contact copy and WhatsApp wording are placeholders (BI-01, BI-09).

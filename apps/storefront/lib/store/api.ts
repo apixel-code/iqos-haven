@@ -3,11 +3,13 @@ import {
   AGE_VERIFICATION_REQUIRED,
   storeBrandsResponseSchema,
   storeCategoriesResponseSchema,
+  storeInfoResponseSchema,
   storeProductResponseSchema,
   storeProductsResponseSchema,
   storeSearchResponseSchema,
   type StoreBrandsResponse,
   type StoreCategoriesResponse,
+  type StoreInfoResponse,
   type StoreProductResponse,
   type StoreProductsResponse,
   type StoreSearchResponse,
@@ -98,6 +100,8 @@ export function createStoreApi(options: { baseUrl: string; fetch?: typeof fetch 
   };
 
   return {
+    info: (shopper: ShopperContext): Promise<StoreInfoResponse> =>
+      required(call(shopper, "/info", storeInfoResponseSchema)),
     brands: (shopper: ShopperContext): Promise<StoreBrandsResponse> =>
       required(call(shopper, "/brands", storeBrandsResponseSchema)),
     categories: (shopper: ShopperContext): Promise<StoreCategoriesResponse> =>

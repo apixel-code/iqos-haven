@@ -5,13 +5,15 @@ import { BuyBox } from "@/components/buy-box";
 import { CompareToggle } from "@/components/compare-toggle";
 import { RecentlyViewed, RecordView } from "@/components/recently-viewed";
 import { SaveButton } from "@/components/save-button";
+import { WhatsAppLink } from "@/components/whatsapp-link";
 import { Gallery } from "@/components/gallery";
 import { Breadcrumbs } from "@/components/listing";
 import { ProductGrid } from "@/components/product-card";
 import { SITE } from "@/lib/site";
 import { TYPE_PAGES } from "@/lib/store/listing";
 import { StoreApiError } from "@/lib/store/api";
-import { storeRead } from "@/lib/store/server";
+import { storeInfo, storeRead } from "@/lib/store/server";
+import { WHATSAPP_MESSAGES } from "@/lib/whatsapp";
 
 type Props = { params: Promise<{ slug: string }> };
 const SLUG = /^[a-z0-9]+(-[a-z0-9]+)*$/;
@@ -82,6 +84,7 @@ export default async function ProductPage({ params }: Props) {
   // The product was renamed: send the shopper (and old links) to its current address.
   if (product.slug !== slug) permanentRedirect(`/p/${product.slug}`);
   const typePage = TYPE_PAGES[product.type];
+  const { whatsappNumber } = await storeInfo();
   // Optional section: if it cannot be loaded the product page still renders.
   const related = await storeRead((api, shopper) =>
     api.products(shopper, { brand: product.brand.slug, limit: 5 }),
@@ -116,6 +119,18 @@ export default async function ProductPage({ params }: Props) {
           <BuyBox key={product.slug} product={product} />
           <SaveButton slug={product.slug} name={product.name} variant="page" />
           {product.type === "kit" && <CompareToggle slug={product.slug} />}
+          <WhatsAppLink
+            number={whatsappNumber}
+            message={WHATSAPP_MESSAGES.product(SITE.name, {
+              name: product.name,
+              priceFromFils: Math.min(...product.variants.map((variant) => variant.priceFils)),
+              soldOut: product.soldOut,
+            })}
+          >
+            {product.soldOut
+              ? "Ask on WhatsApp when it's back"
+              : "Ask about this product on WhatsApp"}
+          </WhatsAppLink>
           <ul className="flex flex-col gap-1 text-sm text-ink-2">
             <li>
               <b className="font-medium text-ink">Cash on delivery.</b> Pay the courier when your

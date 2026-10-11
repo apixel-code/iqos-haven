@@ -190,6 +190,23 @@ describe("routing gate", () => {
     expect(act(RESTRICTED_PATH, valid)).toEqual({ kind: "redirect", location: "/" });
   });
 
+  it("shows the age question again when asked to recheck, instead of looping", () => {
+    // The API refused a ticket this storefront still accepts: the page redirected here.
+    expect(act(AGE_CHECK_PATH, valid, false, "?recheck=1")).toEqual({ kind: "allow" });
+    expect(act(AGE_CHECK_PATH, valid, false, "?recheck=1&return=%2Fcart")).toEqual({
+      kind: "allow",
+    });
+    // Only the exact flag does this; anything else still leaves the gate page.
+    expect(act(AGE_CHECK_PATH, valid, false, "?recheck=0").kind).toBe("redirect");
+    expect(act("/shop", valid, false, "?recheck=1")).toEqual({ kind: "allow" });
+    // It grants nothing to someone without a ticket.
+    expect(act("/shop", none, false, "?recheck=1").kind).toBe("redirect");
+    expect(act(AGE_CHECK_PATH, none, true, "?recheck=1")).toEqual({
+      kind: "redirect",
+      location: RESTRICTED_PATH,
+    });
+  });
+
   it("keeps a recently rejected device on the restricted page, including the gate itself", () => {
     for (const path of ["/", "/shop", AGE_CHECK_PATH])
       expect(act(path, none, true)).toEqual({ kind: "redirect", location: RESTRICTED_PATH });

@@ -3,37 +3,37 @@
 ## Current position
 
 - Date: 2026-10-11
-- Milestone: M5 — age boundary and storefront browsing (started; M4 steps done, gate waits for BI-02; M3 gate not closed; M0 review and M1 staging/fixtures still open)
-- Step: 63 (saved items, compare, recently viewed) — done; next is 64 (last step of M5)
-- Branch: `step/63-device-lists` (stacked on local `step/62-device-cart`; merge dependency PRs in step order)
+- Milestone: M5 — age boundary and storefront browsing: all steps (55–64) done; gate demonstrated locally with seeded data, awaiting Marina's decision. M4 steps done, gate waits for BI-02; M3 gate not closed; M0 review and M1 staging/fixtures still open
+- Step: 64 (store shell, WhatsApp links, age-boundary verification) — done; next is 65 (M6)
+- Branch: `step/64-shell-gate-verification` (stacked on local `step/63-device-lists`; merge dependency PRs in step order)
 - See docs/verification.md for actual checks.
 
 ## Next action
 
 **Start of a new session:**
 
-- Git: you are on `step/63-device-lists`, which is clean. Steps 33–63 are local, stacked commits; only `main` (through step 31) is on GitHub.
-- New work: branch the next step from `step/63-device-lists`. Do not branch from `main` until the chain is merged.
+- Git: you are on `step/64-shell-gate-verification`, which is clean. Steps 33–64 are local, stacked commits; only `main` (through step 31) is on GitHub.
+- New work: branch the next step from `step/64-shell-gate-verification`. Do not branch from `main` until the chain is merged.
 - Toolchain: prefix commands with `export PATH="/opt/homebrew/opt/node@24/bin:$HOME/.docker/bin:$PATH"`. If Docker is down, run `open -a Docker` and then `pnpm infra:up`.
 
-1. **Marina merges on GitHub (her decision, 2026-10-10).** PR #13 (step 32) first, then `step/33-*` … `step/63-*` in order: push → PR → green CI → merge. Claude's merge chain was denied by the classifier twice; Claude can push branches and open PRs if asked.
-2. **Then `/step 64`: navigation, home shell, WhatsApp links and gate browsing verification** (closes M5's steps). Find the row with `rg -n "^| 64 " docs/roadmap.md`; done condition includes "public contact copy approved" — check `docs/business-inputs.md` for the WhatsApp number and contact copy before building those parts.
-   - The minimal header in `app/(shop)/layout.tsx` (search, nav, Saved, Cart) is the starting point. Gate-bypass checks already live in `scripts/check-age-preview.mjs`; the step asks for direct API/RSC and warm-cache bypass tests through the real gateway.
-   - Browser calls to `/api/v1/store/*` (cart refresh, quick add, suggestions, cards) have only been run with stubs: exercise them through the gateway in this step.
-   - Storefront pages: use `storeRead`; no `loading.tsx` under `(shop)`; add new URLs to the check script. Manual look: `pnpm build && pnpm test:age-preview -- --serve`.
+1. **Marina merges on GitHub (her decision, 2026-10-10).** PR #13 (step 32) first, then `step/33-*` … `step/64-*` in order: push → PR → green CI → merge. Claude's merge chain was denied by the classifier twice; Claude can push branches and open PRs if asked.
+2. **Marina: decide the M5 gate.** Evidence: `pnpm test:gate` (real API + storefront + gateway, 1803 checks) and the browser pass in docs/verification.md "Step 64". Caveat: the products are seeded, because publishing through the admin waits for BI-02.
+3. **Then `/step 65` (M6 — quote and pricing).** Find the row with `rg -n "^| 65 " docs/roadmap.md` and check `docs/business-inputs.md`: BI-02 (tax) blocks 67, 70, 72; BI-03 (delivery areas/fee) blocks 66, 70.
+   - Storefront pages: use `storeRead`; no `loading.tsx` under `(shop)`; never export data from a `"use client"` file to a server component; add new URLs to `scripts/check-age-preview.mjs` and, for anything touching the age boundary, `scripts/check-gate-e2e.cjs`.
+   - Manual look with real data: `pnpm build && pnpm test:gate -- --serve` (prints URL, cookie, a variant ID). With stub data: `pnpm test:age-preview -- --serve`.
    - The step-60 migration creates `pg_trgm` in schema `public`: the migration role needs that right on staging/production.
    - Local storefront dev needs age keys in `.env`: run `pnpm age:keygen` and paste the three lines (Claude cannot read or edit `.env`). Without them every page redirects to the age check and accepting answers 503.
    - If `http://localhost:8080/api/age/*` answers 404, the gateway container is running an old config: `docker compose restart gateway`.
    - Every later stock writer (orders, steps 75–76, 85–86) must call `publishLowStockCrossing` in its transaction (ADR 0023).
-3. **Publishing is still blocked by BI-02**, so there are no published products in a real database: storefront pages need seeded data (tests seed published rows directly; see `apps/api/src/store/store-catalog.int.test.ts`).
-4. **Local invalidation call:** to exercise the worker → API call in dev, set `INTERNAL_SERVICE_KEYS` and the worker's `INTERNAL_SERVICE_*` in `.env` (see `.env.example`). Without them the effect completes as `skipped:not_configured`.
-5. **Browser QA for later admin steps:** use `scripts/browser-qa/` (README). `/tmp/ih-qa` does not survive; reinstall `playwright-core` there (or any directory) and set `QA_PLAYWRIGHT_DIR`.
+4. **Publishing is still blocked by BI-02**, so there are no published products in a real database: storefront pages need seeded data (tests seed published rows directly; see `apps/api/src/store/store-catalog.int.test.ts`).
+5. **Local invalidation call:** to exercise the worker → API call in dev, set `INTERNAL_SERVICE_KEYS` and the worker's `INTERNAL_SERVICE_*` in `.env` (see `.env.example`). Without them the effect completes as `skipped:not_configured`.
+6. **Browser QA for later admin steps:** use `scripts/browser-qa/` (README). `/tmp/ih-qa` does not survive; reinstall `playwright-core` there (or any directory) and set `QA_PLAYWRIGHT_DIR`.
 
 BI-02 gates real publication and the M4 gate.
 
 ## Blockers
 
-BI-04 (OPEN) blocks the policy values and copy of steps 55–57 (55–56 built with placeholders; production refuses the `unapproved` policy); BI-05 (OPEN) blocks any product indexing or preview (step 57 built with both off). BI-02 blocks real publication and so the M4 gate. Real settings/coverage require BI-01/BI-03/BI-09 and remaining BI-07 inputs. New-password browser submission needs user handoff under Computer Use policy; real mobile interaction QA remains open. BI-11 blocks real Owner bootstrap; BI-06 blocks staging. No milestone gate changes.
+BI-01 and BI-09 (OPEN) block the contact copy and WhatsApp number/wording of step 64 (built so that links appear only once the Owner sets the number). BI-04 (OPEN) blocks the policy values and copy of steps 55–57 (55–56 built with placeholders; production refuses the `unapproved` policy); BI-05 (OPEN) blocks any product indexing or preview (step 57 built with both off). BI-02 blocks real publication and so the M4 gate. Real settings/coverage require BI-01/BI-03/BI-09 and remaining BI-07 inputs. New-password browser submission needs user handoff under Computer Use policy; real mobile interaction QA remains open. BI-11 blocks real Owner bootstrap; BI-06 blocks staging. No milestone gate changes.
 
 ## Gates passed
 
@@ -65,7 +65,8 @@ BI-04 (OPEN) blocks the policy values and copy of steps 55–57 (55–56 built w
 - 60 — search: `product_search` projection with triggers, FTS prefix match with trigram near-miss fallback, seven filters, disjunctive facets, five sorts, keyset cursors, suggestions; `/search` page with filter form and header search (ADR 0029) — 3ea0d60
 - 61 — product page `/p/[slug]`, selection rules that never substitute or preselect, variant-specific price/stock, quick add dialog, device cart store `ih_cart_v1`, legacy checkout keys removed on every page (ADR 0030) — 8438b20
 - 62 — device cart UI: `GET /v1/store/cart/lines` refresh, line states that never remove or substitute, `/cart` page, header count, preview subtotal in fils (ADR 0031) — ef4fbbf
-- 63 — device lists `ih_lists_v1` (saved, compare, recently viewed; slugs only), `GET /v1/store/product-cards`, heart on cards and product page, `/wishlist`, `/compare`, recently-viewed rail (ADR 0032) — `step(63)` commit on `step/63-device-lists`
+- 63 — device lists `ih_lists_v1` (saved, compare, recently viewed; slugs only), `GET /v1/store/product-cards`, heart on cards and product page, `/wishlist`, `/compare`, recently-viewed rail (ADR 0032) — 42da99d
+- 64 — store shell and home shell, `GET /v1/store/info` + WhatsApp links only when configured, `pnpm test:gate` real-stack age-boundary check (ADR 0033; BI-01/BI-09 pending) — `step(64)` commit on `step/64-shell-gate-verification`
 
 ## Known deviations
 
@@ -73,32 +74,34 @@ BI-04 (OPEN) blocks the policy values and copy of steps 55–57 (55–56 built w
 - Event `consumers` lists only implemented consumers (now `system_probe`, `email`, `media_processor`, `storefront_revalidate`); planned ones are documented with roadmap steps and move in with a backfill decision (architecture §8: adding a consumer must not redefine old completions).
 - `audit_log` migration revokes UPDATE/DELETE/TRUNCATE only from a role named `ih_app`; other runtime role names must be revoked at provisioning (trigger blocks mutations regardless).
 
-## Last session handoff (2026-10-11, step 63)
+## Last session handoff (2026-10-11, step 64)
 
 Done:
 
-- **Step 63 (ADR 0032):**
-  - API: `GET /v1/store/product-cards` (`readStoreProductCards`, `StoreCatalogService.productCards`, `STORE_CARDS_POLICY`), contracts.
-  - Storefront: `lib/device/{lists,store,use-cards}.ts`; `components/{save-button,compare-toggle,recently-viewed,saved-view,compare-view}.tsx`; `/wishlist` and `/compare` pages; heart on cards; save/compare/recent on the product page; rail under the empty cart; "Saved" in the header.
-- **`invariant-reviewer`:** no blockers; the should-fix (compare after a rename) and a duplicate-card nit done.
+- **Step 64 (ADR 0033)**, without BI-01/BI-09:
+  - API: `GET /v1/store/info` (`readStoreInfo`, WhatsApp number only).
+  - Storefront: shell layout (header, footer, skip link, `NavLinks`), home page moved to `app/(shop)/page.tsx`, `lib/whatsapp.ts`, `WhatsAppLink`, links on footer/product/cart, `storeInfo` (per-request, never redirects), `/age-check?recheck=1`.
+  - Verification: `scripts/check-gate-e2e.cjs` as `pnpm test:gate` (in `verify --integration`), with `--serve`.
+- Found and fixed in this step: verified pages answered 500 (navigation list imported from a client file).
+- **`invariant-reviewer`:** no blockers; three should-fixes done.
 
-Files: `packages/contracts/src/store.ts`, `packages/db/src/store-catalogue.ts`, `apps/api/src/store/{store-catalog.controller,store-catalog.service,store-catalog.int.test}.ts`, `apps/api/src/security/limit-policies.ts`, `apps/storefront/{lib/device/,components/,app/(shop)/wishlist/,app/(shop)/compare/,app/(shop)/p/[slug]/page.tsx,app/(shop)/layout.tsx}`, `scripts/check-age-preview.mjs`, `docs/decisions/0032-device-lists.md`, `docs/{business-inputs,implementation-status,task-backlog,verification}.md`, `PROGRESS.md`.
+Files: `packages/contracts/src/store.ts`, `packages/db/src/store-catalogue.ts`, `apps/api/src/store/{store-catalog.controller,store-catalog.service,store-catalog.int.test}.ts`, `apps/storefront/{lib/whatsapp.ts,lib/whatsapp.test.ts,lib/site.ts,lib/store/api.ts,lib/store/server.ts,lib/age/policy.ts,lib/age/age-gate.test.ts,components/nav-links.tsx,components/whatsapp-link.tsx,components/cart-view.tsx,app/(shop)/layout.tsx,app/(shop)/page.tsx,app/(shop)/p/[slug]/page.tsx,app/(shop)/cart/page.tsx}`, `scripts/{check-gate-e2e.cjs,check-age-preview.mjs,verify.mjs}`, `package.json`, `CLAUDE.md` (command list), `docs/decisions/0033-store-shell-and-gate-verification.md`, `docs/{business-inputs,implementation-status,task-backlog,verification}.md`, `PROGRESS.md`.
 
-Tests: `pnpm verify -- --integration` PASS (unit 486, integration 357, gateway 29, age-preview 1828). Headless-browser run of the three features (before the review fix).
+Tests: `pnpm verify -- --integration` PASS (unit 491, integration 358, gateway 29, age-preview 1847, gate 1803). Browser pass through the real gateway: 14 checks PASS.
 
 Unfinished:
 
-- PR #13 and steps 33–63 are not merged (Marina merges on GitHub).
-- Browser calls to the API have only been run with stubs, never through the real gateway in a browser (planned for step 64).
-- No "clear recently viewed" control; the privacy policy should mention device-kept lists (noted in business inputs).
-- Checkout is not built. BI-02, BI-04/BI-05, BI-06 still open. Migrations are not applied to the dev database.
+- PR #13 and steps 33–64 are not merged (Marina merges on GitHub).
+- M5 gate awaits Marina's decision (seeded data; BI-02 blocks real publishing).
+- BI-01/BI-09: contact copy, WhatsApp number and wording; BI-04: footer warning wording. No mobile menu sheet, help pages or content sections yet.
+- Migrations are not applied to the dev database.
 
 ## History (summary)
 
+- 2026-10-11 step 63: saved items, compare, recently viewed (42da99d); verify unit 486/integration 357/gateway 29/age-preview 1828.
 - 2026-10-11 step 62: device cart UI and refresh route (ef4fbbf); verify unit 478/integration 356/gateway 29/age-preview 1676.
 - 2026-10-11 step 61: product page, selection rules, quick add, device cart store (8438b20); verify unit 470/integration 355/gateway 29/age-preview 1600.
-- 2026-10-11 step 60: search, suggestions, facets (3ea0d60); verify unit 457/integration 355/gateway 29/age-preview 1481.
-- 2026-10-11 step 59: storefront listing, brand and category pages (b0d8edb); verify unit 449/integration 342/gateway 29/age-preview 1368.
+- 2026-10-11 steps 55–61: age ticket, gate routes, generic preview, store API, listing pages, search, product page (0a4c250 … 8438b20); details in docs/verification.md.
 - 2026-10-11 steps 53–54: low-stock transitions (8adc131), acceptance pass + browser QA 32/32 (5e65bda).
 - 2026-10-10 steps 46–52: stock ledger, set-stock, media upload/processing, gallery, publication, catalogue cache (0923c1f … 00e4bfc); details per step in docs/verification.md.
 - 2026-10-08 … 10-10 steps 18–45: reliability foundation (audit/outbox/effects/worker/scheduler, M2 gate), email/storage/service auth, identity/sessions/RBAC/CSRF/limiters/reset/invites/staff/settings/delivery (M3 steps), catalogue schema, brands/categories/products/variants — details per step in docs/verification.md and git history.
