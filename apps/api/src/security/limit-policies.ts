@@ -134,3 +134,10 @@ export const STORE_CART_POLICY: EndpointLimitPolicy<"ip"> = {
   rules: { ip: perMinute(120) },
   outage: { fallback: { ip: perMinute(60) }, processCeiling: perMinute(3000) },
 };
+
+/** Saved-items and recently-viewed cards (step 63): uncached reads keyed by the device's list. */
+export const STORE_CARDS_POLICY: EndpointLimitPolicy<"ip"> = {
+  endpoint: "store_cards",
+  rules: { ip: perMinute(120) },
+  outage: { fallback: { ip: perMinute(60) }, processCeiling: perMinute(3000) },
+};

@@ -10,6 +10,7 @@ import {
   type StoreCategoriesResponse,
   type StoreImage,
   type StoreProductCard,
+  type StoreProductCardsResponse,
   type StoreProductResponse,
   type StoreProductsQuery,
   type StoreProductsResponse,
@@ -20,6 +21,7 @@ import {
   listStoreCategories,
   listStoreProducts,
   readStoreCartLines,
+  readStoreProductCards,
   readStoreProduct,
   type Database,
   type StoreImageRow,
@@ -103,6 +105,16 @@ export class StoreCatalogService {
           ...row,
           image: image ? await this.image(image) : null,
         })),
+      ),
+    };
+  }
+
+  /** Cards for slugs a device remembered (saved items, recently viewed). Not cached. */
+  async productCards(slugs: readonly string[]): Promise<StoreProductCardsResponse> {
+    const found = await readStoreProductCards(this.db, slugs);
+    return {
+      items: await Promise.all(
+        found.map(async ({ requested, row }) => ({ requested, card: await this.card(row) })),
       ),
     };
   }

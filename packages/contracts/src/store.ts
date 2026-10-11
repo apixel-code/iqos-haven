@@ -254,3 +254,21 @@ export const storeCartLinesResponseSchema = z.strictObject({
 });
 export type StoreCartLinesResponse = z.infer<typeof storeCartLinesResponseSchema>;
 export type StoreCartLine = StoreCartLinesResponse["lines"][number];
+
+// --- Device lists: saved items and recently viewed (roadmap step 63) ---
+export const STORE_CARDS_MAX = 24;
+export const storeProductCardsQuerySchema = z.strictObject({
+  slug: list(catalogueSlugSchema, STORE_CARDS_MAX),
+});
+export type StoreProductCardsQuery = z.infer<typeof storeProductCardsQuerySchema>;
+/**
+ * Cards for product slugs a device has remembered. `requested` is the slug that was asked for;
+ * `card.slug` is the current one (they differ after a rename). A requested slug with no item is
+ * no longer available to shoppers.
+ */
+export const storeProductCardsResponseSchema = z.strictObject({
+  items: z
+    .array(z.strictObject({ requested: catalogueSlugSchema, card: storeProductCardSchema }))
+    .max(STORE_CARDS_MAX),
+});
+export type StoreProductCardsResponse = z.infer<typeof storeProductCardsResponseSchema>;

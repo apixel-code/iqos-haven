@@ -2,6 +2,9 @@ import type { Metadata } from "next";
 import { notFound, permanentRedirect } from "next/navigation";
 import type { StoreProductResponse } from "@ih/contracts";
 import { BuyBox } from "@/components/buy-box";
+import { CompareToggle } from "@/components/compare-toggle";
+import { RecentlyViewed, RecordView } from "@/components/recently-viewed";
+import { SaveButton } from "@/components/save-button";
 import { Gallery } from "@/components/gallery";
 import { Breadcrumbs } from "@/components/listing";
 import { ProductGrid } from "@/components/product-card";
@@ -111,6 +114,8 @@ export default async function ProductPage({ params }: Props) {
           </div>
           {/* Keyed by product so choices never carry over to another product. */}
           <BuyBox key={product.slug} product={product} />
+          <SaveButton slug={product.slug} name={product.name} variant="page" />
+          {product.type === "kit" && <CompareToggle slug={product.slug} />}
           <ul className="flex flex-col gap-1 text-sm text-ink-2">
             <li>
               <b className="font-medium text-ink">Cash on delivery.</b> Pay the courier when your
@@ -147,6 +152,7 @@ export default async function ProductPage({ params }: Props) {
           </section>
         )}
       </div>
+      <RecordView slug={product.slug} />
       {more.length > 0 && (
         <section aria-labelledby="more" className="flex flex-col gap-5 pt-12">
           <h2 id="more" className="text-xl font-semibold tracking-tight">
@@ -155,6 +161,7 @@ export default async function ProductPage({ params }: Props) {
           <ProductGrid products={more} />
         </section>
       )}
+      <RecentlyViewed exclude={product.slug} />
     </>
   );
 }

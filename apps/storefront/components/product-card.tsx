@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { StoreProductCard } from "@ih/contracts";
 import { cardBadges, cardMeta, displayAed } from "@/lib/store/listing";
 import { QuickAdd } from "./quick-add";
+import { SaveButton } from "./save-button";
 
 const BADGE_STYLES = {
   soldOut: "bg-ink text-white",
@@ -42,6 +43,7 @@ export function ProductCard({ product }: { product: StoreProductCard }) {
             {product.brand.name}
           </div>
         )}
+        <SaveButton slug={product.slug} name={product.name} />
         {badges.length > 0 && (
           <ul className="absolute left-2.5 top-2.5 flex flex-wrap gap-1.5">
             {badges.map((badge) => (

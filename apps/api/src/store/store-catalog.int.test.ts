@@ -11,11 +11,13 @@ import {
 import {
   AGE_VERIFICATION_REQUIRED,
   storeCartLinesResponseSchema,
+  storeProductCardsResponseSchema,
   storeProductResponseSchema,
   storeProductsResponseSchema,
   type StoreBrandsResponse,
   type StoreCartLinesResponse,
   type StoreCategoriesResponse,
+  type StoreProductCardsResponse,
   type StoreProductResponse,
   type StoreProductsResponse,
 } from "@ih/contracts";
@@ -657,6 +659,58 @@ describe("gated store catalogue reads (real API, PostgreSQL, Ed25519 ticket)", (
     const unverified = await get(`/cart/lines?variant=${grape!.id}`, {});
     expect(unverified.status).toBe(403);
     expect(await unverified.text()).not.toContain("Cart Product");
+  });
+
+  it("returns cards for remembered slugs in order, following renames and hiding the rest", async () => {
+    const b = await parent("brand", "Saved brand");
+    const first = await product({ brandId: b.id, categoryId: category.id, name: "Saved One" });
+    const second = await product({
+      brandId: b.id,
+      categoryId: category.id,
+      name: "Saved Two",
+      variants: [[{}, null, 0, true]],
+    });
+    const draft = await product({ brandId: b.id, categoryId: category.id, status: "draft" });
+    const former = "saved-former-" + unique();
+    await db.slugRedirect.create({
+      data: { entityType: "product", oldSlug: former, productId: second.id },
+    });
+    const formerDraft = "saved-former-" + unique();
+    await db.slugRedirect.create({
+      data: { entityType: "product", oldSlug: formerDraft, productId: draft.id },
+    });
+    const query = [former, "never-existed", draft.slug, first.slug, formerDraft, first.slug]
+      .map((slug) => `slug=${slug}`)
+      .join("&");
+    const response = await get(`/product-cards?${query}`);
+    expect(response.status).toBe(200);
+    expect(response.headers.get("cache-control")).toBe("private, no-store");
+    const body = (await response.json()) as StoreProductCardsResponse;
+    expect(storeProductCardsResponseSchema.safeParse(body).success).toBe(true);
+    // Asked order kept; the former slug resolves to the current one; hidden slugs are absent.
+    expect(body.items.map((item) => [item.requested, item.card.slug, item.card.name])).toEqual([
+      [former, second.slug, "Saved Two"],
+      [first.slug, first.slug, "Saved One"],
+    ]);
+    expect(body.items[0]!.card.soldOut).toBe(true);
+    // The old and the current slug of one product both resolve to it.
+    const both = (await (
+      await get(`/product-cards?slug=${former}&slug=${second.slug}`)
+    ).json()) as StoreProductCardsResponse;
+    expect(both.items.map((item) => [item.requested, item.card.slug])).toEqual([
+      [former, second.slug],
+      [second.slug, second.slug],
+    ]);
+    for (const bad of [
+      "",
+      "slug=Not%20A%20Slug",
+      "slug=" + Array.from({ length: 25 }, (_, index) => "s" + index).join("&slug="),
+      `slug=${first.slug}&other=1`,
+    ])
+      expect((await get(`/product-cards?${bad}`)).status, bad.slice(0, 30)).toBe(400);
+    const unverified = await get(`/product-cards?slug=${first.slug}`, {});
+    expect(unverified.status).toBe(403);
+    expect(await unverified.text()).not.toContain("Saved One");
   });
 
   it("limits reads per client address", async () => {

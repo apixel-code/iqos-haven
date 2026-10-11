@@ -11,6 +11,7 @@ const NAV = [
   { href: "/disposable-vapes", label: "Disposables" },
   { href: "/vape-kits", label: "Vape kits" },
   { href: "/brands", label: "Brands" },
+  { href: "/wishlist", label: "Saved" },
 ] as const;
 
 /**

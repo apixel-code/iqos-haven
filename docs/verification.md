@@ -693,3 +693,26 @@ Not covered: the quick-add dialog itself in a browser (it needs the gateway to r
 - **`invariant-reviewer`:** no blockers. Fixed: server answers are kept per variant, so changing another line cannot clear a flag; stored duplicates dropped; neutral "Loading your cart…" frame before the device cart is read.
 
 Not covered: the refresh through the real gateway in a browser (the route itself is covered by the API test; the browser run stubs it); checkout (not built).
+
+## Step 63 — saved items, compare and recently viewed (2026-10-11, local)
+
+`pnpm verify -- --integration`: exit 0. Unit 486 (storefront 84), integration 357, gateway 29, age-preview 1828.
+
+**Real API + PostgreSQL (`store-catalog.int.test.ts`, product cards):** cards come back in the order asked; a former slug resolves to the current one (and both together resolve to the same product); unknown, draft and redirect-to-draft slugs are absent; sold-out is flagged; `private, no-store`; empty, malformed, 25-slug and extra-parameter requests answer 400; no ticket answers 403 with no product data.
+
+**Unit (`lib/device/lists.test.ts`):** save newest first and unsave; full list refused and reported; three kits at most; recently viewed unique, newest first and capped at 12; only slugs accepted (phone numbers, emails, paths and mixed case refused); remove from one list; renames followed everywhere without duplicates; stored value has only `v`, `saved`, `compare`, `recent`; unreadable, off-schema or extended values read as empty.
+
+**`pnpm test:age-preview`:** `/wishlist` and `/compare` are gated; their server-rendered frames carry no catalogue data.
+
+**Real browser (headless Chromium, API routes stubbed in the browser, screenshots reviewed at 360 px and 1280 px), run before the review fix below:**
+
+- the heart on a card saves and marks the product (phone and desktop);
+- saved items show current cards; a renamed product is followed and re-stored under its new slug; a gone product is reported and removed only on request; unsaving removes the card; empty state copy;
+- opening a product records it; the rail never shows the product being viewed and shows the others;
+- the product-page save button works; disposables have no compare option;
+- compare shows two kits with price, battery, output, pod capacity and availability; lowest price, largest battery and highest output are highlighted (confirmed in the screenshot; the script's own assertion for this used a bad locator and reported FAIL); removing kits updates the list and shows "Add one more kit";
+- storage holds only `ih_lists_v1`, slugs only; sessionStorage empty; no page errors.
+
+- **`invariant-reviewer`:** no blockers. Fixed afterwards (verified by `pnpm verify`, not by a second browser run): the comparison follows renames, so "Remove" works on a renamed kit; a product remembered under two slugs is shown once.
+
+Not covered: these features through the real gateway in a browser; the compare page with a renamed kit in a browser; a control to clear recently viewed (not built).

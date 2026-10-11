@@ -6,6 +6,7 @@ import { storeCartLinesResponseSchema, type StoreCartLine } from "@ih/contracts"
 import { CART_LIMITS, cartView, type CartViewLine } from "@/lib/cart/cart";
 import { removeFromCart, setCartQuantity, useCart } from "@/lib/cart/store";
 import { displayAed } from "@/lib/store/listing";
+import { RecentlyViewed } from "./recently-viewed";
 
 /** Outcome of the latest refresh, tagged with the variant set it was for. */
 type Outcome = { key: string; ok: boolean } | null;
@@ -96,6 +97,9 @@ export function CartView() {
         >
           Start shopping
         </Link>
+        <div className="w-full text-left">
+          <RecentlyViewed />
+        </div>
       </div>
     );
 

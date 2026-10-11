@@ -371,3 +371,43 @@ export async function readStoreCartLines(
     WHERE cv.id = ANY(${[...variantIds]}::uuid[]) AND cv.active AND ${VISIBLE_PRODUCT}
     ORDER BY cv.id LIMIT 50`);
 }
+
+/**
+ * Cards for remembered product slugs (roadmap step 63), in the order asked. A slug is matched
+ * as the current slug of a visible product or, failing that, as a former slug of one. Anything
+ * else is absent, so hidden and unknown products are indistinguishable.
+ */
+export async function readStoreProductCards(
+  db: Database,
+  slugs: readonly string[],
+): Promise<Array<{ requested: string; row: StoreProductCardRow }>> {
+  if (!slugs.length) return [];
+  const rows = await db.$queryRaw<Array<StoreProductCardRow & { requested: string }>>(Prisma.sql`
+    SELECT r.slug AS requested, p.id, p.slug, p.name, p.type,
+      b.name AS "brandName", b.slug AS "brandSlug",
+      c.name AS "categoryName", c.slug AS "categorySlug",
+      p.puff_count AS "puffCount", p.is_new AS "isNew",
+      s.price_from::int AS "priceFromFils", s.variant_count::int AS "variantCount",
+      NOT s.in_stock AS "soldOut",
+      CASE WHEN p.compare_at_price_fils > s.price_from
+        THEN p.compare_at_price_fils::int END AS "compareAtPriceFils",
+      (SELECT jsonb_build_object('alt', i.alt, 'width', i.width, 'height', i.height,
+          'derivativeKeys', m.derivative_keys)
+        FROM product_images i JOIN media_assets m ON m.id=i.media_asset_id
+        WHERE i.product_id=p.id AND m.state='ready'
+        ORDER BY i.is_primary DESC, i.sort_order, i.id LIMIT 1) AS image
+    FROM unnest(${[...slugs]}::text[]) WITH ORDINALITY AS r(slug, position)
+    JOIN products p ON p.id = coalesce(
+      (SELECT x.id FROM products x WHERE x.slug=r.slug),
+      (SELECT d.product_id FROM slug_redirects d
+        WHERE d.entity_type='product' AND d.old_slug=r.slug))
+    JOIN brands b ON b.id=p.brand_id
+    JOIN categories c ON c.id=p.category_id
+    CROSS JOIN LATERAL (
+      SELECT min(coalesce(v.price_override_fils, p.base_price_fils)) AS price_from,
+        count(*) AS variant_count, bool_or(v.stock_on_hand > 0) AS in_stock
+      FROM variants v WHERE v.product_id=p.id AND v.active) s
+    WHERE ${VISIBLE_PRODUCT}
+    ORDER BY r.position LIMIT 24`);
+  return rows.map(({ requested, ...row }) => ({ requested, row }));
+}

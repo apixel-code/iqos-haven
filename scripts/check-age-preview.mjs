@@ -35,6 +35,8 @@ const RESTRICTED = [
   "/_next/image?url=%2Fmedia%2Fhalo.webp&w=640&q=75",
   "/_next/image?url=https%3A%2F%2Fmedia.example%2Forbe-halo.webp&w=640&q=75",
   "/cart",
+  "/wishlist",
+  "/compare",
 ];
 // Words from the product URLs above: they must never come back in a body or in metadata.
 const PRODUCT_TOKENS = /halo|orbe|grape/i;
@@ -573,6 +575,19 @@ try {
     !/AED|Halo/.test(cartPage.replace(/<script[\s\S]*?<\/script>/g, "")),
     "cart page carries no catalogue data from the server",
   );
+
+  // Saved items and compare: frames only; the lists are device state.
+  for (const [path, heading] of [
+    ["/wishlist", "Saved items"],
+    ["/compare", "Compare kits"],
+  ]) {
+    const frame = await page(path);
+    check(frame.includes(heading), `${path} frame renders`);
+    check(
+      !/AED|Halo/.test(frame.replace(/<script[\s\S]*?<\/script>/g, "")),
+      `${path} carries no catalogue data from the server`,
+    );
+  }
 
   // Search: term, filters and the similar-results notice; only contract parameters reach the API.
   const found = await page(
