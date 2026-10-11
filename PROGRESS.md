@@ -4,23 +4,24 @@
 
 - Date: 2026-10-11
 - Milestone: M5 — age boundary and storefront browsing (started; M4 steps done, gate waits for BI-02; M3 gate not closed; M0 review and M1 staging/fixtures still open)
-- Step: 59 (storefront product list, brand and category pages) — done; next is 60
-- Branch: `step/59-listing-pages` (stacked on local `step/58-store-catalogue`; merge dependency PRs in step order)
+- Step: 60 (search, suggestions, facets and sort) — done; next is 61
+- Branch: `step/60-search` (stacked on local `step/59-listing-pages`; merge dependency PRs in step order)
 - See docs/verification.md for actual checks.
 
 ## Next action
 
 **Start of a new session:**
 
-- Git: you are on `step/59-listing-pages`, which is clean. Steps 33–59 are local, stacked commits; only `main` (through step 31) is on GitHub.
-- New work: branch the next step from `step/59-listing-pages`. Do not branch from `main` until the chain is merged.
+- Git: you are on `step/60-search`, which is clean. Steps 33–60 are local, stacked commits; only `main` (through step 31) is on GitHub.
+- New work: branch the next step from `step/60-search`. Do not branch from `main` until the chain is merged.
 - Toolchain: prefix commands with `export PATH="/opt/homebrew/opt/node@24/bin:$HOME/.docker/bin:$PATH"`. If Docker is down, run `open -a Docker` and then `pnpm infra:up`.
 
-1. **Marina merges on GitHub (her decision, 2026-10-10).** PR #13 (step 32) first, then `step/33-*` … `step/59-*` in order: push → PR → green CI → merge. Claude's merge chain was denied by the classifier twice; Claude can push branches and open PRs if asked.
-2. **Then `/step 60`: search (`StoreSearchController`, bounded search/suggestions/facets).** Find the row with `rg -n "^| 60 " docs/roadmap.md`. The listing pages (ADR 0028) are waiting for facets: price, puff count, strength, in stock, on sale.
+1. **Marina merges on GitHub (her decision, 2026-10-10).** PR #13 (step 32) first, then `step/33-*` … `step/60-*` in order: push → PR → green CI → merge. Claude's merge chain was denied by the classifier twice; Claude can push branches and open PRs if asked.
+2. **Then `/step 61`.** Find the row with `rg -n "^| 61 " docs/roadmap.md` (product detail page; cards and suggestions already link to `/p/[slug]`).
    - Storefront pages: use `storeRead` from `lib/store/server.ts`; do not add `loading.tsx` under `(shop)` (it turns 404/redirect/500 into streamed 200s); add new URLs to `RESTRICTED` and the verified section of `scripts/check-age-preview.mjs`.
-   - Product links already point to `/p/[slug]` (step 61); redirect there when the response `slug` differs.
+   - Redirect to the response's `slug` when it differs from the requested one.
    - For a manual look: `pnpm build && pnpm test:age-preview -- --serve` (stub API, prints a throwaway cookie).
+   - The step-60 migration creates `pg_trgm` in schema `public`: the migration role needs that right on staging/production.
    - Local storefront dev needs age keys in `.env`: run `pnpm age:keygen` and paste the three lines (Claude cannot read or edit `.env`). Without them every page redirects to the age check and accepting answers 503.
    - If `http://localhost:8080/api/age/*` answers 404, the gateway container is running an old config: `docker compose restart gateway`.
    - Every later stock writer (orders, steps 75–76, 85–86) must call `publishLowStockCrossing` in its transaction (ADR 0023).
@@ -60,7 +61,8 @@ BI-04 (OPEN) blocks the policy values and copy of steps 55–57 (55–56 built w
 - 56 — storefront age gate: deny-by-default `proxy.ts`, `/api/age/accept|reject` (Origin check, per-address limit, HttpOnly cookies, local-only return path), age-check and restricted pages (ADR 0025; BI-04 placeholders) — 8971a0e
 - 57 — generic preview: one name/description/Open Graph image for every URL, `robots.txt` disallow-all, public `/responsible-use` `/terms` `/privacy` shells, per-request rendering, `pnpm test:age-preview` in verify (ADR 0026; BI-04/BI-05 pending) — 54b1d6d
 - 58 — store catalogue API: `GET /v1/store/brands|categories|products|products/:slug` behind `@AgeVerified()`, one visibility rule, contract-only fields, fils prices, availability, signed image links, keyset cursors, cache on first pages and found products, per-address limit (ADR 0027) — 0e7700a
-- 59 — listing pages: `/shop`, type pages, `/brands`, `/brands/[slug]`, `/categories/[slug]`; server-side store client forwarding only ticket + address; card, controls, cursor paging, empty/404/error states, pending indicators; stub-API rendering in `test:age-preview` (ADR 0028) — `step(59)` commit on `step/59-listing-pages`
+- 59 — listing pages: `/shop`, type pages, `/brands`, `/brands/[slug]`, `/categories/[slug]`; server-side store client forwarding only ticket + address; card, controls, cursor paging, empty/404/error states, pending indicators; stub-API rendering in `test:age-preview` (ADR 0028) — b0d8edb
+- 60 — search: `product_search` projection with triggers, FTS prefix match with trigram near-miss fallback, seven filters, disjunctive facets, five sorts, keyset cursors, suggestions; `/search` page with filter form and header search (ADR 0029) — `step(60)` commit on `step/60-search`
 
 ## Known deviations
 
@@ -68,35 +70,34 @@ BI-04 (OPEN) blocks the policy values and copy of steps 55–57 (55–56 built w
 - Event `consumers` lists only implemented consumers (now `system_probe`, `email`, `media_processor`, `storefront_revalidate`); planned ones are documented with roadmap steps and move in with a backfill decision (architecture §8: adding a consumer must not redefine old completions).
 - `audit_log` migration revokes UPDATE/DELETE/TRUNCATE only from a role named `ih_app`; other runtime role names must be revoked at provisioning (trigger blocks mutations regardless).
 
-## Last session handoff (2026-10-11, step 59)
+## Last session handoff (2026-10-11, step 60)
 
 Done:
 
-- **Step 59 (ADR 0028):**
-  - `lib/store/{api,server,listing}.ts`, `lib/env.ts`: server-side catalogue client, request wrapper, pure listing helpers.
-  - `components/{product-card,listing,sort-form,pending}.tsx`.
-  - `app/(shop)/`: layout, `listing-page.tsx`, shop, two type pages, brands index, brand, category, error and not-found.
-  - `scripts/check-age-preview.mjs`: stub API, verified-shopper rendering, warm-up-then-refuse, `--serve`.
-  - `@ih/contracts`: store image links must be http(s).
-- **`invariant-reviewer`:** no blockers; hardening done.
+- **Step 60 (ADR 0029):**
+  - Migration `20261011000100_product_search`: `pg_trgm`, `product_search` table, GIN indexes, refresh function and triggers; Prisma model `ProductSearch`.
+  - `@ih/domain` `search.ts`; `@ih/contracts` search/suggest schemas; `@ih/db` `store-search.ts` (cursor helpers shared from `store-catalogue.ts`).
+  - API `StoreSearchController` (`/v1/store/search`, `/search/suggest`), search and suggest limit policies.
+  - Storefront `/search` page, `SearchBox` (header, suggestions), `SearchFilters`, `lib/store/search.ts`, stale-cursor restart for all lists.
+- **`invariant-reviewer`:** no blockers; fixes done.
 
-Files: `apps/storefront/{lib/env.ts,lib/store/,lib/age/runtime.ts,components/,app/(shop)/,app/page.tsx,package.json}`, `packages/contracts/src/store.ts`, `scripts/check-age-preview.mjs`, `pnpm-lock.yaml`, `docs/decisions/0028-storefront-listing-pages.md`, `docs/{implementation-status,task-backlog,verification}.md`, `PROGRESS.md`.
+Files: `packages/db/prisma/{schema.prisma,migrations/20261011000100_product_search/}`, `packages/db/src/{store-search,store-catalogue,index}.ts`, `packages/domain/src/{search,search.test,index}.ts`, `packages/contracts/src/store.ts`, `apps/api/src/store/{store-search.controller,store-search.int.test,store-catalog.service,store.module}.ts`, `apps/api/src/security/limit-policies.ts`, `apps/storefront/{lib/store/,components/search-box.tsx,components/search-filters.tsx,app/(shop)/search/,app/(shop)/layout.tsx,app/(shop)/listing-page.tsx}`, `scripts/check-age-preview.mjs`, `docs/decisions/0029-store-search.md`, `docs/{implementation-status,task-backlog,verification}.md`, `PROGRESS.md`.
 
-Tests: `pnpm verify -- --integration` PASS (unit 449, integration 342, gateway 29, age-preview 1368). Headless-browser look at 360/1280 px.
+Tests: `pnpm verify -- --integration` PASS (unit 457, integration 355, gateway 29, age-preview 1481). Headless-browser look at 360/1280 px.
 
 Unfinished:
 
-- PR #13 and steps 33–59 are not merged (Marina merges on GitHub).
-- Not built (later steps): facet filters and "Featured"/"Best selling" sorts (60), product page (61), wishlist/quick-add (62–63), full header/footer/home (64).
-- Pages were not run against the real API + database in one process; no real product images seen in the card.
-- BI-02 (publishing), BI-04/BI-05 (age policy, copy, indexing), BI-06 (CDN) still open. Migrations are not applied to the dev database.
+- PR #13 and steps 33–60 are not merged (Marina merges on GitHub).
+- Search performance is unmeasured; search analytics (`search_daily`) is step 106; suggestions were not exercised in a browser through the gateway.
+- The local test database now has `pg_trgm` installed; the dev database gets it when migrations are applied (still not applied).
+- Not built: product page (61), wishlist/quick-add (62–63), full shell (64). BI-02, BI-04/BI-05, BI-06 still open.
 
 ## History (summary)
 
+- 2026-10-11 step 59: storefront listing, brand and category pages (b0d8edb); verify unit 449/integration 342/gateway 29/age-preview 1368.
 - 2026-10-11 step 58: gated store catalogue API (0e7700a); verify unit 436/integration 342/gateway 29/age-preview 877.
 - 2026-10-11 step 57: generic preview, robots, policy pages, `test:age-preview` (54b1d6d); verify unit 436/integration 330/gateway 29/age-preview 877.
 - 2026-10-11 step 56: storefront age gate routes, proxy and pages (8971a0e); verify unit 433/integration 330/gateway 29; curl smoke through the gateway.
-- 2026-10-11 step 55: age-ticket signer/verifier, key ring, API guard (0a4c250); verify unit 396/integration 330/gateway 29.
 - 2026-10-11 steps 53–54: low-stock transitions (8adc131), acceptance pass + browser QA 32/32 (5e65bda).
 - 2026-10-10 steps 46–52: stock ledger, set-stock, media upload/processing, gallery, publication, catalogue cache (0923c1f … 00e4bfc); details per step in docs/verification.md.
 - 2026-10-08 … 10-10 steps 18–45: reliability foundation (audit/outbox/effects/worker/scheduler, M2 gate), email/storage/service auth, identity/sessions/RBAC/CSRF/limiters/reset/invites/staff/settings/delivery (M3 steps), catalogue schema, brands/categories/products/variants — details per step in docs/verification.md and git history.

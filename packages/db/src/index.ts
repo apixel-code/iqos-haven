@@ -26,3 +26,4 @@ export * from "./media";
 export * from "./gallery";
 export * from "./publication";
 export * from "./store-catalogue";
+export * from "./store-search";

@@ -616,3 +616,32 @@ Not covered: these routes through the storefront pages (59, 61); stock changes r
 - **`invariant-reviewer`:** no blockers; forwarding, input handling, caching and client bundle clean. Hardening done: formatter refuses bad amounts, image links must be http(s), unused error prop removed.
 
 Not covered: these pages against the real API and database in one run (the API side is covered by the step-58 tests, the page side by the stub); real product images in the card (the stub sends none); real mobile touch testing.
+
+## Step 60 — store search, suggestions and facets (2026-10-11, local)
+
+`pnpm verify -- --integration`: exit 0. Unit 457, integration 355 (search 13 new), gateway 29, age-preview 1481.
+
+**Unit:** `normalizeSearchTerm` (letters and digits only, six tokens, 64 characters; operators, quotes, wildcards and control characters removed; Unicode kept); storefront search state (known filters only, dirhams to fils, malformed numbers and reversed ranges ignored, bounded lists).
+
+**Real API + PostgreSQL (`apps/api/src/store/store-search.int.test.ts`):**
+
+- **Gate:** search and suggestions answer 403 without a valid ticket; `private, no-store`, `Vary: Cookie`.
+- **Matching:** names, brands, type words, puff counts ("7k", "10000") and active option values by word prefix; every word must match; a name match outranks an option match.
+- **Near misses:** "hallo" finds the Halo products and is marked approximate; numbers are never matched roughly; "mint" does not return "Mini"; near-miss results page correctly and a cursor stays in its pass when the catalogue changes.
+- **Hidden data:** drafts, products of inactive brands and inactive option values are never found.
+- **No results:** zero total, empty facets, no error.
+- **Hostile text** (SQL fragments, tsquery operators, `%`, `_`, backslash, markup, NUL, Arabic, emoji): 200, treated as plain text; the echoed term is letters, digits and spaces only.
+- **Facets:** exact counts for types, brands, puff counts, nicotine, price range, in stock and on sale; each facet ignores its own filter; combined filters; facets follow the search term.
+- **Sorting and paging:** five sorts walked one item at a time with no duplicates, and `total` equals the walked count.
+- **Bounds:** 26 malformed requests answer 400, including out-of-range numbers, reversed ranges, too many values, wrong-sort and forged cursors.
+- **Projection:** new product, product rename, brand rename, added option, deactivated option and unpublish are reflected at once.
+- **Suggestions:** visible products and brands from two characters; nothing for one character or hidden data.
+- **Rate limit:** 60 of 65 rapid searches from one address succeed.
+
+**`pnpm test:age-preview`:** `/search` is gated like every page; for a verified shopper it shows the term, total, filters and paging; the API receives only validated parameters with prices in fils; the term is not in the page title; the similar-results notice and no-result state render; markup in the term is escaped; a cursor the API refuses restarts the list (search and shop).
+
+**Real browser (headless Chromium, screenshots reviewed):** `/search` with results and with none at 360 px and 1280 px, no overflow or page errors; the header field keeps the term; searching from the header and submitting the filter form navigate correctly.
+
+- **`invariant-reviewer`:** no blockers; no injection path or visibility leak. Fixed: cursor remembers its pass, stale cursors restart the list, sorted lock order and extension-schema check in the migration.
+
+Not covered: suggestions in a browser through the gateway (the serve mode has no gateway, so the suggest call 404s there); search against a large catalogue (performance is unmeasured); a database whose `pg_trgm` is not in `public`.

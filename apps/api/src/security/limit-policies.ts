@@ -112,3 +112,18 @@ export const STORE_CATALOG_POLICY: EndpointLimitPolicy<"ip"> = {
   rules: { ip: perMinute(240) },
   outage: { fallback: { ip: perMinute(120) }, processCeiling: perMinute(6000) },
 };
+
+/**
+ * Search and facets (step 60) are not cached, because the text is free-form, so their budget is
+ * tighter than cached catalogue reads. Suggestions fire while typing and are cheaper.
+ */
+export const STORE_SEARCH_POLICY: EndpointLimitPolicy<"ip"> = {
+  endpoint: "store_search",
+  rules: { ip: perMinute(60) },
+  outage: { fallback: { ip: perMinute(30) }, processCeiling: perMinute(1500) },
+};
+export const STORE_SUGGEST_POLICY: EndpointLimitPolicy<"ip"> = {
+  endpoint: "store_suggest",
+  rules: { ip: perMinute(120) },
+  outage: { fallback: { ip: perMinute(60) }, processCeiling: perMinute(3000) },
+};

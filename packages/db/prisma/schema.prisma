@@ -314,6 +314,7 @@ model Product {
   media     MediaAsset[]
   images    ProductImage[]
   redirects SlugRedirect[]
+  search    ProductSearch?
 
   @@index([brandId], map: "products_brand")
   @@index([categoryId], map: "products_category")
@@ -402,6 +403,18 @@ model ProductImage {
   @@unique([productId, assetKey])
   @@index([productId, sortOrder, id], map: "product_images_order")
   @@map("product_images")
+}
+
+/// Search projection (step 60): derived text and tsvector per product, written only by
+/// database triggers. The GIN indexes (tsvector, trigram) are defined in the migration.
+model ProductSearch {
+  productId  String                  @id @map("product_id") @db.Uuid
+  product    Product                 @relation(fields: [productId], references: [id], onDelete: Cascade, onUpdate: Restrict)
+  searchText String                  @map("search_text")
+  document   Unsupported("tsvector")
+  updatedAt  DateTime                @default(dbgenerated("statement_timestamp()")) @map("updated_at") @db.Timestamptz(6)
+
+  @@map("product_search")
 }
 
 model SlugRedirect {

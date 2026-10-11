@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { SearchBox } from "@/components/search-box";
 import { AGE_COPY } from "@/lib/age/copy";
 import { SITE } from "@/lib/site";
 import { PolicyLinks } from "../(policy)/policy-page";
@@ -24,6 +25,7 @@ export default function ShopLayout({ children }: { children: ReactNode }) {
           <Link href="/" prefetch={false} className="text-lg font-semibold tracking-tight">
             {SITE.name}
           </Link>
+          <SearchBox />
           <nav aria-label="Catalogue">
             <ul className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
               {NAV.map((item) => (

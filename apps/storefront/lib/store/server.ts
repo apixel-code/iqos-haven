@@ -3,7 +3,13 @@ import { redirect } from "next/navigation";
 import { isIP } from "node:net";
 import { AGE_CHECK_PATH } from "../age/policy";
 import { storefrontEnv } from "../env";
-import { AgeRequiredError, createStoreApi, type ShopperContext, type StoreApi } from "./api";
+import {
+  AgeRequiredError,
+  createStoreApi,
+  StoreApiError,
+  type ShopperContext,
+  type StoreApi,
+} from "./api";
 
 let api: StoreApi | undefined;
 
@@ -24,6 +30,23 @@ export async function storeRead<T>(read: (api: StoreApi, shopper: ShopperContext
     return await read(api, await shopper());
   } catch (error) {
     if (error instanceof AgeRequiredError) redirect(AGE_CHECK_PATH);
+    throw error;
+  }
+}
+
+/**
+ * A cursor the API refuses (an old bookmark, or one made for another sort) restarts the list at
+ * its first page instead of showing an error.
+ */
+export async function restartOnStaleCursor<T>(
+  read: () => Promise<T>,
+  hasCursor: boolean,
+  firstPage: string,
+): Promise<T> {
+  try {
+    return await read();
+  } catch (error) {
+    if (hasCursor && error instanceof StoreApiError && error.status === 400) redirect(firstPage);
     throw error;
   }
 }

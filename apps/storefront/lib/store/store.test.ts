@@ -8,6 +8,7 @@ import {
   listingHref,
   parseListing,
 } from "./listing";
+import { activeFilterCount, parseSearch, searchApiParams, searchHref } from "./search";
 
 describe("listing controls from the address bar", () => {
   it("keeps only known, well-formed values", () => {
@@ -88,6 +89,88 @@ describe("price and card text", () => {
       { kind: "soldOut", label: "Sold out" },
     ]);
     expect(cardBadges({ ...card, isNew: false, compareAtPriceFils: null })).toEqual([]);
+  });
+});
+
+describe("search page state", () => {
+  it("keeps known filters, converts dirhams to fils and drops everything else", () => {
+    const state = parseSearch({
+      q: "  halo 7k  ",
+      type: "disposable",
+      brand: ["orbe", "kairo", "orbe", "Not A Slug"],
+      minPrice: "30",
+      maxPrice: "60",
+      minPuffs: "5000",
+      nicotine: ["20 mg", " 50 mg ", ""],
+      inStock: "true",
+      onSale: "yes",
+      sort: "price_asc",
+      cursor: "abc-123",
+      utm_source: "mail",
+      limit: "9999",
+    });
+    expect(state).toEqual({
+      q: "halo 7k",
+      type: "disposable",
+      brands: ["orbe", "kairo"],
+      minPrice: 30,
+      maxPrice: 60,
+      minPuffs: 5000,
+      nicotine: ["20 mg", "50 mg"],
+      inStock: true,
+      onSale: false,
+      sort: "price_asc",
+      cursor: "abc-123",
+    });
+    expect(searchApiParams(state)).toEqual([
+      ["q", "halo 7k"],
+      ["type", "disposable"],
+      ["brand", "orbe"],
+      ["brand", "kairo"],
+      ["minPriceFils", "3000"],
+      ["maxPriceFils", "6000"],
+      ["minPuffs", "5000"],
+      ["nicotine", "20 mg"],
+      ["nicotine", "50 mg"],
+      ["inStock", "true"],
+      ["sort", "price_asc"],
+      ["cursor", "abc-123"],
+    ]);
+    expect(activeFilterCount(state)).toBe(8);
+  });
+
+  it("ignores malformed numbers, reversed ranges and oversized lists", () => {
+    const state = parseSearch({
+      minPrice: "12.5",
+      maxPrice: "-3",
+      minPuffs: "1e9",
+      brand: Array.from({ length: 30 }, (_, index) => "b" + index),
+      nicotine: Array.from({ length: 30 }, (_, index) => "n" + index),
+      q: "x".repeat(500),
+      sort: "rank",
+    });
+    expect(state).toMatchObject({ inStock: false, onSale: false });
+    expect(state.minPrice ?? state.maxPrice ?? state.minPuffs ?? state.sort).toBeUndefined();
+    expect(state.brands).toHaveLength(10);
+    expect(state.nicotine).toHaveLength(6);
+    expect(state.q).toHaveLength(200);
+    expect(parseSearch({ minPrice: "500", maxPrice: "100" })).toMatchObject({ brands: [] });
+    expect(parseSearch({ minPrice: "500", maxPrice: "100" }).minPrice).toBeUndefined();
+    expect(parseSearch({}).q).toBe("");
+    expect(searchApiParams(parseSearch({}))).toEqual([]);
+  });
+
+  it("builds page links with page-level names and no empty values", () => {
+    expect(searchHref({})).toBe("/search");
+    expect(
+      searchHref({
+        q: "halo 7k",
+        brands: ["orbe", "kairo"],
+        minPrice: 30,
+        inStock: true,
+        cursor: "c",
+      }),
+    ).toBe("/search?q=halo+7k&brand=orbe&brand=kairo&minPrice=30&inStock=true&cursor=c");
   });
 });
 

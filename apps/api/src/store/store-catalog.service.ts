@@ -8,6 +8,7 @@ import {
   type StoreBrandsResponse,
   type StoreCategoriesResponse,
   type StoreImage,
+  type StoreProductCard,
   type StoreProductResponse,
   type StoreProductsQuery,
   type StoreProductsResponse,
@@ -20,6 +21,7 @@ import {
   readStoreProduct,
   type Database,
   type StoreImageRow,
+  type StoreProductCardRow,
 } from "@ih/db";
 import type { ObjectStorage } from "@ih/platform";
 import { CatalogueCacheService } from "../cache/catalogue-cache.service";
@@ -69,6 +71,24 @@ export class StoreCatalogService {
     return { alt: row.alt, width: row.width, height: row.height, urls };
   }
 
+  /** A list card from its row; shared with search so both show the same fields. */
+  async card(row: StoreProductCardRow): Promise<StoreProductCard> {
+    return {
+      slug: row.slug,
+      name: row.name,
+      type: row.type,
+      brand: { name: row.brandName, slug: row.brandSlug },
+      category: { name: row.categoryName, slug: row.categorySlug },
+      puffCount: row.puffCount,
+      isNew: row.isNew,
+      priceFromFils: row.priceFromFils,
+      compareAtPriceFils: row.compareAtPriceFils,
+      variantCount: row.variantCount,
+      soldOut: row.soldOut,
+      image: row.image ? await this.image(row.image) : null,
+    };
+  }
+
   brands(): Promise<StoreBrandsResponse> {
     return this.cache.getOrLoad("store:brands", async () => ({
       items: (await listStoreBrands(this.db)).map((row) => ({
@@ -115,22 +135,7 @@ export class StoreCatalogService {
     {
       const page = await listStoreProducts(this.db, query);
       return {
-        items: await Promise.all(
-          page.rows.map(async (row) => ({
-            slug: row.slug,
-            name: row.name,
-            type: row.type,
-            brand: { name: row.brandName, slug: row.brandSlug },
-            category: { name: row.categoryName, slug: row.categorySlug },
-            puffCount: row.puffCount,
-            isNew: row.isNew,
-            priceFromFils: row.priceFromFils,
-            compareAtPriceFils: row.compareAtPriceFils,
-            variantCount: row.variantCount,
-            soldOut: row.soldOut,
-            image: row.image ? await this.image(row.image) : null,
-          })),
-        ),
+        items: await Promise.all(page.rows.map((row) => this.card(row))),
         nextCursor: page.nextCursor,
       };
     }

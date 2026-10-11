@@ -24,6 +24,7 @@ const RESTRICTED = [
   "/vape-kits",
   "/brands",
   "/categories/disposables",
+  "/search?q=orbe+halo&brand=orbe&inStock=true",
   "/products/orbe-halo-7k-grape-ice",
   "/brands/orbe",
   "/cart",
@@ -119,6 +120,8 @@ const stub = createHttpServer((request, response) => {
   )
     return send(403, { error: { code: "AGE_VERIFICATION_REQUIRED" } });
   if (apiMode === "down") return send(503, { error: { code: "SERVICE_UNAVAILABLE" } });
+  if (url.searchParams.get("cursor") === "c3RhbGU")
+    return send(400, { error: { code: "VALIDATION_ERROR" } });
   if (url.pathname === "/v1/store/products")
     return send(
       200,
@@ -136,6 +139,37 @@ const stub = createHttpServer((request, response) => {
             nextCursor: "bmV4dC1wYWdl",
           },
     );
+  if (url.pathname === "/v1/store/search") {
+    const q = url.searchParams.get("q") ?? "";
+    const none = q.includes("zzz");
+    return send(200, {
+      query: q,
+      approximate: q.includes("hallo"),
+      sort: url.searchParams.get("sort") ?? (q ? "relevance" : "newest"),
+      total: none ? 0 : 2,
+      items: none ? [] : [card("Orbe Halo Grape"), card("Orbe Halo Mint", { soldOut: true })],
+      nextCursor: none ? null : "c2VhcmNoLW5leHQ",
+      facets: none
+        ? {
+            types: [],
+            brands: [],
+            puffCounts: [],
+            nicotine: [],
+            price: null,
+            inStock: 0,
+            onSale: 0,
+          }
+        : {
+            types: [{ type: "disposable", count: 2 }],
+            brands: [{ slug: "orbe", name: "Orbe", count: 2 }],
+            puffCounts: [{ puffCount: 7000, count: 2 }],
+            nicotine: [{ value: "20 mg", count: 1 }],
+            price: { minFils: 4500, maxFils: 4950 },
+            inStock: 1,
+            onSale: 1,
+          },
+    });
+  }
   return CATALOGUE[url.pathname]
     ? send(200, CATALOGUE[url.pathname])
     : send(404, { error: { code: "NOT_FOUND" } });
@@ -432,6 +466,60 @@ try {
       "no JSON-LD or price metadata even for verified pages",
     );
 
+  // Search: term, filters and the similar-results notice; only contract parameters reach the API.
+  const found = await page(
+    "/search?q=halo&brand=orbe&brand=Bad+Slug&minPrice=30&maxPrice=60&inStock=true&utm_campaign=x&sort=price_asc",
+  );
+  for (const text of [
+    "Results for “halo”",
+
+    "Orbe Halo Grape",
+    "Filters",
+    "Nicotine strength",
+    "20 mg",
+    "In stock only",
+    "Show results",
+    "Next page",
+  ])
+    check(found.includes(text), `search page shows "${text}"`);
+  check(/<b[^>]*>2<\/b> products/.test(found), "search page shows the total");
+  const searchCall = apiCalls.findLast((call) => call.path === "/v1/store/search");
+  check(
+    searchCall?.search ===
+      "?q=halo&brand=orbe&minPriceFils=3000&maxPriceFils=6000&inStock=true&sort=price_asc",
+    "search sends only validated parameters, prices in fils",
+    searchCall?.search,
+  );
+  check(searchCall?.headers.cookie === `ih_age=${ticket}`, "search forwards only the age cookie");
+  check(
+    found.includes("<title>Search · Iqos Haven</title>"),
+    "the search term is not in the page title",
+  );
+  check(
+    (await page("/search?q=hallo")).includes("Showing similar results"),
+    "near-miss notice is shown",
+  );
+  const nothing = await page("/search?q=zzz");
+  check(
+    nothing.includes("No results for “zzz”") && nothing.includes("Check the spelling"),
+    "no-result state is shown",
+  );
+  // A cursor the API refuses restarts the list instead of showing an error page.
+  for (const [stale, start] of [
+    ["/search?q=halo&sort=name&cursor=c3RhbGU", "/search?q=halo&sort=name"],
+    ["/shop?sort=name&cursor=c3RhbGU", "/shop?sort=name"],
+  ]) {
+    const response = await get(stale, verified);
+    const target = new URL(response.headers.get("location") ?? "/", ORIGIN);
+    check(
+      response.status === 307 && target.pathname + target.search === start,
+      `stale cursor on ${stale.split("?")[0]} restarts at the first page`,
+      `${response.status} ${response.headers.get("location")}`,
+    );
+  }
+  const hostile = await page("/search?q=" + encodeURIComponent('"><script>alert(1)</script>'));
+  check(!hostile.includes("<script>alert(1)</script>"), "search text is escaped in the page");
+
   // 6. What the verified shopper just loaded is still refused to the next unverified request.
   const callsBefore = apiCalls.length;
   for (const path of [
@@ -440,6 +528,7 @@ try {
     "/brands/orbe",
     "/disposable-vapes",
     "/categories/disposables",
+    "/search?q=halo",
   ])
     for (const headers of [
       {},

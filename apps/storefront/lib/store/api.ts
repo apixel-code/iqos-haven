@@ -5,10 +5,12 @@ import {
   storeCategoriesResponseSchema,
   storeProductResponseSchema,
   storeProductsResponseSchema,
+  storeSearchResponseSchema,
   type StoreBrandsResponse,
   type StoreCategoriesResponse,
   type StoreProductResponse,
   type StoreProductsResponse,
+  type StoreSearchResponse,
 } from "@ih/contracts";
 import type { z } from "zod";
 
@@ -109,6 +111,16 @@ export function createStoreApi(options: { baseUrl: string; fetch?: typeof fetch 
       }
       const suffix = query.size ? `?${query}` : "";
       return required(call(shopper, `/products${suffix}`, storeProductsResponseSchema));
+    },
+    /** `params` come from `searchApiParams`: already reduced to what the contract accepts. */
+    search(
+      shopper: ShopperContext,
+      params: ReadonlyArray<readonly [string, string]>,
+    ): Promise<StoreSearchResponse> {
+      const query = new URLSearchParams();
+      for (const [key, value] of params) query.append(key, value);
+      const suffix = query.size ? `?${query}` : "";
+      return required(call(shopper, `/search${suffix}`, storeSearchResponseSchema));
     },
     /** Null when the shopper may not see a product under this slug. */
     product: (shopper: ShopperContext, slug: string): Promise<StoreProductResponse | null> =>

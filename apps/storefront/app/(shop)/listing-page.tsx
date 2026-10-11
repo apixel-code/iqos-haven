@@ -1,8 +1,8 @@
 import type { ReactNode } from "react";
 import { Breadcrumbs, PageHead, ProductListing, type Crumb } from "@/components/listing";
 import { ListingControls } from "@/components/sort-form";
-import { parseListing, type ProductType } from "@/lib/store/listing";
-import { storeRead } from "@/lib/store/server";
+import { listingHref, parseListing, type ProductType } from "@/lib/store/listing";
+import { restartOnStaleCursor, storeRead } from "@/lib/store/server";
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
@@ -32,17 +32,26 @@ export async function ListingPage({
     ...(fixed.brand ? { brand: fixed.brand } : {}),
   };
   const offerBrands = !fixed.brand;
-  const [page, brands] = await storeRead((api, shopper) =>
-    Promise.all([
-      api.products(shopper, {
-        brand: state.brand,
-        type: state.type,
-        category: fixed.category,
-        sort: state.sort,
-        cursor: state.cursor,
-      }),
-      offerBrands ? api.brands(shopper) : Promise.resolve(null),
-    ]),
+  const [page, brands] = await restartOnStaleCursor(
+    () =>
+      storeRead((api, shopper) =>
+        Promise.all([
+          api.products(shopper, {
+            brand: state.brand,
+            type: state.type,
+            category: fixed.category,
+            sort: state.sort,
+            cursor: state.cursor,
+          }),
+          offerBrands ? api.brands(shopper) : Promise.resolve(null),
+        ]),
+      ),
+    Boolean(state.cursor),
+    listingHref(path, {
+      sort: state.sort,
+      ...(fixed.type ? {} : { type: state.type }),
+      ...(fixed.brand ? {} : { brand: state.brand }),
+    }),
   );
   const filtered = Boolean((!fixed.type && state.type) || (!fixed.brand && state.brand));
   return (

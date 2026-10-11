@@ -16,12 +16,12 @@ import { Prisma, type Database } from "./client";
  * Zero stock never hides anything: it only marks an option or product unavailable.
  * Callers authorize (age ticket) before calling; nothing here checks the caller.
  */
-const VISIBLE_PRODUCT = Prisma.sql`
+export const VISIBLE_PRODUCT = Prisma.sql`
   p.status='published' AND p.deleted_at IS NULL
   AND b.active AND b.deleted_at IS NULL
   AND c.active AND c.deleted_at IS NULL
   AND EXISTS (SELECT 1 FROM variants v WHERE v.product_id=p.id AND v.active)`;
-const PRODUCT_FROM = Prisma.sql`
+export const PRODUCT_FROM = Prisma.sql`
   FROM products p
   JOIN brands b ON b.id=p.brand_id
   JOIN categories c ON c.id=p.category_id`;
@@ -83,9 +83,13 @@ export class StoreCursorError extends Error {
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
-type Position = { sort: StoreProductSort; key: string | number; id: string };
+type Position<S extends string = StoreProductSort> = {
+  sort: S;
+  key: string | number;
+  id: string;
+};
 
-function encodeCursor(position: Position): string {
+export function encodeCursor(position: Position<string>): string {
   return Buffer.from(JSON.stringify([position.sort, position.key, position.id])).toString(
     "base64url",
   );
@@ -101,7 +105,12 @@ export function assertStoreCursor(cursor: string, sort: StoreProductSort): void 
   decodeCursor(cursor, sort);
 }
 
-function decodeCursor(cursor: string, sort: StoreProductSort): Position {
+/** `numericMax`: the key is an integer in [0, numericMax]; without it the key is bounded text. */
+export function decodeCursor<S extends string>(
+  cursor: string,
+  sort: S,
+  numericMax: number | null = sort === "price_asc" || sort === "price_desc" ? MAX_FILS : null,
+): Position<S> {
   let value: unknown;
   try {
     value = JSON.parse(Buffer.from(cursor, "base64url").toString("utf8"));
@@ -111,9 +120,8 @@ function decodeCursor(cursor: string, sort: StoreProductSort): Position {
   if (!Array.isArray(value) || value.length !== 3) throw new StoreCursorError();
   const [cursorSort, key, id] = value as unknown[];
   if (cursorSort !== sort || typeof id !== "string" || !UUID.test(id)) throw new StoreCursorError();
-  const numeric = sort === "price_asc" || sort === "price_desc";
-  if (numeric) {
-    if (!Number.isInteger(key) || (key as number) < 0 || (key as number) > MAX_FILS)
+  if (numericMax !== null) {
+    if (!Number.isInteger(key) || (key as number) < 0 || (key as number) > numericMax)
       throw new StoreCursorError();
   } else if (
     typeof key !== "string" ||
