@@ -1,9 +1,9 @@
 # Browser QA harness (admin, through the real local gateway)
 
 Headless Chromium drives the admin origin `http://localhost:8081` (Caddy gateway) against a
-built API and the real media consumer on an isolated `ih_test_*` schema of the **test** database.
+built API and the real worker consumers (media processing, signed cache invalidation) on an isolated `ih_test_*` schema of the **test** database.
 The dev database is never touched; only synthetic accounts are created. Used for steps 42–51
-(see `docs/verification.md`, "Browser QA").
+and the step 54 acceptance pass (see `docs/verification.md`, "Browser QA").
 
 ## One-time setup (outside the repo; not a project dependency)
 
@@ -26,6 +26,6 @@ QA_PLAYWRIGHT_DIR=/tmp/ih-qa node scripts/browser-qa/qa.mjs   # PASS/FAIL per ch
 Afterwards stop both servers and drop the schema:
 `node scripts/browser-qa/qa-server.cjs --drop ih_test_<id>`.
 
-Notes: ports 3001 and 4000 must be free; the `API_INTERNAL_URL` value is a placeholder required by
+Notes: ports 3001, 4000 and 4099 (loopback QA status probe: counts only) must be free; the `API_INTERNAL_URL` value is a placeholder required by
 the production admin start (the admin client only calls the same-origin `/api`). Real mobile
 touch/keyboard and reset/invite submissions are not covered.

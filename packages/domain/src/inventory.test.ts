@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { crossedIntoLowStock, isLowStock } from "./inventory";
+import { crossedIntoLowStock, isLowStock, productAvailability } from "./inventory";
 
 const level = (stock: number, threshold: number) => ({ stock, threshold });
 
@@ -41,5 +41,31 @@ describe("low-stock transitions", () => {
       .slice(1)
       .map((stock, index) => crossedIntoLowStock(level(stocks[index]!, 3), level(stock, 3)));
     expect(crossings).toEqual([true, false, false, false, false, false, true, false]);
+  });
+});
+
+describe("option availability", () => {
+  const v = (id: string, stockOnHand: number, active = true) => ({ id, stockOnHand, active });
+
+  it("marks only the empty option sold out while another can still be bought", () => {
+    expect(productAvailability([v("grape", 0), v("mint", 4)])).toEqual({
+      soldOut: false,
+      availableVariantIds: ["mint"],
+    });
+  });
+
+  it("is sold out when no active variant has stock", () => {
+    expect(productAvailability([v("grape", 0), v("mint", 0)]).soldOut).toBe(true);
+    // Stock on an inactive variant cannot be bought, so it does not keep the product available.
+    expect(productAvailability([v("grape", 0), v("mint", 9, false)])).toEqual({
+      soldOut: true,
+      availableVariantIds: [],
+    });
+    expect(productAvailability([]).soldOut).toBe(true);
+  });
+
+  it("treats a single default variant like any other option", () => {
+    expect(productAvailability([v("default", 1)]).soldOut).toBe(false);
+    expect(productAvailability([v("default", 0)]).soldOut).toBe(true);
   });
 });

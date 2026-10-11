@@ -1,8 +1,10 @@
-// Local browser-QA backend (see README.md): built API + media worker loop on an isolated
+// Local browser-QA backend (see README.md): built API + worker consumers (media processing and
+// signed cache invalidation) on an isolated
 // `ih_test_*` schema of the TEST database (never the dev database). Synthetic accounts only.
 // Stop with SIGINT; drop the schema afterwards with `node qa-server.cjs --drop <schema>`.
 const { createRequire } = require("node:module");
-const { randomUUID } = require("node:crypto");
+const { randomBytes, randomUUID } = require("node:crypto");
+const http = require("node:http");
 const root = require("node:path").resolve(__dirname, "../..");
 const api = createRequire(root + "/apps/api/package.json");
 const worker = createRequire(root + "/apps/worker/package.json");
@@ -52,8 +54,15 @@ async function main() {
       },
     });
   }
+  // A fresh worker key per run: the real HMAC guard verifies the invalidation calls.
+  const workerKey = {
+    service: "worker",
+    keyId: "qa",
+    secret: randomBytes(32).toString("base64url"),
+  };
   const env = config.apiEnvSchema.parse({
     ...process.env,
+    INTERNAL_SERVICE_KEYS: `${workerKey.service}:${workerKey.keyId}:${workerKey.secret}`,
     NODE_ENV: "development",
     APP_ENV: "development",
     LOG_LEVEL: "warn",
@@ -66,10 +75,11 @@ async function main() {
   const app = await createApp(env, { pool, database: db });
   await app.listen(4000, "127.0.0.1");
 
-  // Media processing loop (the real worker consumer, driven directly for this schema).
+  // Worker loop (the real consumers, driven directly for this schema).
   const sharp = worker("sharp");
   sharp.concurrency(1);
   const { createMediaConsumer } = worker(root + "/apps/worker/dist/media.js");
+  const { createRevalidateConsumer } = worker(root + "/apps/worker/dist/revalidate.js");
   const { EffectRunner } = worker(root + "/apps/worker/dist/effects.js");
   const log = createLogger({ service: "qa-worker", level: "warn" });
   const storage = new ObjectStorage(storageConfigFromEnv(env));
@@ -77,25 +87,61 @@ async function main() {
     db,
     owner: "qa-worker",
     log,
-    handlers: [createMediaConsumer({ db, storage, log })],
+    handlers: [
+      createMediaConsumer({ db, storage, log }),
+      createRevalidateConsumer({
+        target: { apiUrl: "http://127.0.0.1:4000", key: workerKey },
+        log,
+      }),
+    ],
   });
   let stopping = false;
   (async () => {
     while (!stopping) {
       const effects = await db.consumerEffect.findMany({
-        where: { consumer: "media_processor", status: { in: ["pending", "queued", "retry"] } },
-        take: 5,
+        where: {
+          consumer: { in: ["media_processor", "storefront_revalidate"] },
+          status: { in: ["pending", "queued", "retry"] },
+        },
+        take: 20,
       });
       for (const e of effects)
         await runner
-          .run({ eventId: e.eventId, effectId: e.id, consumer: "media_processor" })
+          .run({ eventId: e.eventId, effectId: e.id, consumer: e.consumer })
           .catch(() => undefined);
       await new Promise((r) => setTimeout(r, 1500));
     }
   })();
+  // QA-only status probe (loopback): counts, never row contents.
+  const probe = http.createServer((_request, response) => {
+    Promise.all([
+      db.consumerEffect.groupBy({
+        by: ["status", "externalReceipt"],
+        where: { consumer: "storefront_revalidate" },
+        _count: true,
+      }),
+      db.outboxEvent.count({ where: { eventType: "inventory.low" } }),
+    ])
+      .then(([revalidate, lowStockEvents]) => {
+        response.writeHead(200, { "content-type": "application/json" });
+        response.end(
+          JSON.stringify({
+            revalidate: revalidate.map((row) => ({
+              status: row.status,
+              receipt: row.externalReceipt,
+              count: row._count,
+            })),
+            lowStockEvents,
+          }),
+        );
+      })
+      .catch(() => response.writeHead(500).end());
+  });
+  probe.listen(4099, "127.0.0.1");
   console.log(`QA backend ready on :4000 schema=${namespace}`);
   const stop = async () => {
     stopping = true;
+    probe.close();
     await app.close();
     storage.destroy();
     await db.$disconnect();

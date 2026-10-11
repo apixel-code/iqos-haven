@@ -491,3 +491,26 @@ Not covered: a real store read through the cache (step 58), and the invalidation
 - **`invariant-reviewer`:** no blockers, no should-fix.
 
 Not covered: the notification/email consumers (step 92) and stock writers from orders (steps 75–76, 85–86), which must call `publishLowStockCrossing`. The reconciliation job has no dedicated test; its query is asserted empty in the inventory tests.
+
+## Step 54 — catalogue/inventory acceptance pass (2026-10-11, local)
+
+`pnpm verify -- --integration`: exit 0. Unit 381, integration 325, gateway 29.
+
+**Real API + PostgreSQL (`apps/api/src/catalogue/acceptance.int.test.ts`):**
+
+- **SKU conflicts:** a SKU used by another product is refused on create (case-insensitive) and on rename, leaving the variant unchanged; two products racing for one new SKU get exactly one 201 and one 409.
+- **Option sold-out:** one flavour out while the other sells; then the product is sold out but every variant stays active and listed; stock on an inactive variant does not count (`productAvailability`, also unit-tested).
+- **Concurrent adjustments:** six removals, three counted sets from the same view and three restocks race; each applies or answers `STOCK_CHANGED`, at most one set wins, every movement's balance continues from the previous one, the ledger equals the balance, and low-stock events equal the crossings in the ledger.
+- **Cache propagation:** brand, category, product, options and variant changes each drop the cache and queue a `storefront_revalidate` effect; reads do not.
+
+**Already covered and re-run in the suite:** safe upload (media/gallery tests, worker media tests) and safe purge (publication tests).
+
+**Browser QA through the gateway (32/32 PASS)**, with the real media and invalidation consumers on an isolated schema. New checks:
+
+- a duplicate SKU is refused with "already used" and the variant stays at version 1;
+- removing the last units shows "Out of stock · 0 in stock" and raises exactly one low-stock event;
+- all nine `storefront_revalidate` effects completed with `invalidated:204` (signed worker call accepted by the API guard).
+
+The QA schema was dropped afterwards. Two harness fixes: the script resolved the repo path wrongly when it contains spaces, and the staff-settings check raced the client render.
+
+**M4 gate: NOT passed.** Create variant product, process image and set stock are demonstrated; publish is refused by design until BI-02 supplies an approved tax treatment. Not covered: real mobile touch/keyboard QA; a real cache Redis; storefront display of sold-out options (steps 58–61).

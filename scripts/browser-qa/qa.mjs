@@ -2,10 +2,12 @@
 import { createRequire } from "node:module";
 import { mkdirSync } from "node:fs";
 import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 // playwright-core is not a project dependency: install it outside the repo and point
 // QA_PLAYWRIGHT_DIR at that directory (see README.md).
-const root = resolve(new URL(".", import.meta.url).pathname, "../..");
+// fileURLToPath: the checkout path may contain spaces.
+const root = resolve(fileURLToPath(new URL(".", import.meta.url)), "../..");
 const playwrightDir = process.env.QA_PLAYWRIGHT_DIR;
 if (!playwrightDir) throw new Error("Set QA_PLAYWRIGHT_DIR (see scripts/browser-qa/README.md)");
 const { chromium } = createRequire(resolve(playwrightDir, "package.json"))("playwright-core");
@@ -106,6 +108,25 @@ try {
   const defaults = await page.getByText(/Default · Active/).count();
   check("exactly one default variant", defaults === 1, `${defaults}`);
 
+  // Step 54: a SKU already used by another variant is refused with a clear message
+  const variantForms = page
+    .locator("form.record-card")
+    .filter({ has: page.locator('input[name="sku"]') });
+  const second = variantForms.nth(1);
+  const takenSku = await variantForms.nth(0).locator('input[name="sku"]').inputValue();
+  await second.locator('input[name="sku"]').fill(takenSku);
+  await second.getByRole("button", { name: "Save variant" }).click();
+  await page
+    .getByText(/already used/)
+    .first()
+    .waitFor({ timeout: 10000 });
+  check("duplicate SKU refused with an explanation", true);
+  // The editor stays open and the variant was not saved (still version 1).
+  check(
+    "refused SKU edit changed nothing",
+    /· v1\s*$/.test(await second.locator(".badge").innerText()),
+  );
+
   // Images
   const image = await sharp({
     create: { width: 1200, height: 1200, channels: 3, background: { r: 120, g: 60, b: 160 } },
@@ -172,6 +193,34 @@ try {
   await card.getByText(/Damaged · Leaking/).waitFor({ timeout: 10000 });
   check("damage removal shown in history with note and actor", true);
   await shot(page, "03-stock");
+  // Steps 53–54: selling out shows the state, raises one alert event, and stays listed
+  const probe = async () => (await fetch("http://127.0.0.1:4099")).json();
+  const lowBefore = (await probe()).lowStockEvents;
+  await card.getByRole("button", { name: "Remove stock" }).click();
+  await card.locator('input[name="quantity"]').fill("10");
+  await card.locator('select[name="reason"]').selectOption("DAMAGE");
+  await card.locator('textarea[name="note"]').fill("Batch recalled");
+  await card.getByRole("button", { name: "Remove stock" }).last().click();
+  await card.getByText(/Out of stock · 0 in stock/).waitFor({ timeout: 10000 });
+  check("sold-out variant stays listed as Out of stock", true);
+  check(
+    "selling out raised exactly one low-stock event",
+    (await probe()).lowStockEvents === lowBefore + 1,
+  );
+  await shot(page, "03b-sold-out");
+  // Step 52: every catalogue change so far was confirmed to the API by the signed worker call
+  let propagation;
+  for (let attempt = 0; attempt < 20; attempt++) {
+    propagation = (await probe()).revalidate;
+    if (propagation.length && propagation.every((row) => row.status === "completed")) break;
+    await page.waitForTimeout(1000);
+  }
+  check(
+    "catalogue changes propagated: worker invalidation effects completed (HTTP 204)",
+    propagation.length > 0 &&
+      propagation.every((row) => row.status === "completed" && row.receipt === "invalidated:204"),
+    JSON.stringify(propagation),
+  );
   // Step 51: publishing card, trash, Trash tab, restore and permanent delete
   page.on("dialog", (dialog) => void dialog.accept());
   await page.goto(BASE + "/workspace/products");
@@ -265,7 +314,15 @@ try {
     (await staff.page.getByRole("button", { name: "Delete permanently" }).count()) === 0,
   );
   await staff.page.goto(BASE + "/workspace/settings");
-  check("staff denied Owner-only settings", /Access unavailable/.test(await staff.page.content()));
+  // Wait for the rendered refusal instead of racing the client render.
+  const denied = await staff.page
+    .getByText(/Access unavailable/)
+    .first()
+    .waitFor({ timeout: 10000 })
+    .then(() => true)
+    .catch(() => false);
+  if (!denied) await shot(staff.page, "06-staff-settings");
+  check("staff denied Owner-only settings", denied);
   await staff.context.close();
 
   // Mobile layout and dark mode

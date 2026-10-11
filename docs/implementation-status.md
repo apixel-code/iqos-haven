@@ -67,6 +67,7 @@
   - Nothing is public. Processing, derivatives, cleanup and the gallery come in steps 49–50.
 - Step 52 (ADR 0022): catalogue cache owner in the API (bounded LRU by entries/bytes/TTL ≤ 60 s; shared cache-Redis backend with local fallback on the replicated profile), post-commit local invalidation on catalogue/gallery admin mutations, signed `POST /v1/internal/revalidate`, and the worker `storefront_revalidate` effect on `catalog.changed`. No store endpoint reads the cache until step 58. Storefront ESLint forbids a second Next data cache.
 - Step 53 (ADR 0023): low-stock transitions. A stock movement (adjust/set) or a threshold edit that moves a variant from above its threshold to at/below it writes one IDs-only `inventory.low` event in the same transaction; staying low emits nothing and rising above re-arms. Zero stock never unpublishes. No consumer until step 92. Worker `inventory.reconciliation` job reports ledger mismatches hourly.
+- Step 54: catalogue/inventory acceptance pass. `productAvailability` (option sold-out rule) in `@ih/domain`; cross-module API acceptance test (SKU conflicts incl. rename and race, option/product sold-out, adjustments racing counted sets, cache propagation per catalogue surface); browser QA journey extended and run 32/32 with the real media and invalidation consumers. The M4 gate stays open: real publication waits for BI-02.
 
 - Uploaded architecture, ordered roadmap, corrected prototypes, derived requirements/design/acceptance/database/security/operational references.
 
