@@ -165,8 +165,12 @@ async function main() {
     const signer = ageTicketSigner("gate", rawKey(pair.privateKey, "pkcs8"));
     const publicKeys = `gate:${rawKey(pair.publicKey, "spki")}`;
     const [apiPort, storePort] = [await freePort(), await freePort()];
+    // Storage settings the same way the API integration tests take them (local .env or CI env).
+    const storageEnv = config.loadEnv(config.storageIntegrationTestEnvSchema);
     const env = config.apiEnvSchema.parse({
-      ...process.env,
+      QUEUE_REDIS_URL: process.env.QUEUE_REDIS_URL ?? "redis://localhost:6379",
+      ...storageEnv,
+      S3_FORCE_PATH_STYLE: "true",
       NODE_ENV: "development",
       APP_ENV: "development",
       LOG_LEVEL: "warn",

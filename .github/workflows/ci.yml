@@ -61,6 +61,8 @@ jobs:
       - run: pnpm test:infra
       - run: pnpm test:package
       - run: pnpm contracts:check
+      # Built storefront against a stub API: unverified requests get the generic preview only.
+      - run: pnpm test:age-preview
       # Runtime role (as in infra/postgres/init) so migration privilege tests run, not skip.
       - name: Create runtime database role
         run: psql "postgres://ih_test:ih_test_ci@localhost:5432/iqos_haven_test" -c "CREATE ROLE ih_app NOLOGIN"
@@ -82,3 +84,5 @@ jobs:
             /init-buckets.sh
       - run: pnpm test:int
       - run: pnpm test:gateway
+      # Real API, storefront and gateway together: the age boundary end to end (Milestone 5).
+      - run: pnpm test:gate
