@@ -645,3 +645,27 @@ Not covered: these pages against the real API and database in one run (the API s
 - **`invariant-reviewer`:** no blockers; no injection path or visibility leak. Fixed: cursor remembers its pass, stale cursors restart the list, sorted lock order and extension-schema check in the migration.
 
 Not covered: suggestions in a browser through the gateway (the serve mode has no gateway, so the suggest call 404s there); search against a large catalogue (performance is unmeasured); a database whose `pg_trgm` is not in `public`.
+
+## Step 61 — product page, option selection and safe add (2026-10-11, local)
+
+`pnpm verify -- --integration`: exit 0. Unit 470 (storefront 68), integration 355, gateway 29, age-preview 1600.
+
+**Unit (`apps/storefront/lib/store/selection.test.ts`):**
+
+- **Selection:** only values an active variant has are offered; nothing is chosen when there is a real choice; a single-value option is filled in; the exact variant resolves with its own price; a sold-out choice stays sold out even when another strength is in stock; a combination nobody sells is "unavailable", never the nearest one; choices that do not single out one variant offer nothing; each value is judged against the other choices.
+- **Cart:** same variant merges; 10 per item and 50 items enforced and reported; stored value has only variant ID, slug, quantity and a display snapshot; unreadable, off-schema or extended values (an added phone or address field) read as an empty cart.
+
+**`pnpm test:age-preview`:** `/p/…` is gated; for a verified shopper it shows the name, "From" price, option groups with no radio checked, description, specification rows, COD line and nicotine warning; the title names the product while link-preview tags stay generic and there is no JSON-LD; a former slug answers 308 to the current one; unknown product 404; an impossible slug makes no API call; after warm-up an unverified request is still refused with no API call.
+
+**Real browser (headless Chromium, 20 checks, screenshots reviewed at 360 px and 1280 px), run before the review fixes below:**
+
+- nothing preselected; "Add to cart" without a choice says "Choose flavour and nicotine first." and stores nothing; with one option chosen, "Choose nicotine first.";
+- price follows the chosen variant (AED 49 for 50 mg; "Save 24%" for the reduced one); "In stock" shown;
+- quantity 2 added: storage holds one line with the chosen variant ID, "grape ice · 50 mg", 4900 fils;
+- choosing a sold-out option: "This option is sold out", button disabled and labelled "Sold out", the choice unchanged; an unoffered combination: "This combination isn't available", "Not available"; the cart unchanged throughout;
+- legacy `co` and `lastOrder` keys removed; the only storage key is `ih_cart_v1`; sessionStorage empty;
+- a sold-out card has no quick add; quick add falls back to the product page when the API route is not reachable.
+
+- **`invariant-reviewer`:** no blockers. Fixed afterwards (covered by unit tests and `pnpm verify`, not by a second browser run): ambiguous matches offer nothing; the related section cannot fail the page; legacy keys are cleared on every page, not only when the cart is used; a failed storage write no longer loses the addition; store slugs use the slug schema.
+
+Not covered: the quick-add dialog itself in a browser (it needs the gateway to reach the API; the serve mode has none) — its buy box is the same component exercised on the product page; real product images in the gallery; swipe gestures; the cart page (step 62).

@@ -8,6 +8,7 @@ import "@fontsource/jetbrains-mono/500.css";
 import "./globals.css";
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
+import { LegacyCleanup } from "@/components/legacy-cleanup";
 import { ageGate } from "@/lib/age/runtime";
 import { SITE } from "@/lib/site";
 
@@ -48,7 +49,10 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        <LegacyCleanup />
+        {children}
+      </body>
     </html>
   );
 }

@@ -25,6 +25,7 @@ const RESTRICTED = [
   "/brands",
   "/categories/disposables",
   "/search?q=orbe+halo&brand=orbe&inStock=true",
+  "/p/orbe-halo-7k",
   "/products/orbe-halo-7k-grape-ice",
   "/brands/orbe",
   "/cart",
@@ -105,6 +106,47 @@ const CATALOGUE = {
     items: [{ name: "Disposables", slug: "disposables", productCount: 2 }],
   },
 };
+const variantOf = (n, attributes, overrides = {}) => ({
+  id: `00000000-0000-4000-8000-00000000000${n}`,
+  attributes,
+  isDefault: n === 1,
+  priceFils: 4900,
+  compareAtPriceFils: null,
+  available: true,
+  ...overrides,
+});
+const DETAIL = {
+  slug: "orbe-halo-7k",
+  name: "Orbe Halo 7K",
+  type: "disposable",
+  brand: { name: "Orbe", slug: "orbe" },
+  category: { name: "Disposables", slug: "disposables" },
+  puffCount: 7000,
+  isNew: true,
+  description: "Synthetic product description.",
+  specs: {
+    liquidMl: "12.5",
+    batteryMah: 650,
+    rechargeable: true,
+    extra: [{ label: "Coil", value: "Mesh" }],
+  },
+  seo: { title: null, description: null },
+  options: [
+    { name: "flavour", values: ["grape ice", "mint"] },
+    { name: "nicotine", values: ["20 mg", "50 mg"] },
+  ],
+  variants: [
+    variantOf(
+      1,
+      { flavour: "grape ice", nicotine: "20 mg" },
+      { priceFils: 4500, compareAtPriceFils: 5900 },
+    ),
+    variantOf(2, { flavour: "grape ice", nicotine: "50 mg" }),
+    variantOf(3, { flavour: "mint", nicotine: "20 mg" }, { available: false }),
+  ],
+  soldOut: false,
+  images: [],
+};
 const apiCalls = [];
 let apiMode = "ok";
 const stub = createHttpServer((request, response) => {
@@ -139,6 +181,9 @@ const stub = createHttpServer((request, response) => {
             nextCursor: "bmV4dC1wYWdl",
           },
     );
+  // The product under its current slug, and under a former one (the API resolves old slugs).
+  if (["/v1/store/products/orbe-halo-7k", "/v1/store/products/old-halo"].includes(url.pathname))
+    return send(200, DETAIL);
   if (url.pathname === "/v1/store/search") {
     const q = url.searchParams.get("q") ?? "";
     const none = q.includes("zzz");
@@ -466,6 +511,57 @@ try {
       "no JSON-LD or price metadata even for verified pages",
     );
 
+  // Product page: variant-specific price and stock, and nothing chosen for the shopper.
+  const pdp = await page("/p/orbe-halo-7k");
+  for (const text of [
+    "Orbe Halo 7K",
+
+    "Flavour",
+    "Nicotine",
+    "choose one",
+    "grape ice",
+    "50 mg",
+    "Add to cart",
+    "About this product",
+    "Synthetic product description.",
+    "Specifications",
+    "Puffs (approx.)",
+    "7,000",
+    "E-liquid",
+    "12.5 ml",
+    "650 mAh",
+    "Coil",
+    "Cash on delivery",
+    "contains nicotine",
+  ])
+    check(pdp.includes(text), `product page shows "${text}"`);
+  check(/From <\/span>AED 45/.test(pdp), "price says From the lowest option until one is chosen");
+  check(
+    pdp.includes("<title>Orbe Halo 7K · Iqos Haven</title>"),
+    "product page title names the product (verified only)",
+  );
+  check(!/<input[^>]*type="radio"[^>]*checked/.test(pdp), "no option is preselected");
+  check(
+    (pdp.match(/type="radio"/g) ?? []).length === 4,
+    "every offered option value is a choice",
+    String((pdp.match(/type="radio"/g) ?? []).length),
+  );
+  check(
+    !/og:title" content="Orbe Halo/.test(pdp) && !FORBIDDEN[0].test(pdp),
+    "product page keeps the generic preview and no JSON-LD",
+  );
+  const renamed = await get("/p/old-halo", verified);
+  check(
+    renamed.status === 308 &&
+      new URL(renamed.headers.get("location") ?? "/", ORIGIN).pathname === "/p/orbe-halo-7k",
+    "a former slug redirects permanently to the current one",
+    `${renamed.status} ${renamed.headers.get("location")}`,
+  );
+  await page("/p/unknown-product", 404);
+  const badSlug = apiCalls.length;
+  await page("/p/Not_A_Slug", 404);
+  check(apiCalls.length === badSlug, "an impossible slug is refused without an API call");
+
   // Search: term, filters and the similar-results notice; only contract parameters reach the API.
   const found = await page(
     "/search?q=halo&brand=orbe&brand=Bad+Slug&minPrice=30&maxPrice=60&inStock=true&utm_campaign=x&sort=price_asc",
@@ -529,6 +625,7 @@ try {
     "/disposable-vapes",
     "/categories/disposables",
     "/search?q=halo",
+    "/p/orbe-halo-7k",
   ])
     for (const headers of [
       {},
@@ -539,10 +636,7 @@ try {
       const response = await get(path, headers);
       const body = await response.text();
       gated(response, `after warm-up ${path} ${Object.keys(headers).join("+") || "plain"}`);
-      check(
-        !/Halo|Synthetic brand story|AED/.test(body),
-        `after warm-up ${path}: no catalogue data`,
-      );
+      check(!/Halo|Synthetic|AED|grape/.test(body), `after warm-up ${path}: no catalogue data`);
     }
   check(apiCalls.length === callsBefore, "refused requests add no API calls");
 

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { StoreProductCard } from "@ih/contracts";
 import { cardBadges, cardMeta, displayAed } from "@/lib/store/listing";
+import { QuickAdd } from "./quick-add";
 
 const BADGE_STYLES = {
   soldOut: "bg-ink text-white",
@@ -67,18 +68,22 @@ export function ProductCard({ product }: { product: StoreProductCard }) {
           </Link>
         </h3>
         <p className="truncate font-mono text-[12.5px] text-ink-3">{cardMeta(product)}</p>
-        <p className="mt-1.5 flex min-h-10 flex-wrap items-baseline gap-x-2">
-          <span className={`text-base font-semibold ${onSale ? "text-coral" : ""}`}>
-            {product.variantCount > 1 && <span className="sr-only">From </span>}
-            {displayAed(product.priceFromFils)}
-          </span>
-          {product.compareAtPriceFils !== null && (
-            <span className="text-[13.5px] text-ink-3 line-through">
-              <span className="sr-only">Was </span>
-              {displayAed(product.compareAtPriceFils)}
+        <div className="mt-1.5 flex min-h-10 items-center justify-between gap-2">
+          <p className="flex flex-wrap items-baseline gap-x-2">
+            <span className={`text-base font-semibold ${onSale ? "text-coral" : ""}`}>
+              {product.variantCount > 1 && <span className="sr-only">From </span>}
+              {displayAed(product.priceFromFils)}
             </span>
-          )}
-        </p>
+            {product.compareAtPriceFils !== null && (
+              <span className="text-[13.5px] text-ink-3 line-through">
+                <span className="sr-only">Was </span>
+                {displayAed(product.compareAtPriceFils)}
+              </span>
+            )}
+          </p>
+          {/* Hidden when nothing can be bought (prototype); above the card-wide link. */}
+          {!product.soldOut && <QuickAdd slug={product.slug} name={product.name} />}
+        </div>
       </div>
     </article>
   );

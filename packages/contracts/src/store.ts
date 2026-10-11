@@ -14,7 +14,7 @@ export type StoreProductSort = (typeof STORE_PRODUCT_SORTS)[number];
 
 /** http(s) only: these become `<img src>` in the storefront. */
 const webUrl = z.url({ protocol: /^https?$/ });
-const parentRef = z.strictObject({ name: z.string(), slug: z.string() });
+const parentRef = z.strictObject({ name: z.string(), slug: catalogueSlugSchema });
 /** Short-lived signed links to sanitized derivatives; never the original upload. */
 const storeImageSchema = z.strictObject({
   alt: z.string(),
@@ -69,7 +69,7 @@ export const storeProductsQuerySchema = z.strictObject({
 export type StoreProductsQuery = z.infer<typeof storeProductsQuerySchema>;
 
 export const storeProductCardSchema = z.strictObject({
-  slug: z.string(),
+  slug: catalogueSlugSchema,
   name: z.string(),
   type: z.enum(["disposable", "kit"]),
   brand: parentRef,
@@ -97,7 +97,7 @@ export const storeProductParamsSchema = z.strictObject({ slug: catalogueSlugSche
 
 export const storeProductResponseSchema = z.strictObject({
   /** Current slug. Differs from the requested one after a rename: redirect to it. */
-  slug: z.string(),
+  slug: catalogueSlugSchema,
   name: z.string(),
   type: z.enum(["disposable", "kit"]),
   brand: parentRef,
