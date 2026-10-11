@@ -3,21 +3,19 @@
 ## Current position
 
 - Date: 2026-10-11
-- Milestone: M6 — customers, pricing, coupons and server quote: step 65 done. M5: all steps (55–64) done; gate demonstrated locally with seeded data, awaiting Marina's decision. M4 steps done, gate waits for BI-02; M3 gate not closed; M0 review and M1 staging/fixtures still open
+- Milestone: M6 — customers, pricing, coupons and server quote: step 65 done. M5: PASSED 2026-10-11. M4 steps done, gate waits for BI-02; M3 gate not closed; M0 review and M1 staging/fixtures still open
 - Step: 65 (guest customers, addresses, phone identity) — done; next is 66
-- Branch: `step/65-guest-customer-schema` (stacked on `step/64-shell-gate-verification`; pushed, PR #46)
+- Branch: `main` holds everything through step 65 (PR #46 merged 2026-10-11 as ed2fff5, carrying steps 32–65; no PRs open)
 - See docs/verification.md for actual checks.
 
 ## Next action
 
 **Start of a new session:**
 
-- Git: you are on `step/65-guest-customer-schema` (pushed 2026-10-11, PR #46 against `main`). Steps 33–64 are stacked branches, pushed on 2026-10-11 with one PR each against `main`: #14 (step 33) … #45 (step 64), all CI green when opened. `main` holds steps through 31; PR #13 is step 32.
-- New work: branch the next step from `step/65-guest-customer-schema`. Do not branch from `main` until the chain is merged.
+- Git: branch each step from `main` as `step/N-short-name`. After `/verify` and the commit, push and open a PR against `main`; Marina merges it on GitHub ("Create a merge commit") because Claude's `gh pr merge` is denied by the classifier. Then fast-forward local `main`.
 - Toolchain: prefix commands with `export PATH="/opt/homebrew/opt/node@24/bin:$HOME/.docker/bin:$PATH"`. If Docker is down, run `open -a Docker` and then `pnpm infra:up`.
+- Marina's decisions (2026-10-11): build what the open business inputs do not block; BI-03 → build without real areas or fees (Owner enters them later); BI-02 → no assumed tax rates, build only the tax-independent parts.
 
-1. **Marina merges on GitHub (her decision, 2026-10-10).** Merge with a merge commit, strictly in order: PR #13 (step 32), then #14 … #46 (steps 33–65). Each later PR shows earlier commits until those are merged. Claude's merge chain was denied by the classifier twice; Claude can push branches and open PRs if asked.
-2. **Marina: decide the M5 gate.** Evidence: `pnpm test:gate` (real API + storefront + gateway, 1803 checks) and the browser pass in docs/verification.md "Step 64". Caveat: the products are seeded, because publishing through the admin waits for BI-02.
 3. **Then `/step 66` (address, phone, Dubai-area and quantity validation).** Find the row with `rg -n "^| 66 " docs/roadmap.md`. BI-03 (delivery areas/fee) blocks 66 and 70: build the validators without real areas. BI-02 (tax) blocks 67, 70, 72. Open client question on which phone numbers may order (business-inputs questions log, 2026-10-11).
    - Customers (ADR 0034): reuse `normalizePhone`/`normalizeCustomerName`/`normalizeTextLine` from `@ih/domain` and the storage bounds in `packages/contracts/src/customers.ts`. `lockCustomerForOrder`/`saveCustomerAddress` are for the order transaction only (steps 75–76): call `saveCustomerAddress` after `lockDeliverySelection`, and that transaction must write the audit entry and events.
    - Storefront pages: use `storeRead`; no `loading.tsx` under `(shop)`; never export data from a `"use client"` file to a server component; add new URLs to `scripts/check-age-preview.mjs` and, for anything touching the age boundary, `scripts/check-gate-e2e.cjs`.
@@ -39,7 +37,8 @@ BI-01 and BI-09 (OPEN) block the contact copy and WhatsApp number/wording of ste
 ## Gates passed
 
 - **M2 — PASSED 2026-10-09** (closed on Marina's approval). Gate: a synthetic event is written and processed by the worker; duplicate delivery and Redis job loss are recovered; tests send no real email. Evidence: `apps/worker/src/recovery.int.test.ts` "M2 gate" (queue obliterated → reconciler re-enqueue + duplicate original job → effect completed exactly once), `effects.int.test.ts` (5 concurrent duplicates apply once), real dev orphan recovered by the built worker (step 24 notes in docs/verification.md); email only to Mailpit/stubs. CI green on `main` at a2429f7 (run 37894960188) with all steps 18–26 merged. Not part of this gate: production queue Redis failover/restore drills (M11, after BI-06).
-- M0, M1 and M3–M11: not passed. M4: all steps (41–54) done; the gate needs a real publish, which BI-02 blocks.
+- **M5 — PASSED 2026-10-11** (closed on Marina's decision). Gate: after age acceptance real products can be browsed, selected and added to the cart; before it no restricted product data is available. Evidence: `pnpm test:gate` (real API + storefront + gateway, 1803 checks) and the real-browser pass (14 checks) in docs/verification.md "Step 64". Accepted caveat: the products were seeded, because publishing through the admin waits for BI-02.
+- M0, M1, M3, M4 and M6–M11: not passed. M4: all steps (41–54) done; the gate needs a real publish, which BI-02 blocks.
 
 ## Steps done
 
@@ -89,9 +88,8 @@ Tests: `pnpm verify -- --integration` PASS (unit 496, integration 369, gateway 2
 
 Unfinished:
 
-- PRs #13–#46 (steps 32–65) are open and not merged (Marina merges on GitHub, in order).
-- M5 gate awaits Marina's decision.
-- "Old snapshots independent" is only provable with order tables (step 73). Client question on allowed phone numbers is not asked yet.
+- Nothing is waiting to be merged: PR #46 carried steps 32–65 into `main`.
+- "Old snapshots independent" is only provable with order tables (step 73). Phone rule decided by Marina on 2026-10-11: UAE mobile only (applied in step 66).
 - Migrations are not applied to the dev database.
 
 ## History (summary)

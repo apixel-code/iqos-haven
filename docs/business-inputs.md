@@ -35,3 +35,9 @@ Step 39 implements the Dubai area/flat-fee/ETA schema and Owner-only API with no
 - 2026-10-11 — Step 64 (ADR 0033): built without BI-01/BI-09. WhatsApp links appear only when the Owner sets the number in admin settings; message wording is the prototype's until BI-09. Waiting on BI-01: contact copy/page, logo, trade licence line; BI-04: footer health-warning wording.
 
 - 2026-10-11 — Step 65 (ADR 0034): which phone numbers may place an order? Built: UAE mobiles and landlines in any common spelling, and foreign numbers only with a country code; toll-free/service numbers refused. To ask the client (affects step 66 validation and checkout copy): UAE mobile only, or also landlines and foreign numbers? — not asked yet — no answer.
+
+- 2026-10-11 — Which phone numbers may place an order (step 65 question) — chat with Marina — UAE mobile numbers only. Landlines and foreign numbers are refused; applied in step 66.
+
+- 2026-10-11 — How to proceed while BI-02 and BI-03 are open — chat with Marina — build what they do not block: no real areas or fees are seeded (the Owner enters them later) and no tax rate is assumed. BI-02 and BI-03 stay OPEN.
+
+- 2026-10-11 — M5 gate — chat with Marina — passed on the seeded-data evidence of step 64.
