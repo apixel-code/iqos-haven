@@ -19,7 +19,9 @@
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "@ih/config": "workspace:*",
-    "@ih/platform": "workspace:*"
+    "@ih/platform": "workspace:*",
+    "@ih/contracts": "workspace:*",
+    "zod": "4.6.5"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "4.3.3",

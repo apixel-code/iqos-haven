@@ -2,9 +2,14 @@
 // port with a throwaway key pair and proves, over real HTTP, that a request without a valid age
 // ticket gets only the generic store preview: no product name, image, price or JSON-LD, the same
 // metadata for every User-Agent, and no header/cookie/query shortcut. Needs `pnpm build` first;
-// no Docker or database. Extend RESTRICTED with real product URLs when catalogue pages exist.
+// no Docker or database. A stub stands in for the API so the catalogue pages can also be
+// rendered for a verified shopper: the check then proves that what a verified shopper warmed is
+// still refused to the next unverified request, and that the storefront forwards only the age
+// ticket and the client address to the API.
 import { spawn } from "node:child_process";
 import { generateKeyPairSync } from "node:crypto";
+import { createServer as createHttpServer } from "node:http";
+import { createRequire } from "node:module";
 import { createServer } from "node:net";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -13,7 +18,12 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const ORIGIN = "https://shop.preview-check.test";
 const RESTRICTED = [
   "/",
-  "/shop?brand=orbe",
+  "/shop",
+  "/shop?brand=orbe&sort=price_asc",
+  "/disposable-vapes",
+  "/vape-kits",
+  "/brands",
+  "/categories/disposables",
   "/products/orbe-halo-7k-grape-ice",
   "/brands/orbe",
   "/cart",
@@ -67,6 +77,72 @@ const freePort = () =>
 
 const pair = generateKeyPairSync("ed25519");
 const raw = (key, type) => key.export({ format: "der", type }).subarray(-32).toString("base64url");
+// --- Stub API: contract-shaped catalogue answers, and a record of what the storefront sent ---
+const card = (name, overrides = {}) => ({
+  slug: name.toLowerCase().replaceAll(" ", "-"),
+  name,
+  type: "disposable",
+  brand: { name: "Orbe", slug: "orbe" },
+  category: { name: "Disposables", slug: "disposables" },
+  puffCount: 7000,
+  isNew: false,
+  priceFromFils: 4900,
+  compareAtPriceFils: null,
+  variantCount: 4,
+  soldOut: false,
+  image: null,
+  ...overrides,
+});
+const CATALOGUE = {
+  "/v1/store/brands": {
+    items: [
+      { name: "Orbe", slug: "orbe", description: "Synthetic brand story.", productCount: 2 },
+      { name: "Empty Brand", slug: "empty-brand", description: "", productCount: 0 },
+    ],
+  },
+  "/v1/store/categories": {
+    items: [{ name: "Disposables", slug: "disposables", productCount: 2 }],
+  },
+};
+const apiCalls = [];
+let apiMode = "ok";
+const stub = createHttpServer((request, response) => {
+  const url = new URL(request.url, "http://stub");
+  apiCalls.push({ path: url.pathname, search: url.search, headers: request.headers });
+  const send = (status, body) => {
+    response.writeHead(status, { "content-type": "application/json" });
+    response.end(JSON.stringify(body));
+  };
+  if (
+    !/^ih_age=v1\.check\.[\w-]+\.[\w-]+$/.test(request.headers.cookie ?? "") ||
+    apiMode === "refuse"
+  )
+    return send(403, { error: { code: "AGE_VERIFICATION_REQUIRED" } });
+  if (apiMode === "down") return send(503, { error: { code: "SERVICE_UNAVAILABLE" } });
+  if (url.pathname === "/v1/store/products")
+    return send(
+      200,
+      url.searchParams.has("cursor")
+        ? { items: [card("Orbe Second Page")], nextCursor: null }
+        : {
+            items: [
+              card("Orbe Halo Grape", {
+                isNew: true,
+                priceFromFils: 4500,
+                compareAtPriceFils: 5900,
+              }),
+              card("Orbe Halo Mint", { soldOut: true, priceFromFils: 4950 }),
+            ],
+            nextCursor: "bmV4dC1wYWdl",
+          },
+    );
+  return CATALOGUE[url.pathname]
+    ? send(200, CATALOGUE[url.pathname])
+    : send(404, { error: { code: "NOT_FOUND" } });
+});
+const stubPort = await freePort();
+await new Promise((done) => stub.listen(stubPort, "127.0.0.1", done));
+
 const port = await freePort();
 const base = `http://127.0.0.1:${port}`;
 const child = spawn(
@@ -80,7 +156,7 @@ const child = spawn(
       APP_ENV: "staging",
       STOREFRONT_PORT: String(port),
       STOREFRONT_ORIGINS: ORIGIN,
-      API_INTERNAL_URL: "http://127.0.0.1:9",
+      API_INTERNAL_URL: `http://127.0.0.1:${stubPort}`,
       AGE_POLICY_VERSION: "preview-check",
       AGE_TICKET_KEY_ID: "check",
       AGE_TICKET_PRIVATE_KEY: raw(pair.privateKey, "pkcs8"),
@@ -91,7 +167,10 @@ const child = spawn(
 let log = "";
 child.stdout.on("data", (chunk) => (log += chunk));
 child.stderr.on("data", (chunk) => (log += chunk));
-const stop = () => child.kill("SIGTERM");
+const stop = () => {
+  child.kill("SIGTERM");
+  stub.close();
+};
 process.on("exit", stop);
 
 const get = (path, headers = {}, method = "GET") =>
@@ -133,6 +212,21 @@ try {
   if (!(await ready())) {
     console.error("Storefront did not start (run `pnpm build` first).\n" + log.slice(-600));
     process.exit(1);
+  }
+
+  // `--serve`: keep the storefront and the stub API running for a manual look in a browser.
+  // Send the printed cookie as a request header (it is a throwaway ticket for this run only).
+  if (process.argv.includes("--serve")) {
+    const { ageTicketSigner, signAgeTicket } = createRequire(
+      resolve(root, "apps/storefront/package.json"),
+    )("@ih/platform/age-ticket");
+    const preview = signAgeTicket(ageTicketSigner("check", raw(pair.privateKey, "pkcs8")), {
+      policyVersion: "preview-check",
+      ttlSeconds: 3600,
+    });
+    console.log(`SERVING ${base}\nCOOKIE ih_age=${preview.ticket}`);
+    await new Promise((done) => process.once("SIGINT", done).once("SIGTERM", done));
+    process.exit(0);
   }
 
   // 1. Every restricted URL, for every agent: redirect to the gate, never content.
@@ -227,7 +321,167 @@ try {
     gated(response, `forged ${Object.keys(headers).join("+")}`);
   }
 
-  // 4. Public information: crawler policy, preview image, policy pages. No sitemap while closed.
+  // 4. Until now nobody was verified, so the storefront must not have asked the API anything.
+  check(apiCalls.length === 0, "unverified requests never reach the API", String(apiCalls.length));
+
+  // 5. A verified shopper sees the catalogue pages; only the ticket and address go to the API.
+  const { ageTicketSigner, signAgeTicket } = createRequire(
+    resolve(root, "apps/storefront/package.json"),
+  )("@ih/platform/age-ticket");
+  const { ticket } = signAgeTicket(ageTicketSigner("check", raw(pair.privateKey, "pkcs8")), {
+    policyVersion: "preview-check",
+    ttlSeconds: 600,
+  });
+  const verified = {
+    cookie: `session=do-not-forward; ih_age=${ticket}; cart=private`,
+    "x-ih-client-ip": "203.0.113.9",
+    authorization: "Bearer do-not-forward",
+  };
+  const page = async (path, expected = 200) => {
+    const response = await get(path, verified);
+    // React separates adjacent text nodes with empty comments; they are not content.
+    const html = (await response.text()).replaceAll("<!-- -->", "");
+    check(response.status === expected, `verified ${path}: ${expected}`, String(response.status));
+    check(
+      response.headers.get("cache-control") === "private, no-store",
+      `verified ${path}: not cacheable`,
+      response.headers.get("cache-control") ?? "",
+    );
+    return html;
+  };
+  const shop = await page(
+    "/shop?utm_source=mail&fbclid=abc&sort=price_asc&brand=orbe&evil=1&limit=9999",
+  );
+  for (const text of [
+    "All products",
+    "Orbe Halo Grape",
+    "Orbe Halo Mint",
+    "AED 45",
+    "AED 59",
+    "AED 49.50",
+    "Sold out",
+    "−24%",
+    "New",
+    "7K puffs · 4 options",
+    "Next page",
+  ])
+    check(shop.includes(text), `shop page shows "${text}"`);
+  check(
+    /href="\/shop\?brand=orbe&amp;sort=price_asc&amp;cursor=bmV4dC1wYWdl"/.test(shop),
+    "next-page link carries only listing state and the cursor",
+  );
+  check(
+    ![...shop.matchAll(/(?:href|action)="([^"]*)"/g)].some((match) =>
+      /utm_source|fbclid|evil=|9999/.test(match[1]),
+    ),
+    "tracking and unknown parameters are not carried into links or forms",
+  );
+  const listCall = apiCalls.find((call) => call.path === "/v1/store/products");
+  check(
+    listCall?.search === "?brand=orbe&sort=price_asc",
+    "API receives only contract parameters",
+    listCall?.search,
+  );
+  check(
+    apiCalls.length > 0 && apiCalls.every((call) => call.headers.cookie === `ih_age=${ticket}`),
+    "API receives only the age cookie",
+  );
+  check(
+    apiCalls.every((call) => call.headers["x-ih-client-ip"] === "203.0.113.9"),
+    "API receives the client address",
+  );
+  check(
+    apiCalls.every((call) => !call.headers.authorization),
+    "API receives no other credentials",
+  );
+  check(
+    (await page("/shop?cursor=bmV4dC1wYWdl")).includes("Orbe Second Page"),
+    "second page renders through the cursor",
+  );
+  check((await page("/disposable-vapes")).includes("Disposable Vapes"), "type page renders");
+  const typeCall = apiCalls.findLast((call) => call.path === "/v1/store/products");
+  check(
+    typeCall?.search === "?type=disposable&sort=newest",
+    "type page fixes its filter",
+    typeCall?.search,
+  );
+  await page("/vape-kits?type=disposable");
+  check(
+    apiCalls.findLast((call) => call.path === "/v1/store/products")?.search ===
+      "?type=kit&sort=newest",
+    "a fixed filter cannot be overridden from the address bar",
+  );
+  const brandsPage = await page("/brands");
+  check(
+    brandsPage.includes("Orbe") && brandsPage.includes("2 products"),
+    "brands index lists brands with products",
+  );
+  check(!brandsPage.includes("Empty Brand"), "brands index hides a brand with nothing to show");
+  const brandPage = await page("/brands/orbe");
+  check(
+    brandPage.includes("Synthetic brand story.") &&
+      brandPage.includes("<title>Orbe · Iqos Haven</title>"),
+    "brand page shows its header and title",
+  );
+  await page("/brands/unknown-brand", 404);
+  check((await page("/categories/disposables")).includes("Disposables"), "category page renders");
+  await page("/categories/unknown-category", 404);
+  for (const html of [shop, brandsPage, brandPage])
+    check(
+      !FORBIDDEN.some((pattern) => pattern !== FORBIDDEN[1] && pattern.test(html)),
+      "no JSON-LD or price metadata even for verified pages",
+    );
+
+  // 6. What the verified shopper just loaded is still refused to the next unverified request.
+  const callsBefore = apiCalls.length;
+  for (const path of [
+    "/shop",
+    "/brands",
+    "/brands/orbe",
+    "/disposable-vapes",
+    "/categories/disposables",
+  ])
+    for (const headers of [
+      {},
+      { "user-agent": AGENTS.googlebot },
+      { cookie: "ih_age=accepted" },
+      { rsc: "1" },
+    ]) {
+      const response = await get(path, headers);
+      const body = await response.text();
+      gated(response, `after warm-up ${path} ${Object.keys(headers).join("+") || "plain"}`);
+      check(
+        !/Halo|Synthetic brand story|AED/.test(body),
+        `after warm-up ${path}: no catalogue data`,
+      );
+    }
+  check(apiCalls.length === callsBefore, "refused requests add no API calls");
+
+  // 7. A ticket the API no longer accepts sends the shopper back to the age check.
+  apiMode = "refuse";
+  const sentBack = await get("/shop", verified);
+  check(
+    sentBack.status === 307 &&
+      new URL(sentBack.headers.get("location"), ORIGIN).pathname === "/age-check",
+    "API refusal returns the shopper to the age check",
+    `${sentBack.status} ${sentBack.headers.get("location")}`,
+  );
+  // An API outage is an error page without catalogue data or technical detail.
+  apiMode = "down";
+  const outage = await get("/shop", verified);
+  const outageHtml = await outage.text();
+  check(
+    outage.status === 500,
+    "API outage answers 500, not a half-rendered page",
+    String(outage.status),
+  );
+  check(
+    !/Halo|SERVICE_UNAVAILABLE|127\.0\.0\.1|stack/i.test(outageHtml),
+    "outage page leaks no data or detail",
+  );
+  apiMode = "ok";
+
+  // 8. Public information: crawler policy, preview image, policy pages. No sitemap while closed.
   const robots = await get("/robots.txt");
   const robotsText = await robots.text();
   check(

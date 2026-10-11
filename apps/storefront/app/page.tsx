@@ -1,6 +1,8 @@
+import Link from "next/link";
+
 /**
- * Placeholder shell (roadmap step 8). Real pages arrive after the age boundary (steps 55–64).
- * Never render catalogue data here until the server-side age gate exists.
+ * Placeholder home (the real home shell is roadmap step 64). Restricted like every other page:
+ * the routing gate requires a valid age ticket before this renders.
  */
 export default function HomePage() {
   return (
@@ -9,7 +11,15 @@ export default function HomePage() {
         18+ only · Dubai
       </span>
       <h1 className="text-3xl font-semibold tracking-tight">Iqos Haven</h1>
-      <p className="text-sm text-ink-2">Storefront foundation is running. Shop opens soon.</p>
+      <p className="text-sm text-ink-2">Browse the catalogue while the full home page is built.</p>
+      <nav aria-label="Catalogue" className="flex flex-wrap justify-center gap-3 text-sm">
+        <Link href="/shop" prefetch={false} className="underline underline-offset-2">
+          All products
+        </Link>
+        <Link href="/brands" prefetch={false} className="underline underline-offset-2">
+          Brands
+        </Link>
+      </nav>
     </main>
   );
 }

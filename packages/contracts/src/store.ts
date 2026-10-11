@@ -12,13 +12,15 @@ export const STORE_PAGE_SIZES = { default: 24, max: 48 } as const;
 export const STORE_PRODUCT_SORTS = ["newest", "price_asc", "price_desc", "name"] as const;
 export type StoreProductSort = (typeof STORE_PRODUCT_SORTS)[number];
 
+/** http(s) only: these become `<img src>` in the storefront. */
+const webUrl = z.url({ protocol: /^https?$/ });
 const parentRef = z.strictObject({ name: z.string(), slug: z.string() });
 /** Short-lived signed links to sanitized derivatives; never the original upload. */
 const storeImageSchema = z.strictObject({
   alt: z.string(),
   width: z.number().int().positive(),
   height: z.number().int().positive(),
-  urls: z.strictObject({ large: z.url(), medium: z.url(), thumb: z.url() }),
+  urls: z.strictObject({ large: webUrl, medium: webUrl, thumb: webUrl }),
 });
 export type StoreImage = z.infer<typeof storeImageSchema>;
 

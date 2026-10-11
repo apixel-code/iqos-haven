@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
-import { loadEnv, storefrontEnvSchema } from "@ih/config";
 import { ageTicketKeyRing, ageTicketSigner } from "@ih/platform/age-ticket";
 import { EndpointLimiter, LocalRateLimiter } from "@ih/platform/rate-limit";
+import { storefrontEnv } from "../env";
 import { createAgeHandlers, type AgeRuntime } from "./handlers";
 
 let cached: { runtime: AgeRuntime; handlers: ReturnType<typeof createAgeHandlers> } | undefined;
@@ -14,7 +14,7 @@ let cached: { runtime: AgeRuntime; handlers: ReturnType<typeof createAgeHandlers
  */
 export function ageGate() {
   if (cached) return cached;
-  const env = loadEnv(storefrontEnvSchema);
+  const env = storefrontEnv();
   const local = new LocalRateLimiter({ maxKeys: 50_000 });
   const runtime: AgeRuntime = {
     keys: ageTicketKeyRing(env.AGE_TICKET_PUBLIC_KEYS),

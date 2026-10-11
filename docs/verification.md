@@ -597,3 +597,22 @@ Not covered: how WhatsApp/Facebook actually render the preview (staging, archite
 - **`invariant-reviewer`:** no blockers, no injection, visibility or field leak. Fixed: forged cursors could reach the database and fail; unknown slugs and cursor pages are no longer cached; cursor validated before any load.
 
 Not covered: these routes through the storefront pages (59, 61); stock changes reaching the cached availability sooner than the TTL (by design); image delivery through a CDN (BI-06).
+
+## Step 59 — storefront listing, brand and category pages (2026-10-11, local)
+
+`pnpm verify -- --integration`: exit 0. Unit 449 (storefront 52), integration 342, gateway 29, age-preview 1368.
+
+**Unit (`apps/storefront/lib/store/store.test.ts`):** address-bar values reduced to known ones (tracking, unknown, malformed and repeated values dropped); links without defaults; fils formatting without floats and refusal of non-integer or negative amounts; discount percent; card text and badges; the catalogue client forwards only the age ticket and client address, never calls the API without a ticket, sends only contract parameters, maps refusal/404/failures distinctly, rejects off-contract bodies and encodes slugs into one path segment.
+
+**`pnpm test:age-preview` (built storefront, stub API, real HTTP):**
+
+- Unverified requests to the new URLs, for eight User-Agents, GET and HEAD: redirected to the age check; **no request reaches the API** before anyone is verified.
+- A verified shopper (sending extra cookies and an Authorization header): `/shop` shows names, "AED 45", "AED 59", "AED 49.50", "Sold out", "−24%", "New", "7K puffs · 4 options" and "Next page"; the API saw only `ih_age`, the client address and `?brand=orbe&sort=price_asc`; tracking and unknown parameters reach no link, form or API call; the second page renders through the cursor; the type pages fix their filter and it cannot be overridden; the brands index hides an empty brand; a brand page shows its header and title; unknown brand and category answer a real 404; every page is `private, no-store`.
+- **After that warm-up**, the same URLs without a ticket, with a crawler User-Agent, a forged cookie and an RSC header are still redirected, with no catalogue data and **no extra API call**.
+- API refuses the ticket → 307 to the age check. API down → 500 with no data or internals.
+
+**Real browser (headless Chromium via the check's `--serve` mode, screenshots reviewed):** `/shop`, `/brands`, `/brands/orbe` at 360 px and 1280 px: no horizontal overflow, no page errors; changing the sort navigates to `?sort=price_asc`; "Next page" loads the second page.
+
+- **`invariant-reviewer`:** no blockers; forwarding, input handling, caching and client bundle clean. Hardening done: formatter refuses bad amounts, image links must be http(s), unused error prop removed.
+
+Not covered: these pages against the real API and database in one run (the API side is covered by the step-58 tests, the page side by the stub); real product images in the card (the stub sends none); real mobile touch testing.
