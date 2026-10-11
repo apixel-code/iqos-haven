@@ -3,22 +3,23 @@
 ## Current position
 
 - Date: 2026-10-11
-- Milestone: M5 — age boundary and storefront browsing: all steps (55–64) done; gate demonstrated locally with seeded data, awaiting Marina's decision. M4 steps done, gate waits for BI-02; M3 gate not closed; M0 review and M1 staging/fixtures still open
-- Step: 64 (store shell, WhatsApp links, age-boundary verification) — done; next is 65 (M6)
-- Branch: `step/64-shell-gate-verification` (stacked on local `step/63-device-lists`; merge dependency PRs in step order)
+- Milestone: M6 — customers, pricing, coupons and server quote: step 65 done. M5: all steps (55–64) done; gate demonstrated locally with seeded data, awaiting Marina's decision. M4 steps done, gate waits for BI-02; M3 gate not closed; M0 review and M1 staging/fixtures still open
+- Step: 65 (guest customers, addresses, phone identity) — done; next is 66
+- Branch: `step/65-guest-customer-schema` (stacked on `step/64-shell-gate-verification`; not pushed, no PR yet)
 - See docs/verification.md for actual checks.
 
 ## Next action
 
 **Start of a new session:**
 
-- Git: you are on `step/64-shell-gate-verification`, which is clean. Steps 33–64 are stacked branches, pushed on 2026-10-11 with one PR each against `main`: #14 (step 33) … #45 (step 64), all CI green when opened. `main` holds steps through 31; PR #13 is step 32.
-- New work: branch the next step from `step/64-shell-gate-verification`. Do not branch from `main` until the chain is merged.
+- Git: you are on `step/65-guest-customer-schema` (local only: push it and open a PR against `main` when Marina asks). Steps 33–64 are stacked branches, pushed on 2026-10-11 with one PR each against `main`: #14 (step 33) … #45 (step 64), all CI green when opened. `main` holds steps through 31; PR #13 is step 32.
+- New work: branch the next step from `step/65-guest-customer-schema`. Do not branch from `main` until the chain is merged.
 - Toolchain: prefix commands with `export PATH="/opt/homebrew/opt/node@24/bin:$HOME/.docker/bin:$PATH"`. If Docker is down, run `open -a Docker` and then `pnpm infra:up`.
 
 1. **Marina merges on GitHub (her decision, 2026-10-10).** Merge with a merge commit, strictly in order: PR #13 (step 32), then #14 … #45 (steps 33–64). Each later PR shows earlier commits until those are merged. Claude's merge chain was denied by the classifier twice; Claude can push branches and open PRs if asked.
 2. **Marina: decide the M5 gate.** Evidence: `pnpm test:gate` (real API + storefront + gateway, 1803 checks) and the browser pass in docs/verification.md "Step 64". Caveat: the products are seeded, because publishing through the admin waits for BI-02.
-3. **Then `/step 65` (M6 — quote and pricing).** Find the row with `rg -n "^| 65 " docs/roadmap.md` and check `docs/business-inputs.md`: BI-02 (tax) blocks 67, 70, 72; BI-03 (delivery areas/fee) blocks 66, 70.
+3. **Then `/step 66` (address, phone, Dubai-area and quantity validation).** Find the row with `rg -n "^| 66 " docs/roadmap.md`. BI-03 (delivery areas/fee) blocks 66 and 70: build the validators without real areas. BI-02 (tax) blocks 67, 70, 72. Open client question on which phone numbers may order (business-inputs questions log, 2026-10-11).
+   - Customers (ADR 0034): reuse `normalizePhone`/`normalizeCustomerName`/`normalizeTextLine` from `@ih/domain` and the storage bounds in `packages/contracts/src/customers.ts`. `lockCustomerForOrder`/`saveCustomerAddress` are for the order transaction only (steps 75–76): call `saveCustomerAddress` after `lockDeliverySelection`, and that transaction must write the audit entry and events.
    - Storefront pages: use `storeRead`; no `loading.tsx` under `(shop)`; never export data from a `"use client"` file to a server component; add new URLs to `scripts/check-age-preview.mjs` and, for anything touching the age boundary, `scripts/check-gate-e2e.cjs`.
    - Manual look with real data: `pnpm build && pnpm test:gate -- --serve` (prints URL, cookie, a variant ID). With stub data: `pnpm test:age-preview -- --serve`.
    - The step-60 migration creates `pg_trgm` in schema `public`: the migration role needs that right on staging/production.
@@ -66,7 +67,8 @@ BI-01 and BI-09 (OPEN) block the contact copy and WhatsApp number/wording of ste
 - 61 — product page `/p/[slug]`, selection rules that never substitute or preselect, variant-specific price/stock, quick add dialog, device cart store `ih_cart_v1`, legacy checkout keys removed on every page (ADR 0030) — 8438b20
 - 62 — device cart UI: `GET /v1/store/cart/lines` refresh, line states that never remove or substitute, `/cart` page, header count, preview subtotal in fils (ADR 0031) — ef4fbbf
 - 63 — device lists `ih_lists_v1` (saved, compare, recently viewed; slugs only), `GET /v1/store/product-cards`, heart on cards and product page, `/wishlist`, `/compare`, recently-viewed rail (ADR 0032) — 42da99d
-- 64 — store shell and home shell, `GET /v1/store/info` + WhatsApp links only when configured, `pnpm test:gate` real-stack age-boundary check (ADR 0033; BI-01/BI-09 pending) — `step(64)` commit on `step/64-shell-gate-verification`
+- 64 — store shell and home shell, `GET /v1/store/info` + WhatsApp links only when configured, `pnpm test:gate` real-stack age-boundary check (ADR 0033; BI-01/BI-09 pending) — 82ce9b9
+- 65 — `customers` + `customer_addresses` (phone-keyed, no credentials, immutable phone and address rows, no runtime delete), `normalizePhone`, transaction-only customer primitives (ADR 0034) — `step(65)` commit on `step/65-guest-customer-schema`
 
 ## Known deviations
 
@@ -74,30 +76,27 @@ BI-01 and BI-09 (OPEN) block the contact copy and WhatsApp number/wording of ste
 - Event `consumers` lists only implemented consumers (now `system_probe`, `email`, `media_processor`, `storefront_revalidate`); planned ones are documented with roadmap steps and move in with a backfill decision (architecture §8: adding a consumer must not redefine old completions).
 - `audit_log` migration revokes UPDATE/DELETE/TRUNCATE only from a role named `ih_app`; other runtime role names must be revoked at provisioning (trigger blocks mutations regardless).
 
-## Last session handoff (2026-10-11, step 64)
+## Last session handoff (2026-10-11, step 65)
 
 Done:
 
-- **Step 64 (ADR 0033)**, without BI-01/BI-09:
-  - API: `GET /v1/store/info` (`readStoreInfo`, WhatsApp number only).
-  - Storefront: shell layout (header, footer, skip link, `NavLinks`), home page moved to `app/(shop)/page.tsx`, `lib/whatsapp.ts`, `WhatsAppLink`, links on footer/product/cart, `storeInfo` (per-request, never redirects), `/age-check?recheck=1`.
-  - Verification: `scripts/check-gate-e2e.cjs` as `pnpm test:gate` (in `verify --integration`), with `--serve`.
-- Found and fixed in this step: verified pages answered 500 (navigation list imported from a client file).
-- **`invariant-reviewer`:** no blockers; three should-fixes done.
+- **Step 65 (ADR 0034):** migration `20261011000200_customers`; `Customer`/`CustomerAddress` Prisma models; `@ih/domain` `normalizePhone`, `normalizeCustomerName`, `normalizeTextLine`; `@ih/contracts` `phoneE164Schema`, `customerAddressSchema`; `@ih/db` `lockCustomerForOrder`, `saveCustomerAddress`, `markCustomerFirstOrder`, `findCustomerByPhone`. No route or UI.
+- **`invariant-reviewer`:** no blockers; should-fixes done (invisible characters, documented caller/call-order rules, version cannot decrease).
 
-Files: `packages/contracts/src/store.ts`, `packages/db/src/store-catalogue.ts`, `apps/api/src/store/{store-catalog.controller,store-catalog.service,store-catalog.int.test}.ts`, `apps/storefront/{lib/whatsapp.ts,lib/whatsapp.test.ts,lib/site.ts,lib/store/api.ts,lib/store/server.ts,lib/age/policy.ts,lib/age/age-gate.test.ts,components/nav-links.tsx,components/whatsapp-link.tsx,components/cart-view.tsx,app/(shop)/layout.tsx,app/(shop)/page.tsx,app/(shop)/p/[slug]/page.tsx,app/(shop)/cart/page.tsx}`, `scripts/{check-gate-e2e.cjs,check-age-preview.mjs,verify.mjs}`, `package.json`, `CLAUDE.md` (command list), `docs/decisions/0033-store-shell-and-gate-verification.md`, `docs/{business-inputs,implementation-status,task-backlog,verification}.md`, `PROGRESS.md`.
+Files: `packages/db/prisma/{schema.prisma,migrations/20261011000200_customers/migration.sql}`, `packages/db/src/{customers.ts,customers.int.test.ts,index.ts}`, `packages/domain/src/{customer.ts,customer.test.ts,index.ts}`, `packages/contracts/src/{customers.ts,index.ts}`, `docs/decisions/0034-guest-customers-and-phone-identity.md`, `docs/{business-inputs,implementation-status,task-backlog,verification}.md`, `PROGRESS.md`.
 
-Tests: `pnpm verify -- --integration` PASS (unit 491, integration 358, gateway 29, age-preview 1847, gate 1803). Browser pass through the real gateway: 14 checks PASS.
+Tests: `pnpm verify -- --integration` PASS (unit 496, integration 369, gateway 29, age-preview 1847, gate 1803). The run before it failed two unrelated API integration tests on database connection timeouts and passed on rerun; watch for a repeat.
 
 Unfinished:
 
-- PRs #13–#45 (steps 32–64) are open with green CI and not merged (Marina merges on GitHub, in order). CI now also runs `test:age-preview` and `test:gate`.
-- M5 gate awaits Marina's decision (seeded data; BI-02 blocks real publishing).
-- BI-01/BI-09: contact copy, WhatsApp number and wording; BI-04: footer warning wording. No mobile menu sheet, help pages or content sections yet.
+- `step/65-guest-customer-schema` is not pushed and has no PR. PRs #13–#45 (steps 32–64) are still open (Marina merges on GitHub, in order).
+- M5 gate awaits Marina's decision.
+- "Old snapshots independent" is only provable with order tables (step 73). Client question on allowed phone numbers is not asked yet.
 - Migrations are not applied to the dev database.
 
 ## History (summary)
 
+- 2026-10-11 step 64: store shell, WhatsApp links, `pnpm test:gate` (82ce9b9); verify unit 491/integration 358/gateway 29/age-preview 1847/gate 1803.
 - 2026-10-11 step 63: saved items, compare, recently viewed (42da99d); verify unit 486/integration 357/gateway 29/age-preview 1828.
 - 2026-10-11 step 62: device cart UI and refresh route (ef4fbbf); verify unit 478/integration 356/gateway 29/age-preview 1676.
 - 2026-10-11 step 61: product page, selection rules, quick add, device cart store (8438b20); verify unit 470/integration 355/gateway 29/age-preview 1600.

@@ -18,6 +18,7 @@ export * from "./staff-administration";
 
 export * from "./settings";
 export * from "./delivery";
+export * from "./customers";
 export * from "./catalogue-parents";
 export * from "./products";
 export * from "./variants";

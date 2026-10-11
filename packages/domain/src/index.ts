@@ -9,3 +9,4 @@ export * from "./field-policy";
 export * from "./delivery";
 export * from "./inventory";
 export * from "./search";
+export * from "./customer";

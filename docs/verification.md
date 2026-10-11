@@ -740,3 +740,22 @@ Not covered: these features through the real gateway in a browser; the compare p
 - **`invariant-reviewer`:** no blockers. Fixed: no redirect loop when the API refuses a ticket the storefront accepts; the seeded Owner in the gate check has a random password; the gate check now proves settings do not leak. One flaky false positive in the gate check (a random request ID containing "4900") was fixed by matching the price as data.
 
 Not covered: WhatsApp links opening the app; the mobile menu sheet (not built); real content sections (step 97); real mobile touch testing; staging. Contact copy and WhatsApp wording are placeholders (BI-01, BI-09).
+
+## Step 65 — guest customers, addresses and phone identity (2026-10-11, local)
+
+`pnpm verify -- --integration`: exit 0. Unit 496 (domain 121), integration 369 (db 70), gateway 29, age-preview 1847, gate 1803. The run before it stopped at `test:int` with two API tests failing to get a database connection in time (`health.int.test.ts` readiness 503, `inventory.int.test.ts` "Unable to start a transaction in the given time"); neither touches this step's code and the immediate rerun passed. Not investigated further.
+
+**Unit (`customer.test.ts`):** ten ways of typing one UAE mobile give one E.164 value; landline and foreign numbers with a country code; sixteen refused inputs (short, long, no country code, toll-free, extra text, non-string); name and text-line bounds, control and zero-width characters.
+
+**Integration (`customers.int.test.ts`, real PostgreSQL, isolated schema, 11 tests):**
+
+- Both tables start empty; exact column lists (no credential, email or session column).
+- Database refuses: a phone not in E.164 shape, a duplicate phone, an untrimmed or empty name, a phone change, a version decrease, changing `first_order_at` once set, bad address type/empty fields/Makani not 10 digits, an unknown area, any address UPDATE, and deleting a customer or an area that has an address.
+- Five typed forms of one number resolve to one customer; bad input writes nothing; the primitives refuse to run outside `withTransaction`.
+- Eight concurrent first orders of one phone create exactly one customer; a second transaction waits for the first one's commit; a rolled-back transaction leaves no customer.
+- First-order time is stamped once; an identical address is reused, a changed one is a new row, and renaming the customer leaves address rows unchanged.
+- Runtime role: no DELETE/TRUNCATE on either table, no UPDATE on addresses (runs where `ih_app` exists; required in CI).
+
+**`invariant-reviewer`:** no blockers. Done: zero-width/invisible characters refused and a name needs a letter or digit; call-order and caller rules documented on the primitives; version cannot decrease. Left as documented limits: trunk zero after a non-UAE country code; display name follows the latest typed name.
+
+Not covered: "old snapshots independent" end to end, because order tables arrive in step 73 (what exists is checked: immutable addresses, no cascade, no delete); address saving against concurrent area/setting edits (step 75); the migration on the dev database (not applied).

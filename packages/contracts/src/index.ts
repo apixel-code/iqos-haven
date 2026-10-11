@@ -61,3 +61,4 @@ export * from "./variants";
 export * from "./inventory";
 export * from "./media";
 export * from "./store";
+export * from "./customers";

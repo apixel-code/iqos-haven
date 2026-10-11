@@ -244,8 +244,43 @@ model DeliveryArea {
   updatedBy String    @map("updated_by") @db.Uuid
   updater   StaffUser @relation(fields: [updatedBy], references: [id], onDelete: Restrict, onUpdate: Restrict)
   updatedAt DateTime  @default(dbgenerated("statement_timestamp()")) @map("updated_at") @db.Timestamptz(6)
+  addresses CustomerAddress[]
 
   @@map("delivery_areas")
+}
+
+/// Guest customer keyed by normalized phone (step 65). Not an account: no credentials.
+model Customer {
+  id           String            @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  phoneE164    String            @unique @map("phone_e164") @db.VarChar(16)
+  displayName  String            @map("display_name") @db.VarChar(100)
+  firstOrderAt DateTime?         @map("first_order_at") @db.Timestamptz(6)
+  noShow       Boolean           @default(false) @map("no_show")
+  version      Int               @default(1)
+  createdAt    DateTime          @default(dbgenerated("statement_timestamp()")) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime          @default(dbgenerated("statement_timestamp()")) @map("updated_at") @db.Timestamptz(6)
+  addresses    CustomerAddress[]
+
+  @@map("customers")
+}
+
+/// Immutable saved address; orders keep their own snapshot (step 73).
+model CustomerAddress {
+  id         String       @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  customerId String       @map("customer_id") @db.Uuid
+  customer   Customer     @relation(fields: [customerId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  areaId     String       @map("area_id") @db.Uuid
+  area       DeliveryArea @relation(fields: [areaId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  type       String       @db.VarChar(16)
+  building   String       @db.VarChar(150)
+  unit       String?      @db.VarChar(50)
+  street     String?      @db.VarChar(150)
+  makani     String?      @db.VarChar(10)
+  notes      String?      @db.VarChar(500)
+  createdAt  DateTime     @default(dbgenerated("statement_timestamp()")) @map("created_at") @db.Timestamptz(6)
+
+  @@index([customerId, createdAt(sort: Desc), id(sort: Desc)], map: "customer_addresses_customer")
+  @@map("customer_addresses")
 }
 
 model Brand {
