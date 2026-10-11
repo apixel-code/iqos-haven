@@ -700,8 +700,23 @@ export const storefrontEnvSchema = baseEnvSchema
     API_INTERNAL_URL: httpUrl,
     ...ageVerifierEnvFields,
     ...ageSignerEnvFields,
+    /** Origins the age decision POSTs are accepted from (the storefront's own). */
+    STOREFRONT_ORIGINS: securityEnvFields.STOREFRONT_ORIGINS,
+    /** How long an under-age answer keeps the device on the restricted page (BI-04). */
+    AGE_RESTRICTED_MINUTES: z.coerce.number().int().min(1).max(1440).default(15),
   })
-  .superRefine((value, ctx) => ageSafety(value, ctx, "signer"));
+  .superRefine((value, ctx) => {
+    ageSafety(value, ctx, "signer");
+    if (
+      (value.APP_ENV === "staging" || value.APP_ENV === "production") &&
+      value.STOREFRONT_ORIGINS.some((origin) => !origin.startsWith("https://"))
+    )
+      ctx.addIssue({
+        code: "custom",
+        path: ["STOREFRONT_ORIGINS"],
+        message: "must be https outside development",
+      });
+  });
 export type StorefrontEnv = z.infer<typeof storefrontEnvSchema>;
 export const adminEnvSchema = baseEnvSchema
   .extend({

@@ -525,3 +525,35 @@ The QA schema was dropped afterwards. Two harness fixes: the script resolved the
 - **`invariant-reviewer`:** no blockers and no forgery path. Fixed: key-pair consistency check, keys required when deployed, canonical key encoding, refusal log at debug level.
 
 Not covered (later steps): storefront accept/reject routes and cookie attributes (56), generic preview (57), real store endpoints and their cache headers (58). BI-04 values are placeholders.
+
+## Step 56 — storefront age gate (2026-10-11, local)
+
+`pnpm verify -- --integration`: exit 0. Unit 433 (storefront 36 new), integration 330, gateway 29.
+
+**Unit (`apps/storefront/lib/age/age-gate.test.ts`), through the real handler functions:**
+
+- **Return path:** local paths kept; absolute, scheme-relative, backslash, control-character, traversal, over-long, gate, API and framework paths fall back to `/`.
+- **Routing:** every path restricted unless listed exactly; unverified → age check with a safe target; any ticket failure treated as none; verified shoppers leave the gate pages; a recent rejection keeps the device on the restricted page; a valid ticket outranks the marker.
+- **Handlers:** accept sets `ih_age` (`Secure; HttpOnly; SameSite=Lax`, 30 days) with a ticket that verifies for both the storefront and the API, and clears the marker; reject clears `ih_age` and sets the 15-minute marker; foreign, missing and cross-site origins get 403 and no cookie; 20 decisions per minute per address, junk addresses share one bucket; no signing key → 503, nothing set.
+
+**Smoke through the real gateway (`http://localhost:8080`, built storefront, throwaway key, curl):**
+
+| Request                                                       | Result                                                              |
+| ------------------------------------------------------------- | ------------------------------------------------------------------- |
+| Unverified `/`, deep link, crawler User-Agent, RSC request    | 307 to `/age-check` (deep link keeps `return`), `private, no-store` |
+| `/_next/image`, an unlisted `/api/age/status`, POST to a page | Redirected to the gate (303 for POST)                               |
+| Accept without Origin / foreign Origin                        | 403, no cookie                                                      |
+| Accept with `return=https://evil.example/`                    | 303 to `/`                                                          |
+| Accept                                                        | 303 to the local return path; `ih_age` set HttpOnly                 |
+| Verified `/`                                                  | 200, `private, no-store`                                            |
+| Forged cookie `ih_age=true`                                   | Redirected to the gate                                              |
+| Reject, then `/` and `/age-check`                             | 303 to `/restricted`; both then redirect to `/restricted`           |
+| 22 rejects with rotating browser-sent `X-IH-Client-IP`        | 429 after the 20th decision (the gateway strips the header)         |
+| Forged `Host` sent straight to the storefront                 | Redirect to the configured origin, not the forged host              |
+| Private key                                                   | Not in served HTML or `.next` output                                |
+
+The smoke run used `APP_ENV=staging` with `STOREFRONT_ORIGINS=https://localhost:8080` and sent that Origin from curl, because `next start` requires a deployed environment and deployed origins must be https. The local gateway container was restarted first: it had been running since 2026-10-09 with a configuration older than the repository's.
+
+- **`invariant-reviewer`:** no blockers. Fixed: `/_next/image` now passes the gate; redirect base no longer follows a forged Host; decision routes listed exactly.
+
+Not covered: a real browser run of the gate pages (no browser QA journey for the storefront yet), Safari with `Secure` cookies on plain-http localhost, catalogue pages behind the gate (57–64). Copy and policy values are placeholders (BI-04).

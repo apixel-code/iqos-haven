@@ -13,6 +13,10 @@
     "./age-ticket": {
       "types": "./dist/age/age-ticket.d.ts",
       "default": "./dist/age/age-ticket.js"
+    },
+    "./rate-limit": {
+      "types": "./dist/rate-limit/rate-limit.d.ts",
+      "default": "./dist/rate-limit/rate-limit.js"
     }
   },
   "files": [

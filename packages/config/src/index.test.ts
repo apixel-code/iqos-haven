@@ -142,6 +142,7 @@ describe("age gate configuration", () => {
   })();
   const deployedStore = {
     ...store,
+    STOREFRONT_ORIGINS: "https://shop.example",
     AGE_TICKET_KEY_ID: "k1",
     AGE_TICKET_PRIVATE_KEY: pair.seed,
     AGE_TICKET_PUBLIC_KEYS: `k1:${pair.publicKey}`,
@@ -187,6 +188,22 @@ describe("age gate configuration", () => {
     ).toThrow(/AGE_TICKET_PRIVATE_KEY/);
     expect(() => loadEnv(apiEnvSchema, { ...base, APP_ENV: "staging" })).toThrow(
       /AGE_TICKET_PUBLIC_KEYS/,
+    );
+  });
+  it("needs https storefront origins once deployed and bounds the rejection window", () => {
+    expect(loadEnv(storefrontEnvSchema, store)).toMatchObject({
+      STOREFRONT_ORIGINS: ["http://localhost:8080"],
+      AGE_RESTRICTED_MINUTES: 15,
+    });
+    expect(() =>
+      loadEnv(storefrontEnvSchema, {
+        ...deployedStore,
+        APP_ENV: "staging",
+        STOREFRONT_ORIGINS: "http://shop.example",
+      }),
+    ).toThrow(/STOREFRONT_ORIGINS/);
+    expect(() => loadEnv(storefrontEnvSchema, { ...store, AGE_RESTRICTED_MINUTES: "0" })).toThrow(
+      /AGE_RESTRICTED_MINUTES/,
     );
   });
   it("caps the remembered acceptance at 30 days", () => {
