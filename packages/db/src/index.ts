@@ -25,3 +25,4 @@ export * from "./inventory";
 export * from "./media";
 export * from "./gallery";
 export * from "./publication";
+export * from "./store-catalogue";

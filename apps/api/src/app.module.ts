@@ -13,6 +13,7 @@ import { CatalogueCacheModule } from "./cache/catalogue-cache.module";
 import { CatalogueModule } from "./catalogue/catalogue.module";
 import { InventoryModule } from "./inventory/inventory.module";
 import { MediaModule } from "./media/media.module";
+import { StoreModule } from "./store/store.module";
 import { SettingsModule } from "./settings/settings.module";
 import { requestId } from "./http/request-id";
 @Module({})
@@ -52,6 +53,7 @@ export class AppModule {
         CatalogueModule,
         InventoryModule,
         MediaModule,
+        StoreModule,
         ReliabilityModule,
         HealthModule,
         ...testModules,

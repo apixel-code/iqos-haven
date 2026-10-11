@@ -574,3 +574,26 @@ Not covered: a real browser run of the gate pages (no browser QA journey for the
 - **`invariant-reviewer`:** no blockers and no gate regression. Its three script hardening points are done (HEAD, stricter forged-signal assertions, body-level product words).
 
 Not covered: how WhatsApp/Facebook actually render the preview (staging, architecture §9); real product pages (the check's URL list is synthetic until steps 59–61); the final policy text (BI-04/legal) and the indexing decision (BI-05).
+
+## Step 58 — gated store catalogue reads (2026-10-11, local)
+
+`pnpm verify -- --integration`: exit 0. Unit 436, integration 342 (store 12 new), gateway 29, age-preview 877.
+
+**Real API + PostgreSQL + signed ticket (`apps/api/src/store/store-catalog.int.test.ts`):**
+
+- **Age gate:** all four routes answer 403 `AGE_VERIFICATION_REQUIRED` with no product data for no cookie, a forged cookie, a tampered ticket and a crawler User-Agent, even after a verified shopper warmed the cache.
+- **Headers:** `Cache-Control: private, no-store` and `Vary: Cookie` on success; `no-store` on 404 and 429.
+- **Visibility:** only the published product of a live, active brand and category with an active variant is listed or readable; draft, trashed, inactive-brand, inactive-category, no-active-variant and unknown slugs give identical 404 bodies; brand and category lists and counts follow the same rule.
+- **Contract:** integer-fils prices (override or base), lowest active price on the card, compare-at only when higher, active variants only, one default, availability flags; no SKU, stock count, threshold, tax reference, version or staff ID anywhere in the body.
+- **Images:** signed 10-minute links to the media-bucket derivatives, primary first, never quarantine.
+- **Sold out:** product stays listed, marked `soldOut`, options listed and unavailable; an inactive stocked variant does not count.
+- **Former slug:** resolves to the product with its current slug; a redirect to a hidden product is a 404.
+- **Sorting and paging:** four sorts in the expected order with ties on product ID, identical results for page sizes 1/2/3/48, filters by brand, category and type.
+- **Bounded input:** out-of-range limits, unknown sorts, types and parameters, repeated parameters, bad slugs, malformed, forged, out-of-range and wrong-sort cursors all answer 400.
+- **Cache:** reads stay cached until invalidation; unpublishing disappears at the next invalidation; 30 unknown slugs and 30 well-formed forged cursors add no cache entries; a product published after a miss is visible at once.
+- **Degraded data:** stored specs that do not fit the contract show as no specifications.
+- **Rate limit:** 240 of 250 rapid reads from one address succeed, the rest answer 429; another address is unaffected.
+
+- **`invariant-reviewer`:** no blockers, no injection, visibility or field leak. Fixed: forged cursors could reach the database and fail; unknown slugs and cursor pages are no longer cached; cursor validated before any load.
+
+Not covered: these routes through the storefront pages (59, 61); stock changes reaching the cached availability sooner than the TTL (by design); image delivery through a CDN (BI-06).

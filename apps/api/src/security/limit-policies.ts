@@ -101,3 +101,14 @@ export const INVENTORY_ADJUST_POLICY = {
   ...CATALOG_MANAGE_POLICY,
   endpoint: "inventory_adjust",
 } as const;
+
+/**
+ * Shopper catalogue reads (step 58), per client address. Browsing must keep working when the
+ * shared limiter is down, so the outage path is a bounded local budget plus a process ceiling.
+ * Reads are cached, so these budgets protect against scraping more than against database load.
+ */
+export const STORE_CATALOG_POLICY: EndpointLimitPolicy<"ip"> = {
+  endpoint: "store_catalog",
+  rules: { ip: perMinute(240) },
+  outage: { fallback: { ip: perMinute(120) }, processCeiling: perMinute(6000) },
+};
