@@ -8,6 +8,8 @@ const checks = [
   "test:boundaries",
   "test:infra",
   "test:package",
+  // Built storefront over HTTP: unverified requests get the generic preview only.
+  "test:age-preview",
   "contracts:check",
 ];
 // Integration needs real PostgreSQL/Redis/MinIO/Mailpit and Docker (gateway check).

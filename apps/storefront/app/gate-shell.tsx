@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { AGE_COPY } from "@/lib/age/copy";
+import { PolicyLinks } from "./(policy)/policy-page";
 
 /** Shared frame of the age-check and restricted pages (prototype `gateShell`). */
 export function GateShell({ labelledBy, children }: { labelledBy: string; children: ReactNode }) {
@@ -19,8 +20,9 @@ export function GateShell({ labelledBy, children }: { labelledBy: string; childr
           {children}
         </section>
       </main>
-      <footer className="px-4 py-4 text-center text-xs text-ink-2 sm:px-8">
-        {AGE_COPY.footer}
+      <footer className="flex flex-col items-center gap-2 px-4 py-4 text-xs text-ink-2 sm:px-8">
+        <PolicyLinks />
+        <span>{AGE_COPY.footer}</span>
       </footer>
     </div>
   );

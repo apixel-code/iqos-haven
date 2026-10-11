@@ -9,19 +9,31 @@ export const AGE_CHECK_PATH = "/age-check";
 export const RESTRICTED_PATH = "/restricted";
 /** Exact paths: a future route under /api/age/ is gated unless it is added here. */
 const DECISION_PATHS: readonly string[] = ["/api/age/accept", "/api/age/reject"];
+/**
+ * Public pages without catalogue data: policy pages, the crawler policy and the one generic
+ * preview image. Kept in step with `POLICY_PAGES` in `lib/site.ts` by a unit test.
+ */
+const PUBLIC_INFO_PATHS: readonly string[] = [
+  "/responsible-use",
+  "/terms",
+  "/privacy",
+  "/robots.txt",
+  "/opengraph-image",
+];
 const MAX_RETURN_LENGTH = 512;
 const BASE = "http://storefront.invalid";
 
 /**
  * Paths reachable without an accepted age ticket. Everything else is restricted by default, so
- * a new page is gated unless it is added here deliberately. Public policy pages join in step 57.
+ * a new page is gated unless it is added here deliberately.
  */
 export function isPublicPath(pathname: string): boolean {
   return (
     pathname === AGE_CHECK_PATH ||
     pathname === RESTRICTED_PATH ||
     pathname === "/health" ||
-    DECISION_PATHS.includes(pathname)
+    DECISION_PATHS.includes(pathname) ||
+    PUBLIC_INFO_PATHS.includes(pathname)
   );
 }
 
@@ -77,8 +89,8 @@ export function gateAction(input: {
     return { kind: "allow" };
   }
   if (restricted) {
-    if (pathname === RESTRICTED_PATH || pathname === "/health" || DECISION_PATHS.includes(pathname))
-      return { kind: "allow" };
+    // A rejected visitor may still read the policies, but never reaches the age question.
+    if (pathname !== AGE_CHECK_PATH && isPublicPath(pathname)) return { kind: "allow" };
     return { kind: "redirect", location: RESTRICTED_PATH };
   }
   if (isPublicPath(pathname)) return { kind: "allow" };

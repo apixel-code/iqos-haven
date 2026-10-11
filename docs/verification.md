@@ -557,3 +557,20 @@ The smoke run used `APP_ENV=staging` with `STOREFRONT_ORIGINS=https://localhost:
 - **`invariant-reviewer`:** no blockers. Fixed: `/_next/image` now passes the gate; redirect base no longer follows a forged Host; decision routes listed exactly.
 
 Not covered: a real browser run of the gate pages (no browser QA journey for the storefront yet), Safari with `Secure` cookies on plain-http localhost, catalogue pages behind the gate (57–64). Copy and policy values are placeholders (BI-04).
+
+## Step 57 — generic store preview and public policy pages (2026-10-11, local)
+
+`pnpm verify -- --integration`: exit 0. Unit 436, integration 330, gateway 29, age-preview 877.
+
+**`pnpm test:age-preview` (new, part of `pnpm verify`; built storefront over real HTTP, throwaway key):**
+
+- **Eight User-Agents** (phone browser, Googlebot, Bingbot, Facebook, WhatsApp, Twitter, Slack, none) × **ten restricted URLs** (home, shop, product, brand, cart, checkout, sitemap, three image-optimizer forms), GET and HEAD: each is a 307 to `/age-check` on our own origin, `private, no-store`, `noindex`, with no JSON-LD, price, product Open Graph or microdata, and nothing about the requested product in the body.
+- **Gate page per agent:** 200; `og:title`/`og:site_name` "Iqos Haven", the generic description, the generic `og:image` on the configured origin, robots `noindex, nofollow`; the requested product URL appears only in the hidden return field; the metadata set is identical for every agent.
+- **Forged signals** (verification headers, `ih_age=accepted`, a malformed ticket, bearer token, crawler IP headers, RSC/prefetch headers, query flags): still gated.
+- **Public information:** `robots.txt` disallows everything and names no sitemap; `/opengraph-image` is a PNG; `/responsible-use`, `/terms`, `/privacy` answer 200, `noindex`, no catalogue data.
+
+**Unit:** policy pages are public by exact path and stay readable after a rejection, while the age question does not; near-miss paths stay gated.
+
+- **`invariant-reviewer`:** no blockers and no gate regression. Its three script hardening points are done (HEAD, stricter forged-signal assertions, body-level product words).
+
+Not covered: how WhatsApp/Facebook actually render the preview (staging, architecture §9); real product pages (the check's URL list is synthetic until steps 59–61); the final policy text (BI-04/legal) and the indexing decision (BI-05).

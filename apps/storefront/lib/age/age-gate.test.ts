@@ -10,6 +10,7 @@ import {
 } from "@ih/platform/age-ticket";
 import { EndpointLimiter, LocalRateLimiter } from "@ih/platform/rate-limit";
 import { describe, expect, it } from "vitest";
+import { POLICY_PAGES, SITE } from "../site";
 import { createAgeHandlers, verifyRequestTicket, type AgeRuntime } from "./handlers";
 import {
   AGE_CHECK_PATH,
@@ -202,6 +203,39 @@ describe("routing gate", () => {
     expect(hasRestrictedCookie(`${RESTRICTED_COOKIE}=0`)).toBe(false);
     expect(hasRestrictedCookie(`x${RESTRICTED_COOKIE}=1`)).toBe(false);
     expect(hasRestrictedCookie(null)).toBe(false);
+  });
+});
+
+describe("public information pages", () => {
+  it("lists every policy page, the crawler policy and the generic preview image as public", () => {
+    for (const page of POLICY_PAGES) expect(isPublicPath(page.path), page.path).toBe(true);
+    for (const path of ["/robots.txt", "/opengraph-image"]) expect(isPublicPath(path)).toBe(true);
+    // Near misses stay gated.
+    for (const path of [
+      "/privacy/",
+      "/privacy/x",
+      "/terms.json",
+      "/sitemap.xml",
+      "/opengraph-image/x",
+    ])
+      expect(isPublicPath(path), path).toBe(false);
+  });
+
+  it("stays readable for a rejected visitor, who still cannot reach the age question", () => {
+    const rejected = (pathname: string) =>
+      gateAction({
+        pathname,
+        search: "",
+        ticket: { ok: false, reason: "MISSING" },
+        restricted: true,
+      });
+    for (const page of POLICY_PAGES) expect(rejected(page.path)).toEqual({ kind: "allow" });
+    expect(rejected(AGE_CHECK_PATH)).toEqual({ kind: "redirect", location: RESTRICTED_PATH });
+    expect(rejected("/products/halo")).toEqual({ kind: "redirect", location: RESTRICTED_PATH });
+  });
+
+  it("exposes only a store name and a generic description", () => {
+    expect(SITE).toEqual({ name: "Iqos Haven", description: "Adults-only store in Dubai. 18+." });
   });
 });
 

@@ -8,13 +8,35 @@ import "@fontsource/jetbrains-mono/500.css";
 import "./globals.css";
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
+import { ageGate } from "@/lib/age/runtime";
+import { SITE } from "@/lib/site";
 
-// Generic metadata only: no product names, images or prices before the age gate (roadmap 55–57).
-export const metadata: Metadata = {
-  title: "Iqos Haven",
-  description: "Adults-only store in Dubai. 18+.",
-  robots: { index: false, follow: false },
-};
+/**
+ * Generic metadata only (architecture §9, ADR 0026): the same store name, description and
+ * preview image for every URL and every visitor, verified or not. Pages may refine the title for
+ * verified shoppers later, but product names, images, prices and JSON-LD must never be put in
+ * metadata that an unverified request can receive; the routing gate redirects those requests to
+ * the age check before any page metadata is produced.
+ */
+// Every page is rendered per request: nothing is prerendered at build time or stored in a
+// shared cache, so a verified shopper's HTML can never be served to someone else (ADR 0025).
+export const dynamic = "force-dynamic";
+
+export function generateMetadata(): Metadata {
+  return {
+    metadataBase: new URL(ageGate().runtime.origins[0]!),
+    title: SITE.name,
+    description: SITE.description,
+    robots: { index: false, follow: false },
+    openGraph: {
+      type: "website",
+      siteName: SITE.name,
+      title: SITE.name,
+      description: SITE.description,
+    },
+    twitter: { card: "summary_large_image", title: SITE.name, description: SITE.description },
+  };
+}
 
 export const viewport: Viewport = {
   width: "device-width",
