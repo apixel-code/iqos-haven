@@ -232,8 +232,6 @@ try {
   const publishing = page.locator("section", {
     has: page.getByRole("heading", { name: "Publishing" }),
   });
-  await publishing.getByText(/accountant/).waitFor({ timeout: 10000 });
-  check("publishing card explains the missing approved tax treatment", true);
   check(
     "publish button disabled until ready",
     await publishing.getByRole("button", { name: "Publish" }).isDisabled(),

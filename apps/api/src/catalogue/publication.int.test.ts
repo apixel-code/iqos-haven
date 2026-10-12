@@ -163,20 +163,19 @@ describe("product publication, trash/restore and purge (real API and PostgreSQL)
     await pool.end();
   });
 
-  it("refuses publication until the tax treatment is approved (BI-02 gate)", async () => {
+  it("needs no tax treatment: the entered price is final (BI-02)", async () => {
     const product = await completeProduct();
     expect(await readiness(product.id)).toMatchObject({
-      ready: false,
+      ready: true,
       status: "draft",
-      missing: ["tax_treatment"],
+      missing: [],
     });
     const response = await call(`/${product.id}/publish`, "POST", {
       version: await version(product.id),
     });
-    expect(await code(response)).toBe("PUBLISH_REQUIREMENTS");
-    expect((await db.product.findUniqueOrThrow({ where: { id: product.id } })).status).toBe(
-      "draft",
-    );
+    expect(response.status).toBe(200);
+    const row = await db.product.findUniqueOrThrow({ where: { id: product.id } });
+    expect(row).toMatchObject({ status: "published", taxTreatmentRef: null });
   });
 
   it("lists every missing requirement", async () => {
@@ -191,15 +190,7 @@ describe("product publication, trash/restore and purge (real API and PostgreSQL)
       },
     });
     expect((await readiness(bare.id)).missing.sort()).toEqual(
-      [
-        "active_variant",
-        "default_variant",
-        "description",
-        "image",
-        "price",
-        "puff_count",
-        "tax_treatment",
-      ].sort(),
+      ["active_variant", "default_variant", "description", "image", "price", "puff_count"].sort(),
     );
   });
 

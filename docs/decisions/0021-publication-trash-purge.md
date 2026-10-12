@@ -1,7 +1,7 @@
 # 0021 — Product publication, trash/restore and reference-aware purge
 
 - Date: 2026-10-10
-- Status: accepted
+- Status: accepted; the tax-treatment publish requirement is superseded by ADR 0036 (prices are final, no tax reference)
 - Step(s): 51 (extended by orders 73+, storefront 56–60, BI-02)
 
 ## Context

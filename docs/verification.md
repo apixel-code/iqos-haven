@@ -427,7 +427,7 @@ The admin unit tests cover the upload pre-check, form field order, rejection cop
 
 `publication.int.test.ts` (12 tests):
 
-- **BI-02 gate:** a complete product still reports `tax_treatment`, and publish answers `PUBLISH_REQUIREMENTS`.
+- **BI-02 gate:** a complete product still reports `tax_treatment`, and publish answers `PUBLISH_REQUIREMENTS`. (Superseded 2026-10-12 by ADR 0036: a complete product now publishes without a tax reference.)
 - **Requirements:** every missing requirement is listed, including a zero-price variant override.
 - **Publish and move to draft:**
   - Staff can do both once the product is ready. Zero stock does not block publishing.
@@ -777,3 +777,14 @@ Not covered: "old snapshots independent" end to end, because order tables arrive
 **`invariant-reviewer`:** no blockers. Done: a malformed area ID no longer reaches the database; Arabic-Indic digits accepted in the Makani number; villa-with-unit intent tested. Kept on purpose and recorded in ADR 0035: any `5x` mobile prefix is accepted.
 
 Not covered: these rules behind a real route or in the checkout form (steps 71, 77); real areas (BI-03); a concurrent area deactivation during an order (step 75).
+
+## Business-input fixes — final prices and UAE-wide delivery (2026-10-12, local)
+
+`pnpm verify -- --integration`: exit 0. Unit 510, integration 371, gateway 29, age-preview 1847, gate 1803. The first run stopped at `test:int`: `catalogue.int.test.ts` still expected the database to refuse publishing without a tax reference; the test was updated to the new rule and the rerun passed.
+
+- **Final prices (BI-02):** a complete product with no tax reference reports ready and publishes through the API (`publication.int.test.ts`); the database still refuses a published product with a zero price, a trashed one, or a disposable without a puff count (`catalogue.int.test.ts`); the missing-requirements list no longer contains `tax_treatment`.
+- **UAE delivery (BI-03):** the flat fee applies in each of the seven emirates and a non-UAE or differently spelled emirate is refused (`delivery.test.ts`); an area can be created in Sharjah through the API, its emirate cannot be changed afterwards, and the database refuses an unknown emirate; the contract refuses an unknown emirate (`delivery.int.test.ts`).
+- **Dev database:** `pnpm db:migrate` applied every migration, including the two new ones.
+- **`invariant-reviewer`:** no blockers; the single old publish check is matched exactly once by the migration, the other publish guards and the emirate immutability trigger are intact. Done: superseded notes on ADR 0015/0021 and the step-51 record.
+
+Not covered: the admin delivery and product screens were not opened in a browser after this change (type-checked and built only); `scripts/browser-qa/qa.mjs` was edited but not rerun and still expects a disabled Publish button for its QA product; `scripts/check-gate-e2e.cjs` still seeds an unnecessary tax reference; storefront copy still says "Dubai" (demo copy, BI-01).

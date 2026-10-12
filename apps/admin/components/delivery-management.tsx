@@ -6,6 +6,8 @@ import {
   deliveryAreaCreateRequestSchema,
   deliveryAreaUpdateRequestSchema,
   deliveryAreasResponseSchema,
+  EMIRATE_NAMES,
+  UAE_EMIRATES,
 } from "@ih/contracts";
 import { deliveryCommand, filsToAed, managementRequest, validate } from "../lib/management";
 import { Fields, ResourceNotice, useManagementResource } from "./management-resource";
@@ -41,6 +43,7 @@ export function DeliveryManagement() {
         "POST",
         validate(deliveryAreaCreateRequestSchema, {
           code: String(data.get("code") ?? "").trim(),
+          emirate: String(data.get("emirate") ?? ""),
           name: String(data.get("name") ?? "").trim(),
           active: data.get("active") === "on",
         }),
@@ -58,7 +61,7 @@ export function DeliveryManagement() {
       <section className="management-card">
         <header className="card-heading">
           <h2>Delivery charge</h2>
-          <span className="badge">Dubai only</span>
+          <span className="badge">One fee across the UAE</span>
         </header>
         <ResourceNotice resource={configuration} />
         {row && (
@@ -117,11 +120,11 @@ export function DeliveryManagement() {
       <section className="management-card">
         <header className="card-heading">
           <h2>Delivery areas</h2>
-          <span className="badge">Approved Dubai coverage</span>
+          <span className="badge">Approved UAE coverage</span>
         </header>
         <p className="muted">
-          Add approved coverage only. Inactive areas cannot be selected at checkout. Codes stay
-          fixed; deactivate areas to preserve history.
+          Add approved coverage only. Inactive areas cannot be selected at checkout. The code and
+          emirate stay fixed; deactivate areas to preserve history.
         </p>
         <ResourceNotice resource={areas} />
         {areas.data && (
@@ -135,6 +138,16 @@ export function DeliveryManagement() {
                 }}
               >
                 <fieldset disabled={areas.disabled}>
+                  <label>
+                    <span>Emirate *</span>
+                    <select name="emirate" defaultValue="dubai" required>
+                      {UAE_EMIRATES.map((emirate) => (
+                        <option key={emirate} value={emirate}>
+                          {EMIRATE_NAMES[emirate]}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
                   <Fields
                     fields={[
                       {
@@ -193,7 +206,9 @@ export function DeliveryManagement() {
                   }}
                 >
                   <header className="card-heading">
-                    <strong>{area.code}</strong>
+                    <strong>
+                      {area.code} · {EMIRATE_NAMES[area.emirate]}
+                    </strong>
                     <span className="badge">
                       {area.active ? "Active" : "Inactive"} · v{area.version}
                     </span>

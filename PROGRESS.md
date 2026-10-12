@@ -4,8 +4,8 @@
 
 - Date: 2026-10-11
 - Milestone: M6 — customers, pricing, coupons and server quote: steps 65–66 done. M5: PASSED 2026-10-11. M4 steps done, gate waits for BI-02; M3 gate not closed; M0 review and M1 staging/fixtures still open
-- Step: 66 (checkout input validation) — done; next is 68 (67 waits for BI-02 except its tax-independent part)
-- Branch: `step/66-checkout-validation` (from `main`, which holds everything through step 65; PR open, Marina merges)
+- Step: 66 (checkout input validation) — done, plus the 2026-10-12 business-input fixes (ADR 0036); next is 67
+- Branch: `fix/business-inputs-answers` (stacked on `step/66-checkout-validation`, PR #47; both wait for Marina's merge, #47 first)
 - See docs/verification.md for actual checks.
 
 ## Next action
@@ -14,10 +14,10 @@
 
 - Git: branch each step from `main` as `step/N-short-name`. After `/verify` and the commit, push and open a PR against `main`; Marina merges it on GitHub ("Create a merge commit") because Claude's `gh pr merge` is denied by the classifier. Then fast-forward local `main`.
 - Toolchain: prefix commands with `export PATH="/opt/homebrew/opt/node@24/bin:$HOME/.docker/bin:$PATH"`. If Docker is down, run `open -a Docker` and then `pnpm infra:up`.
-- Marina's decisions (2026-10-11): build what the open business inputs do not block; BI-03 → build without real areas or fees (Owner enters them later); BI-02 → no assumed tax rates, build only the tax-independent parts.
+- Marina's answers (2026-10-12, ADR 0036, docs/business-inputs.md): prices are final as entered, no tax calculation (BI-02); delivery covers the seven emirates at one flat fee (BI-03); minimum age 18 as built (BI-04); Hostinger hosting (BI-06, plan type to confirm); catalogue, Owner and staff are entered through the admin (BI-10/11); retention defaults chosen by Apixel (BI-08). Still open: BI-01, BI-09 (demo values for now), BI-05 (indexing stays off).
 
-1. **Marina merges the step-66 PR on GitHub** ("Create a merge commit"); then `git checkout main && git pull --ff-only`.
-2. **Next step: `/step 68` (percentage-coupon schema), then 69.** Neither is blocked. Step 67 (pricing) may be started for its tax-independent part only (integer fils, half-up rounding, allocation); the tax formula waits for BI-02. Step 70 waits for BI-02 and BI-03.
+1. **Marina merges on GitHub** ("Create a merge commit"): PR #47 (step 66), then the PR of `fix/business-inputs-answers`; then `git checkout main && git pull --ff-only`.
+2. **Next step: `/step 67` (pricing).** No tax: integer line totals, percentage discount with half-up rounding and allocation across lines (ADR 0036). Then 68–72; none is blocked by a business input any more.
 3. **Rules that carry forward:**
    - Checkout input (ADR 0035): parse with `checkoutContactSchema`, `checkoutAddressSchema` and `orderLinesSchema` from `@ih/contracts`; never add a second copy of a rule or message. The route must map issues to the error envelope `fields` without echoing typed values. Pre-check the area with `readDeliverableArea`; the transaction decides again with `lockDeliverySelection`.
    - Customers (ADR 0034): `lockCustomerForOrder`/`saveCustomerAddress` are for the order transaction only (steps 75–76): call `saveCustomerAddress` after `lockDeliverySelection`, and that transaction must write the audit entry and events.
@@ -27,21 +27,19 @@
    - Local storefront dev needs age keys in `.env`: run `pnpm age:keygen` and paste the three lines (Claude cannot read or edit `.env`). Without them every page redirects to the age check and accepting answers 503.
    - If `http://localhost:8080/api/age/*` answers 404, the gateway container is running an old config: `docker compose restart gateway`.
    - Every later stock writer (orders, steps 75–76, 85–86) must call `publishLowStockCrossing` in its transaction (ADR 0023).
-4. **Publishing is still blocked by BI-02**, so there are no published products in a real database: storefront pages need seeded data (tests seed published rows directly; see `apps/api/src/store/store-catalog.int.test.ts`).
+4. **Publishing works without a tax reference** (ADR 0036): a complete product can be published from the admin. The dev database has all migrations applied (2026-10-12) but no products yet; tests still seed their own.
 5. **Local invalidation call:** to exercise the worker → API call in dev, set `INTERNAL_SERVICE_KEYS` and the worker's `INTERNAL_SERVICE_*` in `.env` (see `.env.example`). Without them the effect completes as `skipped:not_configured`.
 6. **Browser QA for later admin steps:** use `scripts/browser-qa/` (README). `/tmp/ih-qa` does not survive; reinstall `playwright-core` there (or any directory) and set `QA_PLAYWRIGHT_DIR`.
 
-BI-02 gates real publication and the M4 gate.
-
 ## Blockers
 
-BI-01 and BI-09 (OPEN) block the contact copy and WhatsApp number/wording of step 64 (built so that links appear only once the Owner sets the number). BI-04 (OPEN) blocks the policy values and copy of steps 55–57 (55–56 built with placeholders; production refuses the `unapproved` policy); BI-05 (OPEN) blocks any product indexing or preview (step 57 built with both off). BI-02 blocks real publication and so the M4 gate. Real settings/coverage require BI-01/BI-03/BI-09 and remaining BI-07 inputs. New-password browser submission needs user handoff under Computer Use policy; real mobile interaction QA remains open. BI-11 blocks real Owner bootstrap; BI-06 blocks staging. No milestone gate changes.
+BI-06: Hostinger "web hosting" cannot run this stack (Node processes, PostgreSQL, Redis, object storage); confirm a VPS before step 119 and staging. BI-07: a verified sending domain and sender address are still needed before real email. BI-01 and BI-09 (OPEN): contact copy and WhatsApp number/wording stay demo values. BI-05 (OPEN): indexing and previews stay off. BI-11: real Owner bootstrap needs an email at deployment. Real mobile interaction QA remains open. `scripts/browser-qa/qa.mjs` still expects the publish button to be disabled for its QA product; rerun and adjust it before relying on it.
 
 ## Gates passed
 
 - **M2 — PASSED 2026-10-09** (closed on Marina's approval). Gate: a synthetic event is written and processed by the worker; duplicate delivery and Redis job loss are recovered; tests send no real email. Evidence: `apps/worker/src/recovery.int.test.ts` "M2 gate" (queue obliterated → reconciler re-enqueue + duplicate original job → effect completed exactly once), `effects.int.test.ts` (5 concurrent duplicates apply once), real dev orphan recovered by the built worker (step 24 notes in docs/verification.md); email only to Mailpit/stubs. CI green on `main` at a2429f7 (run 37894960188) with all steps 18–26 merged. Not part of this gate: production queue Redis failover/restore drills (M11, after BI-06).
 - **M5 — PASSED 2026-10-11** (closed on Marina's decision). Gate: after age acceptance real products can be browsed, selected and added to the cart; before it no restricted product data is available. Evidence: `pnpm test:gate` (real API + storefront + gateway, 1803 checks) and the real-browser pass (14 checks) in docs/verification.md "Step 64". Accepted caveat: the products were seeded, because publishing through the admin waits for BI-02.
-- M0, M1, M3, M4 and M6–M11: not passed. M4: all steps (41–54) done; the gate needs a real publish, which BI-02 blocks.
+- M0, M1, M3, M4 and M6–M11: not passed. M4: all steps (41–54) done; publishing is unblocked (ADR 0036), the gate awaits Marina's decision.
 
 ## Steps done
 
@@ -93,9 +91,13 @@ Tests: `pnpm verify -- --integration` PASS (unit 509, integration 371, gateway 2
 
 Unfinished:
 
-- The step-66 PR waits for Marina's merge.
-- No store endpoint lists active areas for the checkout form yet; real areas, fee and ETA wait for BI-03.
-- Migrations are not applied to the dev database.
+- PR #47 (step 66) and the business-inputs PR wait for Marina's merge.
+- No store endpoint lists active areas for the checkout form yet; the Owner has not entered areas, fee or ETA.
+
+## Business-input fixes (2026-10-12, after step 66)
+
+- Migrations `20261012000100_final_prices` and `20261012000200_uae_delivery_areas`; `tax_treatment` removed from the publish requirements and admin copy; emirate list in `@ih/domain` (`UAE_EMIRATES`), emirate on area create, emirate select and labels on the admin delivery screen; `CLAUDE.md` scope lines; business-inputs answers and retention defaults; ADR 0036.
+- Tests: `pnpm verify -- --integration` PASS (unit 510, integration 371, gateway 29, age-preview 1847, gate 1803). Dev database migrated.
 
 ## History (summary)
 

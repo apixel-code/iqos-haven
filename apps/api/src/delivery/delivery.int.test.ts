@@ -158,7 +158,8 @@ describe("delivery configuration through real API/PostgreSQL", () => {
       expect((await call("/configuration", "PATCH", { version: 0, value: v })).status).toBe(400);
     expect((await call("/configuration", "PATCH", { version: -1, value })).status).toBe(400);
     for (const input of [
-      { ...areaInput("bad"), emirate: "sharjah" },
+      { ...areaInput("bad"), emirate: "muscat" },
+      { ...areaInput("bad"), emirate: "Dubai" },
       { ...areaInput("bad"), code: "BAD" },
       { ...areaInput("bad"), name: " " },
       { ...areaInput("bad"), name: "x".repeat(101) },
@@ -217,6 +218,20 @@ describe("delivery configuration through real API/PostgreSQL", () => {
       active: false,
       version: 1,
     });
+    // Any of the seven emirates may be covered (BI-03); the emirate is fixed like the code.
+    const other = await call("", "POST", { ...areaInput("sharjah_one"), emirate: "sharjah" });
+    expect(other.status).toBe(201);
+    const sharjah = (await other.json()) as { id: string; emirate: string };
+    expect(sharjah.emirate).toBe("sharjah");
+    await expect(
+      pool.query("UPDATE delivery_areas SET emirate='dubai' WHERE id=$1", [sharjah.id]),
+    ).rejects.toThrow();
+    await expect(
+      pool.query(
+        "INSERT INTO delivery_areas (code,name,emirate,updated_by) VALUES ('oman_one','Synthetic oman','muscat',$1)",
+        [ownerId],
+      ),
+    ).rejects.toMatchObject({ code: "23514" });
     expect((await call("", "POST", { ...areaInput("first"), name: "Different name" })).status).toBe(
       409,
     );
@@ -316,7 +331,7 @@ describe("delivery configuration through real API/PostgreSQL", () => {
     }
     await writeDeliveryConfiguration(db, context(), { version: 0, value });
   });
-  it("enforces DB uniqueness, Dubai-only/stable identity and strict delivery config constraints", async () => {
+  it("enforces DB uniqueness, UAE-only/stable identity and strict delivery config constraints", async () => {
     const area = await db.deliveryArea.findUniqueOrThrow({ where: { code: "first" } });
     for (const [column, v] of [
       ["code", "changed"],

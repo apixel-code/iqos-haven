@@ -1,6 +1,7 @@
 /**
  * Money is integer fils (1 AED = 100 fils). Floats are never used for money.
- * Final VAT/excise allocation rules wait for accountant-approved examples (business input BI-02).
+ * The price the Owner enters is the final price the customer pays: there is no separate VAT or
+ * excise calculation (BI-02, ADR 0036).
  */
 declare const filsBrand: unique symbol;
 export type Fils = number & { readonly [filsBrand]: true };

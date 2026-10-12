@@ -1,4 +1,7 @@
 import { z } from "zod";
+import { UAE_EMIRATES } from "@ih/domain";
+
+export { EMIRATE_NAMES, UAE_EMIRATES, type Emirate } from "@ih/domain";
 const version = z.number().int().min(0).max(2147483646);
 export const deliveryConfigurationSchema = z.strictObject({
   flatFeeFils: z.number().int().min(0).max(1_000_000_000),
@@ -16,9 +19,12 @@ export const deliveryConfigurationResponseSchema = z.strictObject({
   updatedBy: z.uuid().nullable(),
 });
 const name = z.string().trim().min(1).max(100);
+export const emirateSchema = z.enum(UAE_EMIRATES);
 export const deliveryAreaCreateRequestSchema = z.strictObject({
   code: z.string().regex(/^[a-z][a-z0-9_-]{0,63}$/),
   name,
+  /** Fixed once created, like the code. */
+  emirate: emirateSchema.default("dubai"),
   active: z.boolean(),
 });
 export const deliveryAreaUpdateRequestSchema = z.strictObject({
@@ -30,7 +36,7 @@ export const deliveryAreaResponseSchema = z.strictObject({
   id: z.uuid(),
   code: z.string(),
   name,
-  emirate: z.literal("dubai"),
+  emirate: emirateSchema,
   active: z.boolean(),
   version: z.number().int().positive(),
   updatedBy: z.uuid(),
@@ -46,7 +52,7 @@ export const deliveryAreasResponseSchema = z.strictObject({
   items: z.array(deliveryAreaResponseSchema).max(100),
   nextCursor: z.uuid().nullable(),
 });
-export type DeliveryAreaCreateRequest = z.infer<typeof deliveryAreaCreateRequestSchema>;
+export type DeliveryAreaCreateRequest = z.input<typeof deliveryAreaCreateRequestSchema>;
 export type DeliveryAreaUpdateRequest = z.infer<typeof deliveryAreaUpdateRequestSchema>;
 export type DeliveryConfigurationWriteRequest = z.infer<
   typeof deliveryConfigurationWriteRequestSchema
