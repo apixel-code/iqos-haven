@@ -7,7 +7,7 @@ import {
 } from "@ih/domain";
 import { Prisma, type Database, type Tx } from "./client";
 import { VISIBLE_PRODUCT } from "./store-catalogue";
-import { isUnitOfWork, TransactionRestartError } from "./transaction";
+import { enterLockGroup, isUnitOfWork, TransactionRestartError } from "./transaction";
 
 /** One or more lines cannot be bought: hidden, unpublished, deactivated or unknown variants. */
 export class VariantUnavailableError extends Error {
@@ -80,6 +80,7 @@ export async function lockOrderPrices(
 ): Promise<OrderPriceLine[]> {
   if (!isUnitOfWork(tx)) throw new Error("Locking prices requires a unit of work");
   const merged = mergeOrderLines(lines);
+  enterLockGroup(tx, "catalogue");
   const ids = merged.map((line) => line.variantId);
   const owners = Prisma.sql`SELECT p.id, p.brand_id, p.category_id FROM products p
     WHERE p.id IN (SELECT v.product_id FROM variants v WHERE v.id = ANY(${ids}::uuid[]))`;

@@ -973,3 +973,22 @@ Not covered: these rules exercised by a real order command (step 76 onward); the
 Found by this step's own run: a check that put its assertion inside a callback whose error was swallowed; it was rewritten so a failure fails the test.
 
 Not covered: a real command using the claim (step 76); the HTTP mapping (step 77); the scheduled cleanup. The dev database has the migration applied.
+
+## Step 75 — canonical lock order (2026-10-12, local)
+
+`pnpm verify -- --integration`: exit 0 on four of five runs. Unit 550, integration 445 (db 143), gateway 29, age-preview 1847, gate 1928. One run stopped at `test:int` with `settings.int.test.ts` failing on "Connection terminated due to connection timeout"; that test passes alone and passed in the other runs. This is the second connection-timeout failure of an API integration test under the parallel suites (the first was in step 65). Not fixed: the integration suites of four packages run at the same time against one PostgreSQL with 100 connections.
+
+**Integration (`order-locks.int.test.ts`, real PostgreSQL, 6 tests):**
+
+- An order creation walks idempotency → order → customer → delivery → catalogue → coupon → variants and returns the customer, the quote (hand-checked total) and the variants with their stock.
+- All 21 pairs "earlier group after later group" throw `LockOrderError` naming both; the same group twice and skipped groups are fine; inside the refused transaction the customer the refused step would have created does not exist; outside a unit of work the primitives refuse.
+- An address is saved after the area lock for a customer the transaction holds; on its own it takes the customer lock itself; for an unlocked customer after the area lock it is refused; after an address was saved first, the delivery selection is refused; the first-order stamp needs the customer lock.
+- Variants are locked in ID order whatever order they are asked in: while one transaction holds the larger ID, another asking for [larger, smaller] already holds the smaller (a NOWAIT probe is refused) and waits for the larger. Unknown variants are named; an empty request locks nothing.
+- Two commands on one order run one after the other (the second is seen waiting); an unknown order is a typed error.
+- Thirty order walks, half listing the variants in each direction and all sharing a coupon, race seven admin lock sequences written as the admin code locks them (parents → product → variants, a brand, the fee, the area, the coupon, a stock adjustment), each in one unretried transaction: no error of any kind, and every order walk ran exactly once, so none was ever a deadlock victim.
+
+**Existing tests** updated for the stricter rules: a coupon release now locks its order first, and is refused without it.
+
+**`invariant-reviewer`:** no blockers and no deadlock cycle found across the order walk, the planned order inserts (foreign keys and triggers) and every admin writer. Done: the three unenforced rules above (address before delivery selection, first-order stamp, coupon release) are now checked; malformed IDs are typed errors; the check that "a refused step ran no statement" now looks inside the transaction; the stress test, which could not have detected a deadlock, was replaced by the one described above.
+
+Not covered: these locks under a real order creation (step 76); the staff row for staff-entered orders.

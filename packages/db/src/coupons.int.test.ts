@@ -15,6 +15,7 @@ import {
   redeemCoupon,
   releaseCouponRedemption,
 } from "./coupons";
+import { lockOrder } from "./order-locks";
 import { applyMigrations, seedOrder } from "./test-schema";
 import { withTransaction } from "./transaction";
 loadLocalEnvFile();
@@ -221,7 +222,11 @@ describe("coupons and redemptions (real PostgreSQL, isolated schema)", () => {
     expect(await reason(order(row.code, 5000))).toBe("LIMIT_REACHED");
     const released = await Promise.all(
       Array.from({ length: 5 }, () =>
-        withTransaction(db, (tx) => releaseCouponRedemption(tx, orderId)),
+        withTransaction(db, async (tx) => {
+          // A cancellation locks its order first; the release follows under that lock.
+          await lockOrder(tx, orderId);
+          return releaseCouponRedemption(tx, orderId);
+        }),
       ),
     );
     expect(released.filter(Boolean)).toHaveLength(1);
@@ -234,8 +239,17 @@ describe("coupons and redemptions (real PostgreSQL, isolated schema)", () => {
       "UPDATE coupon_redemptions SET released_at=statement_timestamp() WHERE order_id=$1",
       [orderId],
     );
-    expect(await withTransaction(db, (tx) => releaseCouponRedemption(tx, randomUUID()))).toBe(
-      false,
+    // An order that used no coupon has nothing to release.
+    const plain = await anOrder();
+    expect(
+      await withTransaction(db, async (tx) => {
+        await lockOrder(tx, plain);
+        return releaseCouponRedemption(tx, plain);
+      }),
+    ).toBe(false);
+    // Without the order lock a release is refused outright.
+    await expect(withTransaction(db, (tx) => releaseCouponRedemption(tx, orderId))).rejects.toThrow(
+      "after locking its order",
     );
     await order(row.code, 5000);
     expect(await uses(row.id)).toBe(1);

@@ -16,7 +16,7 @@ import {
 import { deliveryForArea, DeliveryUnavailableError, isDeliverableArea } from "@ih/domain";
 import { toAuditEntry, type CommandContext } from "@ih/application";
 import { Prisma, type Database, type Tx } from "./client";
-import { withTransaction, isUnitOfWork } from "./transaction";
+import { enterLockGroup, LockOrderError, withTransaction, isUnitOfWork } from "./transaction";
 import { lockOwnerRole } from "./identity";
 import { PrismaAuditWriter } from "./audit";
 import { PrismaOutboxWriter } from "./outbox";
@@ -200,6 +200,21 @@ export async function readDeliverableArea(db: Database | Tx, areaId: string) {
   return { id: area.id, code: area.code, name: area.name };
 }
 const AREA_ID = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
+/** Areas each open transaction holds FOR SHARE, and transactions that referenced an area first. */
+const heldAreas = new WeakMap<object, Set<string>>();
+const areaReferencedFirst = new WeakSet<object>();
+/** True when `lockDeliverySelection` already holds this area in the transaction. */
+export function holdsDeliveryArea(tx: unknown, areaId: string): boolean {
+  return typeof tx === "object" && tx !== null && !!heldAreas.get(tx)?.has(areaId.toLowerCase());
+}
+/**
+ * A write that references an area (a saved address) takes a key-share lock on it. Without the
+ * settings lock taken first that inverts "settings, then area", so such a transaction may not
+ * ask for the delivery selection afterwards.
+ */
+export function noteAreaReference(tx: object): void {
+  areaReferencedFirst.add(tx);
+}
 async function deliverySelection(tx: Database | Tx, areaId: string, lock: boolean) {
   // A malformed ID must look like an unknown area, not like a database error.
   if (!AREA_ID.test(areaId)) throw new DeliveryUnavailableError();
@@ -235,7 +250,13 @@ export async function readDeliverySelection(db: Database | Tx, areaId: string) {
  * settings then area locks until commit so edits/deactivation cannot invalidate the snapshot. */
 export async function lockDeliverySelection(tx: Tx, areaId: string) {
   if (!isUnitOfWork(tx)) throw new Error("Delivery selection requires a unit of work");
-  return deliverySelection(tx, areaId, true);
+  enterLockGroup(tx, "delivery");
+  if (areaReferencedFirst.has(tx)) throw new LockOrderError("delivery", "delivery");
+  const selection = await deliverySelection(tx, areaId, true);
+  const held = heldAreas.get(tx) ?? new Set<string>();
+  heldAreas.set(tx, held);
+  held.add(selection.areaId.toLowerCase());
+  return selection;
 }
 /**
  * What the checkout form needs (roadmap step 70): the active areas to choose from and the one
