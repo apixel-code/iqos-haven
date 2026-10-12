@@ -11,3 +11,4 @@ export * from "./inventory";
 export * from "./search";
 export * from "./customer";
 export * from "./order-lines";
+export * from "./pricing";

@@ -2,10 +2,10 @@
 
 ## Current position
 
-- Date: 2026-10-11
-- Milestone: M6 — customers, pricing, coupons and server quote: steps 65–66 done. M5: PASSED 2026-10-11. M4 steps done, gate waits for BI-02; M3 gate not closed; M0 review and M1 staging/fixtures still open
-- Step: 66 (checkout input validation) — done, plus the 2026-10-12 business-input fixes (ADR 0036); next is 67
-- Branch: `fix/business-inputs-answers` (stacked on `step/66-checkout-validation`, PR #47; both wait for Marina's merge, #47 first)
+- Date: 2026-10-12
+- Milestone: M6 — customers, pricing, coupons and server quote: steps 65–67 done. M5: PASSED 2026-10-11. M4 steps done, gate awaits Marina's decision (publishing unblocked); M3 gate not closed; M0 review and M1 staging/fixtures still open
+- Step: 67 (integer pricing and discount allocation) — done; next is 68
+- Branch: `step/67-pricing` (stacked: PR #47 step 66 → PR #48 business-input fixes → this step's PR; all wait for Marina's merge)
 - See docs/verification.md for actual checks.
 
 ## Next action
@@ -14,12 +14,13 @@
 
 - Git: branch each step from `main` as `step/N-short-name`. After `/verify` and the commit, push and open a PR against `main`; Marina merges it on GitHub ("Create a merge commit") because Claude's `gh pr merge` is denied by the classifier. Then fast-forward local `main`.
 - Toolchain: prefix commands with `export PATH="/opt/homebrew/opt/node@24/bin:$HOME/.docker/bin:$PATH"`. If Docker is down, run `open -a Docker` and then `pnpm infra:up`.
-- Marina's answers (2026-10-12, ADR 0036, docs/business-inputs.md): prices are final as entered, no tax calculation (BI-02); delivery covers the seven emirates at one flat fee (BI-03); minimum age 18 as built (BI-04); Hostinger hosting (BI-06, plan type to confirm); catalogue, Owner and staff are entered through the admin (BI-10/11); retention defaults chosen by Apixel (BI-08). Still open: BI-01, BI-09 (demo values for now), BI-05 (indexing stays off).
+- Marina's answers (2026-10-12, ADR 0036, docs/business-inputs.md): prices are final as entered, no tax calculation (BI-02); delivery covers the seven emirates at one flat fee (BI-03); minimum age 18 as built (BI-04); Hostinger VPS (BI-06); catalogue, Owner and staff are entered through the admin (BI-10/11); retention defaults chosen by Apixel (BI-08). Still open: BI-01, BI-09 (demo values for now), BI-05 (indexing stays off).
 
-1. **Marina merges on GitHub** ("Create a merge commit"): PR #47 (step 66), then the PR of `fix/business-inputs-answers`; then `git checkout main && git pull --ff-only`.
-2. **Next step: `/step 67` (pricing).** No tax: integer line totals, percentage discount with half-up rounding and allocation across lines (ADR 0036). Then 68–72; none is blocked by a business input any more.
+1. **Marina merges on GitHub** ("Create a merge commit"). The three open PRs are stacked, so merging only the last one (step 67) lands all three; otherwise merge #47, #48, then step 67 in that order. Then `git checkout main && git pull --ff-only`.
+2. **Next step: `/step 68` (percentage-coupon schema, eligibility, usage policy), then 69–72.** None is blocked by a business input.
 3. **Rules that carry forward:**
    - Checkout input (ADR 0035): parse with `checkoutContactSchema`, `checkoutAddressSchema` and `orderLinesSchema` from `@ih/contracts`; never add a second copy of a rule or message. The route must map issues to the error envelope `fields` without echoing typed values. Pre-check the area with `readDeliverableArea`; the transaction decides again with `lockDeliverySelection`.
+   - Pricing (ADR 0037): totals only through `priceOrder`/`priceOrderLines`; prices only from `readOrderPrices` (preview) or `lockOrderPrices` (order transaction, after settings/area and before coupons and variants). Never share-lock variant rows. Throw `TransactionRestartError` to restart a unit of work.
    - Customers (ADR 0034): `lockCustomerForOrder`/`saveCustomerAddress` are for the order transaction only (steps 75–76): call `saveCustomerAddress` after `lockDeliverySelection`, and that transaction must write the audit entry and events.
    - Storefront pages: use `storeRead`; no `loading.tsx` under `(shop)`; never export data from a `"use client"` file to a server component; add new URLs to `scripts/check-age-preview.mjs` and, for anything touching the age boundary, `scripts/check-gate-e2e.cjs`.
    - Manual look with real data: `pnpm build && pnpm test:gate -- --serve` (prints URL, cookie, a variant ID). With stub data: `pnpm test:age-preview -- --serve`.
@@ -33,7 +34,7 @@
 
 ## Blockers
 
-BI-06: Hostinger "web hosting" cannot run this stack (Node processes, PostgreSQL, Redis, object storage); confirm a VPS before step 119 and staging. BI-07: a verified sending domain and sender address are still needed before real email. BI-01 and BI-09 (OPEN): contact copy and WhatsApp number/wording stay demo values. BI-05 (OPEN): indexing and previews stay off. BI-11: real Owner bootstrap needs an email at deployment. Real mobile interaction QA remains open. `scripts/browser-qa/qa.mjs` still expects the publish button to be disabled for its QA product; rerun and adjust it before relying on it.
+BI-07: a verified sending domain and sender address are still needed before real email. BI-01 and BI-09 (OPEN): contact copy and WhatsApp number/wording stay demo values. BI-05 (OPEN): indexing and previews stay off. BI-11: real Owner bootstrap needs an email at deployment. Real mobile interaction QA remains open. `scripts/browser-qa/qa.mjs` still expects the publish button to be disabled for its QA product; rerun and adjust it before relying on it.
 
 ## Gates passed
 
@@ -69,6 +70,7 @@ BI-06: Hostinger "web hosting" cannot run this stack (Node processes, PostgreSQL
 - 63 — device lists `ih_lists_v1` (saved, compare, recently viewed; slugs only), `GET /v1/store/product-cards`, heart on cards and product page, `/wishlist`, `/compare`, recently-viewed rail (ADR 0032) — 42da99d
 - 64 — store shell and home shell, `GET /v1/store/info` + WhatsApp links only when configured, `pnpm test:gate` real-stack age-boundary check (ADR 0033; BI-01/BI-09 pending) — 82ce9b9
 - 65 — `customers` + `customer_addresses` (phone-keyed, no credentials, immutable phone and address rows, no runtime delete), `normalizePhone`, transaction-only customer primitives (ADR 0034) — 209e62f
+- 67 — `priceOrder` (integer fils, one half-up percentage discount per order, largest-remainder line shares), `readOrderPrices`/`lockOrderPrices` with brand → category → product share locks, `TransactionRestartError` (ADR 0037) — `step(67)` commit on `step/67-pricing`
 - 66 — shared checkout validators (contact, address by type, Makani, notes, merged and capped lines), UAE-mobile-only phone, `readDeliverableArea` (ADR 0035; BI-03 pending) — `step(66)` commit on `step/66-checkout-validation`
 
 ## Known deviations
@@ -77,30 +79,27 @@ BI-06: Hostinger "web hosting" cannot run this stack (Node processes, PostgreSQL
 - Event `consumers` lists only implemented consumers (now `system_probe`, `email`, `media_processor`, `storefront_revalidate`); planned ones are documented with roadmap steps and move in with a backfill decision (architecture §8: adding a consumer must not redefine old completions).
 - `audit_log` migration revokes UPDATE/DELETE/TRUNCATE only from a role named `ih_app`; other runtime role names must be revoked at provisioning (trigger blocks mutations regardless).
 
-## Last session handoff (2026-10-11, step 66)
+## Last session handoff (2026-10-12, step 67)
 
 Done:
 
-- **Decisions recorded (Marina, 2026-10-11):** M5 gate passed; orders from UAE mobiles only; build around open BI-02/BI-03 without assumed values. PR #46 merged steps 32–65 into `main`.
-- **Step 66 (ADR 0035):** `@ih/contracts` `checkout.ts` (`checkoutContactSchema`, `checkoutAddressSchema`, `orderLinesSchema`, `CHECKOUT_MESSAGES`, `CHECKOUT_BOUNDS`); `@ih/domain` UAE-mobile-only `normalizePhone`, `toAsciiDigits`, `ORDER_LIMITS`, `mergeOrderLines`, `isDeliverableArea`; `@ih/db` `readDeliverableArea`. `@ih/contracts` now depends on `@ih/domain`. No route or form.
-- **`invariant-reviewer`:** no blockers; fixes done; any `5x` mobile prefix accepted on purpose (ADR 0035).
+- **Business-input answers (2026-10-12, ADR 0036, PR #48):** final prices without a tax reference; delivery across the seven emirates; answers and retention defaults in docs/business-inputs.md; `CLAUDE.md` scope lines; dev database migrated. Hostinger VPS confirmed.
+- **Step 67 (ADR 0037):** `packages/domain/src/pricing.ts` (`priceOrder`, `allocateLargestRemainder`), `packages/db/src/pricing.ts` (`readOrderPrices`, `lockOrderPrices`, `priceOrderLines`, `VariantUnavailableError`), `TransactionRestartError` in `packages/db/src/transaction.ts`. No route.
+- **`invariant-reviewer`:** no blockers on either change; fixes done.
 
-Files: `packages/contracts/{package.json,src/checkout.ts,src/checkout.test.ts,src/store.ts,src/index.ts}`, `packages/domain/src/{customer.ts,customer.test.ts,order-lines.ts,order-lines.test.ts,delivery.ts,index.ts}`, `packages/db/src/{delivery.ts,customers.int.test.ts}`, `apps/storefront/lib/store/selection.test.ts`, `pnpm-lock.yaml`, `docs/decisions/{0034,0035}-*.md`, `docs/{business-inputs,implementation-status,task-backlog,verification}.md`, `PROGRESS.md`.
+Files (step 67): `packages/domain/src/{pricing.ts,pricing.test.ts,index.ts}`, `packages/db/src/{pricing.ts,pricing.int.test.ts,transaction.ts,index.ts}`, `docs/decisions/0037-integer-pricing-and-allocation.md`, `docs/{business-inputs,implementation-status,task-backlog,verification}.md`, `PROGRESS.md`.
 
-Tests: `pnpm verify -- --integration` PASS (unit 509, integration 371, gateway 29, age-preview 1847, gate 1803).
+Tests: `pnpm verify -- --integration` PASS (unit 521, integration 376, gateway 29, age-preview 1847, gate 1803).
 
 Unfinished:
 
-- PR #47 (step 66) and the business-inputs PR wait for Marina's merge.
-- No store endpoint lists active areas for the checkout form yet; the Owner has not entered areas, fee or ETA.
-
-## Business-input fixes (2026-10-12, after step 66)
-
-- Migrations `20261012000100_final_prices` and `20261012000200_uae_delivery_areas`; `tax_treatment` removed from the publish requirements and admin copy; emirate list in `@ih/domain` (`UAE_EMIRATES`), emirate on area create, emirate select and labels on the admin delivery screen; `CLAUDE.md` scope lines; business-inputs answers and retention defaults; ADR 0036.
-- Tests: `pnpm verify -- --integration` PASS (unit 510, integration 371, gateway 29, age-preview 1847, gate 1803). Dev database migrated.
+- PRs #47, #48 and the step-67 PR wait for Marina's merge. M4 gate awaits her decision.
+- The admin product and delivery screens were not opened in a browser after the ADR 0036 change; `scripts/browser-qa/qa.mjs` still expects a disabled Publish button for its QA product.
+- No store endpoint lists active areas for the checkout form; the Owner has not entered areas, fee or ETA.
 
 ## History (summary)
 
+- 2026-10-11 step 66: checkout input validation (PR #47); verify unit 509/integration 371/gateway 29/age-preview 1847/gate 1803.
 - 2026-10-11 step 65: guest customers, addresses, phone identity (209e62f, merged with PR #46); verify unit 496/integration 369/gateway 29/age-preview 1847/gate 1803.
 - 2026-10-11 step 64: store shell, WhatsApp links, `pnpm test:gate` (82ce9b9); verify unit 491/integration 358/gateway 29/age-preview 1847/gate 1803.
 - 2026-10-11 step 63: saved items, compare, recently viewed (42da99d); verify unit 486/integration 357/gateway 29/age-preview 1828.

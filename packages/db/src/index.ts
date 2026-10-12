@@ -28,3 +28,4 @@ export * from "./gallery";
 export * from "./publication";
 export * from "./store-catalogue";
 export * from "./store-search";
+export * from "./pricing";

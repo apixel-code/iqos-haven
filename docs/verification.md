@@ -788,3 +788,26 @@ Not covered: these rules behind a real route or in the checkout form (steps 71, 
 - **`invariant-reviewer`:** no blockers; the single old publish check is matched exactly once by the migration, the other publish guards and the emirate immutability trigger are intact. Done: superseded notes on ADR 0015/0021 and the step-51 record.
 
 Not covered: the admin delivery and product screens were not opened in a browser after this change (type-checked and built only); `scripts/browser-qa/qa.mjs` was edited but not rerun and still expects a disabled Publish button for its QA product; `scripts/check-gate-e2e.cjs` still seeds an unnecessary tax reference; storefront copy still says "Dubai" (demo copy, BI-01).
+
+## Step 67 — integer pricing and discount allocation (2026-10-12, local)
+
+`pnpm verify -- --integration`: exit 0, twice (before and after the review fixes). Unit 521 (domain 135), integration 376 (db 77), gateway 29, age-preview 1847, gate 1803.
+
+**Unit (`pricing.test.ts`):**
+
+- Allocation: hand-worked cases add up exactly; equal fractions settle by position; exact where the product exceeds 2^53; zero weights and impossible amounts refused.
+- Order totals: no discount; 15 % of AED 219.99 = AED 33.00 shared 13.50/19.50, delivery not discounted; seven half-up boundary cases (4.5 → 5, 2.5 → 3, 49.95 → 50, 49.35 → 49, 0.5 → 1, 0.4999 → 0, 0.0999 → 0); 100 % leaves only delivery; the largest order the caps allow (AED 5,000,000,000.00) stays exact.
+- 2000 generated orders (fixed seed): line subtotals, shares and totals always add up, no share is negative or above its line, and the same input gives the same result.
+- Seventeen kinds of bad input (float, zero or negative price, unmerged lines, out-of-range quantity, discount or fee, NaN, Infinity) throw.
+
+**Integration (`pricing.int.test.ts`, real PostgreSQL):**
+
+- The variant override or the product price is read, with versions; a price sent by the client is ignored; repeated lines are merged; totals match a hand calculation.
+- Draft product, inactive variant, inactive brand, inactive category and unknown ID are refused and named; the other variant of the same product still prices.
+- Quantity caps apply before any read.
+- While an order holds the price lock, a price change, a brand deactivation and a category deactivation all wait; a second order of the same variants does not wait; after the edits commit the next order is refused.
+- `TransactionRestartError` restarts the transaction and gives up after three attempts.
+
+**`invariant-reviewer`:** no blockers; it traced every admin writer of price, variant state, publication and parent visibility and found each takes a row this lock holds, with no lock cycle, and could not construct an allocation counter-example. Done: the catalogue-moved case is now retried instead of surfacing as "retry exhausted"; allocation refuses an amount above the total weight.
+
+Not covered: a product actually changing brand between the two lock statements (only the retry mechanism is tested); pricing behind a route; coupons and the real delivery fee (steps 68, 70).
