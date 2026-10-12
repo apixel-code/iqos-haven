@@ -30,12 +30,12 @@ Derived from approved Architecture Revision 2. **Status: specifications, not pas
 | AGE-04 / REQ-01        | New public key roll-out then signer switch                             | Both allowed public keys verify through old-ticket expiry + skew                       |
 | AGE-05 / REQ-01        | Compromised key revoked                                                | Immediate rejection of affected tickets; visitor re-gates                              |
 | AGE-06 / REQ-15        | WhatsApp/Facebook preview before age acceptance                        | Generic approved name/logo only; no product disclosure                                 |
-| PRICE-01 / REQ-06,13   | Duplicate variant lines, coupon allocation, inclusive/exclusive tax    | Merge quantities, integer half-up calculation, deterministic allocation, no overflow   |
+| PRICE-01 / REQ-06,13   | Duplicate variant lines, coupon allocation (no tax: ADR 0036)          | Merge quantities, integer half-up calculation, deterministic allocation, no overflow   |
 | PRICE-02 / REQ-06      | Two concurrent orders use last coupon redemption                       | One succeeds; locked active count never exceeds limit                                  |
 | PRICE-03 / REQ-06      | Coupon expired/minimum/starts/stacking/unsupported type                | Server validation rejects; amount/eligibility not taken from client                    |
 | PRICE-04 / REQ-13      | Free threshold off or area inactive                                    | Flat fee per approved policy; no progress bar/free delivery by demo default            |
-| PRICE-05 / REQ-07      | Price/tax/area/config changes after quote                              | 409 QUOTE_CHANGED; explicit new acceptance; no silent new total                        |
-| PRICE-06 / REQ-07      | Tax-paid goods and approved accountant examples                        | Correct VAT/basis/invoice treatment; no assumed duplicate excise charge                |
+| PRICE-05 / REQ-07      | Price/area/fee/coupon changes after quote                              | 409 QUOTE_CHANGED; explicit new acceptance; no silent new total                        |
+| PRICE-06 / REQ-07      | Tax-paid goods and approved accountant examples                        | Not applicable: prices are final as entered, no tax calculation (ADR 0036)             |
 | STOCK-01 / REQ-09      | Simultaneous last-unit purchases                                       | At most one committed purchase; nonnegative variant balance                            |
 | STOCK-02 / REQ-09      | Edit/add/remove quantities and cancellation twice                      | Correct ledger deltas; no double release; coupon released once                         |
 | STOCK-03 / REQ-09      | Concurrent stock-set and order/adjustment                              | Version/locking conflict handled; ledger/balance remain equal                          |

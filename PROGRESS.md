@@ -3,9 +3,9 @@
 ## Current position
 
 - Date: 2026-10-12
-- Milestone: M6 — customers, pricing, coupons and server quote: steps 65–71 done. M5: PASSED 2026-10-11. M4 steps done, gate awaits Marina's decision (publishing unblocked); M3 gate not closed; M0 review and M1 staging/fixtures still open
-- Step: 71 (signed quote API, cart total and price acceptance) — done; next is 72
-- Branch: `step/71-signed-quote` (stacked on PRs #47–#52: step 66, business-input fixes, steps 67–70; all wait for Marina's merge)
+- Milestone: M6 — customers, pricing, coupons and server quote: all steps (65–72) done; gate evidence ready, awaiting Marina's decision. M5: PASSED 2026-10-11. M4 steps done, gate awaits Marina's decision (publishing unblocked); M3 gate not closed; M0 review and M1 staging/fixtures still open
+- Step: 72 (pricing and promotion acceptance pass) — done; next is 73 (M7)
+- Branch: `step/72-pricing-acceptance` (stacked on PRs #47–#53: step 66, business-input fixes, steps 67–71; all wait for Marina's merge)
 - See docs/verification.md for actual checks.
 
 ## Next action
@@ -16,9 +16,10 @@
 - Toolchain: prefix commands with `export PATH="/opt/homebrew/opt/node@24/bin:$HOME/.docker/bin:$PATH"`. If Docker is down, run `open -a Docker` and then `pnpm infra:up`.
 - Marina's answers (2026-10-12, ADR 0036, docs/business-inputs.md): prices are final as entered, no tax calculation (BI-02); delivery covers the seven emirates at one flat fee (BI-03); minimum age 18 as built (BI-04); Hostinger VPS (BI-06); catalogue, Owner and staff are entered through the admin (BI-10/11); retention defaults chosen by Apixel (BI-08). Still open: BI-01, BI-09 (demo values for now), BI-05 (indexing stays off).
 
-1. **Marina merges on GitHub** ("Create a merge commit"). The open PRs are stacked, so merging only the last one (step 71) lands all of them; otherwise merge them in number order. Then `git checkout main && git pull --ff-only`.
-2. **Next step: `/step 72` (pricing/promotion acceptance pass), which closes M6's steps; then M7 (`/step 73`, order schema).** Not blocked. Staging/production now need `QUOTE_SIGNING_KEYS` (docs/environment.md).
-3. **Rules that carry forward:**
+1. **Marina merges on GitHub** ("Create a merge commit"). The open PRs are stacked, so merging only the last one (step 72) lands all of them; otherwise merge them in number order. Then `git checkout main && git pull --ff-only`.
+2. **Marina: decide the M6 gate (and M4).** Evidence and caveats: docs/verification.md "Step 72".
+3. **Next step: `/step 73` (M7: order, item and history schema with the display number).** Find the row with `rg -n "^| 73 " docs/roadmap.md` and read M7's Dependency and Gate lines. Step 73 also adds the `coupon_redemptions.order_id` foreign key. M7 code stays behind a flag until the checkout correctness gate (roadmap note above step 73).
+4. **Rules that carry forward:**
    - Checkout input (ADR 0035): parse with `checkoutContactSchema`, `checkoutAddressSchema` and `orderLinesSchema` from `@ih/contracts`; never add a second copy of a rule or message. The route must map issues to the error envelope `fields` without echoing typed values. Pre-check the area with `readDeliverableArea`; the transaction decides again with `lockDeliverySelection`.
    - Pricing (ADR 0037): totals only through `priceOrder`/`priceOrderLines`; prices only from `readOrderPrices` (preview) or `lockOrderPrices` (order transaction, after settings/area and before coupons and variants). Never share-lock variant rows. Throw `TransactionRestartError` to restart a unit of work.
    - Accepting a total (ADR 0041): the order request carries the quote token; inside the transaction call `checkAcceptedQuote(token, CartQuoteService.keys, now, quoteFacts(await lockQuoteForOrder(...)))` and answer 409 `QUOTE_CHANGED`/`QUOTE_EXPIRED` unless it is `ACCEPTED`. The storefront keeps area, code, total and token in memory only (`lib/cart/quote.ts`, `components/cart-quote.tsx`).
@@ -32,9 +33,9 @@
    - Local storefront dev needs age keys in `.env`: run `pnpm age:keygen` and paste the three lines (Claude cannot read or edit `.env`). Without them every page redirects to the age check and accepting answers 503.
    - If `http://localhost:8080/api/age/*` answers 404, the gateway container is running an old config: `docker compose restart gateway`.
    - Every later stock writer (orders, steps 75–76, 85–86) must call `publishLowStockCrossing` in its transaction (ADR 0023).
-4. **Publishing works without a tax reference** (ADR 0036): a complete product can be published from the admin. The dev database has all migrations applied (2026-10-12) but no products yet; tests still seed their own.
-5. **Local invalidation call:** to exercise the worker → API call in dev, set `INTERNAL_SERVICE_KEYS` and the worker's `INTERNAL_SERVICE_*` in `.env` (see `.env.example`). Without them the effect completes as `skipped:not_configured`.
-6. **Browser QA for later admin steps:** use `scripts/browser-qa/` (README). `/tmp/ih-qa` does not survive; reinstall `playwright-core` there (or any directory) and set `QA_PLAYWRIGHT_DIR`.
+5. **Publishing works without a tax reference** (ADR 0036): a complete product can be published from the admin. The dev database has all migrations applied (2026-10-12) but no products yet; tests still seed their own.
+6. **Local invalidation call:** to exercise the worker → API call in dev, set `INTERNAL_SERVICE_KEYS` and the worker's `INTERNAL_SERVICE_*` in `.env` (see `.env.example`). Without them the effect completes as `skipped:not_configured`.
+7. **Browser QA for later admin steps:** use `scripts/browser-qa/` (README). `/tmp/ih-qa` does not survive; reinstall `playwright-core` there (or any directory) and set `QA_PLAYWRIGHT_DIR`.
 
 ## Blockers
 
@@ -44,7 +45,7 @@ BI-07: a verified sending domain and sender address are still needed before real
 
 - **M2 — PASSED 2026-10-09** (closed on Marina's approval). Gate: a synthetic event is written and processed by the worker; duplicate delivery and Redis job loss are recovered; tests send no real email. Evidence: `apps/worker/src/recovery.int.test.ts` "M2 gate" (queue obliterated → reconciler re-enqueue + duplicate original job → effect completed exactly once), `effects.int.test.ts` (5 concurrent duplicates apply once), real dev orphan recovered by the built worker (step 24 notes in docs/verification.md); email only to Mailpit/stubs. CI green on `main` at a2429f7 (run 37894960188) with all steps 18–26 merged. Not part of this gate: production queue Redis failover/restore drills (M11, after BI-06).
 - **M5 — PASSED 2026-10-11** (closed on Marina's decision). Gate: after age acceptance real products can be browsed, selected and added to the cart; before it no restricted product data is available. Evidence: `pnpm test:gate` (real API + storefront + gateway, 1803 checks) and the real-browser pass (14 checks) in docs/verification.md "Step 64". Accepted caveat: the products were seeded, because publishing through the admin waits for BI-02.
-- M0, M1, M3, M4 and M6–M11: not passed. M4: all steps (41–54) done; publishing is unblocked (ADR 0036), the gate awaits Marina's decision.
+- M0, M1, M3, M4 and M6–M11: not passed. M6: all steps (65–72) done; gate awaits Marina's decision. M4: all steps (41–54) done; publishing is unblocked (ADR 0036), the gate awaits Marina's decision.
 
 ## Steps done
 
@@ -74,7 +75,8 @@ BI-07: a verified sending domain and sender address are still needed before real
 - 63 — device lists `ih_lists_v1` (saved, compare, recently viewed; slugs only), `GET /v1/store/product-cards`, heart on cards and product page, `/wishlist`, `/compare`, recently-viewed rail (ADR 0032) — 42da99d
 - 64 — store shell and home shell, `GET /v1/store/info` + WhatsApp links only when configured, `pnpm test:gate` real-stack age-boundary check (ADR 0033; BI-01/BI-09 pending) — 82ce9b9
 - 65 — `customers` + `customer_addresses` (phone-keyed, no credentials, immutable phone and address rows, no runtime delete), `normalizePhone`, transaction-only customer primitives (ADR 0034) — 209e62f
-- 71 — `POST /v1/store/cart/quote` with a signed quote token and fingerprint, `checkAcceptedQuote`, `QUOTE_SIGNING_KEYS`, cart page total with explicit acceptance of a changed total (ADR 0041) — `step(71)` commit on `step/71-signed-quote`
+- 72 — pricing and promotion acceptance pass: `pricing-acceptance.int.test.ts` (PRICE-01 to PRICE-05 across admin API, store API and the order quote step; PRICE-06 not applicable) — `step(72)` commit on `step/72-pricing-acceptance`
+- 71 — `POST /v1/store/cart/quote` with a signed quote token and fingerprint, `checkAcceptedQuote`, `QUOTE_SIGNING_KEYS`, cart page total with explicit acceptance of a changed total (ADR 0041) — 1c8fe30
 - 70 — `previewQuote`/`lockQuoteForOrder` (one assembly, flat fee, free delivery off, version references), `GET /v1/store/delivery` (ADR 0040) — 201efd7
 - 69 — Owner coupon API (`/v1/admin/coupons`: list, create, versioned edit, trash, restore; audit + `coupon.updated`), `coupons.deleted_at`, Discounts admin screen (ADR 0039) — 1bdaa54
 - 68 — `coupons` + `coupon_redemptions` (trigger-maintained use count, limit check, release once, no delete), eligibility rules, `previewCoupon`/`lockCouponForOrder`/`redeemCoupon`/`releaseCouponRedemption` (ADR 0038) — fdab292
@@ -87,31 +89,30 @@ BI-07: a verified sending domain and sender address are still needed before real
 - Event `consumers` lists only implemented consumers (now `system_probe`, `email`, `media_processor`, `storefront_revalidate`); planned ones are documented with roadmap steps and move in with a backfill decision (architecture §8: adding a consumer must not redefine old completions).
 - `audit_log` migration revokes UPDATE/DELETE/TRUNCATE only from a role named `ih_app`; other runtime role names must be revoked at provisioning (trigger blocks mutations regardless).
 
-## Last session handoff (2026-10-12, step 71)
+## Last session handoff (2026-10-12, step 72)
 
 Done:
 
-- **Step 71 (ADR 0041):** `packages/platform/src/quote/quote-token.ts`; `QUOTE_SIGNING_KEYS`/`QUOTE_TTL_SECONDS` in `@ih/config` and `.env.example`; quote contracts and store conflict codes; `apps/api/src/store/cart-quote.{controller,service}.ts`; `apps/storefront/lib/cart/quote.ts`, `components/cart-quote.tsx`, cart view wiring; `scripts/check-gate-e2e.cjs` quote checks and a fixed gateway port for `--serve`.
-- **Browser pass** on the real stack: 23 checks PASS.
-- **`invariant-reviewer`:** no blockers; one should-fix (server-dropped code) done and confirmed in the browser.
+- **Step 72:** `apps/api/src/store/pricing-acceptance.int.test.ts` (7 tests: PRICE-01 ×2, PRICE-02, PRICE-03, PRICE-04, PRICE-05, quoting reserves nothing); `docs/acceptance.md` rows PRICE-01, PRICE-05, PRICE-06 updated for ADR 0036. No production code changed; `invariant-reviewer` not run.
+- All M6 steps are done.
 
-Files: `packages/platform/src/{quote/quote-token.ts,quote/quote-token.test.ts,index.ts}`, `packages/config/src/{index.ts,index.test.ts}`, `.env.example`, `packages/contracts/src/{store.ts,index.ts}`, `apps/api/src/store/{cart-quote.controller.ts,cart-quote.service.ts,cart-quote.int.test.ts,store.module.ts}`, `apps/api/src/security/limit-policies.ts`, `apps/storefront/{lib/cart/quote.ts,lib/cart/quote.test.ts,components/cart-quote.tsx,components/cart-view.tsx}`, `scripts/check-gate-e2e.cjs`, `docs/decisions/0041-signed-quote-and-price-acceptance.md`, `docs/{environment,implementation-status,task-backlog,verification}.md`, `PROGRESS.md`.
+Files: `apps/api/src/store/pricing-acceptance.int.test.ts`, `docs/{acceptance,implementation-status,task-backlog,verification}.md`, `PROGRESS.md`.
 
-Tests: `pnpm verify -- --integration` PASS (unit 548, integration 407, gateway 29, age-preview 1847, gate 1928).
+Tests: `pnpm verify -- --integration` PASS (unit 548, integration 414, gateway 29, age-preview 1847, gate 1928).
 
 Unfinished:
 
-- PRs #47–#52 and the step-71 PR wait for Marina's merge. M4 gate awaits her decision.
+- PRs #47–#53 and the step-72 PR wait for Marina's merge. M4 and M6 gates await her decision.
 - The Checkout button is still disabled: orders arrive in M7.
 - The admin product and delivery screens were not opened in a browser after the ADR 0036 change; `scripts/browser-qa/qa.mjs` still expects a disabled Publish button for its QA product and has no coupon checks.
 - The Owner has not entered areas, fee or ETA, so the dev storefront shows "Delivery is not available yet."
 
 ## History (summary)
 
+- 2026-10-12 step 71: signed quote API, cart total and acceptance (1c8fe30, PR #53); verify unit 548/integration 407/gateway 29/age-preview 1847/gate 1928; browser 23 checks.
 - 2026-10-12 step 70: quote assembly and store delivery route (201efd7, PR #52); verify unit 534/integration 401/gateway 29/age-preview 1847/gate 1867.
 - 2026-10-12 step 69: Owner coupon administration and Discounts screen (1bdaa54, PR #51); verify unit 534/integration 394/gateway 29/age-preview 1847/gate 1803; browser 16 checks.
 - 2026-10-12 step 68: percentage coupons (fdab292, PR #50); verify unit 527/integration 387/gateway 29/age-preview 1847/gate 1803.
 - 2026-10-12 step 67 and business-input fixes: integer pricing (7538c3f, PR #49); final prices and UAE delivery (84f2e52, PR #48); verify unit 521/integration 376/gateway 29/age-preview 1847/gate 1803.
 - 2026-10-11 step 66: checkout input validation (PR #47); verify unit 509/integration 371/gateway 29/age-preview 1847/gate 1803.
 - 2026-10-11 step 65: guest customers, addresses, phone identity (209e62f, merged with PR #46); verify unit 496/integration 369/gateway 29/age-preview 1847/gate 1803.
-- 2026-10-11 step 64: store shell, WhatsApp links, `pnpm test:gate` (82ce9b9); verify unit 491/integration 358/gateway 29/age-preview 1847/gate 1803.
