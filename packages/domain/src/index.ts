@@ -12,3 +12,4 @@ export * from "./search";
 export * from "./customer";
 export * from "./order-lines";
 export * from "./pricing";
+export * from "./coupon";

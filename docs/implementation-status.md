@@ -82,6 +82,7 @@
 - Step 66 (ADR 0035, no real areas until BI-03): shared checkout validators in `@ih/contracts` (`checkoutContactSchema`, `checkoutAddressSchema`, `orderLinesSchema`, `CHECKOUT_MESSAGES`), UAE-mobile-only `normalizePhone`, `ORDER_LIMITS`/`mergeOrderLines` and `isDeliverableArea` in `@ih/domain`, `readDeliverableArea` in `@ih/db`. No route or form yet.
 - Business-input fixes of 2026-10-12 (ADR 0036): publishing needs no tax reference (prices are final); delivery areas may be in any of the seven emirates at one flat fee.
 - Step 67 (ADR 0037): `priceOrder` and `allocateLargestRemainder` in `@ih/domain` (integer fils, one half-up percentage discount per order, largest-remainder shares); `readOrderPrices`, `lockOrderPrices`, `priceOrderLines` and `VariantUnavailableError` in `@ih/db`; `TransactionRestartError` retried by `withTransaction`. No route yet.
+- Step 68 (ADR 0038): `coupons` and `coupon_redemptions` (use count maintained only by a definer trigger, limit enforced by a table check, redemptions released once and never deleted; `order_id` foreign key comes with step 73), `normalizeCouponCode`/`couponRejection`/`couponDiscount` in `@ih/domain`, `couponCodeInputSchema` in `@ih/contracts`, and `previewCoupon`, `lockCouponForOrder`, `redeemCoupon`, `releaseCouponRedemption`, `couponCountMismatches` in `@ih/db`. No route or screen yet.
 
 - Uploaded architecture, ordered roadmap, corrected prototypes, derived requirements/design/acceptance/database/security/operational references.
 

@@ -811,3 +811,25 @@ Not covered: the admin delivery and product screens were not opened in a browser
 **`invariant-reviewer`:** no blockers; it traced every admin writer of price, variant state, publication and parent visibility and found each takes a row this lock holds, with no lock cycle, and could not construct an allocation counter-example. Done: the catalogue-moved case is now retried instead of surfacing as "retry exhausted"; allocation refuses an amount above the total weight.
 
 Not covered: a product actually changing brand between the two lock statements (only the retry mechanism is tested); pricing behind a route; coupons and the real delivery fee (steps 68, 70).
+
+## Step 68 — percentage coupons (2026-10-12, local)
+
+`pnpm verify -- --integration`: exit 0, twice (before and after the review fixes). Unit 527 (domain 141), integration 387 (db 88), gateway 29, age-preview 1847, gate 1803.
+
+**Unit (`coupon.test.ts`):** code normalization and nine refused forms (two codes, a list, full-width letters, too short or long); each rejection reason in its fixed order; exclusive expiry to the millisecond; minimum tested before the discount; half-up discount and percentage bounds.
+
+**Integration (`coupons.int.test.ts`, real PostgreSQL, 11 tests):**
+
+- Database shape: lower-case or malformed code, percentage outside 1–10,000, negative minimum, zero limit, duplicate code, code change, version decrease, expiry before start, and any direct write of the use count (on insert or update) are refused.
+- One typed code in any case gives the half-up discount; a preview records nothing.
+- Unknown, malformed, inactive, not started, expired, below minimum and full coupons are rejected with the right reason and store code; expiry follows the database clock.
+- A use is recorded with its snapshot; the same order cannot redeem again with the same or another coupon; a later edit of the coupon does not change the snapshot; a redemption row cannot be altered.
+- Eight orders racing for three uses: exactly three succeed, five get `LIMIT_REACHED`, the count is 3; a direct insert past the limit is refused by the database.
+- Five concurrent releases of one order release once; the use is freed for the next order; a released row cannot be released again or revived; the released order cannot redeem again; the count matches the rows.
+- A failed order rolls back its use; a previewed, altered or previous-transaction coupon cannot be redeemed; the primitives refuse to run outside `withTransaction`.
+- An Owner edit waits for an order holding the coupon lock.
+- Runtime role: no UPDATE/DELETE/TRUNCATE on either table as a whole; column-level UPDATE on the editable terms and on `released_at` only.
+
+**`invariant-reviewer`:** no blockers. Done: redemption is bound to the coupon locked in the same transaction; the trigger is SECURITY DEFINER and the runtime role lost the right to write the use count, identity or redemption history; the rejection reason was removed from the contracts.
+
+Not covered: the last part of the runtime-role test (insert, refused direct count write and release while acting as `ih_app`) returns early on this machine because the test role cannot assume `ih_app`; CI runs it. Coupons behind a route or in the Owner screen (steps 69–71); release from a real cancellation (step 86).

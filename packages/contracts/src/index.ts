@@ -63,3 +63,4 @@ export * from "./media";
 export * from "./store";
 export * from "./customers";
 export * from "./checkout";
+export * from "./coupons";

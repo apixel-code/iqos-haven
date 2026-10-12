@@ -141,6 +141,7 @@ model RolePermission {
 model StaffUser {
   settingsUpdates     Setting[]
   deliveryAreaUpdates DeliveryArea[]
+  couponUpdates       Coupon[]
   stockMovements      StockMovement[]
   mediaUploads        MediaAsset[]
   id                  String                 @id @default(dbgenerated("uuidv7()")) @db.Uuid
@@ -247,6 +248,44 @@ model DeliveryArea {
   addresses CustomerAddress[]
 
   @@map("delivery_areas")
+}
+
+/// Percentage coupon (step 68). `activeRedemptions` changes only through redemptions.
+model Coupon {
+  id                String             @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  code              String             @unique @db.VarChar(32)
+  percentBps        Int                @map("percent_bps")
+  minSubtotalFils   BigInt             @default(0) @map("min_subtotal_fils")
+  startsAt          DateTime?          @map("starts_at") @db.Timestamptz(6)
+  expiresAt         DateTime?          @map("expires_at") @db.Timestamptz(6)
+  active            Boolean            @default(false)
+  usageLimit        Int?               @map("usage_limit")
+  activeRedemptions Int                @default(0) @map("active_redemptions")
+  version           Int                @default(1)
+  updatedBy         String             @map("updated_by") @db.Uuid
+  updater           StaffUser          @relation(fields: [updatedBy], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  createdAt         DateTime           @default(dbgenerated("statement_timestamp()")) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime           @default(dbgenerated("statement_timestamp()")) @map("updated_at") @db.Timestamptz(6)
+  redemptions       CouponRedemption[]
+
+  @@map("coupons")
+}
+
+/// What one order used; released at most once. `orderId` gets its foreign key in step 73.
+model CouponRedemption {
+  id                      String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  couponId                String    @map("coupon_id") @db.Uuid
+  coupon                  Coupon    @relation(fields: [couponId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  orderId                 String    @unique @map("order_id") @db.Uuid
+  code                    String    @db.VarChar(32)
+  percentBps              Int       @map("percent_bps")
+  merchandiseSubtotalFils BigInt    @map("merchandise_subtotal_fils")
+  discountFils            BigInt    @map("discount_fils")
+  redeemedAt              DateTime  @default(dbgenerated("statement_timestamp()")) @map("redeemed_at") @db.Timestamptz(6)
+  releasedAt              DateTime? @map("released_at") @db.Timestamptz(6)
+
+  @@index([couponId, redeemedAt(sort: Desc), id(sort: Desc)], map: "coupon_redemptions_coupon")
+  @@map("coupon_redemptions")
 }
 
 /// Guest customer keyed by normalized phone (step 65). Not an account: no credentials.
