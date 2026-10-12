@@ -199,23 +199,64 @@ export async function readDeliverableArea(db: Database | Tx, areaId: string) {
   if (!area || !isDeliverableArea(area)) throw new DeliveryUnavailableError();
   return { id: area.id, code: area.code, name: area.name };
 }
+const AREA_ID = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
+async function deliverySelection(tx: Database | Tx, areaId: string, lock: boolean) {
+  // A malformed ID must look like an unknown area, not like a database error.
+  if (!AREA_ID.test(areaId)) throw new DeliveryUnavailableError();
+  if (lock) await tx.$queryRaw(Prisma.sql`SELECT key FROM settings WHERE key='delivery' FOR SHARE`);
+  const setting = await tx.setting.findUnique({ where: { key: "delivery" } });
+  if (lock)
+    await tx.$queryRaw(
+      Prisma.sql`SELECT id FROM delivery_areas WHERE id=${areaId}::uuid FOR SHARE`,
+    );
+  const area = await tx.deliveryArea.findUnique({ where: { id: areaId } });
+  const config =
+    setting?.value === null || !setting ? null : deliveryConfigurationSchema.parse(setting.value);
+  // Area first, then configuration: an unknown area is reported as such even when unconfigured.
+  const delivery = deliveryForArea(config, area);
+  return {
+    ...delivery,
+    /** Free delivery is off at launch; the configuration cannot hold a threshold. */
+    freeThresholdFils: null,
+    areaId: area!.id,
+    areaCode: area!.code,
+    areaName: area!.name,
+    emirate: area!.emirate,
+    areaVersion: area!.version,
+    configurationVersion: setting!.version,
+  };
+}
+export type DeliverySelection = Awaited<ReturnType<typeof deliverySelection>>;
+/** The flat fee, ETA and versions for an area, without locks: for a quote preview. */
+export async function readDeliverySelection(db: Database | Tx, areaId: string) {
+  return deliverySelection(db, areaId, false);
+}
 /** Internal quote/order primitive. Caller must hold earlier resource locks; retains shared
  * settings then area locks until commit so edits/deactivation cannot invalidate the snapshot. */
 export async function lockDeliverySelection(tx: Tx, areaId: string) {
   if (!isUnitOfWork(tx)) throw new Error("Delivery selection requires a unit of work");
-  await tx.$queryRaw(Prisma.sql`SELECT key FROM settings WHERE key='delivery' FOR SHARE`);
-  const setting = await tx.setting.findUnique({ where: { key: "delivery" } });
-  await tx.$queryRaw(Prisma.sql`SELECT id FROM delivery_areas WHERE id=${areaId}::uuid FOR SHARE`);
-  const area = await tx.deliveryArea.findUnique({ where: { id: areaId } });
+  return deliverySelection(tx, areaId, true);
+}
+/**
+ * What the checkout form needs (roadmap step 70): the active areas to choose from and the one
+ * flat fee and ETA. No versions, codes or staff fields. `feeFils` is null until the Owner has
+ * configured delivery; the storefront then cannot offer checkout.
+ */
+export async function readStoreDelivery(db: Database) {
+  const setting = await db.setting.findUnique({ where: { key: "delivery" } });
   const config =
     setting?.value === null || !setting ? null : deliveryConfigurationSchema.parse(setting.value);
-  const delivery = deliveryForArea(config, area);
+  const areas = await db.deliveryArea.findMany({
+    where: { active: true },
+    select: { id: true, name: true, emirate: true },
+    orderBy: [{ emirate: "asc" }, { name: "asc" }, { id: "asc" }],
+    // Far above any real coverage list; a longer list would be cut here, not paged.
+    take: 500,
+  });
   return {
-    ...delivery,
-    areaId: area!.id,
-    areaCode: area!.code,
-    areaName: area!.name,
-    areaVersion: area!.version,
-    configurationVersion: setting!.version,
+    feeFils: config?.flatFeeFils ?? null,
+    etaText: config?.etaText ?? null,
+    freeThresholdFils: null,
+    areas: areas.filter((area) => isDeliverableArea({ ...area, active: true })),
   };
 }

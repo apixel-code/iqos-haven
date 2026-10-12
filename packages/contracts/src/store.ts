@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { ORDER_LIMITS } from "@ih/domain";
+import { ORDER_LIMITS, UAE_EMIRATES } from "@ih/domain";
 import { catalogueSlugSchema } from "./catalogue";
 import { disposableSpecsSchema, kitSpecsSchema, productFilsSchema } from "./products";
 
@@ -286,3 +286,19 @@ export const storeInfoResponseSchema = z.strictObject({
     .nullable(),
 });
 export type StoreInfoResponse = z.infer<typeof storeInfoResponseSchema>;
+
+// --- Delivery choices for the checkout form (roadmap step 70) ---
+/**
+ * Active delivery areas and the one flat fee. `feeFils` and `etaText` are null until the Owner
+ * has configured delivery. `freeThresholdFils` is always null at launch: free delivery is off
+ * and the storefront shows no progress towards it.
+ */
+export const storeDeliveryResponseSchema = z.strictObject({
+  feeFils: z.number().int().min(0).max(1_000_000_000).nullable(),
+  etaText: z.string().nullable(),
+  freeThresholdFils: z.null(),
+  areas: z
+    .array(z.strictObject({ id: z.uuid(), name: z.string(), emirate: z.enum(UAE_EMIRATES) }))
+    .max(500),
+});
+export type StoreDeliveryResponse = z.infer<typeof storeDeliveryResponseSchema>;

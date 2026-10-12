@@ -285,6 +285,7 @@ async function main() {
     ];
     const API_ROUTES = [
       "/api/v1/store/info",
+      "/api/v1/store/delivery",
       "/api/v1/store/brands",
       "/api/v1/store/categories",
       "/api/v1/store/products",

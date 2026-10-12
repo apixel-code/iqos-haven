@@ -855,3 +855,24 @@ Not covered: the last part of the runtime-role test (insert, refused direct coun
 **`invariant-reviewer`:** no blockers; permission seeds, audit/outbox atomicity, version handling, lock order and input validation confirmed. Done: `ALREADY_EXPIRED` no longer blocks unrelated edits of a coupon that ran out; the table check on the limit maps to `LIMIT_BELOW_USES` instead of a server error.
 
 Not covered: dark theme and real mobile touch on this screen; two Owners editing at once in the browser (covered at the API); coupons in the store (steps 70–71).
+
+## Step 70 — delivery fee and quote assembly (2026-10-12, local)
+
+`pnpm verify -- --integration`: exit 0. Unit 534, integration 401 (db 100, api 245), gateway 29, age-preview 1847, gate 1867 (the new store route is in the refused list).
+
+**Integration (`quote.int.test.ts`, real PostgreSQL, 6 tests):**
+
+- No quote before the Owner configures delivery; an inactive area is still reported as unavailable.
+- A quote from server state only: merged lines, variant override or product price, 15 % of AED 219.99 = AED 33.00 shared 19.50/13.50, AED 15.00 delivery, total AED 201.99; area, configuration, product, variant and coupon versions present; a price and a fee sent on a line are ignored; a preview uses no coupon; a blank code means no coupon.
+- The same flat fee for a AED 1.00 order and a AED 10,000,000,000.00 order; the database refuses a free-delivery threshold.
+- Lines that cannot be filled are named; no stock movement is written and stock is unchanged.
+- A closed, unknown or malformed area, an unknown variant, an empty cart, a quantity of 11 and an unknown code each fail the whole quote; a coupon minimum is tested on merchandise before the discount.
+- Under locks the order gets exactly the preview's numbers; while it is open a fee change, an area deactivation, a price change and a coupon edit all wait; afterwards the closed area and the used-up coupon refuse the next quote, and a new quote shows the new fee, price and versions.
+
+**Integration (`store-catalog.int.test.ts`):** `GET /v1/store/delivery` is empty and unconfigured at first; then lists only active areas by emirate and name with the fee and ETA, with no code, version or staff field; an area switched off disappears from the next answer; an unverified request is 403.
+
+**`pnpm test:gate`:** the new route refuses the eight kinds of unverified request, cold and warm.
+
+**`invariant-reviewer`:** no blockers; lock order, client-input isolation, free-delivery handling and the refactor of `lockDeliverySelection` confirmed. Done: a named `QuoteInvariantError`; comments on the caps.
+
+Not covered: a quote through a route, its fingerprint and expiry (step 71); stock consumption (step 76).
