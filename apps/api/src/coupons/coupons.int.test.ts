@@ -17,7 +17,7 @@ import {
   redeemCoupon,
   withTransaction,
 } from "@ih/db";
-import { applyMigrations } from "@ih/db/testing";
+import { applyMigrations, seedOrder } from "@ih/db/testing";
 import { Argon2PasswordHasher } from "@ih/platform";
 import { type INestApplication } from "@nestjs/common";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -296,11 +296,13 @@ describe("Owner coupon administration through the real API and PostgreSQL", () =
   });
   it("does not let the limit drop below the uses orders hold", async () => {
     const coupon = await created({ usageLimit: 3, minSubtotalFils: 0 });
-    for (let n = 0; n < 2; n++)
+    for (let n = 0; n < 2; n++) {
+      const { orderId } = await seedOrder(pool);
       await withTransaction(db, async (tx) => {
         const applied = await lockCouponForOrder(tx, coupon.code, 5000);
-        await redeemCoupon(tx, randomUUID(), applied);
+        await redeemCoupon(tx, orderId, applied);
       });
+    }
     const path = "/" + coupon.id;
     expect(
       await conflict(

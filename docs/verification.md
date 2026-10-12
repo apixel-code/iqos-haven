@@ -923,3 +923,29 @@ Found while writing this pass: my first hand-worked discount shares for PRICE-01
 `invariant-reviewer` was not run for this step: it adds a test and documentation only.
 
 **M6 gate — "a cart has a trustworthy server quote; stock is not yet reserved for a cart".** Evidence: this pass; `cart-quote.int.test.ts`; `pnpm test:gate` (the quote through the real gateway, 1928 checks); the 23-check browser pass of step 71. Caveats: products in these checks are seeded or published by a direct write; the Owner has not entered real areas, a fee or coupons; the order that consumes a quote does not exist yet. The gate decision is Marina's.
+
+## Step 73 — order, line and status-history schema (2026-10-12, local)
+
+`pnpm verify -- --integration`: exit 0, twice (before and after the review fixes). Unit 550 (domain 144), integration 426 (db 124), gateway 29, age-preview 1847, gate 1928. An earlier run stopped at lint: the new test fixture used `Math.random`, which this project forbids; it now uses `node:crypto`.
+
+**Unit (`order-status.test.ts`):** the display number formats and reads back (`IH-001001`, typed forms, refusals); only a staff-entered order may start confirmed; edits only while pending or confirmed.
+
+**Integration (`orders.int.test.ts`, real PostgreSQL, 11 tests):**
+
+- Tables start empty; orders are numbered 1001, 1002; the number cannot be chosen or changed.
+- After the customer is renamed, the product renamed and repriced, the variant's SKU and price changed and the area renamed, the order and its line are unchanged; the customer, variant, product and area cannot be deleted.
+- All 30 pairs of statuses: the database accepts exactly the eight the domain allows. A delivered order has five history rows at versions 1–5 and its cash is still pending.
+- A status change without its history row, a history row for a status the order is not in, history that does not continue, a second way out of a status, a repeated command, and any history update or delete are refused. A store order cannot be slipped in as confirmed, cancelled or later through its first history row.
+- A cancellation needs a reason, a history reason and `not_collected`; cancelled is final.
+- While pending the address and the lines (with matching totals) can change; once processing, seven kinds of content change, line changes, line deletes and line inserts are refused, as is a content change in the update that starts processing. Identity changes and any version step other than +1 are refused at every stage.
+- Money: eight inconsistent order totals and seven inconsistent line amounts are refused; a discount is accepted only when order and lines change together; one line per variant.
+- Cash can be recorded only for a delivered order with amount, time and person; a cash record, delivery time, dispatch time, cancel reason and cancel time cannot be rewritten; a pending order cannot carry a dispatch time; a delivered order cannot be cancelled.
+- An order cannot be deleted even by the schema owner.
+- Incomplete or disallowed orders are refused: store order starting confirmed, manual order without an operator, unknown source, no lines, a reused creation key, ten malformed fields, a duplicate confirmation verifier.
+- Runtime role: no DELETE/TRUNCATE on the three tables, no UPDATE on history; it can insert an order and gets a number without a sequence grant (the insert part runs in CI).
+
+**Existing tests** that recorded coupon uses now use real orders through the `seedOrder` fixture; a use for an order that does not exist is refused.
+
+**`invariant-reviewer`:** two blockers and five should-fixes, all fixed before commit. Blockers: a NULL made the history check accept a first row of any status; and a store order could become confirmed with a single "creation" history row. Should-fixes: recorded cash, delivery and cancellation fields could be rewritten; contents could change in the same update that started processing; two writers could fork the history; an unchanged version was accepted; a pending order could carry a dispatch time. Each has a test above.
+
+Not covered: these rules exercised by a real order command (step 76 onward); the migration on a database with existing coupon uses (there is none anywhere). The dev database has the migration applied.

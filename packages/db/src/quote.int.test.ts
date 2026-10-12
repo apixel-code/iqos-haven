@@ -11,7 +11,7 @@ import { createDatabase, createPool } from "./client";
 import { CouponRejectedError, redeemCoupon } from "./coupons";
 import { VariantUnavailableError } from "./pricing";
 import { lockQuoteForOrder, previewQuote } from "./quote";
-import { applyMigrations } from "./test-schema";
+import { applyMigrations, seedOrder } from "./test-schema";
 import { withTransaction } from "./transaction";
 loadLocalEnvFile();
 const env = loadEnv(integrationTestEnvSchema);
@@ -256,7 +256,7 @@ describe("quote assembly (real PostgreSQL, isolated schema)", () => {
     const gate = new Promise<void>((resolve) => (release = resolve));
     let entered!: () => void;
     const inside = new Promise<void>((resolve) => (entered = resolve));
-    const orderId = randomUUID();
+    const { orderId } = await seedOrder(pool);
     const order = withTransaction(db, async (tx) => {
       const locked = await lockQuoteForOrder(tx, input);
       await redeemCoupon(tx, orderId, locked.appliedCoupon!);

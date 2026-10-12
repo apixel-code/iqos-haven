@@ -15,7 +15,7 @@ import {
   redeemCoupon,
   releaseCouponRedemption,
 } from "./coupons";
-import { applyMigrations } from "./test-schema";
+import { applyMigrations, seedOrder } from "./test-schema";
 import { withTransaction } from "./transaction";
 loadLocalEnvFile();
 const env = loadEnv(integrationTestEnvSchema);
@@ -53,12 +53,16 @@ const reason = async (work: Promise<unknown>) => {
   return (error as CouponRejectedError).reason;
 };
 /** One order using a coupon: lock, then redeem, in one transaction. */
-const order = (couponCode: string, subtotal: number, orderId = randomUUID()) =>
-  withTransaction(db, async (tx) => {
+/** A real order row to hang a redemption on (the order_id foreign key, step 73). */
+const anOrder = async () => (await seedOrder(pool)).orderId;
+const order = async (couponCode: string, subtotal: number, existing?: string) => {
+  const orderId = existing ?? (await anOrder());
+  return withTransaction(db, async (tx) => {
     const applied = await lockCouponForOrder(tx, couponCode, subtotal);
     await redeemCoupon(tx, orderId, applied);
     return { orderId, applied };
   });
+};
 const uses = async (id: string) =>
   (await db.coupon.findUniqueOrThrow({ where: { id } })).activeRedemptions;
 describe("coupons and redemptions (real PostgreSQL, isolated schema)", () => {
@@ -207,7 +211,7 @@ describe("coupons and redemptions (real PostgreSQL, isolated schema)", () => {
     // Even a caller that skips the eligibility check cannot exceed the limit.
     await rejected(
       "INSERT INTO coupon_redemptions (coupon_id,order_id,code,percent_bps,merchandise_subtotal_fils,discount_fils) VALUES ($1,$2,$3,1000,5000,500)",
-      [row.id, randomUUID(), row.code],
+      [row.id, await anOrder(), row.code],
     );
     expect(await uses(row.id)).toBe(3);
   });
@@ -239,12 +243,22 @@ describe("coupons and redemptions (real PostgreSQL, isolated schema)", () => {
     await expect(order(row.code, 5000, orderId)).rejects.toThrow();
     expect(await couponCountMismatches(db)).toEqual([]);
   });
+  it("refuses a redemption for an order that does not exist", async () => {
+    const row = await coupon();
+    await expect(
+      withTransaction(db, async (tx) =>
+        redeemCoupon(tx, randomUUID(), await lockCouponForOrder(tx, row.code, 5000)),
+      ),
+    ).rejects.toMatchObject({ code: "P2003" });
+    expect(await uses(row.id)).toBe(0);
+  });
   it("rolls the use back with the order and needs a unit of work", async () => {
     const row = await coupon({ usageLimit: 1 });
+    const seeded = await anOrder();
     await expect(
       withTransaction(db, async (tx) => {
         const applied = await lockCouponForOrder(tx, row.code, 5000);
-        await redeemCoupon(tx, randomUUID(), applied);
+        await redeemCoupon(tx, seeded, applied);
         throw new Error("synthetic order failure");
       }),
     ).rejects.toThrow("synthetic order failure");
@@ -320,7 +334,7 @@ describe("coupons and redemptions (real PostgreSQL, isolated schema)", () => {
       expect(await column("coupon_redemptions", col)).toBe(false);
     // The whole order path works as the runtime role, through the definer trigger.
     const row = await coupon({ usageLimit: 1 });
-    const orderId = randomUUID();
+    const orderId = await anOrder();
     const client = await pool.connect();
     try {
       await client.query("BEGIN");

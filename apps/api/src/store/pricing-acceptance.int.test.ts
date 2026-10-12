@@ -24,7 +24,7 @@ import {
   stockReconciliationMismatches,
   withTransaction,
 } from "@ih/db";
-import { applyMigrations } from "@ih/db/testing";
+import { applyMigrations, seedOrder } from "@ih/db/testing";
 import { DeliveryUnavailableError } from "@ih/domain";
 import {
   AGE_COOKIE,
@@ -460,7 +460,8 @@ describe("pricing and promotion acceptance through the real API and PostgreSQL",
       areaId: marina.id,
       couponCode: "ACCLAST",
     };
-    const orderIds = [randomUUID(), randomUUID(), randomUUID(), randomUUID()];
+    const orderIds: string[] = [];
+    for (let n = 0; n < 4; n++) orderIds.push((await seedOrder(pool)).orderId);
     const results = await Promise.allSettled(
       orderIds.map((orderId) =>
         withTransaction(db, async (tx) => {

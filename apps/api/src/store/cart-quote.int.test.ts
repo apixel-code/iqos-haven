@@ -21,7 +21,7 @@ import {
   redeemCoupon,
   withTransaction,
 } from "@ih/db";
-import { applyMigrations } from "@ih/db/testing";
+import { applyMigrations, seedOrder } from "@ih/db/testing";
 import {
   AGE_COOKIE,
   ageTicketPublicKey,
@@ -338,8 +338,9 @@ describe("cart quote through the real API (PostgreSQL, Ed25519 ticket)", () => {
     const draft = await variant(5000n, { draft: true, name: "Hidden Draft Probe" });
     await coupon("QUOTEOFF", { active: false });
     await coupon("QUOTEFULL", { usageLimit: 1 });
+    const { orderId } = await seedOrder(pool);
     await withTransaction(db, async (tx) => {
-      await redeemCoupon(tx, randomUUID(), await lockCouponForOrder(tx, "QUOTEFULL", 5000));
+      await redeemCoupon(tx, orderId, await lockCouponForOrder(tx, "QUOTEFULL", 5000));
     });
     for (const [body, code] of [
       [{ ...good, areaId: closedAreaId }, "AREA_UNAVAILABLE"],

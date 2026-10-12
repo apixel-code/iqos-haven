@@ -142,6 +142,9 @@ model StaffUser {
   settingsUpdates     Setting[]
   deliveryAreaUpdates DeliveryArea[]
   couponUpdates       Coupon[]
+  ordersCreated       Order[]              @relation("OrderCreatedBy")
+  ordersCollected     Order[]              @relation("OrderCollectedBy")
+  orderStatusChanges  OrderStatusHistory[]
   stockMovements      StockMovement[]
   mediaUploads        MediaAsset[]
   id                  String                 @id @default(dbgenerated("uuidv7()")) @db.Uuid
@@ -246,6 +249,7 @@ model DeliveryArea {
   updater   StaffUser @relation(fields: [updatedBy], references: [id], onDelete: Restrict, onUpdate: Restrict)
   updatedAt DateTime  @default(dbgenerated("statement_timestamp()")) @map("updated_at") @db.Timestamptz(6)
   addresses CustomerAddress[]
+  orders    Order[]
 
   @@map("delivery_areas")
 }
@@ -272,12 +276,13 @@ model Coupon {
   @@map("coupons")
 }
 
-/// What one order used; released at most once. `orderId` gets its foreign key in step 73.
+/// What one order used; released at most once.
 model CouponRedemption {
   id                      String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
   couponId                String    @map("coupon_id") @db.Uuid
   coupon                  Coupon    @relation(fields: [couponId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   orderId                 String    @unique @map("order_id") @db.Uuid
+  order                   Order     @relation(fields: [orderId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   code                    String    @db.VarChar(32)
   percentBps              Int       @map("percent_bps")
   merchandiseSubtotalFils BigInt    @map("merchandise_subtotal_fils")
@@ -300,6 +305,7 @@ model Customer {
   createdAt    DateTime          @default(dbgenerated("statement_timestamp()")) @map("created_at") @db.Timestamptz(6)
   updatedAt    DateTime          @default(dbgenerated("statement_timestamp()")) @map("updated_at") @db.Timestamptz(6)
   addresses    CustomerAddress[]
+  orders       Order[]
 
   @@map("customers")
 }
@@ -388,6 +394,7 @@ model Product {
   variants  Variant[]
   media     MediaAsset[]
   images    ProductImage[]
+  orderItems OrderItem[]
   redirects SlugRedirect[]
   search    ProductSearch?
 
@@ -429,6 +436,7 @@ model Variant {
   updatedAt         DateTime @default(dbgenerated("statement_timestamp()")) @map("updated_at") @db.Timestamptz(6)
 
   stockMovements StockMovement[]
+  orderItems     OrderItem[]
 
   @@unique([productId, optionSignature])
   @@index([productId, active], map: "variants_availability")
@@ -545,3 +553,120 @@ model MediaAsset {
   @@index([productId, createdAt, id], map: "media_assets_product")
   @@map("media_assets")
 }
+
+/// An order with its own copy of customer, address, area, coupon and totals (step 73).
+/// Never deleted; contents are fixed once processing starts.
+model Order {
+  id                           String               @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  /// Sequential display number assigned by the database; gaps are normal.
+  orderNumber                  BigInt               @unique @default(autoincrement()) @map("order_number")
+  customerId                   String               @map("customer_id") @db.Uuid
+  customer                     Customer             @relation(fields: [customerId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  status                       String               @default("pending") @db.VarChar(20)
+  source                       String               @db.VarChar(16)
+  createdBy                    String?              @map("created_by") @db.Uuid
+  creator                      StaffUser?           @relation("OrderCreatedBy", fields: [createdBy], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  customerName                 String               @map("customer_name") @db.VarChar(100)
+  customerPhoneE164            String               @map("customer_phone_e164") @db.VarChar(16)
+  areaId                       String               @map("area_id") @db.Uuid
+  area                         DeliveryArea         @relation(fields: [areaId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  areaCode                     String               @map("area_code") @db.VarChar(64)
+  areaName                     String               @map("area_name") @db.VarChar(100)
+  areaEmirate                  String               @map("area_emirate") @db.VarChar(16)
+  addressType                  String               @map("address_type") @db.VarChar(16)
+  addressBuilding              String               @map("address_building") @db.VarChar(150)
+  addressUnit                  String?              @map("address_unit") @db.VarChar(50)
+  addressStreet                String?              @map("address_street") @db.VarChar(150)
+  addressMakani                String?              @map("address_makani") @db.VarChar(10)
+  addressNotes                 String?              @map("address_notes") @db.VarChar(500)
+  merchandiseSubtotalFils      BigInt               @map("merchandise_subtotal_fils")
+  discountFils                 BigInt               @default(0) @map("discount_fils")
+  deliveryFeeFils              BigInt               @map("delivery_fee_fils")
+  totalFils                    BigInt               @map("total_fils")
+  couponCode                   String?              @map("coupon_code") @db.VarChar(32)
+  couponPercentBps             Int?                 @map("coupon_percent_bps")
+  deliveryEtaText              String               @map("delivery_eta_text") @db.VarChar(500)
+  areaVersion                  Int                  @map("area_version")
+  deliveryConfigurationVersion Int                  @map("delivery_configuration_version")
+  quoteFingerprint             String               @map("quote_fingerprint") @db.VarChar(64)
+  ageConfirmedAt               DateTime             @map("age_confirmed_at") @db.Timestamptz(6)
+  agePolicyVersion             String               @map("age_policy_version") @db.VarChar(64)
+  codStatus                    String               @default("pending") @map("cod_status") @db.VarChar(16)
+  collectedAmountFils          BigInt?              @map("collected_amount_fils")
+  collectedAt                  DateTime?            @map("collected_at") @db.Timestamptz(6)
+  collectedBy                  String?              @map("collected_by") @db.Uuid
+  collector                    StaffUser?           @relation("OrderCollectedBy", fields: [collectedBy], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  collectionReference          String?              @map("collection_reference") @db.VarChar(100)
+  cancelReason                 String?              @map("cancel_reason") @db.VarChar(500)
+  dispatchedAt                 DateTime?            @map("dispatched_at") @db.Timestamptz(6)
+  deliveredAt                  DateTime?            @map("delivered_at") @db.Timestamptz(6)
+  cancelledAt                  DateTime?            @map("cancelled_at") @db.Timestamptz(6)
+  returnedAt                   DateTime?            @map("returned_at") @db.Timestamptz(6)
+  creationScope                String               @map("creation_scope") @db.VarChar(64)
+  creationKeyHash              Bytes                @map("creation_key_hash")
+  creationPayloadHash          Bytes                @map("creation_payload_hash")
+  confirmationHash             Bytes?               @map("confirmation_hash")
+  confirmationExpiresAt        DateTime?            @map("confirmation_expires_at") @db.Timestamptz(6)
+  version                      Int                  @default(1)
+  createdAt                    DateTime             @default(dbgenerated("statement_timestamp()")) @map("created_at") @db.Timestamptz(6)
+  updatedAt                    DateTime             @default(dbgenerated("statement_timestamp()")) @map("updated_at") @db.Timestamptz(6)
+  items                        OrderItem[]
+  history                      OrderStatusHistory[]
+  couponRedemption             CouponRedemption?
+
+  @@unique([creationScope, creationKeyHash], map: "orders_creation_key")
+  @@index([customerId, createdAt(sort: Desc), id(sort: Desc)], map: "orders_customer")
+  @@index([status, createdAt(sort: Desc), id(sort: Desc)], map: "orders_status")
+  @@map("orders")
+}
+
+/// One merged line per variant, with what the variant was when sold.
+model OrderItem {
+  id             String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orderId        String   @map("order_id") @db.Uuid
+  order          Order    @relation(fields: [orderId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  productId      String   @map("product_id") @db.Uuid
+  product        Product  @relation(fields: [productId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  variantId      String   @map("variant_id") @db.Uuid
+  variant        Variant  @relation(fields: [variantId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  productName    String   @map("product_name") @db.VarChar(150)
+  productSlug    String   @map("product_slug") @db.VarChar(150)
+  brandName      String   @map("brand_name") @db.VarChar(150)
+  categoryName   String   @map("category_name") @db.VarChar(150)
+  sku            String   @db.VarChar(64)
+  attributes     Json     @default("{}")
+  productVersion Int      @map("product_version")
+  variantVersion Int      @map("variant_version")
+  unitPriceFils  BigInt   @map("unit_price_fils")
+  quantity       Int
+  subtotalFils   BigInt   @map("subtotal_fils")
+  discountFils   BigInt   @default(0) @map("discount_fils")
+  totalFils      BigInt   @map("total_fils")
+  createdAt      DateTime @default(dbgenerated("statement_timestamp()")) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([orderId, variantId], map: "order_items_variant_key")
+  @@index([variantId], map: "order_items_variant")
+  @@map("order_items")
+}
+
+/// Append-only: every status an order has had, and why.
+model OrderStatusHistory {
+  id           String     @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  seq          BigInt     @unique @default(autoincrement())
+  orderId      String     @map("order_id") @db.Uuid
+  order        Order      @relation(fields: [orderId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  fromStatus   String?    @map("from_status") @db.VarChar(20)
+  toStatus     String     @map("to_status") @db.VarChar(20)
+  reason       String?    @db.VarChar(500)
+  actorKind    String     @map("actor_kind") @db.VarChar(16)
+  actorId      String?    @map("actor_id") @db.Uuid
+  actor        StaffUser? @relation(fields: [actorId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  commandId    String     @map("command_id") @db.VarChar(128)
+  orderVersion Int        @map("order_version")
+  createdAt    DateTime   @default(dbgenerated("statement_timestamp()")) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([orderId, commandId], map: "order_status_history_command")
+  @@index([orderId, seq], map: "order_status_history_order")
+  @@map("order_status_history")
+}
+
