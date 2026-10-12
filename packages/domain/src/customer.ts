@@ -1,38 +1,35 @@
 export class InvalidPhoneError extends Error {}
 export class InvalidCustomerNameError extends Error {}
-const E164 = /^\+[1-9]\d{7,14}$/;
-/** UAE national number without the trunk zero: a mobile (5x) or a geographic landline. */
-const UAE_NATIONAL = /^(?:5\d{8}|[234679]\d{7})$/;
-const EASTERN_DIGITS = /[٠-٩۰-۹]/g;
+/**
+ * UAE mobile without the trunk zero. Orders are taken from UAE mobiles only (ADR 0035). Any
+ * 5x prefix is accepted on purpose: operators add prefixes, and refusing a real customer is
+ * worse than accepting a mistyped one, which staff confirmation catches.
+ */
+const UAE_MOBILE = /^5\d{8}$/;
+const EASTERN_DIGITS = /[\u0660-\u0669\u06f0-\u06f9]/g;
+/** Arabic-Indic and Persian digits as ASCII digits; everything else unchanged. */
+export function toAsciiDigits(input: string): string {
+  return input.replace(EASTERN_DIGITS, (digit) => String(digit.charCodeAt(0) & 0xf));
+}
 /**
  * The single phone identity of a guest customer: E.164, so every way of typing one number
- * (050…, 50…, 00971…, +971 (0)50…) is one customer. Local forms are read as UAE numbers; a
- * number from another country needs its country code. Never guesses: anything else throws.
- * Known limit: a trunk zero typed after a non-UAE country code ("+44 (0)20 …") is kept, so that
- * spelling is a different identity from the correct one. Only the UAE form is repaired.
+ * (050…, 50…, 00971…, +971 (0)50…) is one customer. Only UAE mobile numbers are accepted;
+ * landlines, service numbers and numbers of other countries throw, as does anything unclear.
  */
 export function normalizePhone(input: string): string {
   if (typeof input !== "string" || input.length > 40) throw new InvalidPhoneError();
-  const compact = input
-    .replace(EASTERN_DIGITS, (digit) => String(digit.charCodeAt(0) & 0xf))
-    .replace(/[\s\-.()]/g, "");
+  const compact = toAsciiDigits(input).replace(/[\s\-.()]/g, "");
   if (!/^\+?\d+$/.test(compact)) throw new InvalidPhoneError();
-  let digits: string;
-  if (compact.startsWith("+")) digits = compact.slice(1);
-  else if (compact.startsWith("00")) digits = compact.slice(2);
-  else if (compact.startsWith("0")) digits = "971" + compact.slice(1);
-  else if (/^5\d{8}$/.test(compact)) digits = "971" + compact;
-  else if (compact.startsWith("971")) digits = compact;
-  else throw new InvalidPhoneError();
-  if (digits.startsWith("971")) {
-    // "+971 050 …" keeps the trunk zero by mistake; it is never part of the number.
-    const national = digits.slice(3).replace(/^0/, "");
-    if (!UAE_NATIONAL.test(national)) throw new InvalidPhoneError();
-    return "+971" + national;
-  }
-  const phone = "+" + digits;
-  if (!E164.test(phone)) throw new InvalidPhoneError();
-  return phone;
+  let national: string;
+  if (compact.startsWith("+971")) national = compact.slice(4);
+  else if (compact.startsWith("00971")) national = compact.slice(5);
+  else if (compact.startsWith("971")) national = compact.slice(3);
+  else if (compact.startsWith("+") || compact.startsWith("00")) throw new InvalidPhoneError();
+  else national = compact;
+  // "050…" and "+971 050…" carry the trunk zero; it is never part of the number.
+  national = national.replace(/^0/, "");
+  if (!UAE_MOBILE.test(national)) throw new InvalidPhoneError();
+  return "+971" + national;
 }
 // Control characters, lone surrogates and invisible format characters (bidirectional overrides
 // can reorder what staff read; zero-width ones make a blank look filled). The two joiners stay:

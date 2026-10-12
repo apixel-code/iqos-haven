@@ -1,7 +1,7 @@
 # 0015 — Product administration: draft-first editor, typed specs, read-only tax reference
 
 - Date: 2026-10-10
-- Status: accepted
+- Status: accepted; the tax-treatment publish requirement is superseded by ADR 0036 (prices are final, no tax reference)
 - Step(s): 44 (extended by 45–51, 67)
 
 ## Context

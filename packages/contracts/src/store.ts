@@ -1,5 +1,8 @@
 import { z } from "zod";
+import { ORDER_LIMITS, UAE_EMIRATES } from "@ih/domain";
 import { catalogueSlugSchema } from "./catalogue";
+import { orderLinesSchema } from "./checkout";
+import { couponCodeInputSchema } from "./coupons";
 import { disposableSpecsSchema, kitSpecsSchema, productFilsSchema } from "./products";
 
 /**
@@ -223,7 +226,7 @@ export const storeSuggestResponseSchema = z.strictObject({
 export type StoreSuggestResponse = z.infer<typeof storeSuggestResponseSchema>;
 
 // --- Device cart refresh (roadmap step 62) ---
-export const STORE_CART_MAX_LINES = 50;
+export const STORE_CART_MAX_LINES = ORDER_LIMITS.maxLines;
 /** Variant IDs held in the shopper's device cart; one value or a repeated parameter. */
 export const storeCartLinesQuerySchema = z.strictObject({
   variant: list(z.uuid(), STORE_CART_MAX_LINES),
@@ -285,3 +288,70 @@ export const storeInfoResponseSchema = z.strictObject({
     .nullable(),
 });
 export type StoreInfoResponse = z.infer<typeof storeInfoResponseSchema>;
+
+// --- Delivery choices for the checkout form (roadmap step 70) ---
+/**
+ * Active delivery areas and the one flat fee. `feeFils` and `etaText` are null until the Owner
+ * has configured delivery. `freeThresholdFils` is always null at launch: free delivery is off
+ * and the storefront shows no progress towards it.
+ */
+export const storeDeliveryResponseSchema = z.strictObject({
+  feeFils: z.number().int().min(0).max(1_000_000_000).nullable(),
+  etaText: z.string().nullable(),
+  freeThresholdFils: z.null(),
+  areas: z
+    .array(z.strictObject({ id: z.uuid(), name: z.string(), emirate: z.enum(UAE_EMIRATES) }))
+    .max(500),
+});
+export type StoreDeliveryResponse = z.infer<typeof storeDeliveryResponseSchema>;
+
+// --- Cart quote (roadmap step 71, ADR 0041) ---
+/**
+ * What a shopper asks a price for: lines, a delivery area and at most one code. There is no
+ * field for a price, a fee or a discount, and unknown fields are refused.
+ */
+export const storeQuoteRequestSchema = z.strictObject({
+  lines: orderLinesSchema,
+  areaId: z.uuid(),
+  couponCode: couponCodeInputSchema,
+});
+export type StoreQuoteRequest = z.input<typeof storeQuoteRequestSchema>;
+/**
+ * The authoritative total and the token that says the shopper saw it. Amounts are integer
+ * fils. `insufficientStock` names lines that cannot be filled right now; nothing is reserved.
+ * No stock number, version or internal reference appears.
+ */
+export const storeQuoteResponseSchema = z.strictObject({
+  lines: z
+    .array(
+      z.strictObject({
+        variantId: z.uuid(),
+        quantity: z.number().int().min(1),
+        unitPriceFils: productFilsSchema,
+        subtotalFils: z.number().int().min(0),
+        discountFils: z.number().int().min(0),
+        totalFils: z.number().int().min(0),
+      }),
+    )
+    .max(ORDER_LIMITS.maxLines),
+  merchandiseSubtotalFils: z.number().int().min(0),
+  discountFils: z.number().int().min(0),
+  deliveryFeeFils: z.number().int().min(0),
+  totalFils: z.number().int().min(0),
+  freeDeliveryThresholdFils: z.null(),
+  delivery: z.strictObject({
+    areaId: z.uuid(),
+    areaName: z.string(),
+    emirate: z.enum(UAE_EMIRATES),
+    etaText: z.string(),
+  }),
+  coupon: z.strictObject({ code: z.string(), percentBps: z.number().int() }).nullable(),
+  insufficientStock: z.array(z.uuid()).max(ORDER_LIMITS.maxLines),
+  quote: z.strictObject({
+    /** Sent back unchanged when placing the order; opaque to the client. */
+    token: z.string().max(256),
+    fingerprint: z.string().max(64),
+    expiresAt: z.iso.datetime(),
+  }),
+});
+export type StoreQuoteResponse = z.infer<typeof storeQuoteResponseSchema>;

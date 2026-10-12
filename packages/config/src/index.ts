@@ -608,6 +608,36 @@ const invitationSafety = (
     });
 };
 
+/**
+ * Accepted-quote signing (step 71). `quote:<keyId>:<secret>` entries; the first signs, the rest
+ * still verify during rotation. Required in staging and production. Left empty in development
+ * or test, the API signs with a key made at start-up, so quotes do not survive a restart.
+ */
+export const quoteEnvFields = {
+  QUOTE_SIGNING_KEYS: serviceKeysSchema
+    .refine(
+      (keys) => keys.every((key) => key.service === "quote"),
+      "Quote keys require quote service",
+    )
+    .transform((keys) => keys.map(({ keyId, secret }) => ({ keyId, secret }))),
+  /** How long a shown total can be accepted. */
+  QUOTE_TTL_SECONDS: z.coerce.number().int().min(60).max(3600).default(900),
+};
+const quoteSafety = (
+  value: { APP_ENV: DeploymentEnv; QUOTE_SIGNING_KEYS: unknown[] },
+  ctx: z.RefinementCtx,
+) => {
+  if (
+    !value.QUOTE_SIGNING_KEYS.length &&
+    (value.APP_ENV === "staging" || value.APP_ENV === "production")
+  )
+    ctx.addIssue({
+      code: "custom",
+      path: ["QUOTE_SIGNING_KEYS"],
+      message: "required outside development and test",
+    });
+};
+
 export const apiEnvSchema = baseEnvSchema
   .extend({
     API_PORT: port.default(4000),
@@ -621,6 +651,7 @@ export const apiEnvSchema = baseEnvSchema
     ...passwordHashEnvFields,
     ...resetEnvFields,
     ...invitationEnvFields,
+    ...quoteEnvFields,
     ...securityEnvFields,
     ...catalogueCacheEnvFields,
     ...ageVerifierEnvFields,
@@ -629,6 +660,7 @@ export const apiEnvSchema = baseEnvSchema
   .superRefine((value, ctx) => {
     ageSafety({ ...value, AGE_TICKET_PRIVATE_KEY: undefined }, ctx);
     noForeignAgeSigningKey(value, ctx);
+    quoteSafety(value, ctx);
     separateCacheRedis(value, ctx);
     storageSafety(value, ctx);
     securitySafety(value, ctx);

@@ -10,3 +10,4 @@ export * from "./password/invitation-token";
 export * from "./image/image";
 export * from "./cache/cache";
 export * from "./age/age-ticket";
+export * from "./quote/quote-token";

@@ -22,16 +22,17 @@ describe("phone normalization", () => {
     ])
       expect(normalizePhone(typed)).toBe("+971501234567");
   });
-  it("accepts UAE landlines and numbers of other countries with a country code", () => {
-    expect(normalizePhone("04 123 4567")).toBe("+97141234567");
-    expect(normalizePhone("+44 20 7946 0958")).toBe("+442079460958");
-    expect(normalizePhone("0044 20 7946 0958")).toBe("+442079460958");
-  });
   it("refuses instead of guessing", () => {
     for (const typed of [
       "",
       "   ",
       "+",
+      "04 123 4567", // UAE landline
+      "+97141234567",
+      "+44 20 7946 0958", // another country
+      "0044 7911 123456",
+      "+1 501 234 567",
+      "0971501234567",
       "12345",
       "2079460958", // no country code and not a UAE form
       "050123456", // one digit short

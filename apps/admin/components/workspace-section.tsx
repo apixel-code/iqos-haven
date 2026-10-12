@@ -3,6 +3,7 @@ import Link from "next/link";
 import { useSession } from "./session-shell";
 import { SettingsManagement } from "./settings-management";
 import { DeliveryManagement } from "./delivery-management";
+import { CouponManagement } from "./coupon-management";
 import { StaffManagement } from "./staff-management";
 import { CatalogueParentManagement } from "./catalogue-parent-management";
 import { ProductManagement } from "./product-management";
@@ -28,6 +29,8 @@ export function WorkspaceSection({ sectionKey }: { sectionKey: string }) {
         <SettingsManagement />
       ) : sectionKey === "delivery" ? (
         <DeliveryManagement />
+      ) : sectionKey === "discounts" ? (
+        <CouponManagement />
       ) : sectionKey === "staff" ? (
         <StaffManagement />
       ) : sectionKey === "inventory" ? (

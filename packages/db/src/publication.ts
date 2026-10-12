@@ -30,7 +30,6 @@ interface ReadinessRow {
   version: number;
   status: "draft" | "published";
   trashed: boolean;
-  taxTreatment: boolean;
   activeVariant: boolean;
   activeDefault: boolean;
   image: boolean;
@@ -43,7 +42,6 @@ interface ReadinessRow {
 async function readinessRow(tx: Database | Tx, productId: string) {
   const [row] = await tx.$queryRaw<ReadinessRow[]>(Prisma.sql`
     SELECT p.version, p.status, p.deleted_at IS NOT NULL AS trashed,
-      p.tax_treatment_ref IS NOT NULL AS "taxTreatment",
       EXISTS (SELECT 1 FROM variants v WHERE v.product_id=p.id AND v.active) AS "activeVariant",
       EXISTS (SELECT 1 FROM variants v WHERE v.product_id=p.id AND v.is_default AND v.active)
         AS "activeDefault",
@@ -59,7 +57,6 @@ async function readinessRow(tx: Database | Tx, productId: string) {
   if (!row) throw new CatalogueNotFoundError();
   const missing: PublishRequirement[] = [];
   if (row.trashed) missing.push("not_trashed");
-  if (!row.taxTreatment) missing.push("tax_treatment");
   if (!row.activeVariant) missing.push("active_variant");
   if (!row.activeDefault) missing.push("default_variant");
   if (!row.image) missing.push("image");

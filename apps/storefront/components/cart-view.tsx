@@ -1,13 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { storeCartLinesResponseSchema, type StoreCartLine } from "@ih/contracts";
 import { CART_LIMITS, cartView, type CartViewLine } from "@/lib/cart/cart";
 import { removeFromCart, setCartQuantity, useCart } from "@/lib/cart/store";
 import { SITE } from "@/lib/site";
 import { displayAed } from "@/lib/store/listing";
 import { whatsappHref, WHATSAPP_MESSAGES } from "@/lib/whatsapp";
+import { CartQuote } from "./cart-quote";
 import { RecentlyViewed } from "./recently-viewed";
 
 /** Outcome of the latest refresh, tagged with the variant set it was for. */
@@ -40,6 +41,11 @@ export function CartView({ whatsappNumber }: { whatsappNumber: string | null }) 
   // variant applies for as long as it is in the cart.
   const [known, setKnown] = useState<Known>(new Map());
   const [outcome, setOutcome] = useState<Outcome>(null);
+  // Bumped when the quote says a line is no longer offered, to refresh the lines at once.
+  const [refresh, setRefresh] = useState(0);
+  const recheck = useCallback(() => setRefresh((count) => count + 1), []);
+  // Whether the shopper holds an accepted, current server total (step 71).
+  const [quoteReady, setQuoteReady] = useState(false);
   // False while the server-rendered frame is shown; the device cart is read after hydration.
   const mounted = useSyncExternalStore(
     () => () => undefined,
@@ -73,7 +79,7 @@ export function CartView({ whatsappNumber }: { whatsappNumber: string | null }) 
         if (!controller.signal.aborted) setOutcome({ key, ok: false });
       });
     return () => controller.abort();
-  }, [key]);
+  }, [key, refresh]);
 
   const view = cartView(cart, known);
   const failed = outcome?.key === key && !outcome.ok;
@@ -106,6 +112,9 @@ export function CartView({ whatsappNumber }: { whatsappNumber: string | null }) 
     );
 
   const units = cart.lines.reduce((sum, line) => sum + line.quantity, 0);
+  const quoteLines = view.lines
+    .filter((line) => line.status === "ok" || line.status === "unconfirmed")
+    .map(({ variantId, quantity, name }) => ({ variantId, quantity, name }));
   return (
     <>
       <p className="pb-4 text-sm text-ink-2">
@@ -245,14 +254,15 @@ export function CartView({ whatsappNumber }: { whatsappNumber: string | null }) 
               </dt>
               <dd className="font-semibold">{displayAed(view.subtotalFils)}</dd>
             </div>
-            <div className="flex justify-between gap-4 text-ink-2">
-              <dt>Delivery</dt>
-              <dd>Calculated at checkout</dd>
-            </div>
           </dl>
+          <CartQuote
+            lines={quoteLines}
+            blocked={view.blockedCount}
+            onUnavailable={recheck}
+            onReady={setQuoteReady}
+          />
           <p className="text-xs text-ink-3">
-            Prices and availability are confirmed when you check out. Cash on delivery: no account
-            needed, pay when your order arrives.
+            Cash on delivery: no account needed, pay when your order arrives.
           </p>
           {view.blockedCount > 0 && (
             <p className="text-sm font-medium text-error">
@@ -268,7 +278,11 @@ export function CartView({ whatsappNumber }: { whatsappNumber: string | null }) 
           >
             Checkout · Cash on delivery
           </button>
-          <p className="text-center text-xs text-ink-3">Checkout is not open yet.</p>
+          <p className="text-center text-xs text-ink-3">
+            {quoteReady
+              ? "Your total is confirmed. Checkout is not open yet."
+              : "Checkout is not open yet."}
+          </p>
           <Link
             href="/shop"
             prefetch={false}

@@ -30,8 +30,8 @@ import {
 /**
  * Product create/edit/detail/list (roadmap step 44, ADR 0015). Products are created as drafts;
  * publication and trash are step 51. Lock order (architecture §5): actor share lock → parent
- * brand then category FOR SHARE → product FOR UPDATE. The tax treatment reference is read-only
- * until approved treatments exist (BI-02, step 67), so no product can be published before then.
+ * brand then category FOR SHARE → product FOR UPDATE. The tax treatment reference is unused:
+ * prices are final as entered (BI-02, ADR 0036).
  */
 interface ProductRow {
   id: string;

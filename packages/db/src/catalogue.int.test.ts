@@ -91,7 +91,10 @@ describe("catalogue constraints (real PostgreSQL, isolated schema)", () => {
       for (const amount of [-1, 1000000001])
         await rejected(`UPDATE products SET ${field}=$1 WHERE id=$2`, [amount, row.id]);
     await rejected("UPDATE products SET base_price_fils=$1 WHERE id=$2", ["1.5", row.id], "22P02");
-    await rejected("UPDATE products SET status='published' WHERE id=$1", [row.id]);
+    // A published product needs a price; a tax reference is not required (BI-02).
+    await rejected("UPDATE products SET status='published',base_price_fils=0 WHERE id=$1", [
+      row.id,
+    ]);
     await rejected("UPDATE products SET tax_treatment_ref='unapproved' WHERE id=$1", [row.id]);
     await rejected("UPDATE products SET type='other' WHERE id=$1", [row.id]);
     await rejected("UPDATE products SET specs='[]' WHERE id=$1", [row.id]);
@@ -201,11 +204,7 @@ describe("catalogue constraints (real PostgreSQL, isolated schema)", () => {
   });
   it("publishes only complete, live products", async () => {
     const { row } = await product();
-    await rejected("UPDATE products SET status='published' WHERE id=$1", [row.id]);
-    await pool.query(
-      "UPDATE products SET tax_treatment_ref='synthetic-vat',tax_treatment_version=1 WHERE id=$1",
-      [row.id],
-    );
+    // No tax reference is needed: the entered price is final (BI-02).
     await pool.query("UPDATE products SET status='published' WHERE id=$1", [row.id]);
     await rejected("UPDATE products SET deleted_at=statement_timestamp() WHERE id=$1", [row.id]);
     await rejected("UPDATE products SET base_price_fils=0 WHERE id=$1", [row.id]);

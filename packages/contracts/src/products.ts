@@ -85,7 +85,7 @@ export const productResponseSchema = z.strictObject({
   status: z.enum(["draft", "published"]),
   basePriceFils: productFilsSchema,
   compareAtPriceFils: productFilsSchema.nullable(),
-  /** Approved VAT/excise treatment (BI-02); read-only until treatments exist (step 67). */
+  /** Unused: prices are final as entered (BI-02, ADR 0036). Always null; kept for compatibility. */
   taxTreatment: z.strictObject({ ref: z.string(), version: z.number().int() }).nullable(),
   specs: z.union([disposableSpecsSchema, kitSpecsSchema]),
   description: z.string(),
@@ -138,8 +138,6 @@ export type ProductsQuery = z.input<typeof productsQuerySchema>;
 /** Publish, unpublish, trash, restore and purge all name the version the user saw. */
 export const productStateRequestSchema = z.strictObject({ version });
 export const PUBLISH_REQUIREMENTS = [
-  /** Approved VAT/excise treatment (BI-02). */
-  "tax_treatment",
   "active_variant",
   "default_variant",
   "image",

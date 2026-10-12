@@ -1,7 +1,6 @@
 import type { PublishRequirement } from "@ih/contracts";
 
 const LABELS: Record<PublishRequirement, string> = {
-  tax_treatment: "Approved VAT/excise treatment (waiting for the accountant's decision)",
   active_variant: "At least one active variant",
   default_variant: "An active default variant",
   image: "At least one image",

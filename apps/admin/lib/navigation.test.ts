@@ -23,6 +23,7 @@ describe("permission-derived navigation", () => {
   it("uses individual server grants rather than a client role label or wildcard", () => {
     expect(visibleSections(["staff.manage"]).map((s) => s.key)).toEqual(["staff"]);
     expect(visibleSections(["delivery.manage"]).map((s) => s.key)).toEqual(["delivery"]);
+    expect(visibleSections(["coupons.manage"]).map((s) => s.key)).toEqual(["discounts"]);
     expect(visibleSections(["owner", "*"])).toEqual([]);
     expect(visibleSections([])).toEqual([]);
   });

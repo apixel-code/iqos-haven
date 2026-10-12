@@ -5,7 +5,8 @@ import {
   loadEnv,
   loadLocalEnvFile,
 } from "@ih/config";
-import { InvalidCustomerNameError, InvalidPhoneError } from "@ih/domain";
+import { checkoutAddressSchema, checkoutContactSchema } from "@ih/contracts";
+import { DeliveryUnavailableError, InvalidCustomerNameError, InvalidPhoneError } from "@ih/domain";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createDatabase, createPool } from "./client";
 import {
@@ -16,6 +17,7 @@ import {
   markCustomerFirstOrder,
   saveCustomerAddress,
 } from "./customers";
+import { readDeliverableArea } from "./delivery";
 import { applyMigrations } from "./test-schema";
 import { withTransaction } from "./transaction";
 loadLocalEnvFile();
@@ -328,6 +330,50 @@ describe("guest customers and addresses (real PostgreSQL, isolated schema)", () 
       "unit of work",
     );
     expect(await db.customerAddress.count({ where: { customerId: customer.id } })).toBe(0);
+  });
+  it("rejects an inactive or unknown area and accepts an active one (step 66)", async () => {
+    expect(await readDeliverableArea(db, areaId)).toEqual({
+      id: areaId,
+      code: "synthetic_a",
+      name: "Synthetic synthetic_a",
+    });
+    await expect(readDeliverableArea(db, otherAreaId)).rejects.toBeInstanceOf(
+      DeliveryUnavailableError,
+    );
+    for (const unknown of [randomUUID(), "not-an-id", ""])
+      await expect(readDeliverableArea(db, unknown)).rejects.toBeInstanceOf(
+        DeliveryUnavailableError,
+      );
+    // Deactivating an area takes effect on the next read.
+    await pool.query("UPDATE delivery_areas SET active=false, version=version+1 WHERE id=$1", [
+      areaId,
+    ]);
+    await expect(readDeliverableArea(db, areaId)).rejects.toBeInstanceOf(DeliveryUnavailableError);
+    await pool.query("UPDATE delivery_areas SET active=true, version=version+1 WHERE id=$1", [
+      areaId,
+    ]);
+  });
+  it("stores exactly what the checkout validators return (step 66)", async () => {
+    const contact = checkoutContactSchema.parse({
+      name: " Synthetic  Checkout ",
+      phone: "050 800 0001",
+    });
+    const address = checkoutAddressSchema.parse({
+      areaId,
+      type: "office",
+      building: " Synthetic  Plaza",
+      unit: "Room 4",
+      makani: "12345 67890",
+    });
+    const saved = await withTransaction(db, async (tx) => {
+      const { customer } = await lockCustomerForOrder(tx, {
+        phone: contact.phone,
+        displayName: contact.name,
+      });
+      return { customer, ...(await saveCustomerAddress(tx, customer.id, address)) };
+    });
+    expect(saved.customer).toMatchObject({ phoneE164: contact.phone, displayName: contact.name });
+    expect(saved.address).toMatchObject(address);
   });
   it("gives the runtime role no way to delete customers or rewrite addresses", async () => {
     if (!runtimeRole) return;

@@ -5,7 +5,13 @@ import { Prisma, type Database, type Tx } from "./client";
 export class TransactionContentionError extends Error {
   readonly code = "TRANSACTION_RETRY_EXHAUSTED";
 }
+/**
+ * Thrown inside a unit of work when what it read is no longer what it locked. The whole
+ * transaction is rolled back and started again, like a deadlock.
+ */
+export class TransactionRestartError extends Error {}
 function retryable(error: unknown): boolean {
+  if (error instanceof TransactionRestartError) return true;
   // P2034 is Prisma's transaction write-conflict/deadlock result. Never retry arbitrary SQL errors.
   if (!error || typeof error !== "object" || !("code" in error)) return false;
   if (error.code === "P2034") return true;

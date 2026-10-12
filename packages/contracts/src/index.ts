@@ -35,6 +35,21 @@ export const CONFLICT_CODES = [
   "MEDIA_NOT_READY",
   "ORDER_MISMATCH",
   "NOT_TRASHED",
+  /** Store quote and checkout reasons (architecture §7). */
+  "AREA_UNAVAILABLE",
+  "VARIANT_UNAVAILABLE",
+  "COUPON_INVALID",
+  "COUPON_LIMIT_REACHED",
+  "QUOTE_CHANGED",
+  "QUOTE_EXPIRED",
+  /** Idempotent commands (architecture §7). */
+  "IDEMPOTENCY_CONFLICT",
+  "IDEMPOTENCY_IN_PROGRESS",
+  "CHECKOUT_RECOVERY_REQUIRED",
+  /** A coupon's usage limit cannot go below the uses orders currently hold. */
+  "LIMIT_BELOW_USES",
+  /** An active coupon cannot end in the past. */
+  "ALREADY_EXPIRED",
 ] as const;
 export type ConflictCode = (typeof CONFLICT_CODES)[number];
 /** 403 code of a store route reached without a valid age ticket (step 55). */
@@ -62,3 +77,5 @@ export * from "./inventory";
 export * from "./media";
 export * from "./store";
 export * from "./customers";
+export * from "./checkout";
+export * from "./coupons";

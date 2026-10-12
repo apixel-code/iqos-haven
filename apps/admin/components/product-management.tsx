@@ -371,8 +371,8 @@ function ProductForm({
         </span>
       </header>
       <p className="muted">
-        Products are saved as drafts. Publishing opens once images, variants and the approved tax
-        treatment are in place.
+        Products are saved as drafts. Publishing opens once images and variants are in place. The
+        price you enter is the final price the customer pays.
       </p>
       <ResourceNotice resource={resource} />
       <form

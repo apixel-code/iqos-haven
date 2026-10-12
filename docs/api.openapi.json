@@ -10,7 +10,7 @@
       "get": {
         "operationId": "deliveryAreasList",
         "security": [{ "adminSession": [] }],
-        "description": "Requires delivery.manage. No-store list of active and inactive Dubai areas; no public selection endpoint. No prototype areas seeded.",
+        "description": "Requires delivery.manage. No-store list of active and inactive UAE areas; no public selection endpoint. No prototype areas seeded.",
         "parameters": [
           {
             "name": "limit",
@@ -51,7 +51,7 @@
       "post": {
         "operationId": "deliveryAreaCreate",
         "security": [{ "adminSession": [] }],
-        "description": "Owner configuration with delivery.manage; admin Origin/JSON. Create a client-approved Dubai area. Stable unique code and case-insensitive unique name; no zone fee/delete. Atomic audit and IDs-only event.",
+        "description": "Owner configuration with delivery.manage; admin Origin/JSON. Create a client-approved area in one of the seven emirates. Stable unique code and case-insensitive unique name; no zone fee/delete. Atomic audit and IDs-only event.",
         "requestBody": {
           "required": true,
           "content": {
@@ -187,7 +187,7 @@
       "get": {
         "operationId": "deliveryConfigurationRead",
         "security": [{ "adminSession": [] }],
-        "description": "Requires delivery.manage. One flat Dubai fee/ETA; absent configuration is null/version 0. No defaults; no-store. Unknown query fields rejected.",
+        "description": "Requires delivery.manage. One flat UAE-wide fee/ETA; absent configuration is null/version 0. No defaults; no-store. Unknown query fields rejected.",
         "responses": {
           "200": {
             "description": "Current configuration",
@@ -1292,9 +1292,22 @@
         "properties": {
           "code": { "type": "string", "pattern": "^[a-z][a-z0-9_-]{0,63}$" },
           "name": { "type": "string", "minLength": 1, "maxLength": 100 },
+          "emirate": {
+            "default": "dubai",
+            "type": "string",
+            "enum": [
+              "abu_dhabi",
+              "dubai",
+              "sharjah",
+              "ajman",
+              "umm_al_quwain",
+              "ras_al_khaimah",
+              "fujairah"
+            ]
+          },
           "active": { "type": "boolean" }
         },
-        "required": ["code", "name", "active"],
+        "required": ["code", "name", "emirate", "active"],
         "additionalProperties": false
       },
       "DeliveryAreaUpdateRequest": {
@@ -1317,7 +1330,18 @@
           },
           "code": { "type": "string" },
           "name": { "type": "string", "minLength": 1, "maxLength": 100 },
-          "emirate": { "type": "string", "enum": ["dubai"] },
+          "emirate": {
+            "type": "string",
+            "enum": [
+              "abu_dhabi",
+              "dubai",
+              "sharjah",
+              "ajman",
+              "umm_al_quwain",
+              "ras_al_khaimah",
+              "fujairah"
+            ]
+          },
           "active": { "type": "boolean" },
           "version": {
             "type": "integer",
@@ -1364,7 +1388,18 @@
                 },
                 "code": { "type": "string" },
                 "name": { "type": "string", "minLength": 1, "maxLength": 100 },
-                "emirate": { "type": "string", "enum": ["dubai"] },
+                "emirate": {
+                  "type": "string",
+                  "enum": [
+                    "abu_dhabi",
+                    "dubai",
+                    "sharjah",
+                    "ajman",
+                    "umm_al_quwain",
+                    "ras_al_khaimah",
+                    "fujairah"
+                  ]
+                },
                 "active": { "type": "boolean" },
                 "version": {
                   "type": "integer",

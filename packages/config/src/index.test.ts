@@ -493,3 +493,38 @@ describe("invitation configuration", () => {
     ).toBe("one");
   });
 });
+
+describe("quote signing keys", () => {
+  const base = {
+    DATABASE_URL: "postgres://u:p@localhost:5432/db",
+    QUEUE_REDIS_URL: "redis://localhost:6379",
+  };
+  const secret = "A".repeat(43);
+  it("are optional locally, purpose-bound and bounded", () => {
+    const local = loadEnv(apiEnvSchema, base);
+    expect(local.QUOTE_SIGNING_KEYS).toEqual([]);
+    expect(local.QUOTE_TTL_SECONDS).toBe(900);
+    expect(
+      loadEnv(apiEnvSchema, {
+        ...base,
+        QUOTE_SIGNING_KEYS: `quote:k2:${secret},quote:k1:${secret}`,
+      }).QUOTE_SIGNING_KEYS.map((key) => key.keyId),
+    ).toEqual(["k2", "k1"]);
+    for (const QUOTE_SIGNING_KEYS of [
+      `reset:k1:${secret}`,
+      "quote:k1:short",
+      `quote:k1:${secret}:x`,
+    ])
+      expect(() => loadEnv(apiEnvSchema, { ...base, QUOTE_SIGNING_KEYS })).toThrow(
+        /QUOTE_SIGNING_KEYS/,
+      );
+    for (const QUOTE_TTL_SECONDS of ["59", "3601", "soon"])
+      expect(() => loadEnv(apiEnvSchema, { ...base, QUOTE_TTL_SECONDS })).toThrow(
+        /QUOTE_TTL_SECONDS/,
+      );
+  });
+  it("are required in staging and production", () => {
+    for (const APP_ENV of ["staging", "production"])
+      expect(() => loadEnv(apiEnvSchema, { ...base, APP_ENV })).toThrow(/QUOTE_SIGNING_KEYS/);
+  });
+});

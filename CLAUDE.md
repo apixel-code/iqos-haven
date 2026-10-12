@@ -1,6 +1,6 @@
 # Iqos Haven — Claude Code project memory
 
-Dubai-only, 18+ age-gated vape e-commerce. Guest checkout, Cash on Delivery, WhatsApp support.
+UAE-wide delivery (seven emirates, one flat fee), 18+ age-gated vape e-commerce. Guest checkout, Cash on Delivery, WhatsApp support.
 Client: Iqos Haven (iqoshaven.com). Built by Apixel.
 
 ## Session start
@@ -60,7 +60,7 @@ Tests: `*.test.ts` = unit, `*.int.test.ts` = integration (separate vitest config
 
 ## Non-negotiable invariants
 
-- Money = integer fils (AED × 100). No floats, no client prices. Half-up rounding; allocation per accountant-approved examples.
+- Money = integer fils (AED × 100). No floats, no client prices. Half-up rounding. The price the Owner enters is final: no separate VAT/excise calculation (ADR 0036).
 - Server quote is authoritative; changed price/config needs explicit re-acceptance.
 - Order creation = ONE transaction: stock, coupon, order, snapshots, history, outbox/effects. No network calls inside a DB transaction.
 - Idempotency key per checkout attempt: same payload → same order; changed payload → conflict.
@@ -85,7 +85,7 @@ Tests: `*.test.ts` = unit, `*.int.test.ts` = integration (separate vitest config
 
 ## Out of scope at launch
 
-Customer accounts, online payments, WhatsApp Business API, custom-role builder, MFA, fixed/brand-scoped coupons, multi-emirate delivery, external search, cross-device confirmation. Product indexing off unless approved.
+Customer accounts, online payments, WhatsApp Business API, custom-role builder, MFA, fixed/brand-scoped coupons, per-emirate fees, delivery outside the UAE, tax calculation, external search, cross-device confirmation. Product indexing off unless approved.
 
 ## Working a step
 

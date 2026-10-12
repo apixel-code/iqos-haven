@@ -32,6 +32,8 @@ const ORIGIN = "https://shop.gate-check.test";
 const POLICY = "gate-check";
 const NAMES = ["Gatecheck Halo", "Gatecheck Hidden"];
 const WHATSAPP = "+971500000042";
+const AREA_NAME = "Gatecheck Area";
+const COUPON = "GATECHECK10";
 const SECRET_TEMPLATE = "Gatecheck private template";
 const SECRET_RECIPIENT = "gatecheck-owner@iqoshaven.test";
 let failures = 0;
@@ -157,6 +159,26 @@ async function main() {
         value: { inApp: true, newOrderEmail: { enabled: true, recipients: [SECRET_RECIPIENT] } },
       },
     });
+    // Delivery and a coupon, so a verified shopper can be quoted a total (step 71).
+    const area = await db.deliveryArea.create({
+      data: {
+        code: "gate_area",
+        name: AREA_NAME,
+        emirate: "dubai",
+        active: true,
+        updatedBy: staff.id,
+      },
+    });
+    await db.setting.create({
+      data: {
+        key: "delivery",
+        updatedBy: staff.id,
+        value: { flatFeeFils: 1500, etaText: "Synthetic gate ETA", freeThresholdFils: null },
+      },
+    });
+    await db.coupon.create({
+      data: { code: COUPON, percentBps: 1000, active: true, updatedBy: staff.id },
+    });
     const visible = await seed(NAMES[0], "gatecheck-halo", true);
     const hidden = await seed(NAMES[1], "gatecheck-hidden", false);
 
@@ -164,7 +186,11 @@ async function main() {
     const pair = generateKeyPairSync("ed25519");
     const signer = ageTicketSigner("gate", rawKey(pair.privateKey, "pkcs8"));
     const publicKeys = `gate:${rawKey(pair.publicKey, "spki")}`;
-    const [apiPort, storePort] = [await freePort(), await freePort()];
+    const [apiPort, storePort, gatewayPort] = [
+      await freePort(),
+      await freePort(),
+      await freePort(),
+    ];
     // Storage settings the same way the API integration tests take them (local .env or CI env).
     const storageEnv = config.loadEnv(config.storageIntegrationTestEnvSchema);
     const env = config.apiEnvSchema.parse({
@@ -180,6 +206,9 @@ async function main() {
       ARGON2_PARALLELISM: 1,
       AGE_TICKET_PUBLIC_KEYS: publicKeys,
       AGE_POLICY_VERSION: POLICY,
+      // The store origins a browser would send with the quote POST: the nominal one used by
+      // these checks, and the local gateway address for a manual browser pass (`--serve`).
+      STOREFRONT_ORIGINS: `${ORIGIN},http://127.0.0.1:${gatewayPort}`,
     });
     const { createApp } = api(root + "/apps/api/dist/bootstrap.js");
     const app = await createApp(env, { pool, database: db });
@@ -229,7 +258,7 @@ async function main() {
       "--add-host",
       "host.docker.internal:host-gateway",
       "-p",
-      "127.0.0.1::8080",
+      `127.0.0.1:${gatewayPort}:8080`,
       "-v",
       `${root}/infra/gateway/Caddyfile:/etc/caddy/Caddyfile:ro`,
       "-e",
@@ -242,11 +271,22 @@ async function main() {
     );
     if (run.status !== 0) throw new Error("gateway container failed to start: " + run.stderr);
     cleanup.push(() => void docker("stop", container));
-    const gatewayPort = docker("port", container, "8080/tcp").stdout.trim().split(":").pop();
     const base = `http://127.0.0.1:${gatewayPort}`;
 
     const get = (target, headers = {}, method = "GET") =>
       fetch(base + target, { redirect: "manual", headers, method });
+    const quote = (headers = {}, body = {}) =>
+      fetch(base + "/api/v1/store/cart/quote", {
+        method: "POST",
+        redirect: "manual",
+        headers: { "content-type": "application/json", origin: ORIGIN, ...headers },
+        body: JSON.stringify({
+          lines: [{ variantId: visible.variants[0].id, quantity: 2 }],
+          areaId: area.id,
+          couponCode: COUPON,
+          ...body,
+        }),
+      });
     let ready = false;
     for (let attempt = 0; attempt < 150 && !ready; attempt++) {
       if (store.exitCode !== null) break;
@@ -285,6 +325,7 @@ async function main() {
     ];
     const API_ROUTES = [
       "/api/v1/store/info",
+      "/api/v1/store/delivery",
       "/api/v1/store/brands",
       "/api/v1/store/categories",
       "/api/v1/store/products",
@@ -312,6 +353,19 @@ async function main() {
             `${name} is not cacheable`,
           );
         }
+      // The quote route is a POST: asked the way a browser on the store origin would ask.
+      {
+        const response = await quote(headers);
+        const body = await response.text();
+        const name = `${label}: API quote`;
+        check(response.status === 403, `${name} answers 403`, String(response.status));
+        check(body.includes("AGE_VERIFICATION_REQUIRED"), `${name} says the age check is required`);
+        check(
+          // Field names only: a random request ID may contain any digits.
+          !leaks(body) && !settingsLeak(body) && !/totalFils|deliveryFeeFils|etaText/.test(body),
+          `${name} carries no price, fee or product data`,
+        );
+      }
       for (const target of API_ROUTES) {
         const response = await get(target, headers);
         const body = await response.text();
@@ -378,7 +432,9 @@ async function main() {
     const verified = { cookie: setCookie.split(";")[0] };
 
     if (process.argv.includes("--serve")) {
-      console.log(`SERVING ${base}\nCOOKIE ${verified.cookie}\nVARIANT ${visible.variants[0].id}`);
+      console.log(
+        `SERVING ${base}\nCOOKIE ${verified.cookie}\nVARIANT ${visible.variants[0].id}\nSCHEMA ${namespace}\nCOUPON ${COUPON}`,
+      );
       await new Promise((done) => process.once("SIGINT", done).once("SIGTERM", done));
       exitCode = 0;
       return;
@@ -462,6 +518,78 @@ async function main() {
       "saved-item cards through the gateway",
     );
     await apiJson("/api/v1/store/products/gatecheck-hidden", 404);
+    const deliveryText = await apiJson("/api/v1/store/delivery");
+    check(
+      deliveryText ===
+        JSON.stringify({
+          feeFils: 1500,
+          etaText: "Synthetic gate ETA",
+          freeThresholdFils: null,
+          areas: [{ id: area.id, name: AREA_NAME, emirate: "dubai" }],
+        }),
+      "delivery choices are exactly the active area, fee and ETA",
+      deliveryText,
+    );
+    {
+      // 2 × 49.00 = 98.00; 10 % off = 9.80; + 15.00 delivery = 103.20.
+      const response = await quote(verified);
+      const text = await response.text();
+      const body = response.status === 200 ? JSON.parse(text) : {};
+      check(
+        response.status === 200,
+        "verified quote through the gateway: 200",
+        String(response.status),
+      );
+      check(
+        body.merchandiseSubtotalFils === 9800 &&
+          body.discountFils === 980 &&
+          body.deliveryFeeFils === 1500 &&
+          body.totalFils === 10320,
+        "the quote is the server's arithmetic",
+        text.slice(0, 200),
+      );
+      check(
+        typeof body.quote?.token === "string" && body.quote.token.startsWith("v1."),
+        "the quote carries a signed token",
+      );
+      check(
+        response.headers.get("cache-control") === "private, no-store",
+        "the quote is not cacheable",
+        response.headers.get("cache-control") ?? "",
+      );
+      check(
+        !text.includes("GATE-") && !/[Vv]ersion|productId/.test(text),
+        "the quote hides SKUs and internals",
+      );
+      const tampered = await quote(verified, { totalFils: 1 });
+      check(tampered.status === 400, "a client total is refused", String(tampered.status));
+      const priced = await quote(verified, {
+        lines: [{ variantId: visible.variants[0].id, quantity: 2, unitPriceFils: 1 }],
+      });
+      check(priced.status === 400, "a client price is refused", String(priced.status));
+      const hiddenLine = await quote(verified, {
+        lines: [{ variantId: hidden.variants[0].id, quantity: 1 }],
+      });
+      const hiddenText = await hiddenLine.text();
+      check(
+        hiddenLine.status === 409 &&
+          hiddenText.includes("VARIANT_UNAVAILABLE") &&
+          !leaks(hiddenText),
+        "a draft product cannot be quoted and is not described",
+        `${hiddenLine.status}`,
+      );
+      for (const [label, headers] of [
+        ["no Origin", { ...verified, origin: "" }],
+        ["another site's Origin", { ...verified, origin: "https://attacker.example" }],
+      ]) {
+        const crossSite = await quote(headers);
+        check(
+          crossSite.status === 403,
+          `a quote with ${label} is refused`,
+          String(crossSite.status),
+        );
+      }
+    }
 
     // 4. Warm: the API's catalogue cache now holds what the verified shopper loaded.
     for (const [label, headers] of Object.entries(ATTEMPTS))

@@ -427,7 +427,7 @@ The admin unit tests cover the upload pre-check, form field order, rejection cop
 
 `publication.int.test.ts` (12 tests):
 
-- **BI-02 gate:** a complete product still reports `tax_treatment`, and publish answers `PUBLISH_REQUIREMENTS`.
+- **BI-02 gate:** a complete product still reports `tax_treatment`, and publish answers `PUBLISH_REQUIREMENTS`. (Superseded 2026-10-12 by ADR 0036: a complete product now publishes without a tax reference.)
 - **Requirements:** every missing requirement is listed, including a zero-price variant override.
 - **Publish and move to draft:**
   - Staff can do both once the product is ready. Zero stock does not block publishing.
@@ -759,3 +759,217 @@ Not covered: WhatsApp links opening the app; the mobile menu sheet (not built); 
 **`invariant-reviewer`:** no blockers. Done: zero-width/invisible characters refused and a name needs a letter or digit; call-order and caller rules documented on the primitives; version cannot decrease. Left as documented limits: trunk zero after a non-UAE country code; display name follows the latest typed name.
 
 Not covered: "old snapshots independent" end to end, because order tables arrive in step 73 (what exists is checked: immutable addresses, no cascade, no delete); address saving against concurrent area/setting edits (step 75); the migration on the dev database (not applied).
+
+## Step 66 — checkout input validation (2026-10-11, local)
+
+`pnpm verify -- --integration`: exit 0, twice (before and after the review fixes). Unit 509 (domain 123, contracts 65), integration 371 (db 72), gateway 29, age-preview 1847, gate 1803.
+
+**Unit (`customer.test.ts`, `order-lines.test.ts`, `checkout.test.ts`):**
+
+- Phone: ten spellings of one UAE mobile give one value; landlines, foreign numbers, toll-free and malformed input are refused.
+- Contact: both fields reported together with the form's wording; unknown fields and oversized input refused.
+- Address: normalized output fits the storage bounds of step 65; a unit is required for an apartment and an office, not for a villa; all seven fields reported in one pass; bounds accepted exactly; Makani must be 10 digits (spaces and Arabic-Indic digits accepted); `feeFils`, `emirate` or any other extra field is refused.
+- Lines: repeats merged and sorted; empty, 51 lines, quantities 0, −1, 1.5, 11, NaN, 1e21, 2^53 and a string are refused; two lines of one variant that together exceed 10 are refused; a line carrying `priceFils` is refused.
+- The device cart's limits equal the server's.
+
+**Integration (`customers.int.test.ts`, real PostgreSQL):** an active area is accepted; an inactive, unknown or malformed area ID is refused the same way; deactivation takes effect on the next read; the validators' output is stored unchanged by the step-65 customer primitives.
+
+**`invariant-reviewer`:** no blockers. Done: a malformed area ID no longer reaches the database; Arabic-Indic digits accepted in the Makani number; villa-with-unit intent tested. Kept on purpose and recorded in ADR 0035: any `5x` mobile prefix is accepted.
+
+Not covered: these rules behind a real route or in the checkout form (steps 71, 77); real areas (BI-03); a concurrent area deactivation during an order (step 75).
+
+## Business-input fixes — final prices and UAE-wide delivery (2026-10-12, local)
+
+`pnpm verify -- --integration`: exit 0. Unit 510, integration 371, gateway 29, age-preview 1847, gate 1803. The first run stopped at `test:int`: `catalogue.int.test.ts` still expected the database to refuse publishing without a tax reference; the test was updated to the new rule and the rerun passed.
+
+- **Final prices (BI-02):** a complete product with no tax reference reports ready and publishes through the API (`publication.int.test.ts`); the database still refuses a published product with a zero price, a trashed one, or a disposable without a puff count (`catalogue.int.test.ts`); the missing-requirements list no longer contains `tax_treatment`.
+- **UAE delivery (BI-03):** the flat fee applies in each of the seven emirates and a non-UAE or differently spelled emirate is refused (`delivery.test.ts`); an area can be created in Sharjah through the API, its emirate cannot be changed afterwards, and the database refuses an unknown emirate; the contract refuses an unknown emirate (`delivery.int.test.ts`).
+- **Dev database:** `pnpm db:migrate` applied every migration, including the two new ones.
+- **`invariant-reviewer`:** no blockers; the single old publish check is matched exactly once by the migration, the other publish guards and the emirate immutability trigger are intact. Done: superseded notes on ADR 0015/0021 and the step-51 record.
+
+Not covered: the admin delivery and product screens were not opened in a browser after this change (type-checked and built only); `scripts/browser-qa/qa.mjs` was edited but not rerun and still expects a disabled Publish button for its QA product; `scripts/check-gate-e2e.cjs` still seeds an unnecessary tax reference; storefront copy still says "Dubai" (demo copy, BI-01).
+
+## Step 67 — integer pricing and discount allocation (2026-10-12, local)
+
+`pnpm verify -- --integration`: exit 0, twice (before and after the review fixes). Unit 521 (domain 135), integration 376 (db 77), gateway 29, age-preview 1847, gate 1803.
+
+**Unit (`pricing.test.ts`):**
+
+- Allocation: hand-worked cases add up exactly; equal fractions settle by position; exact where the product exceeds 2^53; zero weights and impossible amounts refused.
+- Order totals: no discount; 15 % of AED 219.99 = AED 33.00 shared 13.50/19.50, delivery not discounted; seven half-up boundary cases (4.5 → 5, 2.5 → 3, 49.95 → 50, 49.35 → 49, 0.5 → 1, 0.4999 → 0, 0.0999 → 0); 100 % leaves only delivery; the largest order the caps allow (AED 5,000,000,000.00) stays exact.
+- 2000 generated orders (fixed seed): line subtotals, shares and totals always add up, no share is negative or above its line, and the same input gives the same result.
+- Seventeen kinds of bad input (float, zero or negative price, unmerged lines, out-of-range quantity, discount or fee, NaN, Infinity) throw.
+
+**Integration (`pricing.int.test.ts`, real PostgreSQL):**
+
+- The variant override or the product price is read, with versions; a price sent by the client is ignored; repeated lines are merged; totals match a hand calculation.
+- Draft product, inactive variant, inactive brand, inactive category and unknown ID are refused and named; the other variant of the same product still prices.
+- Quantity caps apply before any read.
+- While an order holds the price lock, a price change, a brand deactivation and a category deactivation all wait; a second order of the same variants does not wait; after the edits commit the next order is refused.
+- `TransactionRestartError` restarts the transaction and gives up after three attempts.
+
+**`invariant-reviewer`:** no blockers; it traced every admin writer of price, variant state, publication and parent visibility and found each takes a row this lock holds, with no lock cycle, and could not construct an allocation counter-example. Done: the catalogue-moved case is now retried instead of surfacing as "retry exhausted"; allocation refuses an amount above the total weight.
+
+Not covered: a product actually changing brand between the two lock statements (only the retry mechanism is tested); pricing behind a route; coupons and the real delivery fee (steps 68, 70).
+
+## Step 68 — percentage coupons (2026-10-12, local)
+
+`pnpm verify -- --integration`: exit 0, twice (before and after the review fixes). Unit 527 (domain 141), integration 387 (db 88), gateway 29, age-preview 1847, gate 1803.
+
+**Unit (`coupon.test.ts`):** code normalization and nine refused forms (two codes, a list, full-width letters, too short or long); each rejection reason in its fixed order; exclusive expiry to the millisecond; minimum tested before the discount; half-up discount and percentage bounds.
+
+**Integration (`coupons.int.test.ts`, real PostgreSQL, 11 tests):**
+
+- Database shape: lower-case or malformed code, percentage outside 1–10,000, negative minimum, zero limit, duplicate code, code change, version decrease, expiry before start, and any direct write of the use count (on insert or update) are refused.
+- One typed code in any case gives the half-up discount; a preview records nothing.
+- Unknown, malformed, inactive, not started, expired, below minimum and full coupons are rejected with the right reason and store code; expiry follows the database clock.
+- A use is recorded with its snapshot; the same order cannot redeem again with the same or another coupon; a later edit of the coupon does not change the snapshot; a redemption row cannot be altered.
+- Eight orders racing for three uses: exactly three succeed, five get `LIMIT_REACHED`, the count is 3; a direct insert past the limit is refused by the database.
+- Five concurrent releases of one order release once; the use is freed for the next order; a released row cannot be released again or revived; the released order cannot redeem again; the count matches the rows.
+- A failed order rolls back its use; a previewed, altered or previous-transaction coupon cannot be redeemed; the primitives refuse to run outside `withTransaction`.
+- An Owner edit waits for an order holding the coupon lock.
+- Runtime role: no UPDATE/DELETE/TRUNCATE on either table as a whole; column-level UPDATE on the editable terms and on `released_at` only.
+
+**`invariant-reviewer`:** no blockers. Done: redemption is bound to the coupon locked in the same transaction; the trigger is SECURITY DEFINER and the runtime role lost the right to write the use count, identity or redemption history; the rejection reason was removed from the contracts.
+
+Not covered: the last part of the runtime-role test (insert, refused direct count write and release while acting as `ih_app`) returns early on this machine because the test role cannot assume `ih_app`; CI runs it. Coupons behind a route or in the Owner screen (steps 69–71); release from a real cancellation (step 86).
+
+## Step 69 — Owner coupon administration and the Discounts screen (2026-10-12, local)
+
+`pnpm verify -- --integration`: exit 0, twice (before and after the review fixes). Unit 534 (admin 50), integration 394 (api 244), gateway 29, age-preview 1847, gate 1803. An earlier run stopped at lint on an unused variable in the new test.
+
+**Integration (`coupons.int.test.ts`, real API and PostgreSQL, 7 tests):**
+
+- Starts empty; all five routes answer 403 to Staff and 401 signed out; the repository refuses a missing actor.
+- Create stores the code in capitals, answers `no-store`, and writes exactly one audit entry and one `coupon.updated` event; the same code in another letter case is `DUPLICATE`.
+- Eighteen invalid bodies are 400 and store nothing: bad code, percentage 0, above 100 %, fractional or text, negative or fractional minimum, zero limit, bad date, end not after start, and `amountFils`, `brandId`, `type`, `activeRedemptions`. An active coupon that already ended is `ALREADY_EXPIRED` by the server clock; a coupon that ran out on its own can still be edited.
+- Edit: new version, status recomputed; a stale version is `VERSION_CONFLICT` and changes nothing; saving the same values writes nothing; the code cannot be edited; unknown ID is 404; two audit entries and events for two changes.
+- With two uses held by orders, lowering the limit to 1 is `LIMIT_BELOW_USES`, to 2 is accepted and shows "used up"; the use count cannot be sent.
+- Trash: deactivates, hides from the live list, lists under Trash, keeps the code reserved, makes the coupon unusable for an order; the database refuses an active trashed coupon; restore returns it inactive; no delete route.
+- Paging: newest first, bounded limit.
+
+**Unit (`coupons.test.ts`, admin):** percentage text to basis points without floating point (including 0.07 → 7) and nine refused forms; local date round trip; create and update commands; the summary sentence.
+
+**Real browser through the real gateway (headless Chromium, QA backend on an isolated schema, 16 checks, screenshots reviewed at 1366 px and 360 px):** Owner sees Discounts; empty state; a percentage above 100 is refused in the form; a code is created in capitals with the right sentence and "Live"; an edit shows version 2 and "Inactive"; a duplicate code shows its message; Move to Trash, the Trash tab, and Restore as inactive (version 4) work; no page errors or unexpected failed requests; no horizontal overflow at 360 px; Staff has no Discounts link and sees "Access unavailable" at the address.
+
+**`invariant-reviewer`:** no blockers; permission seeds, audit/outbox atomicity, version handling, lock order and input validation confirmed. Done: `ALREADY_EXPIRED` no longer blocks unrelated edits of a coupon that ran out; the table check on the limit maps to `LIMIT_BELOW_USES` instead of a server error.
+
+Not covered: dark theme and real mobile touch on this screen; two Owners editing at once in the browser (covered at the API); coupons in the store (steps 70–71).
+
+## Step 70 — delivery fee and quote assembly (2026-10-12, local)
+
+`pnpm verify -- --integration`: exit 0. Unit 534, integration 401 (db 100, api 245), gateway 29, age-preview 1847, gate 1867 (the new store route is in the refused list).
+
+**Integration (`quote.int.test.ts`, real PostgreSQL, 6 tests):**
+
+- No quote before the Owner configures delivery; an inactive area is still reported as unavailable.
+- A quote from server state only: merged lines, variant override or product price, 15 % of AED 219.99 = AED 33.00 shared 19.50/13.50, AED 15.00 delivery, total AED 201.99; area, configuration, product, variant and coupon versions present; a price and a fee sent on a line are ignored; a preview uses no coupon; a blank code means no coupon.
+- The same flat fee for a AED 1.00 order and a AED 10,000,000,000.00 order; the database refuses a free-delivery threshold.
+- Lines that cannot be filled are named; no stock movement is written and stock is unchanged.
+- A closed, unknown or malformed area, an unknown variant, an empty cart, a quantity of 11 and an unknown code each fail the whole quote; a coupon minimum is tested on merchandise before the discount.
+- Under locks the order gets exactly the preview's numbers; while it is open a fee change, an area deactivation, a price change and a coupon edit all wait; afterwards the closed area and the used-up coupon refuse the next quote, and a new quote shows the new fee, price and versions.
+
+**Integration (`store-catalog.int.test.ts`):** `GET /v1/store/delivery` is empty and unconfigured at first; then lists only active areas by emirate and name with the fee and ETA, with no code, version or staff field; an area switched off disappears from the next answer; an unverified request is 403.
+
+**`pnpm test:gate`:** the new route refuses the eight kinds of unverified request, cold and warm.
+
+**`invariant-reviewer`:** no blockers; lock order, client-input isolation, free-delivery handling and the refactor of `lockDeliverySelection` confirmed. Done: a named `QuoteInvariantError`; comments on the caps.
+
+Not covered: a quote through a route, its fingerprint and expiry (step 71); stock consumption (step 76).
+
+## Step 71 — signed quote and price acceptance (2026-10-12, local)
+
+`pnpm verify -- --integration`: exit 0, three times (before the browser pass, after a layout change, after the review fixes). Unit 548 (platform 84, storefront 97, config 31), integration 407 (api 251), gateway 29, age-preview 1847, gate 1928.
+
+**Unit:** fingerprint stable across line order and ID case and different for twelve kinds of change; token verifies until its expiry second, survives key rotation, and is refused when its expiry, fingerprint, signature, key or format is altered; `checkAcceptedQuote` accepts only unchanged facts in time (one fil either way is a change). Config: keys optional locally, purpose-bound, required in staging and production. Storefront: request key, the three comparison outcomes including a server-dropped code, when the shopper may proceed, the message for each API answer.
+
+**Integration (`cart-quote.int.test.ts`, real API and PostgreSQL, 6 tests):**
+
+- Four kinds of unverified request get 403 with no price, ETA, code or ID; a verified request without an Origin, from another site's Origin or marked cross-site is 403.
+- A quote for two lines with a code: the server's totals, the area, the coupon, the short line named; no version, product ID, coupon ID, area code or SKU in the body; the token verifies with the service's key and lasts about 900 seconds; the same cart gives the same fingerprint; nothing is reserved or recorded.
+- Order-time decision under locks: accepted when unchanged; still accepted after a description edit; `QUOTE_CHANGED` after a price drop of one fil and after a fee change; a new quote then shows the new total and a new fingerprint.
+- Twenty invalid bodies are 400, among them a client total, fee, discount, unit price, a list of codes and over-cap quantities.
+- Closed and unknown area, draft and unknown variant, unknown and inactive code, used-up code: one stable 409 code each, with no product name, ID or detailed reason.
+- The 31st quote in a minute from one address is 429.
+
+**`pnpm test:gate` (real API, storefront and gateway container):** the quote POST is refused for all eight kinds of unverified request, cold and warm, with no price, fee or product data; a verified quote through the gateway is 200 with the server's arithmetic (2 × AED 49.00, 10 % off, AED 15.00 delivery = AED 103.20), a signed token and `private, no-store`; a client total or price is 400; a draft product is `VARIANT_UNAVAILABLE` and not described; a missing or foreign Origin is refused; the delivery choices are exactly the active area, fee and ETA.
+
+**Real browser through the real gateway (headless Chromium against `test:gate -- --serve`, 23 checks, screenshots reviewed):** area list grouped by emirate; no total before an area is chosen; subtotal, delivery and total from the server; a quantity change re-prices (four quick taps cause one request); a valid code shows the discount and new total; after the fee is changed in the database, asking again announces "Your total changed from AED 103.20 to AED 108.20" and is not confirmed until "Accept new total"; after the accepted code is switched off, the higher total is announced and needs acceptance; an unknown code shows its message and the total without it; more than the stock is named and not confirmed; a closed area shows its message and no total; nothing about the quote is in localStorage or sessionStorage; no page errors; no overflow at 360 px.
+
+**`invariant-reviewer`:** no blockers. Done: a total that rises because the server dropped an accepted code now needs an explicit accept (found by the review, then confirmed in the browser); the "working" text no longer sticks when the request is withdrawn; the shared-key requirement for replicas is documented.
+
+Found by this step's own browser run: the expected amounts in the check script assumed two decimals where the storefront prints "AED 49"; the page was right and the script was corrected.
+
+Not covered: the order using the token (step 76); token expiry in the browser (15 minutes; covered in unit and API tests); dark theme and real mobile touch; a stricter limit for failed coupon attempts.
+
+## Step 72 — pricing and promotion acceptance pass (2026-10-12, local)
+
+`pnpm verify -- --integration`: exit 0. Unit 548, integration 414 (api 258), gateway 29, age-preview 1847, gate 1928. No production code changed in this step.
+
+**`apps/api/src/store/pricing-acceptance.int.test.ts` (real API and PostgreSQL, 7 tests).** The Owner configures areas, the fee, products, variants, stock and coupons through the admin API; a shopper is quoted through the store API; "an order" is the order transaction's quote step (`lockQuoteForOrder`), because order placement arrives in M7. Products are published by a direct write with a directly inserted ready image (publishing through the API needs the media pipeline and is covered by the publication and media tests).
+
+| Case     | Shown                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| PRICE-01 | Four lines over three variants merge to three; 15 % of AED 286.65 = AED 43.00 (half-up from 42.9975), shared 19.50 / 13.50 / 10.00 and adding up exactly; the same cart in another order gives identical lines and fingerprint; every amount is a safe integer; no tax field anywhere; quantities over 10 (also split over lines) are 400. The largest order the caps allow (AED 100,000,000.00, 33.33 % off) is exact; a price above the cap cannot be entered.                                                   |
+| PRICE-02 | Four order transactions race for a coupon's single use: one succeeds, three get `COUPON_LIMIT_REACHED`; the Owner's list shows 1 use and "used up"; a shopper is told the same; three concurrent releases release once and the next shopper can be quoted with the code; counts match the rows.                                                                                                                                                                                                                    |
+| PRICE-03 | Not started, inactive, ended (by the database clock) and unknown codes are `COUPON_INVALID`; the minimum is on merchandise before the discount and delivery does not count; a list of codes, a second code field, a client discount, percentage or total are 400; a fixed amount, a brand or product scope and a stacking flag cannot be created.                                                                                                                                                                  |
+| PRICE-04 | The same AED 15.00 fee in two emirates and for a larger order, with a null free-delivery threshold; a threshold cannot be configured (400); shoppers are offered active areas only; an inactive or unknown area is `AREA_UNAVAILABLE`; closing an area removes it from the list and refuses the next quote; reopening restores it.                                                                                                                                                                                 |
+| PRICE-05 | After a quote, a price rise, a price drop, a fee change and a coupon percentage change (each through the admin API) make the order-time decision `QUOTE_CHANGED`; a fresh quote has a new total and fingerprint and is accepted; restoring the value makes the original quote acceptable again. Another area at the same fee, a removed code and a changed quantity are also `QUOTE_CHANGED`; a closed area ends the order; an old token is `QUOTE_EXPIRED`; a token for a cheaper cart does not fit a larger one. |
+| M6 gate  | Twenty shoppers quoted the last unit at once all get the total; asking for three of one unit is priced and named as short; stock, the stock ledger and the coupon's use count are unchanged.                                                                                                                                                                                                                                                                                                                       |
+| PRICE-06 | Not applicable: prices are final as entered and there is no tax calculation (ADR 0036). `docs/acceptance.md` updated.                                                                                                                                                                                                                                                                                                                                                                                              |
+
+Found while writing this pass: my first hand-worked discount shares for PRICE-01 were wrong (19.49 instead of 19.50); the calculation in the product was right and the expected values were corrected after redoing the arithmetic. The admin API refuses to edit a variant of a product that would not be publishable (`PUBLISH_REQUIREMENTS`), so test products need a ready image; that rule is existing behaviour (ADR 0021).
+
+`invariant-reviewer` was not run for this step: it adds a test and documentation only.
+
+**M6 gate — "a cart has a trustworthy server quote; stock is not yet reserved for a cart".** Evidence: this pass; `cart-quote.int.test.ts`; `pnpm test:gate` (the quote through the real gateway, 1928 checks); the 23-check browser pass of step 71. Caveats: products in these checks are seeded or published by a direct write; the Owner has not entered real areas, a fee or coupons; the order that consumes a quote does not exist yet. The gate decision is Marina's.
+
+## Step 73 — order, line and status-history schema (2026-10-12, local)
+
+`pnpm verify -- --integration`: exit 0, twice (before and after the review fixes). Unit 550 (domain 144), integration 426 (db 124), gateway 29, age-preview 1847, gate 1928. An earlier run stopped at lint: the new test fixture used `Math.random`, which this project forbids; it now uses `node:crypto`.
+
+**Unit (`order-status.test.ts`):** the display number formats and reads back (`IH-001001`, typed forms, refusals); only a staff-entered order may start confirmed; edits only while pending or confirmed.
+
+**Integration (`orders.int.test.ts`, real PostgreSQL, 11 tests):**
+
+- Tables start empty; orders are numbered 1001, 1002; the number cannot be chosen or changed.
+- After the customer is renamed, the product renamed and repriced, the variant's SKU and price changed and the area renamed, the order and its line are unchanged; the customer, variant, product and area cannot be deleted.
+- All 30 pairs of statuses: the database accepts exactly the eight the domain allows. A delivered order has five history rows at versions 1–5 and its cash is still pending.
+- A status change without its history row, a history row for a status the order is not in, history that does not continue, a second way out of a status, a repeated command, and any history update or delete are refused. A store order cannot be slipped in as confirmed, cancelled or later through its first history row.
+- A cancellation needs a reason, a history reason and `not_collected`; cancelled is final.
+- While pending the address and the lines (with matching totals) can change; once processing, seven kinds of content change, line changes, line deletes and line inserts are refused, as is a content change in the update that starts processing. Identity changes and any version step other than +1 are refused at every stage.
+- Money: eight inconsistent order totals and seven inconsistent line amounts are refused; a discount is accepted only when order and lines change together; one line per variant.
+- Cash can be recorded only for a delivered order with amount, time and person; a cash record, delivery time, dispatch time, cancel reason and cancel time cannot be rewritten; a pending order cannot carry a dispatch time; a delivered order cannot be cancelled.
+- An order cannot be deleted even by the schema owner.
+- Incomplete or disallowed orders are refused: store order starting confirmed, manual order without an operator, unknown source, no lines, a reused creation key, ten malformed fields, a duplicate confirmation verifier.
+- Runtime role: no DELETE/TRUNCATE on the three tables, no UPDATE on history; it can insert an order and gets a number without a sequence grant (the insert part runs in CI).
+
+**Existing tests** that recorded coupon uses now use real orders through the `seedOrder` fixture; a use for an order that does not exist is refused.
+
+**`invariant-reviewer`:** two blockers and five should-fixes, all fixed before commit. Blockers: a NULL made the history check accept a first row of any status; and a store order could become confirmed with a single "creation" history row. Should-fixes: recorded cash, delivery and cancellation fields could be rewritten; contents could change in the same update that started processing; two writers could fork the history; an unchanged version was accepted; a pending order could carry a dispatch time. Each has a test above.
+
+Not covered: these rules exercised by a real order command (step 76 onward); the migration on a database with existing coupon uses (there is none anywhere). The dev database has the migration applied.
+
+## Step 74 — idempotent commands (2026-10-12, local)
+
+`pnpm verify -- --integration`: exit 0, twice (before and after the review fixes). Unit 550, integration 439 (db 137), gateway 29, age-preview 1847, gate 1928. An earlier run stopped at typecheck on the new test file.
+
+**Integration (`idempotency.int.test.ts`, real PostgreSQL, 13 tests):**
+
+- Payload hash: the same request in another field order hashes the same; four kinds of change hash differently; `undefined`, an array hole, a prototype-less object, a float, NaN, a date, a function and a bigint are refused.
+- Keys: only 22–128 URL-safe characters; the hash is bound to the scope.
+- A command runs once; three more calls with the same key and payload replay the stored answer; the record lasts 24 hours by default; the key is nowhere in the table.
+- A different payload on the same key is a conflict, runs nothing and leaves the first answer; the same key in another scope is independent.
+- A failing command leaves no record and the key works again with a corrected payload.
+- **Waiting, observed in `pg_stat_activity`:** a second request waits on the first one's uncommitted claim; when the first rolls back the waiter runs as the owner; when the first commits, a waiter with the same payload replays and one with a different payload conflicts.
+- Eight simultaneous identical requests run the command once; two different requests on one key: one wins, one conflicts.
+- A request that waits longer than its bound gets `IDEMPOTENCY_IN_PROGRESS` in under two seconds and replays after the first commits; a lock timeout set earlier in the transaction is put back after the claim.
+- A claim without an answer cannot commit; an answer is written once; the claim refuses to run outside `withTransaction`.
+- After expiry the key is refused with `CHECKOUT_RECOVERY_REQUIRED` and the order it created, runs nothing, and still conflicts for a different payload; an unexpired record cannot be deleted; cleanup removes the expired one.
+- Key, payload, scope, expiry and answer cannot be changed afterwards; an oversize answer, malformed hashes and scopes, a non-object answer, a short payload hash and a malformed key are refused; a nonsense wait or lifetime falls back to the bounds (60 seconds, 30 days); runtime role has no TRUNCATE.
+
+**`invariant-reviewer`:** no blockers; it confirmed the `ON CONFLICT DO NOTHING` claim is correct in every interleaving under Read Committed. Done: the previous lock timeout is restored instead of reset; a NaN wait no longer breaks the statement; array holes are refused; the concurrent rollback and commit cases are tested with real waiting; weak assertions replaced. Documented instead of changed: keys are checked for shape only, so answers must hold nothing sensitive; step 76 must look up the order's own key hash after the claim. Not changed: the trigger functions rely on the connection's schema like every other trigger in this project.
+
+Found by this step's own run: a check that put its assertion inside a callback whose error was swallowed; it was rewritten so a failure fails the test.
+
+Not covered: a real command using the claim (step 76); the HTTP mapping (step 77); the scheduled cleanup. The dev database has the migration applied.

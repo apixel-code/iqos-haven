@@ -20,7 +20,7 @@ export async function managementRequest<T>(
   signal?: AbortSignal,
 ): Promise<T> {
   if (
-    !/^\/(settings|staff|delivery-areas|brands|categories|products|inventory|media)(?:[/?]|$)/.test(
+    !/^\/(settings|staff|delivery-areas|coupons|brands|categories|products|inventory|media)(?:[/?]|$)/.test(
       path,
     ) ||
     path.includes("..") ||
@@ -164,6 +164,12 @@ export function managementError(error: unknown, mutation = false) {
       return "The upload took too long. Choose the file again.";
     if (error.status === 409 && error.code === "UPLOAD_MISSING")
       return "The file did not arrive. Choose the file again.";
+    if (error.status === 409 && error.code === "VERSION_CONFLICT")
+      return "Someone changed this meanwhile. Reload current values and try again.";
+    if (error.status === 409 && error.code === "LIMIT_BELOW_USES")
+      return "Orders already hold more uses than that limit. Choose a limit at or above the uses shown.";
+    if (error.status === 409 && error.code === "ALREADY_EXPIRED")
+      return "The end time has already passed. Choose a later end, or save the coupon as inactive.";
     if (error.status === 409 && error.code === "TRASHED")
       return "This record is in Trash. Restore it before making changes.";
     if (error.status === 409)

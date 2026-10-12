@@ -91,7 +91,7 @@ const document = {
         operationId: "deliveryAreasList",
         security: [{ adminSession: [] }],
         description:
-          "Requires delivery.manage. No-store list of active and inactive Dubai areas; no public selection endpoint. No prototype areas seeded.",
+          "Requires delivery.manage. No-store list of active and inactive UAE areas; no public selection endpoint. No prototype areas seeded.",
         parameters: [
           {
             name: "limit",
@@ -112,7 +112,7 @@ const document = {
         operationId: "deliveryAreaCreate",
         security: [{ adminSession: [] }],
         description:
-          "Owner configuration with delivery.manage; admin Origin/JSON. Create a client-approved Dubai area. Stable unique code and case-insensitive unique name; no zone fee/delete. Atomic audit and IDs-only event.",
+          "Owner configuration with delivery.manage; admin Origin/JSON. Create a client-approved area in one of the seven emirates. Stable unique code and case-insensitive unique name; no zone fee/delete. Atomic audit and IDs-only event.",
         requestBody: { required: true, content: content("DeliveryAreaCreateRequest") },
         responses: {
           201: {
@@ -145,7 +145,7 @@ const document = {
         operationId: "deliveryConfigurationRead",
         security: [{ adminSession: [] }],
         description:
-          "Requires delivery.manage. One flat Dubai fee/ETA; absent configuration is null/version 0. No defaults; no-store. Unknown query fields rejected.",
+          "Requires delivery.manage. One flat UAE-wide fee/ETA; absent configuration is null/version 0. No defaults; no-store. Unknown query fields rejected.",
         responses: {
           200: {
             description: "Current configuration",

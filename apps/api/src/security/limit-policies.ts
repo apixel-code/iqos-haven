@@ -86,6 +86,10 @@ export const DELIVERY_MANAGE_POLICY = {
   ...STAFF_MANAGE_POLICY,
   endpoint: "delivery.manage",
 } as const;
+export const COUPONS_MANAGE_POLICY = {
+  ...STAFF_MANAGE_POLICY,
+  endpoint: "coupons.manage",
+} as const;
 
 /** Catalogue edits are routine Staff work (about 50 products), so budgets are wider than config. */
 export const CATALOG_MANAGE_POLICY: EndpointLimitPolicy<"ip" | "actor"> = {
@@ -111,6 +115,16 @@ export const STORE_CATALOG_POLICY: EndpointLimitPolicy<"ip"> = {
   endpoint: "store_catalog",
   rules: { ip: perMinute(240) },
   outage: { fallback: { ip: perMinute(120) }, processCeiling: perMinute(6000) },
+};
+
+/**
+ * Quotes (step 71) read prices, the area and a coupon without a cache, and a wrong coupon code
+ * is answered here, so the budget is tight enough to make guessing codes slow.
+ */
+export const STORE_QUOTE_POLICY: EndpointLimitPolicy<"ip"> = {
+  endpoint: "store_quote",
+  rules: { ip: perMinute(30) },
+  outage: { fallback: { ip: perMinute(15) }, processCeiling: perMinute(1500) },
 };
 
 /**

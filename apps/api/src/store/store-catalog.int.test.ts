@@ -17,6 +17,7 @@ import {
   type StoreBrandsResponse,
   type StoreCartLinesResponse,
   type StoreCategoriesResponse,
+  type StoreDeliveryResponse,
   type StoreInfoResponse,
   type StoreProductCardsResponse,
   type StoreProductResponse,
@@ -757,6 +758,52 @@ describe("gated store catalogue reads (real API, PostgreSQL, Ed25519 ticket)", (
     );
     await cache.invalidate();
     expect(await json<StoreInfoResponse>("/info")).toEqual({ whatsappNumber: null });
+  });
+
+  it("lists active delivery areas and the flat fee for checkout, behind the age ticket", async () => {
+    expect(await json<StoreDeliveryResponse>("/delivery")).toEqual({
+      feeFils: null,
+      etaText: null,
+      freeThresholdFils: null,
+      areas: [],
+    });
+    const area = (code: string, name: string, emirate: string, active: boolean) =>
+      db.deliveryArea.create({ data: { code, name, emirate, active, updatedBy: staffId } });
+    const marina = await area("synthetic_marina", "Synthetic Marina", "dubai", true);
+    const corniche = await area("synthetic_corniche", "Synthetic Corniche", "abu_dhabi", true);
+    await area("synthetic_closed", "Synthetic Closed", "sharjah", false);
+    await db.setting.create({
+      data: {
+        key: "delivery",
+        updatedBy: staffId,
+        value: { flatFeeFils: 1500, etaText: "Synthetic ETA", freeThresholdFils: null },
+      },
+    });
+    const response = await get("/delivery");
+    const text = await response.text();
+    expect(response.headers.get("cache-control")).toBe("private, no-store");
+    // Active areas only, by emirate then name; no code, version or staff field.
+    expect(JSON.parse(text)).toEqual({
+      feeFils: 1500,
+      etaText: "Synthetic ETA",
+      freeThresholdFils: null,
+      areas: [
+        { id: corniche.id, name: "Synthetic Corniche", emirate: "abu_dhabi" },
+        { id: marina.id, name: "Synthetic Marina", emirate: "dubai" },
+      ],
+    });
+    for (const hidden of ["Synthetic Closed", "synthetic_marina", "updatedBy", "version"])
+      expect(text).not.toContain(hidden);
+    // Not cached: switching an area off removes it from the next answer.
+    await pool.query("UPDATE delivery_areas SET active=false, version=version+1 WHERE id=$1", [
+      marina.id,
+    ]);
+    expect((await json<StoreDeliveryResponse>("/delivery")).areas.map((item) => item.id)).toEqual([
+      corniche.id,
+    ]);
+    const unverified = await get("/delivery", {});
+    expect(unverified.status).toBe(403);
+    expect(await unverified.text()).not.toContain("Synthetic Corniche");
   });
 
   it("limits reads per client address", async () => {
