@@ -876,3 +876,28 @@ Not covered: dark theme and real mobile touch on this screen; two Owners editing
 **`invariant-reviewer`:** no blockers; lock order, client-input isolation, free-delivery handling and the refactor of `lockDeliverySelection` confirmed. Done: a named `QuoteInvariantError`; comments on the caps.
 
 Not covered: a quote through a route, its fingerprint and expiry (step 71); stock consumption (step 76).
+
+## Step 71 — signed quote and price acceptance (2026-10-12, local)
+
+`pnpm verify -- --integration`: exit 0, three times (before the browser pass, after a layout change, after the review fixes). Unit 548 (platform 84, storefront 97, config 31), integration 407 (api 251), gateway 29, age-preview 1847, gate 1928.
+
+**Unit:** fingerprint stable across line order and ID case and different for twelve kinds of change; token verifies until its expiry second, survives key rotation, and is refused when its expiry, fingerprint, signature, key or format is altered; `checkAcceptedQuote` accepts only unchanged facts in time (one fil either way is a change). Config: keys optional locally, purpose-bound, required in staging and production. Storefront: request key, the three comparison outcomes including a server-dropped code, when the shopper may proceed, the message for each API answer.
+
+**Integration (`cart-quote.int.test.ts`, real API and PostgreSQL, 6 tests):**
+
+- Four kinds of unverified request get 403 with no price, ETA, code or ID; a verified request without an Origin, from another site's Origin or marked cross-site is 403.
+- A quote for two lines with a code: the server's totals, the area, the coupon, the short line named; no version, product ID, coupon ID, area code or SKU in the body; the token verifies with the service's key and lasts about 900 seconds; the same cart gives the same fingerprint; nothing is reserved or recorded.
+- Order-time decision under locks: accepted when unchanged; still accepted after a description edit; `QUOTE_CHANGED` after a price drop of one fil and after a fee change; a new quote then shows the new total and a new fingerprint.
+- Twenty invalid bodies are 400, among them a client total, fee, discount, unit price, a list of codes and over-cap quantities.
+- Closed and unknown area, draft and unknown variant, unknown and inactive code, used-up code: one stable 409 code each, with no product name, ID or detailed reason.
+- The 31st quote in a minute from one address is 429.
+
+**`pnpm test:gate` (real API, storefront and gateway container):** the quote POST is refused for all eight kinds of unverified request, cold and warm, with no price, fee or product data; a verified quote through the gateway is 200 with the server's arithmetic (2 × AED 49.00, 10 % off, AED 15.00 delivery = AED 103.20), a signed token and `private, no-store`; a client total or price is 400; a draft product is `VARIANT_UNAVAILABLE` and not described; a missing or foreign Origin is refused; the delivery choices are exactly the active area, fee and ETA.
+
+**Real browser through the real gateway (headless Chromium against `test:gate -- --serve`, 23 checks, screenshots reviewed):** area list grouped by emirate; no total before an area is chosen; subtotal, delivery and total from the server; a quantity change re-prices (four quick taps cause one request); a valid code shows the discount and new total; after the fee is changed in the database, asking again announces "Your total changed from AED 103.20 to AED 108.20" and is not confirmed until "Accept new total"; after the accepted code is switched off, the higher total is announced and needs acceptance; an unknown code shows its message and the total without it; more than the stock is named and not confirmed; a closed area shows its message and no total; nothing about the quote is in localStorage or sessionStorage; no page errors; no overflow at 360 px.
+
+**`invariant-reviewer`:** no blockers. Done: a total that rises because the server dropped an accepted code now needs an explicit accept (found by the review, then confirmed in the browser); the "working" text no longer sticks when the request is withdrawn; the shared-key requirement for replicas is documented.
+
+Found by this step's own browser run: the expected amounts in the check script assumed two decimals where the storefront prints "AED 49"; the page was right and the script was corrected.
+
+Not covered: the order using the token (step 76); token expiry in the browser (15 minutes; covered in unit and API tests); dark theme and real mobile touch; a stricter limit for failed coupon attempts.

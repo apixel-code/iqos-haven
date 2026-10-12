@@ -118,6 +118,16 @@ export const STORE_CATALOG_POLICY: EndpointLimitPolicy<"ip"> = {
 };
 
 /**
+ * Quotes (step 71) read prices, the area and a coupon without a cache, and a wrong coupon code
+ * is answered here, so the budget is tight enough to make guessing codes slow.
+ */
+export const STORE_QUOTE_POLICY: EndpointLimitPolicy<"ip"> = {
+  endpoint: "store_quote",
+  rules: { ip: perMinute(30) },
+  outage: { fallback: { ip: perMinute(15) }, processCeiling: perMinute(1500) },
+};
+
+/**
  * Search and facets (step 60) are not cached, because the text is free-form, so their budget is
  * tighter than cached catalogue reads. Suggestions fire while typing and are cheaper.
  */

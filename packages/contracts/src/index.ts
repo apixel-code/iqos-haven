@@ -35,6 +35,13 @@ export const CONFLICT_CODES = [
   "MEDIA_NOT_READY",
   "ORDER_MISMATCH",
   "NOT_TRASHED",
+  /** Store quote and checkout reasons (architecture §7). */
+  "AREA_UNAVAILABLE",
+  "VARIANT_UNAVAILABLE",
+  "COUPON_INVALID",
+  "COUPON_LIMIT_REACHED",
+  "QUOTE_CHANGED",
+  "QUOTE_EXPIRED",
   /** A coupon's usage limit cannot go below the uses orders currently hold. */
   "LIMIT_BELOW_USES",
   /** An active coupon cannot end in the past. */

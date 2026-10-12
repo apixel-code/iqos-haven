@@ -1,6 +1,8 @@
 import { z } from "zod";
 import { ORDER_LIMITS, UAE_EMIRATES } from "@ih/domain";
 import { catalogueSlugSchema } from "./catalogue";
+import { orderLinesSchema } from "./checkout";
+import { couponCodeInputSchema } from "./coupons";
 import { disposableSpecsSchema, kitSpecsSchema, productFilsSchema } from "./products";
 
 /**
@@ -302,3 +304,54 @@ export const storeDeliveryResponseSchema = z.strictObject({
     .max(500),
 });
 export type StoreDeliveryResponse = z.infer<typeof storeDeliveryResponseSchema>;
+
+// --- Cart quote (roadmap step 71, ADR 0041) ---
+/**
+ * What a shopper asks a price for: lines, a delivery area and at most one code. There is no
+ * field for a price, a fee or a discount, and unknown fields are refused.
+ */
+export const storeQuoteRequestSchema = z.strictObject({
+  lines: orderLinesSchema,
+  areaId: z.uuid(),
+  couponCode: couponCodeInputSchema,
+});
+export type StoreQuoteRequest = z.input<typeof storeQuoteRequestSchema>;
+/**
+ * The authoritative total and the token that says the shopper saw it. Amounts are integer
+ * fils. `insufficientStock` names lines that cannot be filled right now; nothing is reserved.
+ * No stock number, version or internal reference appears.
+ */
+export const storeQuoteResponseSchema = z.strictObject({
+  lines: z
+    .array(
+      z.strictObject({
+        variantId: z.uuid(),
+        quantity: z.number().int().min(1),
+        unitPriceFils: productFilsSchema,
+        subtotalFils: z.number().int().min(0),
+        discountFils: z.number().int().min(0),
+        totalFils: z.number().int().min(0),
+      }),
+    )
+    .max(ORDER_LIMITS.maxLines),
+  merchandiseSubtotalFils: z.number().int().min(0),
+  discountFils: z.number().int().min(0),
+  deliveryFeeFils: z.number().int().min(0),
+  totalFils: z.number().int().min(0),
+  freeDeliveryThresholdFils: z.null(),
+  delivery: z.strictObject({
+    areaId: z.uuid(),
+    areaName: z.string(),
+    emirate: z.enum(UAE_EMIRATES),
+    etaText: z.string(),
+  }),
+  coupon: z.strictObject({ code: z.string(), percentBps: z.number().int() }).nullable(),
+  insufficientStock: z.array(z.uuid()).max(ORDER_LIMITS.maxLines),
+  quote: z.strictObject({
+    /** Sent back unchanged when placing the order; opaque to the client. */
+    token: z.string().max(256),
+    fingerprint: z.string().max(64),
+    expiresAt: z.iso.datetime(),
+  }),
+});
+export type StoreQuoteResponse = z.infer<typeof storeQuoteResponseSchema>;

@@ -58,3 +58,5 @@ API and worker share `PASSWORD_RESET_KEYS` from a secret manager: comma-separate
 ## Staff invitations (step 34)
 
 Set independent `STAFF_INVITATION_KEYS` on API/worker via a secret manager: comma-separated `invite:keyId:base64urlSecret` entries (>=32 random bytes). First entry issues; retained entries deliver pending links. Set `STAFF_INVITATION_ORIGIN` to a bare admin origin allowed by API `ADMIN_ORIGINS`, HTTPS outside development/test. Empty keys return 503 for issue/accept; revocation still works. Retain old keys through 24-hour expiry and rollout. Delivery uses the existing email disabled/allowlist controls. See ADR 0007.
+
+The API signs accepted quotes with `QUOTE_SIGNING_KEYS` from a secret manager: comma-separated `quote:keyId:base64urlSecret` entries (>=32 random bytes, independent of other purpose keys). The first entry signs; keep the previous one for `QUOTE_TTL_SECONDS` (default 900, 60–3600) after a rotation. Staging and production refuse to start without it, and every API replica must share the same ring. Left empty in development or test, the API uses a key created at start-up. See ADR 0041.
