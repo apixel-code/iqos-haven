@@ -86,6 +86,10 @@ export const DELIVERY_MANAGE_POLICY = {
   ...STAFF_MANAGE_POLICY,
   endpoint: "delivery.manage",
 } as const;
+export const COUPONS_MANAGE_POLICY = {
+  ...STAFF_MANAGE_POLICY,
+  endpoint: "coupons.manage",
+} as const;
 
 /** Catalogue edits are routine Staff work (about 50 products), so budgets are wider than config. */
 export const CATALOG_MANAGE_POLICY: EndpointLimitPolicy<"ip" | "actor"> = {

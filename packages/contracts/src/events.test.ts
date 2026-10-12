@@ -21,6 +21,7 @@ describe("event catalogue", () => {
         "settings.updated",
         "delivery.area_updated",
         "delivery.configuration_updated",
+        "coupon.updated",
         "catalog.changed",
         "content.published",
         "inventory.low",

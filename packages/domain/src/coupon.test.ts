@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   couponDiscount,
   couponRejection,
+  couponStatus,
   InvalidCouponCodeError,
   normalizeCouponCode,
   type CouponTerms,
@@ -95,5 +96,18 @@ describe("coupon eligibility", () => {
     expect(couponDiscount(1, 10000)).toBe(1);
     for (const bps of [0, -1, 10001, 15.5])
       expect(() => couponDiscount(100, bps)).toThrow(RangeError);
+  });
+});
+describe("coupon status", () => {
+  it("names the state the Owner sees", () => {
+    expect(couponStatus(coupon(), NOW, false)).toBe("live");
+    expect(couponStatus(coupon({ minSubtotalFils: 99999 }), NOW, false)).toBe("live");
+    expect(couponStatus(coupon({ active: false }), NOW, false)).toBe("inactive");
+    expect(couponStatus(coupon({ active: false }), NOW, true)).toBe("trashed");
+    expect(couponStatus(coupon({ startsAt: at("2027-01-01") }), NOW, false)).toBe("scheduled");
+    expect(couponStatus(coupon({ expiresAt: NOW }), NOW, false)).toBe("expired");
+    expect(couponStatus(coupon({ usageLimit: 2, activeRedemptions: 2 }), NOW, false)).toBe(
+      "used_up",
+    );
   });
 });

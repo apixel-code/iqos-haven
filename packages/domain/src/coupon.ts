@@ -58,3 +58,22 @@ export function couponDiscount(merchandiseSubtotalFils: number, percentBps: numb
     throw new RangeError("Coupon percentage must be 1 to 10000 basis points");
   return applyBasisPoints(fils(merchandiseSubtotalFils), percentBps);
 }
+export const COUPON_STATUSES = [
+  "trashed",
+  "inactive",
+  "scheduled",
+  "expired",
+  "used_up",
+  "live",
+] as const;
+export type CouponStatus = (typeof COUPON_STATUSES)[number];
+/** What the Owner sees for a coupon right now; `live` means an order could use it. */
+export function couponStatus(coupon: CouponTerms, now: Date, trashed: boolean): CouponStatus {
+  if (trashed) return "trashed";
+  const reason = couponRejection({ ...coupon, minSubtotalFils: 0 }, now, 0);
+  if (reason === "INACTIVE") return "inactive";
+  if (reason === "NOT_STARTED") return "scheduled";
+  if (reason === "EXPIRED") return "expired";
+  if (reason === "LIMIT_REACHED") return "used_up";
+  return "live";
+}

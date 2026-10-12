@@ -64,6 +64,13 @@ export const EVENT_CATALOGUE = {
     consumers: [],
     plannedConsumers: {},
   }),
+  "coupon.updated": define({
+    schemaVersion: 1,
+    aggregateType: "coupon",
+    payload: z.strictObject({ couponId: id }),
+    consumers: [],
+    plannedConsumers: {},
+  }),
   "settings.updated": define({
     schemaVersion: 1,
     aggregateType: "setting",

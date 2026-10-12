@@ -30,3 +30,4 @@ export * from "./store-catalogue";
 export * from "./store-search";
 export * from "./pricing";
 export * from "./coupons";
+export * from "./coupon-admin";

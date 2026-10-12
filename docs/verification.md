@@ -833,3 +833,25 @@ Not covered: a product actually changing brand between the two lock statements (
 **`invariant-reviewer`:** no blockers. Done: redemption is bound to the coupon locked in the same transaction; the trigger is SECURITY DEFINER and the runtime role lost the right to write the use count, identity or redemption history; the rejection reason was removed from the contracts.
 
 Not covered: the last part of the runtime-role test (insert, refused direct count write and release while acting as `ih_app`) returns early on this machine because the test role cannot assume `ih_app`; CI runs it. Coupons behind a route or in the Owner screen (steps 69–71); release from a real cancellation (step 86).
+
+## Step 69 — Owner coupon administration and the Discounts screen (2026-10-12, local)
+
+`pnpm verify -- --integration`: exit 0, twice (before and after the review fixes). Unit 534 (admin 50), integration 394 (api 244), gateway 29, age-preview 1847, gate 1803. An earlier run stopped at lint on an unused variable in the new test.
+
+**Integration (`coupons.int.test.ts`, real API and PostgreSQL, 7 tests):**
+
+- Starts empty; all five routes answer 403 to Staff and 401 signed out; the repository refuses a missing actor.
+- Create stores the code in capitals, answers `no-store`, and writes exactly one audit entry and one `coupon.updated` event; the same code in another letter case is `DUPLICATE`.
+- Eighteen invalid bodies are 400 and store nothing: bad code, percentage 0, above 100 %, fractional or text, negative or fractional minimum, zero limit, bad date, end not after start, and `amountFils`, `brandId`, `type`, `activeRedemptions`. An active coupon that already ended is `ALREADY_EXPIRED` by the server clock; a coupon that ran out on its own can still be edited.
+- Edit: new version, status recomputed; a stale version is `VERSION_CONFLICT` and changes nothing; saving the same values writes nothing; the code cannot be edited; unknown ID is 404; two audit entries and events for two changes.
+- With two uses held by orders, lowering the limit to 1 is `LIMIT_BELOW_USES`, to 2 is accepted and shows "used up"; the use count cannot be sent.
+- Trash: deactivates, hides from the live list, lists under Trash, keeps the code reserved, makes the coupon unusable for an order; the database refuses an active trashed coupon; restore returns it inactive; no delete route.
+- Paging: newest first, bounded limit.
+
+**Unit (`coupons.test.ts`, admin):** percentage text to basis points without floating point (including 0.07 → 7) and nine refused forms; local date round trip; create and update commands; the summary sentence.
+
+**Real browser through the real gateway (headless Chromium, QA backend on an isolated schema, 16 checks, screenshots reviewed at 1366 px and 360 px):** Owner sees Discounts; empty state; a percentage above 100 is refused in the form; a code is created in capitals with the right sentence and "Live"; an edit shows version 2 and "Inactive"; a duplicate code shows its message; Move to Trash, the Trash tab, and Restore as inactive (version 4) work; no page errors or unexpected failed requests; no horizontal overflow at 360 px; Staff has no Discounts link and sees "Access unavailable" at the address.
+
+**`invariant-reviewer`:** no blockers; permission seeds, audit/outbox atomicity, version handling, lock order and input validation confirmed. Done: `ALREADY_EXPIRED` no longer blocks unrelated edits of a coupon that ran out; the table check on the limit maps to `LIMIT_BELOW_USES` instead of a server error.
+
+Not covered: dark theme and real mobile touch on this screen; two Owners editing at once in the browser (covered at the API); coupons in the store (steps 70–71).

@@ -3,9 +3,9 @@
 ## Current position
 
 - Date: 2026-10-12
-- Milestone: M6 — customers, pricing, coupons and server quote: steps 65–68 done. M5: PASSED 2026-10-11. M4 steps done, gate awaits Marina's decision (publishing unblocked); M3 gate not closed; M0 review and M1 staging/fixtures still open
-- Step: 68 (percentage coupons) — done; next is 69
-- Branch: `step/68-coupons` (stacked: PR #47 step 66 → #48 business-input fixes → #49 step 67 → this step's PR; all wait for Marina's merge)
+- Milestone: M6 — customers, pricing, coupons and server quote: steps 65–69 done. M5: PASSED 2026-10-11. M4 steps done, gate awaits Marina's decision (publishing unblocked); M3 gate not closed; M0 review and M1 staging/fixtures still open
+- Step: 69 (Owner coupon administration, Discounts screen) — done; next is 70
+- Branch: `step/69-coupon-admin` (stacked: PR #47 step 66 → #48 business-input fixes → #49 step 67 → #50 step 68 → this step's PR; all wait for Marina's merge)
 - See docs/verification.md for actual checks.
 
 ## Next action
@@ -16,12 +16,12 @@
 - Toolchain: prefix commands with `export PATH="/opt/homebrew/opt/node@24/bin:$HOME/.docker/bin:$PATH"`. If Docker is down, run `open -a Docker` and then `pnpm infra:up`.
 - Marina's answers (2026-10-12, ADR 0036, docs/business-inputs.md): prices are final as entered, no tax calculation (BI-02); delivery covers the seven emirates at one flat fee (BI-03); minimum age 18 as built (BI-04); Hostinger VPS (BI-06); catalogue, Owner and staff are entered through the admin (BI-10/11); retention defaults chosen by Apixel (BI-08). Still open: BI-01, BI-09 (demo values for now), BI-05 (indexing stays off).
 
-1. **Marina merges on GitHub** ("Create a merge commit"). The open PRs are stacked, so merging only the last one (step 68) lands all of them; otherwise merge them in number order. Then `git checkout main && git pull --ff-only`.
-2. **Next step: `/step 69` (Owner coupon CRUD and discount admin screen), then 70–72.** None is blocked by a business input.
+1. **Marina merges on GitHub** ("Create a merge commit"). The open PRs are stacked, so merging only the last one (step 69) lands all of them; otherwise merge them in number order. Then `git checkout main && git pull --ff-only`.
+2. **Next step: `/step 70` (delivery fee calculation and quote assembly), then 71–72.** None is blocked by a business input. Step 70 is also where a store endpoint listing active areas for the checkout form belongs.
 3. **Rules that carry forward:**
    - Checkout input (ADR 0035): parse with `checkoutContactSchema`, `checkoutAddressSchema` and `orderLinesSchema` from `@ih/contracts`; never add a second copy of a rule or message. The route must map issues to the error envelope `fields` without echoing typed values. Pre-check the area with `readDeliverableArea`; the transaction decides again with `lockDeliverySelection`.
    - Pricing (ADR 0037): totals only through `priceOrder`/`priceOrderLines`; prices only from `readOrderPrices` (preview) or `lockOrderPrices` (order transaction, after settings/area and before coupons and variants). Never share-lock variant rows. Throw `TransactionRestartError` to restart a unit of work.
-   - Coupons (ADR 0038): in an order, `lockCouponForOrder` (after `lockOrderPrices`, before variants) then `redeemCoupon` with the object it returned; quotes use `previewCoupon`. A store route answers with `CouponRejectedError.code` only, never `.reason`. Step 69's edits must compare and bump `version`, write audit + outbox, and turn the database's refusal to lower a limit below the active uses into a clear message. Step 73 adds the `coupon_redemptions.order_id` foreign key. No other trigger may write `coupons`.
+   - Coupons (ADR 0038): in an order, `lockCouponForOrder` (after `lockOrderPrices`, before variants) then `redeemCoupon` with the object it returned; quotes use `previewCoupon`. A store route answers with `CouponRejectedError.code` only, never `.reason`. Step 73 adds the `coupon_redemptions.order_id` foreign key. No other trigger may write `coupons`.
    - Customers (ADR 0034): `lockCustomerForOrder`/`saveCustomerAddress` are for the order transaction only (steps 75–76): call `saveCustomerAddress` after `lockDeliverySelection`, and that transaction must write the audit entry and events.
    - Storefront pages: use `storeRead`; no `loading.tsx` under `(shop)`; never export data from a `"use client"` file to a server component; add new URLs to `scripts/check-age-preview.mjs` and, for anything touching the age boundary, `scripts/check-gate-e2e.cjs`.
    - Manual look with real data: `pnpm build && pnpm test:gate -- --serve` (prints URL, cookie, a variant ID). With stub data: `pnpm test:age-preview -- --serve`.
@@ -71,7 +71,8 @@ BI-07: a verified sending domain and sender address are still needed before real
 - 63 — device lists `ih_lists_v1` (saved, compare, recently viewed; slugs only), `GET /v1/store/product-cards`, heart on cards and product page, `/wishlist`, `/compare`, recently-viewed rail (ADR 0032) — 42da99d
 - 64 — store shell and home shell, `GET /v1/store/info` + WhatsApp links only when configured, `pnpm test:gate` real-stack age-boundary check (ADR 0033; BI-01/BI-09 pending) — 82ce9b9
 - 65 — `customers` + `customer_addresses` (phone-keyed, no credentials, immutable phone and address rows, no runtime delete), `normalizePhone`, transaction-only customer primitives (ADR 0034) — 209e62f
-- 68 — `coupons` + `coupon_redemptions` (trigger-maintained use count, limit check, release once, no delete), eligibility rules, `previewCoupon`/`lockCouponForOrder`/`redeemCoupon`/`releaseCouponRedemption` (ADR 0038) — `step(68)` commit on `step/68-coupons`
+- 69 — Owner coupon API (`/v1/admin/coupons`: list, create, versioned edit, trash, restore; audit + `coupon.updated`), `coupons.deleted_at`, Discounts admin screen (ADR 0039) — `step(69)` commit on `step/69-coupon-admin`
+- 68 — `coupons` + `coupon_redemptions` (trigger-maintained use count, limit check, release once, no delete), eligibility rules, `previewCoupon`/`lockCouponForOrder`/`redeemCoupon`/`releaseCouponRedemption` (ADR 0038) — fdab292
 - 67 — `priceOrder` (integer fils, one half-up percentage discount per order, largest-remainder line shares), `readOrderPrices`/`lockOrderPrices` with brand → category → product share locks, `TransactionRestartError` (ADR 0037) — 7538c3f
 - 66 — shared checkout validators (contact, address by type, Makani, notes, merged and capped lines), UAE-mobile-only phone, `readDeliverableArea` (ADR 0035; BI-03 pending) — `step(66)` commit on `step/66-checkout-validation`
 
@@ -81,26 +82,28 @@ BI-07: a verified sending domain and sender address are still needed before real
 - Event `consumers` lists only implemented consumers (now `system_probe`, `email`, `media_processor`, `storefront_revalidate`); planned ones are documented with roadmap steps and move in with a backfill decision (architecture §8: adding a consumer must not redefine old completions).
 - `audit_log` migration revokes UPDATE/DELETE/TRUNCATE only from a role named `ih_app`; other runtime role names must be revoked at provisioning (trigger blocks mutations regardless).
 
-## Last session handoff (2026-10-12, step 68)
+## Last session handoff (2026-10-12, step 69)
 
 Done:
 
-- **Step 68 (ADR 0038):** migration `20261012000300_coupons`; `Coupon`/`CouponRedemption` models; `packages/domain/src/coupon.ts`; `packages/contracts/src/coupons.ts`; `packages/db/src/coupons.ts`. No route or screen.
-- **`invariant-reviewer`:** no blockers; hardening done (lock-bound redemption, definer trigger, column-level grants, reason kept out of contracts).
+- **Step 69 (ADR 0039):** migration `20261012000400_coupon_trash`; `packages/db/src/coupon-admin.ts`; admin contracts and `coupon.updated` event; `apps/api/src/coupons/`; admin `lib/coupons.ts`, `components/coupon-management.tsx`, "Discounts" navigation section.
+- **Browser pass** on the new screen through the real gateway: 16 checks PASS.
+- **`invariant-reviewer`:** no blockers; two should-fixes done.
+- Dev database migrated through `20261012000400`.
 
-Files: `packages/db/prisma/{schema.prisma,migrations/20261012000300_coupons/migration.sql}`, `packages/db/src/{coupons.ts,coupons.int.test.ts,index.ts}`, `packages/domain/src/{coupon.ts,coupon.test.ts,index.ts}`, `packages/contracts/src/{coupons.ts,index.ts}`, `docs/decisions/0038-percentage-coupons.md`, `docs/{implementation-status,task-backlog,verification}.md`, `PROGRESS.md`.
+Files: `packages/db/prisma/{schema.prisma,migrations/20261012000400_coupon_trash/migration.sql}`, `packages/db/src/{coupon-admin.ts,index.ts}`, `packages/domain/src/{coupon.ts,coupon.test.ts}`, `packages/contracts/src/{coupons.ts,events.ts,events.test.ts,index.ts}`, `apps/api/src/{coupons/*,app.module.ts,security/limit-policies.ts}`, `apps/admin/{lib/coupons.ts,lib/coupons.test.ts,lib/management.ts,lib/navigation.ts,lib/navigation.test.ts,components/coupon-management.tsx,components/workspace-section.tsx}`, `docs/decisions/0039-owner-coupon-administration.md`, `docs/{implementation-status,task-backlog,verification}.md`, `PROGRESS.md`.
 
-Tests: `pnpm verify -- --integration` PASS (unit 527, integration 387, gateway 29, age-preview 1847, gate 1803).
+Tests: `pnpm verify -- --integration` PASS (unit 534, integration 394, gateway 29, age-preview 1847, gate 1803).
 
 Unfinished:
 
-- PRs #47, #48, #49 and the step-68 PR wait for Marina's merge. M4 gate awaits her decision.
-- The coupons migration is not applied to the dev database (`pnpm db:migrate`).
-- The admin product and delivery screens were not opened in a browser after the ADR 0036 change; `scripts/browser-qa/qa.mjs` still expects a disabled Publish button for its QA product.
+- PRs #47–#50 and the step-69 PR wait for Marina's merge. M4 gate awaits her decision.
+- The admin product and delivery screens were not opened in a browser after the ADR 0036 change; `scripts/browser-qa/qa.mjs` still expects a disabled Publish button for its QA product and has no coupon checks (the step-69 pass used a one-off script).
 - No store endpoint lists active areas for the checkout form; the Owner has not entered areas, fee or ETA.
 
 ## History (summary)
 
+- 2026-10-12 step 68: percentage coupons (fdab292, PR #50); verify unit 527/integration 387/gateway 29/age-preview 1847/gate 1803.
 - 2026-10-12 step 67 and business-input fixes: integer pricing (7538c3f, PR #49); final prices and UAE delivery (84f2e52, PR #48); verify unit 521/integration 376/gateway 29/age-preview 1847/gate 1803.
 - 2026-10-11 step 66: checkout input validation (PR #47); verify unit 509/integration 371/gateway 29/age-preview 1847/gate 1803.
 - 2026-10-11 step 65: guest customers, addresses, phone identity (209e62f, merged with PR #46); verify unit 496/integration 369/gateway 29/age-preview 1847/gate 1803.
@@ -108,7 +111,3 @@ Unfinished:
 - 2026-10-11 step 63: saved items, compare, recently viewed (42da99d); verify unit 486/integration 357/gateway 29/age-preview 1828.
 - 2026-10-11 step 62: device cart UI and refresh route (ef4fbbf); verify unit 478/integration 356/gateway 29/age-preview 1676.
 - 2026-10-11 step 61: product page, selection rules, quick add, device cart store (8438b20); verify unit 470/integration 355/gateway 29/age-preview 1600.
-- 2026-10-11 steps 55–61: age ticket, gate routes, generic preview, store API, listing pages, search, product page (0a4c250 … 8438b20); details in docs/verification.md.
-- 2026-10-11 steps 53–54: low-stock transitions (8adc131), acceptance pass + browser QA 32/32 (5e65bda).
-- 2026-10-10 steps 46–52: stock ledger, set-stock, media upload/processing, gallery, publication, catalogue cache (0923c1f … 00e4bfc); details per step in docs/verification.md.
-- 2026-10-08 … 10-10 steps 18–45: reliability foundation (audit/outbox/effects/worker/scheduler, M2 gate), email/storage/service auth, identity/sessions/RBAC/CSRF/limiters/reset/invites/staff/settings/delivery (M3 steps), catalogue schema, brands/categories/products/variants — details per step in docs/verification.md and git history.
