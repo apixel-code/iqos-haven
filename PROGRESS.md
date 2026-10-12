@@ -3,9 +3,9 @@
 ## Current position
 
 - Date: 2026-10-12
-- Milestone: M7 — transactional checkout and first complete order: step 73 done. M6: all steps (65–72) done; gate evidence ready, awaiting Marina's decision. M5: PASSED 2026-10-11. M4 steps done, gate awaits Marina's decision (publishing unblocked); M3 gate not closed; M0 review and M1 staging/fixtures still open
-- Step: 73 (order, line and status-history schema) — done; next is 74
-- Branch: `step/73-order-schema` (stacked on PRs #47–#54: step 66, business-input fixes, steps 67–72; all wait for Marina's merge)
+- Milestone: M7 — transactional checkout and first complete order: steps 73–74 done. M6: all steps (65–72) done; gate evidence ready, awaiting Marina's decision. M5: PASSED 2026-10-11. M4 steps done, gate awaits Marina's decision (publishing unblocked); M3 gate not closed; M0 review and M1 staging/fixtures still open
+- Step: 74 (idempotent commands) — done; next is 75
+- Branch: `step/74-idempotency` (stacked on PRs #47–#55: step 66, business-input fixes, steps 67–73; all wait for Marina's merge)
 - See docs/verification.md for actual checks.
 
 ## Next action
@@ -16,12 +16,13 @@
 - Toolchain: prefix commands with `export PATH="/opt/homebrew/opt/node@24/bin:$HOME/.docker/bin:$PATH"`. If Docker is down, run `open -a Docker` and then `pnpm infra:up`.
 - Marina's answers (2026-10-12, ADR 0036, docs/business-inputs.md): prices are final as entered, no tax calculation (BI-02); delivery covers the seven emirates at one flat fee (BI-03); minimum age 18 as built (BI-04); Hostinger VPS (BI-06); catalogue, Owner and staff are entered through the admin (BI-10/11); retention defaults chosen by Apixel (BI-08). Still open: BI-01, BI-09 (demo values for now), BI-05 (indexing stays off).
 
-1. **Marina merges on GitHub** ("Create a merge commit"). The open PRs are stacked, so merging only the last one (step 73) lands all of them; otherwise merge them in number order. Then `git checkout main && git pull --ff-only`.
+1. **Marina merges on GitHub** ("Create a merge commit"). The open PRs are stacked, so merging only the last one (step 74) lands all of them; otherwise merge them in number order. Then `git checkout main && git pull --ff-only`.
 2. **Marina: decide the M6 gate (and M4).** Evidence and caveats: docs/verification.md "Step 72".
-3. **Next step: `/step 74` (database idempotency claim/replay: `idempotency_records`, `IdempotencyService`).** Find the row with `rg -n "^| 74 " docs/roadmap.md`; architecture §7 (`rg -n "^## 7" docs/architecture.md`). M7 code stays behind a flag until the checkout correctness gate.
+3. **Next step: `/step 75` (canonical lock-order transaction helpers), then 76 (atomic order creation).** Find the row with `rg -n "^| 75 " docs/roadmap.md`. Most primitives exist: `claimIdempotency`, `lockCustomerForOrder`, `lockQuoteForOrder` (settings/area → catalogue → coupon), then variants for stock. M7 code stays behind a flag until the checkout correctness gate.
 4. **Rules that carry forward:**
    - Checkout input (ADR 0035): parse with `checkoutContactSchema`, `checkoutAddressSchema` and `orderLinesSchema` from `@ih/contracts`; never add a second copy of a rule or message. The route must map issues to the error envelope `fields` without echoing typed values. Pre-check the area with `readDeliverableArea`; the transaction decides again with `lockDeliverySelection`.
    - Pricing (ADR 0037): totals only through `priceOrder`/`priceOrderLines`; prices only from `readOrderPrices` (preview) or `lockOrderPrices` (order transaction, after settings/area and before coupons and variants). Never share-lock variant rows. Throw `TransactionRestartError` to restart a unit of work.
+   - Idempotency (ADR 0043): an at-most-once command runs inside `runIdempotent` (or claims with `claimIdempotency` as its first statement) with `canonicalPayloadHash` of the normalized request. Order creation (step 76) must, right after the claim, look up `orders (creation_scope, creation_key_hash)` with the same `idempotencyKeyHash` and scope and throw `IdempotencyExpiredError` if an order exists, and store `canonicalPayloadHash` as `creation_payload_hash`. Stored answers hold no phone, name, address, token or capability. Step 77 maps `IDEMPOTENCY_IN_PROGRESS` and exhausted contention to a retryable status and wires the cleanup job.
    - Orders (ADR 0042): a command that changes an order writes the history row (with its command ID) and sets `version = version + 1` in the same transaction, or the commit fails; contents change only while pending/confirmed; recorded cash, delivery and cancellation fields are written once. Store only hashes of the idempotency key and confirmation capability. Tests that need an order use `seedOrder` from `@ih/db/testing`. Step 76 adds order reasons/references to `stock_movements`.
    - Deferred by Marina's decision (2026-10-12): the stricter rate limit for failed coupon attempts is built in step 77 together with the order submission limiter; the other review nits of steps 71 and 73 (subtotal label, cap alignment, `search_path` on the order triggers) stay as they are. Whether an order edit may remove a line is decided in step 85.
    - Accepting a total (ADR 0041): the order request carries the quote token; inside the transaction call `checkAcceptedQuote(token, CartQuoteService.keys, now, quoteFacts(await lockQuoteForOrder(...)))` and answer 409 `QUOTE_CHANGED`/`QUOTE_EXPIRED` unless it is `ACCEPTED`. The storefront keeps area, code, total and token in memory only (`lib/cart/quote.ts`, `components/cart-quote.tsx`).
@@ -77,7 +78,8 @@ BI-07: a verified sending domain and sender address are still needed before real
 - 63 — device lists `ih_lists_v1` (saved, compare, recently viewed; slugs only), `GET /v1/store/product-cards`, heart on cards and product page, `/wishlist`, `/compare`, recently-viewed rail (ADR 0032) — 42da99d
 - 64 — store shell and home shell, `GET /v1/store/info` + WhatsApp links only when configured, `pnpm test:gate` real-stack age-boundary check (ADR 0033; BI-01/BI-09 pending) — 82ce9b9
 - 65 — `customers` + `customer_addresses` (phone-keyed, no credentials, immutable phone and address rows, no runtime delete), `normalizePhone`, transaction-only customer primitives (ADR 0034) — 209e62f
-- 73 — `orders`, `order_items`, `order_status_history` (snapshots, six-state machine and money consistency enforced in the database, display number `IH-001001`, coupon redemption foreign key), `seedOrder` fixture (ADR 0042) — `step(73)` commit on `step/73-order-schema`
+- 74 — `idempotency_records` and the claim/replay functions: replay, conflict, bounded in-progress wait, clean rollback, never new after expiry (ADR 0043) — `step(74)` commit on `step/74-idempotency`
+- 73 — `orders`, `order_items`, `order_status_history` (snapshots, six-state machine and money consistency enforced in the database, display number `IH-001001`, coupon redemption foreign key), `seedOrder` fixture (ADR 0042) — f86a7ba
 - 72 — pricing and promotion acceptance pass: `pricing-acceptance.int.test.ts` (PRICE-01 to PRICE-05 across admin API, store API and the order quote step; PRICE-06 not applicable) — 56f0099
 - 71 — `POST /v1/store/cart/quote` with a signed quote token and fingerprint, `checkAcceptedQuote`, `QUOTE_SIGNING_KEYS`, cart page total with explicit acceptance of a changed total (ADR 0041) — 1c8fe30
 - 70 — `previewQuote`/`lockQuoteForOrder` (one assembly, flat fee, free delivery off, version references), `GET /v1/store/delivery` (ADR 0040) — 201efd7
@@ -92,30 +94,30 @@ BI-07: a verified sending domain and sender address are still needed before real
 - Event `consumers` lists only implemented consumers (now `system_probe`, `email`, `media_processor`, `storefront_revalidate`); planned ones are documented with roadmap steps and move in with a backfill decision (architecture §8: adding a consumer must not redefine old completions).
 - `audit_log` migration revokes UPDATE/DELETE/TRUNCATE only from a role named `ih_app`; other runtime role names must be revoked at provisioning (trigger blocks mutations regardless).
 
-## Last session handoff (2026-10-12, step 73)
+## Last session handoff (2026-10-12, step 74)
 
 Done:
 
-- **Step 73 (ADR 0042):** migration `20261012000500_orders`; `Order`, `OrderItem`, `OrderStatusHistory` models; order number, source and cash-status helpers in `@ih/domain`; `seedOrder` test fixture; coupon and quote tests moved onto real orders. Schema only.
-- **`invariant-reviewer`:** two blockers and five should-fixes found in the first version of the migration; all fixed and tested before commit.
-- Dev database migrated through `20261012000500`.
+- **Step 74 (ADR 0043):** migration `20261012000600_idempotency_records`; `IdempotencyRecord` model; `packages/db/src/idempotency.ts`; three new conflict codes. No caller yet.
+- **`invariant-reviewer`:** no blockers; should-fixes done or documented.
+- Dev database migrated through `20261012000600`.
 
-Files: `packages/db/prisma/{schema.prisma,migrations/20261012000500_orders/migration.sql}`, `packages/db/src/{orders.int.test.ts,test-schema.ts,coupons.int.test.ts,quote.int.test.ts}`, `packages/domain/src/{order-status.ts,order-status.test.ts}`, `apps/api/src/{coupons/coupons.int.test.ts,store/cart-quote.int.test.ts,store/pricing-acceptance.int.test.ts}`, `docs/decisions/0042-order-schema.md`, `docs/{implementation-status,task-backlog,verification}.md`, `PROGRESS.md`.
+Files: `packages/db/prisma/{schema.prisma,migrations/20261012000600_idempotency_records/migration.sql}`, `packages/db/src/{idempotency.ts,idempotency.int.test.ts,index.ts}`, `packages/contracts/src/index.ts`, `docs/decisions/0043-idempotent-commands.md`, `docs/{implementation-status,task-backlog,verification}.md`, `PROGRESS.md`.
 
-Tests: `pnpm verify -- --integration` PASS (unit 550, integration 426, gateway 29, age-preview 1847, gate 1928).
+Tests: `pnpm verify -- --integration` PASS (unit 550, integration 439, gateway 29, age-preview 1847, gate 1928).
 
 Unfinished:
 
-- PRs #47–#54 and the step-73 PR wait for Marina's merge. M4 and M6 gates await her decision.
+- PRs #47–#55 and the step-74 PR wait for Marina's merge. M4 and M6 gates await her decision.
 - Nothing creates an order yet; the Checkout button is still disabled.
 - The admin product and delivery screens were not opened in a browser after the ADR 0036 change; `scripts/browser-qa/qa.mjs` still expects a disabled Publish button for its QA product and has no coupon checks.
 - The Owner has not entered areas, fee or ETA, so the dev storefront shows "Delivery is not available yet."
 
 ## History (summary)
 
+- 2026-10-12 step 73: order schema (f86a7ba, PR #55); verify unit 550/integration 426/gateway 29/age-preview 1847/gate 1928.
 - 2026-10-12 step 72: pricing and promotion acceptance pass (56f0099, PR #54); verify unit 548/integration 414/gateway 29/age-preview 1847/gate 1928.
 - 2026-10-12 step 71: signed quote API, cart total and acceptance (1c8fe30, PR #53); verify unit 548/integration 407/gateway 29/age-preview 1847/gate 1928; browser 23 checks.
 - 2026-10-12 step 70: quote assembly and store delivery route (201efd7, PR #52); verify unit 534/integration 401/gateway 29/age-preview 1847/gate 1867.
 - 2026-10-12 step 69: Owner coupon administration and Discounts screen (1bdaa54, PR #51); verify unit 534/integration 394/gateway 29/age-preview 1847/gate 1803; browser 16 checks.
 - 2026-10-12 step 68: percentage coupons (fdab292, PR #50); verify unit 527/integration 387/gateway 29/age-preview 1847/gate 1803.
-- 2026-10-12 step 67 and business-input fixes: integer pricing (7538c3f, PR #49); final prices and UAE delivery (84f2e52, PR #48); verify unit 521/integration 376/gateway 29/age-preview 1847/gate 1803.

@@ -949,3 +949,27 @@ Found while writing this pass: my first hand-worked discount shares for PRICE-01
 **`invariant-reviewer`:** two blockers and five should-fixes, all fixed before commit. Blockers: a NULL made the history check accept a first row of any status; and a store order could become confirmed with a single "creation" history row. Should-fixes: recorded cash, delivery and cancellation fields could be rewritten; contents could change in the same update that started processing; two writers could fork the history; an unchanged version was accepted; a pending order could carry a dispatch time. Each has a test above.
 
 Not covered: these rules exercised by a real order command (step 76 onward); the migration on a database with existing coupon uses (there is none anywhere). The dev database has the migration applied.
+
+## Step 74 — idempotent commands (2026-10-12, local)
+
+`pnpm verify -- --integration`: exit 0, twice (before and after the review fixes). Unit 550, integration 439 (db 137), gateway 29, age-preview 1847, gate 1928. An earlier run stopped at typecheck on the new test file.
+
+**Integration (`idempotency.int.test.ts`, real PostgreSQL, 13 tests):**
+
+- Payload hash: the same request in another field order hashes the same; four kinds of change hash differently; `undefined`, an array hole, a prototype-less object, a float, NaN, a date, a function and a bigint are refused.
+- Keys: only 22–128 URL-safe characters; the hash is bound to the scope.
+- A command runs once; three more calls with the same key and payload replay the stored answer; the record lasts 24 hours by default; the key is nowhere in the table.
+- A different payload on the same key is a conflict, runs nothing and leaves the first answer; the same key in another scope is independent.
+- A failing command leaves no record and the key works again with a corrected payload.
+- **Waiting, observed in `pg_stat_activity`:** a second request waits on the first one's uncommitted claim; when the first rolls back the waiter runs as the owner; when the first commits, a waiter with the same payload replays and one with a different payload conflicts.
+- Eight simultaneous identical requests run the command once; two different requests on one key: one wins, one conflicts.
+- A request that waits longer than its bound gets `IDEMPOTENCY_IN_PROGRESS` in under two seconds and replays after the first commits; a lock timeout set earlier in the transaction is put back after the claim.
+- A claim without an answer cannot commit; an answer is written once; the claim refuses to run outside `withTransaction`.
+- After expiry the key is refused with `CHECKOUT_RECOVERY_REQUIRED` and the order it created, runs nothing, and still conflicts for a different payload; an unexpired record cannot be deleted; cleanup removes the expired one.
+- Key, payload, scope, expiry and answer cannot be changed afterwards; an oversize answer, malformed hashes and scopes, a non-object answer, a short payload hash and a malformed key are refused; a nonsense wait or lifetime falls back to the bounds (60 seconds, 30 days); runtime role has no TRUNCATE.
+
+**`invariant-reviewer`:** no blockers; it confirmed the `ON CONFLICT DO NOTHING` claim is correct in every interleaving under Read Committed. Done: the previous lock timeout is restored instead of reset; a NaN wait no longer breaks the statement; array holes are refused; the concurrent rollback and commit cases are tested with real waiting; weak assertions replaced. Documented instead of changed: keys are checked for shape only, so answers must hold nothing sensitive; step 76 must look up the order's own key hash after the claim. Not changed: the trigger functions rely on the connection's schema like every other trigger in this project.
+
+Found by this step's own run: a check that put its assertion inside a callback whose error was swallowed; it was rewritten so a failure fails the test.
+
+Not covered: a real command using the claim (step 76); the HTTP mapping (step 77); the scheduled cleanup. The dev database has the migration applied.

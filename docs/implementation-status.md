@@ -88,6 +88,7 @@
 - Step 71 (ADR 0041): `POST /v1/store/cart/quote` (`CartQuoteController`) with a signed, 15-minute quote token over a fingerprint of what is charged; `quoteFingerprint`, `signQuote`, `verifyQuote`, `checkAcceptedQuote` in `@ih/platform`; `QUOTE_SIGNING_KEYS`/`QUOTE_TTL_SECONDS`; the cart page shows the server total for a chosen area and code and asks for explicit acceptance when it changes. The order-time check is wired in step 76.
 - Step 72: pricing and promotion acceptance pass — `apps/api/src/store/pricing-acceptance.int.test.ts` walks PRICE-01 to PRICE-05 across the admin API, the store API and the order transaction's quote step; PRICE-06 is not applicable (ADR 0036). All M6 steps (65–72) are done.
 - Step 73 (ADR 0042): `orders`, `order_items`, `order_status_history` with snapshots, the six-state machine and money consistency enforced in the database (commit-time checks), the display number `IH-001001`, hashes only for keys and capabilities, and the `coupon_redemptions.order_id` foreign key. Schema only: nothing creates an order yet.
+- Step 74 (ADR 0043): `idempotency_records` and `claimIdempotency`, `completeIdempotency`, `runIdempotent`, `canonicalPayloadHash`, `idempotencyKeyHash`, `deleteExpiredIdempotencyRecords` in `@ih/db`: replay for the same key and payload, conflict for a changed payload, bounded wait while in progress, nothing left after a rollback, never new after expiry. No caller yet.
 
 - Uploaded architecture, ordered roadmap, corrected prototypes, derived requirements/design/acceptance/database/security/operational references.
 

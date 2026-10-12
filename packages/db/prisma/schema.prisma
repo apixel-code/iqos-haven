@@ -670,3 +670,20 @@ model OrderStatusHistory {
   @@map("order_status_history")
 }
 
+/// One accepted command key and the answer to replay for it (step 74). Hashes only.
+model IdempotencyRecord {
+  id           String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  scope        String   @db.VarChar(64)
+  keyHash      Bytes    @map("key_hash")
+  payloadHash  Bytes    @map("payload_hash")
+  response     Json?
+  resourceType String?  @map("resource_type") @db.VarChar(32)
+  resourceId   String?  @map("resource_id") @db.Uuid
+  createdAt    DateTime @default(dbgenerated("statement_timestamp()")) @map("created_at") @db.Timestamptz(6)
+  expiresAt    DateTime @map("expires_at") @db.Timestamptz(6)
+
+  @@unique([scope, keyHash], map: "idempotency_records_key")
+  @@index([expiresAt], map: "idempotency_records_expiry")
+  @@map("idempotency_records")
+}
+

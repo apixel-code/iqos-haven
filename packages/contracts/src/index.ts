@@ -42,6 +42,10 @@ export const CONFLICT_CODES = [
   "COUPON_LIMIT_REACHED",
   "QUOTE_CHANGED",
   "QUOTE_EXPIRED",
+  /** Idempotent commands (architecture §7). */
+  "IDEMPOTENCY_CONFLICT",
+  "IDEMPOTENCY_IN_PROGRESS",
+  "CHECKOUT_RECOVERY_REQUIRED",
   /** A coupon's usage limit cannot go below the uses orders currently hold. */
   "LIMIT_BELOW_USES",
   /** An active coupon cannot end in the past. */
