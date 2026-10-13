@@ -1313,6 +1313,11 @@
           "area": {
             "type": "object",
             "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
               "code": { "type": "string", "minLength": 1, "maxLength": 64 },
               "name": { "type": "string", "minLength": 1, "maxLength": 100 },
               "emirate": { "type": "string", "minLength": 1, "maxLength": 16 }
@@ -1401,6 +1406,7 @@
             "format": "date-time",
             "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
           },
+          "operationalNote": { "nullable": true, "type": "string", "maxLength": 500 },
           "items": {
             "minItems": 1,
             "type": "array",
@@ -1408,6 +1414,11 @@
               "type": "object",
               "properties": {
                 "id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "variantId": {
                   "type": "string",
                   "format": "uuid",
                   "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
@@ -1518,6 +1529,130 @@
               ],
               "additionalProperties": false
             }
+          },
+          "edits": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "orderVersion": { "type": "integer", "minimum": 2, "maximum": 9007199254740991 },
+                "actor": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "name": { "type": "string", "minLength": 1, "maxLength": 100 }
+                  },
+                  "required": ["id", "name"],
+                  "additionalProperties": false
+                },
+                "editedAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                },
+                "diff": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "before": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "sku": { "type": "string", "minLength": 1, "maxLength": 64 },
+                              "quantity": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 9007199254740991
+                              }
+                            },
+                            "required": ["sku", "quantity"],
+                            "additionalProperties": false
+                          }
+                        },
+                        "after": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "sku": { "type": "string", "minLength": 1, "maxLength": 64 },
+                              "quantity": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 9007199254740991
+                              }
+                            },
+                            "required": ["sku", "quantity"],
+                            "additionalProperties": false
+                          }
+                        }
+                      },
+                      "required": ["before", "after"],
+                      "additionalProperties": false
+                    },
+                    "coupon": {
+                      "type": "object",
+                      "properties": {
+                        "before": { "nullable": true, "type": "string" },
+                        "after": { "nullable": true, "type": "string" }
+                      },
+                      "required": ["before", "after"],
+                      "additionalProperties": false
+                    },
+                    "delivery": {
+                      "type": "object",
+                      "properties": {
+                        "beforeArea": { "type": "string" },
+                        "afterArea": { "type": "string" },
+                        "addressChanged": { "type": "boolean", "enum": [true] }
+                      },
+                      "required": ["beforeArea", "afterArea", "addressChanged"],
+                      "additionalProperties": false
+                    },
+                    "operationalNote": {
+                      "type": "object",
+                      "properties": {
+                        "before": { "nullable": true, "type": "string" },
+                        "after": { "nullable": true, "type": "string" }
+                      },
+                      "required": ["before", "after"],
+                      "additionalProperties": false
+                    },
+                    "total": {
+                      "type": "object",
+                      "properties": {
+                        "beforeFils": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "afterFils": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": ["beforeFils", "afterFils"],
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "required": ["id", "orderVersion", "actor", "editedAt", "diff"],
+              "additionalProperties": false
+            }
           }
         },
         "required": [
@@ -1544,8 +1679,10 @@
           "version",
           "createdAt",
           "updatedAt",
+          "operationalNote",
           "items",
-          "history"
+          "history",
+          "edits"
         ],
         "additionalProperties": false
       },

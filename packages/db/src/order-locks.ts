@@ -47,6 +47,7 @@ export interface LockedVariant {
   stockOnHand: number;
   active: boolean;
   version: number;
+  lowStockThreshold: number;
 }
 /**
  * "Variants" group, always last: the variant rows FOR UPDATE in ID order, with their stock.
@@ -64,7 +65,7 @@ export async function lockVariantsForStock(
   if (!ids.length) return [];
   const rows = await tx.$queryRaw<LockedVariant[]>(Prisma.sql`
     SELECT id AS "variantId", product_id AS "productId", stock_on_hand AS "stockOnHand", active,
-      version
+      version, low_stock_threshold AS "lowStockThreshold"
     FROM variants WHERE id = ANY(${ids}::uuid[]) ORDER BY id FOR UPDATE`);
   const found = new Set(rows.map((row) => row.variantId));
   const missing = ids.filter((id) => !found.has(id));

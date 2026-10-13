@@ -4,8 +4,8 @@
 
 - Date: 2026-10-13
 - Milestone: M7 — transactional checkout and first complete order: all steps (73–82) done; gate evidence ready, awaiting Marina's decision. M6: all steps (65–72) done; gate evidence ready, awaiting Marina's decision. M5: PASSED 2026-10-11. M4 steps done, gate awaits Marina's decision (publishing unblocked); M3 gate not closed; M0 review and M1 staging/fixtures still open
-- Step: 84 (versioned status transitions and timeline actions) — done; next is 85 (Pending/Confirmed order edits)
-- Branch: `step/84-order-transitions` (stacked on steps 79–83; `main` holds everything through step 76; PRs #59/#60 open; steps 79–84 are local commits, not pushed: the push needs Marina's explicit go-ahead)
+- Step: 85 (Pending/Confirmed order edits and diff display) — done; next is 86 (controlled cancellation and stock release)
+- Branch: `step/85-order-edits` (stacked on steps 79–84; `main` holds everything through step 76; PRs #59/#60 open; steps 79–85 are local commits, not pushed: the push needs Marina's explicit go-ahead)
 - See docs/verification.md for actual checks.
 
 ## Next action
@@ -20,10 +20,11 @@
 2. **Marina merges** from her terminal (`gh pr merge <number> --merge`) or on GitHub ("Create a merge commit"). PR #59 (step 77), #60 (step 78) and step 79 are stacked: merge the highest verified branch to include its dependencies. Then `git checkout main && git pull --ff-only`, and check that the CI run on `main` finished (a cancelled run is rerun with `gh run rerun <id>`).
 3. **Marina: decide the M6 gate (and M4).** Evidence and caveats: docs/verification.md "Step 72".
 4. **Marina: decide the M7 gate.** Evidence, item by item, and what is not covered: docs/verification.md "Step 82". Checkout stays switched off (`CHECKOUT_SUBMISSION_ENABLED=false`) whatever the decision, until deployment inputs exist (BI-07 sender domain, real Owner, delivery areas and fee).
-5. **Next step: `/step 85`** (Pending/Confirmed order edits and diff display). Preserve Step 84's order lock, expected-version and one-history-row invariants; stock deltas must use the ledger and low-stock crossing helper.
+5. **Next step: `/step 86`** (pre-handoff cancellation and controlled Owner return cancellation). Reuse Step 85's net stock/coupon release rules, permanent command replay and order-first lock sequence; never release an edited line twice.
 6. **Rules that carry forward:**
    - Admin order reads (ADR 0051): both routes require `orders.read`; the whole optional `customer` object and contact search additionally require `customers.read`. List keyset is the exact DB `(created_at,id)`; detail uses one repeatable-read snapshot. Never expose creation/idempotency hashes, confirmation data or history command IDs. Step 84 adds commands separately with expected versions.
    - Order transitions (ADR 0052): normal fulfilment uses `POST /v1/admin/orders/:id/transitions` with `orders.transition`, `expectedVersion` and a UUID command ID. Lock the current actor, then the order; write order/history/audit/`order.status_changed` in one transaction. A partial unique index makes staff transition command IDs global and exact retries return the original receipt. Delivered leaves COD pending.
+   - Order edits (ADR 0053): `PATCH /v1/admin/orders/:id` accepts item/coupon/address/note changes only for Pending/Confirmed and note-only for Processing. Apply net quantities through `ORDER_EDIT` movements and `publishLowStockCrossing`; preserve unchanged line snapshots, reprice changed/new lines, keep released coupon uses as history and append one display-safe diff. Item removal is allowed while at least one line remains. Exact command retries replay permanently; a no-op rolls everything back.
    - Confirmation page (ADR 0050): `/order-confirmation` reads the order in the browser with the cookie; nothing from the URL, nothing stored on the device, no third-party script; only contract fields are shown and amounts are the API's. After a 201: end key, empty cart, remember the acknowledgement in memory, `router.replace`.
    - Checkout form (ADR 0049): typed details live in React state only; the device keeps `ih_checkout_attempt_v1` = `{key, createdAt}` (local storage, else session storage) and nothing else. The key ends only on an acknowledged 201 or on "Place a second order"; every other answer keeps it (`orderOutcome` in `lib/checkout/order.ts`). `GET /v1/store/info` carries `checkoutOpen`; the storefront has no switch of its own. Browser pass: `scripts/browser-qa/checkout.mjs` with `node scripts/check-gate-e2e.cjs --serve --checkout-open`.
    - Confirmation (ADR 0048): API-only `ORDER_CONFIRMATION_KEYS`; AES-GCM bound to the scoped attempt hash. SQL copies expiry (do not round-trip through JS Date); normalize BYTEA before decryption. `__Host-ih_order` grants only 30-minute private confirmation; same success replays without cookie after expiry/key retirement, never another order. `confirmation.cleanup` clears ciphertext every minute in bounded batches. GET accepts no query fields; UI must be no-store/no-referrer and excluded from analytics/session replay.
@@ -37,7 +38,7 @@
    - Integration suites occasionally fail one API test on a database connection timeout when all packages run in parallel (seen in steps 65 and 75; passes on rerun). If it repeats, lower the parallelism of `test:int` rather than ignoring it.
    - Idempotency (ADR 0043): an at-most-once command runs inside `runIdempotent` (or claims with `claimIdempotency` as its first statement) with `canonicalPayloadHash` of the normalized request. Order creation (step 76) must, right after the claim, look up `orders (creation_scope, creation_key_hash)` with the same `idempotencyKeyHash` and scope and throw `IdempotencyExpiredError` if an order exists, and store `canonicalPayloadHash` as `creation_payload_hash`. Stored answers hold no phone, name, address, token or capability. The worker's hourly `idempotency.cleanup` job removes expired answers.
    - Orders (ADR 0042): a command that changes an order writes the history row (with its command ID) and sets `version = version + 1` in the same transaction, or the commit fails; contents change only while pending/confirmed; recorded cash, delivery and cancellation fields are written once. Store only hashes of the idempotency key and confirmation capability. Tests that need an order use `seedOrder` from `@ih/db/testing`. Step 76 adds order reasons/references to `stock_movements`.
-   - Deferred by Marina's decision (2026-10-12): the review nits of steps 71 and 73 (subtotal label, cap alignment, `search_path` on the order triggers) stay as they are. Whether an order edit may remove a line is decided in step 85.
+   - Deferred by Marina's decision (2026-10-12): the review nits of steps 71 and 73 (subtotal label, cap alignment, `search_path` on the order triggers) stay as they are. Step 85 resolved line removal: it is allowed while another line remains.
    - Accepting a total (ADR 0041): the order request carries the quote token; inside the transaction call `checkAcceptedQuote(token, CartQuoteService.keys, now, quoteFacts(await lockQuoteForOrder(...)))` and answer 409 `QUOTE_CHANGED`/`QUOTE_EXPIRED` unless it is `ACCEPTED`. The storefront keeps area, code, total and token in memory only (`lib/cart/quote.ts`, `components/cart-quote.tsx`).
    - Browser pass on the real stack: `pnpm build && node scripts/check-gate-e2e.cjs --serve` prints URL, cookie, variant, schema and coupon; the gateway origin is allowed for quote POSTs. Stop it with SIGINT and drop leftover `ih_test_*` schemas.
    - Quotes (ADR 0040): every price shown or charged comes from `previewQuote` (route) or `lockQuoteForOrder` (order transaction, after the customer lock, before variants); pass its `appliedCoupon` to `redeemCoupon`. Checkout areas come from `GET /v1/store/delivery`.
@@ -93,6 +94,8 @@ BI-07: a verified sending domain and sender address are still needed before real
 - 65 — `customers` + `customer_addresses` (phone-keyed, no credentials, immutable phone and address rows, no runtime delete), `normalizePhone`, transaction-only customer primitives (ADR 0034) — 209e62f
 - 82 — checkout correctness gate: worker gate test (order transaction → relay → queue → inbox and Mailpit, queue outage, cleanup jobs), HTTP gate cases (repeated lines, last unit, code burst), full browser journey with the worker's consumers running — `step(82)` commit on `step/82-checkout-gate`
 - 83 — admin order list/status-date-contact search/keyset paging and repeatable-read snapshot detail/history; contact fields and search require `customers.read`; responsive read-only Orders workspace (ADR 0051) — `step(83)` commit on `step/83-admin-orders`
+- 84 — versioned and replay-safe normal fulfilment transitions with committed status history, audit/event writes, next-action admin controls and timeline reloads (ADR 0052) — b11959b
+- 85 — versioned Pending/Confirmed merchandise, coupon and address edits plus Processing operational notes; net stock movements, immutable diffs and admin edit UI (ADR 0053) — `step(85)` commit on `step/85-order-edits`
 - 81 — `/order-confirmation` page (cookie-read snapshot, expired and failed states, WhatsApp order message), checkout success navigates there after ending the key and emptying the cart (ADR 0050) — b04d2a9
 - 80 — `/checkout` form (memory-only details, required 18+ tick, server total), durable attempt key, one outcome per API answer, cart emptied only after acknowledgement, `checkoutOpen` in store info (ADR 0049) — 678cf64
 - 79 — cookie-only private confirmation API, 30-minute hashed capabilities, separately encrypted/non-extending replay and bounded ciphertext cleanup (ADR 0048) — commit `step(79): private order confirmation and encrypted replay`
@@ -116,25 +119,28 @@ BI-07: a verified sending domain and sender address are still needed before real
 - Event `consumers` lists only implemented consumers (now `system_probe`, `email`, `media_processor`, `storefront_revalidate`); planned ones are documented with roadmap steps and move in with a backfill decision (architecture §8: adding a consumer must not redefine old completions).
 - `audit_log` migration revokes UPDATE/DELETE/TRUNCATE only from a role named `ih_app`; other runtime role names must be revoked at provisioning (trigger blocks mutations regardless).
 
-## Last session handoff (2026-10-13, step 83)
+## Last session handoff (2026-10-13, step 85)
 
 Done:
 
-- **Step 83:** `GET /v1/admin/orders` and `/:id`, typed contracts/OpenAPI, `(created_at,id)` index, repository authorization and repeatable-read detail; status/date/search/keyset filters; the admin Orders list/detail/history UI; ADR 0051.
-- Four real API/PostgreSQL tests cover current permission revocation, invalid bounds/cursors, stable paging and filters, immutable snapshots/history, field stripping and prevention of contact-search inference without `customers.read`.
+- **Step 84:** replay-safe, expected-version normal order transitions, append-only status history, audit/event writes and next-action admin controls; ADR 0052.
+- **Step 85:** replay-safe, expected-version Pending/Confirmed line, coupon and address edits plus Processing notes; net `ORDER_EDIT` stock movements, coupon release/replacement history, immutable display-safe diffs and admin edit controls; ADR 0053.
+- Ten real API/PostgreSQL order tests cover reads, exact edit replay, concurrent commands, current permission revocation, stock/total changes, coupon release, line removal, Processing restrictions and stale versions.
 
-Files: `packages/contracts/src/orders.ts`, `packages/db/src/order-admin.ts`, migration `20261013000300_admin_order_reads`, `apps/api/src/orders/admin-orders.*`, `apps/admin/components/order-management.tsx`, ADR 0051, generated OpenAPI and status/verification docs.
+Files: `packages/contracts/src/orders.ts`, `packages/db/src/order-edits.ts`, migrations `20261013000400_order_transitions` and `20261013000500_order_edits`, `apps/api/src/orders/admin-orders.*`, `apps/admin/components/order-management.tsx`, ADRs 0052–0053, generated OpenAPI and status/verification docs.
 
-Tests: `pnpm verify -- --integration` PASS (unit 577, integration 493, gateway 29, age-preview 2008, gate 2175). Targeted Step 83 integration 4/4.
+Tests: unit 577, integration 499, gateway 29, age-preview 2008 and gate 2175 PASS. Targeted admin-order integration 10/10. The sandbox blocks Turbopack's internal local bind during the aggregate build; both Next apps pass `next build --webpack`, and the other ten Turbo builds pass.
 
 Unfinished:
 
-- M7 gate decision is Marina's. Steps 79–83 are local commits; nothing was pushed. PRs #59/#60 wait for her merge; M4 and M6 gates await her decision.
-- Step 83 admin browser interaction/visual QA, representative-data query plans and production migration remain open. Step 84 adds status commands; this screen is intentionally read-only.
+- M7 gate decision is Marina's. Steps 79–85 are local commits; nothing was pushed. PRs #59/#60 wait for her merge; M4 and M6 gates await her decision.
+- Step 85 admin browser interaction/visual QA, representative-data query plans and production migration remain open. Step 86 adds pre-handoff cancellation and controlled Owner return cancellation.
 - Two `ih_test_*` schemas of unknown origin are in the test database (`…170e73fb…`, `…9acfd98f…`); left alone.
 
 ## History (summary)
 
+- 2026-10-13 step 85: versioned order edits and immutable diffs, ADR 0053 (local branch, not pushed); unit 577/integration 499/gateway 29/age-preview 2008/gate 2175.
+- 2026-10-13 step 84: versioned fulfilment transitions and admin controls, ADR 0052 (b11959b, not pushed).
 - 2026-10-13 step 81: confirmation page, ADR 0050 (b04d2a9, not pushed); verify unit 577/integration 482/gateway 29/age-preview 2008/gate 2175; browser 28 checks.
 - 2026-10-13 step 80: checkout form and attempt key, ADR 0049 (678cf64, not pushed); verify unit 573/integration 482/gateway 29/age-preview 1855/gate 2079; browser 21 checks.
 - 2026-10-13 step 79: cookie-only confirmation API and encrypted replay, ADR 0048 (dd7dc27, not pushed); verify unit 562/integration 482/gateway 29/age-preview 1847/gate 1978.

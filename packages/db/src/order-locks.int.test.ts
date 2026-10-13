@@ -204,8 +204,22 @@ describe("canonical lock order (real PostgreSQL, isolated schema)", () => {
     });
     expect(result.quote.appliedCoupon).toMatchObject({ code: "LOCKS10" });
     expect(result.variants).toEqual([
-      { variantId: a.id, productId: a.productId, stockOnHand: 50, active: true, version: 1 },
-      { variantId: b.id, productId: b.productId, stockOnHand: 50, active: true, version: 1 },
+      {
+        variantId: a.id,
+        productId: a.productId,
+        stockOnHand: 50,
+        active: true,
+        version: 1,
+        lowStockThreshold: 0,
+      },
+      {
+        variantId: b.id,
+        productId: b.productId,
+        stockOnHand: 50,
+        active: true,
+        version: 1,
+        lowStockThreshold: 0,
+      },
     ]);
   });
   it("refuses any group requested after a later one, before a statement runs", async () => {

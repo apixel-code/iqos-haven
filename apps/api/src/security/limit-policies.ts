@@ -110,6 +110,10 @@ export const ORDER_TRANSITION_POLICY = {
   ...CATALOG_MANAGE_POLICY,
   endpoint: "order.transition",
 } as const;
+export const ORDER_EDIT_POLICY = {
+  ...CATALOG_MANAGE_POLICY,
+  endpoint: "order.edit",
+} as const;
 
 /**
  * Shopper catalogue reads (step 58), per client address. Browsing must keep working when the

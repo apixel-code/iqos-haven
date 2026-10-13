@@ -146,6 +146,7 @@ model StaffUser {
   ordersCreated       Order[]              @relation("OrderCreatedBy")
   ordersCollected     Order[]              @relation("OrderCollectedBy")
   orderStatusChanges  OrderStatusHistory[]
+  orderEdits          OrderEditHistory[]
   stockMovements      StockMovement[]
   mediaUploads        MediaAsset[]
   id                  String                 @id @default(dbgenerated("uuidv7()")) @db.Uuid
@@ -277,12 +278,12 @@ model Coupon {
   @@map("coupons")
 }
 
-/// What one order used; released at most once.
+/// One historical coupon use; an order has at most one unreleased use at a time.
 model CouponRedemption {
   id                      String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
   couponId                String    @map("coupon_id") @db.Uuid
   coupon                  Coupon    @relation(fields: [couponId], references: [id], onDelete: Restrict, onUpdate: Restrict)
-  orderId                 String    @unique @map("order_id") @db.Uuid
+  orderId                 String    @map("order_id") @db.Uuid
   order                   Order     @relation(fields: [orderId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   code                    String    @db.VarChar(32)
   percentBps              Int       @map("percent_bps")
@@ -292,6 +293,7 @@ model CouponRedemption {
   releasedAt              DateTime? @map("released_at") @db.Timestamptz(6)
 
   @@index([couponId, redeemedAt(sort: Desc), id(sort: Desc)], map: "coupon_redemptions_coupon")
+  @@index([orderId], map: "coupon_redemptions_order")
   @@map("coupon_redemptions")
 }
 
@@ -616,8 +618,9 @@ model Order {
   updatedAt                    DateTime             @default(dbgenerated("statement_timestamp()")) @map("updated_at") @db.Timestamptz(6)
   items                        OrderItem[]
   history                      OrderStatusHistory[]
-  couponRedemption             CouponRedemption?
+  couponRedemptions            CouponRedemption[]
   stockMovements               StockMovement[]
+  edits                        OrderEditHistory[]
 
   @@unique([creationScope, creationKeyHash], map: "orders_creation_key")
   @@index([createdAt(sort: Desc), id(sort: Desc)], map: "orders_created")
@@ -674,6 +677,24 @@ model OrderStatusHistory {
   @@unique([orderId, commandId], map: "order_status_history_command")
   @@index([orderId, seq], map: "order_status_history_order")
   @@map("order_status_history")
+}
+
+/// Append-only staff edit command and its display-safe diff.
+model OrderEditHistory {
+  id           String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  seq          BigInt    @unique @default(autoincrement())
+  orderId      String    @map("order_id") @db.Uuid
+  order        Order     @relation(fields: [orderId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  actorId      String    @map("actor_id") @db.Uuid
+  actor        StaffUser @relation(fields: [actorId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  commandId    String    @unique @map("command_id") @db.Uuid
+  requestHash  Bytes     @map("request_hash")
+  orderVersion Int       @map("order_version")
+  diff         Json
+  createdAt    DateTime  @default(dbgenerated("statement_timestamp()")) @map("created_at") @db.Timestamptz(6)
+
+  @@index([orderId, seq], map: "order_edit_history_order")
+  @@map("order_edit_history")
 }
 
 /// One accepted command key and the answer to replay for it (step 74). Hashes only.

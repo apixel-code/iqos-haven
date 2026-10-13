@@ -228,7 +228,7 @@ describe("atomic order creation (real PostgreSQL)", () => {
     expect(Object.keys(placed.response).sort()).toEqual(["orderNumber", "placedAt", "totalFils"]);
     const order = await db.order.findUniqueOrThrow({
       where: { id: placed.orderId! },
-      include: { items: true, history: true, couponRedemption: true, stockMovements: true },
+      include: { items: true, history: true, couponRedemptions: true, stockMovements: true },
     });
     expect(order).toMatchObject({
       status: "pending",
@@ -296,7 +296,7 @@ describe("atomic order creation (real PostgreSQL)", () => {
     expect(await stockOf(kit.id)).toBe(4);
     expect(await stockOf(pods.id)).toBe(7);
     // Coupon use, with its snapshot.
-    expect(order.couponRedemption).toMatchObject({
+    expect(order.couponRedemptions[0]).toMatchObject({
       code: "ORDER10",
       percentBps: 1000,
       merchandiseSubtotalFils: 21999n,

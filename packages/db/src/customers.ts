@@ -28,6 +28,16 @@ function hold(tx: Tx, customerId: string) {
   heldCustomers.set(tx, held);
   held.add(customerId);
 }
+/** Locks the customer already owned by an existing order before later commerce resources. */
+export async function lockExistingOrderCustomer(tx: Tx, customerId: string) {
+  unitOfWork(tx);
+  enterLockGroup(tx, "customer");
+  const rows = await tx.$queryRaw<Array<{ id: string }>>(
+    Prisma.sql`SELECT id FROM customers WHERE id=${customerId}::uuid FOR UPDATE`,
+  );
+  if (!rows.length) throw new CustomerNotFoundError();
+  hold(tx, customerId);
+}
 /**
  * Customer group of the resource order (after the idempotency claim / existing order, before
  * settings and areas). Finds or creates the guest customer of a normalized phone and holds its

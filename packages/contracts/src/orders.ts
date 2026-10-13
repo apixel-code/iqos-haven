@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { COD_STATUSES, ORDER_SOURCES, ORDER_STATUSES } from "@ih/domain";
 import { customerAddressTypeSchema } from "./customers";
+import { checkoutAddressSchema, orderLinesSchema } from "./checkout";
 import { filsSchema } from "./index";
 
 export const adminOrderStatusSchema = z.enum(ORDER_STATUSES);
@@ -23,6 +24,59 @@ export const orderTransitionResponseSchema = z.strictObject({
   orderVersion: z.number().int().min(2),
   transitionedAt: z.iso.datetime(),
   actor: z.strictObject({ id: z.uuid(), name: z.string().min(1).max(100) }),
+  replayed: z.boolean(),
+});
+
+export const orderEditRequestSchema = z
+  .strictObject({
+    expectedVersion: z.number().int().min(1),
+    commandId: z.uuid(),
+    lines: orderLinesSchema.optional(),
+    couponCode: z.string().trim().min(3).max(32).nullable().optional(),
+    address: checkoutAddressSchema.optional(),
+    operationalNote: z.string().trim().min(1).max(500).nullable().optional(),
+  })
+  .refine(
+    (value) =>
+      value.lines !== undefined ||
+      value.couponCode !== undefined ||
+      value.address !== undefined ||
+      value.operationalNote !== undefined,
+    { message: "At least one edit is required" },
+  );
+
+const editLineDiffSchema = z.strictObject({
+  sku: z.string().min(1).max(64),
+  quantity: z.number().int().min(1),
+});
+export const orderEditDiffSchema = z.strictObject({
+  items: z
+    .strictObject({ before: z.array(editLineDiffSchema), after: z.array(editLineDiffSchema) })
+    .optional(),
+  coupon: z
+    .strictObject({ before: z.string().nullable(), after: z.string().nullable() })
+    .optional(),
+  delivery: z
+    .strictObject({
+      beforeArea: z.string(),
+      afterArea: z.string(),
+      addressChanged: z.literal(true),
+    })
+    .optional(),
+  operationalNote: z
+    .strictObject({ before: z.string().nullable(), after: z.string().nullable() })
+    .optional(),
+  total: z.strictObject({ beforeFils: filsSchema, afterFils: filsSchema }).optional(),
+});
+const orderEditRecordSchema = z.strictObject({
+  id: z.uuid(),
+  orderVersion: z.number().int().min(2),
+  actor: z.strictObject({ id: z.uuid(), name: z.string().min(1).max(100) }),
+  editedAt: z.iso.datetime(),
+  diff: orderEditDiffSchema,
+});
+export const orderEditResponseSchema = orderEditRecordSchema.extend({
+  orderId: z.uuid(),
   replayed: z.boolean(),
 });
 
@@ -84,6 +138,7 @@ const adminOrderCustomerSchema = adminOrderContactSchema.extend({
 });
 const adminOrderItemSchema = z.strictObject({
   id: z.uuid(),
+  variantId: z.uuid().optional(),
   productName: z.string().min(1).max(150),
   productSlug: z.string().min(1).max(150),
   brandName: z.string().min(1).max(150),
@@ -114,6 +169,7 @@ export const adminOrderResponseSchema = z.strictObject({
   source: z.enum(ORDER_SOURCES),
   customer: adminOrderCustomerSchema.optional(),
   area: z.strictObject({
+    id: z.uuid().optional(),
     code: z.string().min(1).max(64),
     name: z.string().min(1).max(100),
     emirate: z.string().min(1).max(16),
@@ -141,8 +197,10 @@ export const adminOrderResponseSchema = z.strictObject({
   version: z.number().int().min(1),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime(),
+  operationalNote: z.string().max(500).nullable(),
   items: z.array(adminOrderItemSchema).min(1),
   history: z.array(adminOrderHistorySchema).min(1),
+  edits: z.array(orderEditRecordSchema),
 });
 
 export type AdminOrdersQuery = z.infer<typeof adminOrdersQuerySchema>;
@@ -151,3 +209,6 @@ export type AdminOrdersResponse = z.infer<typeof adminOrdersResponseSchema>;
 export type AdminOrderResponse = z.infer<typeof adminOrderResponseSchema>;
 export type OrderTransitionRequest = z.infer<typeof orderTransitionRequestSchema>;
 export type OrderTransitionResponse = z.infer<typeof orderTransitionResponseSchema>;
+export type OrderEditRequest = z.infer<typeof orderEditRequestSchema>;
+export type OrderEditResponse = z.infer<typeof orderEditResponseSchema>;
+export type OrderEditDiff = z.infer<typeof orderEditDiffSchema>;

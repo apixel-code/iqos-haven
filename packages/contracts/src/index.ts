@@ -17,6 +17,8 @@ export type ErrorEnvelope = z.infer<typeof errorEnvelopeSchema>;
 export const CONFLICT_CODES = [
   "VERSION_CONFLICT",
   "INVALID_TRANSITION",
+  "ORDER_NOT_EDITABLE",
+  "NO_CHANGES",
   "DUPLICATE",
   "IN_USE",
   "TRASHED",

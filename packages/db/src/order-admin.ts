@@ -14,6 +14,7 @@ export class OrderCursorError extends Error {}
 
 interface ActorAccess {
   canReadContact: boolean;
+  canEdit: boolean;
 }
 interface OrderListRow {
   id: string;
@@ -42,7 +43,10 @@ async function actorAccess(db: Database | Tx, actorId: string): Promise<ActorAcc
     WHERE u.id=${actorId}::uuid AND u.active
     GROUP BY u.id`);
   if (!row?.permissions.includes("orders.read")) throw new OrderReadForbiddenError();
-  return { canReadContact: row.permissions.includes("customers.read") };
+  return {
+    canReadContact: row.permissions.includes("customers.read"),
+    canEdit: row.permissions.includes("orders.edit"),
+  };
 }
 
 const escapedLike = (value: string) => "%" + value.replace(/[\\%_]/g, (c) => "\\" + c) + "%";
@@ -140,6 +144,7 @@ export async function readAdminOrder(
         include: {
           items: { orderBy: { id: "asc" } },
           history: { orderBy: { seq: "asc" }, include: { actor: { select: { name: true } } } },
+          edits: { orderBy: { seq: "asc" }, include: { actor: { select: { name: true } } } },
         },
       });
       if (!order) throw new AdminOrderNotFoundError();
@@ -164,7 +169,12 @@ export async function readAdminOrder(
               },
             }
           : {}),
-        area: { code: order.areaCode, name: order.areaName, emirate: order.areaEmirate },
+        area: {
+          ...(access.canEdit ? { id: order.areaId } : {}),
+          code: order.areaCode,
+          name: order.areaName,
+          emirate: order.areaEmirate,
+        },
         merchandiseSubtotalFils: Number(order.merchandiseSubtotalFils),
         discountFils: Number(order.discountFils),
         deliveryFeeFils: Number(order.deliveryFeeFils),
@@ -187,8 +197,14 @@ export async function readAdminOrder(
         version: order.version,
         createdAt: order.createdAt.toISOString(),
         updatedAt: order.updatedAt.toISOString(),
+        operationalNote:
+          [...order.edits]
+            .reverse()
+            .map((entry) => entry.diff as { operationalNote?: { after?: string | null } })
+            .find((diff) => diff.operationalNote !== undefined)?.operationalNote?.after ?? null,
         items: order.items.map((item) => ({
           id: item.id,
+          ...(access.canEdit ? { variantId: item.variantId } : {}),
           productName: item.productName,
           productSlug: item.productSlug,
           brandName: item.brandName,
@@ -210,6 +226,13 @@ export async function readAdminOrder(
           actorName: entry.actor?.name ?? null,
           orderVersion: entry.orderVersion,
           createdAt: entry.createdAt.toISOString(),
+        })),
+        edits: order.edits.map((entry) => ({
+          id: entry.id,
+          orderVersion: entry.orderVersion,
+          actor: { id: entry.actorId, name: entry.actor.name },
+          editedAt: entry.createdAt.toISOString(),
+          diff: entry.diff,
         })),
       });
     },

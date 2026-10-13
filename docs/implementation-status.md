@@ -99,6 +99,8 @@
 - Step 80 (ADR 0049): storefront `/checkout` — contact and address form validated by the shared schemas, required 18+ tick, server total accepted by the shopper, details in memory only, a stored random attempt key reused on every retry, one outcome per API answer, cart emptied only after the acknowledgement; `checkoutOpen` in store info opens or closes the page. Success is shown in place until step 81.
 - Step 79 (ADR 0048): storefront-origin `__Host-ih_order` capability cookie, atomic verifier/encrypted replay material and 30-minute DB expiry; cookie-only bounded private confirmation API; non-extending retry restoration and minute-based ciphertext cleanup. Sanitized replay remains valid independently; expired/retired access never creates another order. No checkout or confirmation page yet (steps 80–81).
 - Step 83 (ADR 0051): `GET /v1/admin/orders` and `/:id` behind `orders.read`; bounded status/date/search/keyset list, repeatable-read immutable snapshot detail and append-only history; customer contact and contact search only with `customers.read`; responsive read-only Orders workspace.
+- Step 84 (ADR 0052): versioned, replay-safe normal fulfilment transitions with one status-history row, audit record and `order.status_changed` event; next-action admin controls and committed timeline reloads.
+- Step 85 (ADR 0053): versioned Pending/Confirmed merchandise, coupon and address edits plus Processing operational notes; net `ORDER_EDIT` stock movements with low-stock crossings, historical coupon replacement, immutable display-safe diffs, audit/event writes and the admin edit/diff UI.
 
 - Uploaded architecture, ordered roadmap, corrected prototypes, derived requirements/design/acceptance/database/security/operational references.
 
@@ -108,9 +110,9 @@ Milestone 0 documentation exists, but business inputs, final screen states/asset
 
 ## Not implemented
 
-Order transitions/edit/cancel/COD/manual/bulk/customer/inbox operations (84–92); reviews/CMS and remaining storefront content (93–102); analytics/dashboard/reports/SEO (103–114); final acceptance, production deployment, monitoring, retention, backups and recovery drills (115–132). Approved real delivery/catalogue/contact configuration and staging/release evidence are still required.
+Order cancel/COD/manual/bulk/customer/inbox operations (86–92); reviews/CMS and remaining storefront content (93–102); analytics/dashboard/reports/SEO (103–114); final acceptance, production deployment, monitoring, retention, backups and recovery drills (115–132). Approved real delivery/catalogue/contact configuration and staging/release evidence are still required.
 
-Code implemented through step 83 does not automatically close milestone gates. Catalogue, inventory, media, age-gated storefront checkout and read-only order operations are implemented; operational fulfillment remains incomplete.
+Code implemented through step 85 does not automatically close milestone gates. Catalogue, inventory, media, age-gated storefront checkout and versioned order reads/transitions/edits are implemented; operational fulfillment remains incomplete.
 
 ## Next implementation sequence
 

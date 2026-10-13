@@ -166,6 +166,22 @@ export function managementError(error: unknown, mutation = false) {
       return "The file did not arrive. Choose the file again.";
     if (error.status === 409 && error.code === "VERSION_CONFLICT")
       return "Someone changed this meanwhile. Reload current values and try again.";
+    if (error.status === 409 && error.code === "ORDER_NOT_EDITABLE")
+      return "This order can no longer accept those changes. Reload its current status.";
+    if (error.status === 409 && error.code === "NO_CHANGES")
+      return "Change at least one value before saving.";
+    if (error.status === 409 && error.code === "INSUFFICIENT_STOCK")
+      return "There is not enough stock for the requested quantity.";
+    if (error.status === 409 && error.code === "VARIANT_UNAVAILABLE")
+      return "One selected item is no longer available for ordering.";
+    if (error.status === 409 && error.code === "AREA_UNAVAILABLE")
+      return "That delivery area is no longer available.";
+    if (error.status === 409 && error.code === "COUPON_LIMIT_REACHED")
+      return "That coupon has reached its usage limit.";
+    if (error.status === 409 && error.code === "COUPON_INVALID")
+      return "That coupon is not currently valid for this order.";
+    if (error.status === 409 && error.code === "COMMAND_REUSED")
+      return "This saved action belongs to a different change. Reload and try again.";
     if (error.status === 409 && error.code === "LIMIT_BELOW_USES")
       return "Orders already hold more uses than that limit. Choose a limit at or above the uses shown.";
     if (error.status === 409 && error.code === "ALREADY_EXPIRED")

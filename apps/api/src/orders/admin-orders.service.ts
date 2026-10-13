@@ -6,8 +6,9 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import type { AdminOrdersQuery, OrderTransitionRequest } from "@ih/contracts";
+import type { AdminOrdersQuery, OrderEditRequest, OrderTransitionRequest } from "@ih/contracts";
 import type { CommandContext } from "@ih/application";
+import { DeliveryUnavailableError, DeliveryUnconfiguredError } from "@ih/domain";
 import {
   listAdminOrders,
   OrderCursorError,
@@ -18,6 +19,12 @@ import {
   OrderTransitionConflictError,
   OrderTransitionForbiddenError,
   OrderTransitionNotFoundError,
+  editOrder,
+  OrderEditConflictError,
+  OrderEditForbiddenError,
+  OrderEditNotFoundError,
+  CouponRejectedError,
+  VariantUnavailableError,
   type Database,
 } from "@ih/db";
 import { DATABASE } from "../infra/tokens";
@@ -37,6 +44,15 @@ export class AdminOrdersService {
       if (error instanceof OrderTransitionNotFoundError) throw new NotFoundException();
       if (error instanceof OrderTransitionConflictError)
         throw new ConflictException({ code: error.reason });
+      if (error instanceof OrderEditForbiddenError) throw new ForbiddenException();
+      if (error instanceof OrderEditNotFoundError) throw new NotFoundException();
+      if (error instanceof OrderEditConflictError)
+        throw new ConflictException({ code: error.reason });
+      if (error instanceof CouponRejectedError) throw new ConflictException({ code: error.code });
+      if (error instanceof VariantUnavailableError)
+        throw new ConflictException({ code: error.code });
+      if (error instanceof DeliveryUnavailableError || error instanceof DeliveryUnconfiguredError)
+        throw new ConflictException({ code: "AREA_UNAVAILABLE" });
       throw error;
     }
   }
@@ -51,5 +67,9 @@ export class AdminOrdersService {
 
   transition(context: CommandContext, orderId: string, input: OrderTransitionRequest) {
     return this.execute(() => transitionOrder(this.db, context, orderId, input));
+  }
+
+  edit(context: CommandContext, orderId: string, input: OrderEditRequest) {
+    return this.execute(() => editOrder(this.db, context, orderId, input));
   }
 }

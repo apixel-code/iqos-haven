@@ -1,6 +1,11 @@
 import { mergeOrderLines, type OrderLine, type PricedLine } from "@ih/domain";
 import { Prisma, type Database, type Tx } from "./client";
-import { lockCouponForOrder, previewCoupon, type AppliedCoupon } from "./coupons";
+import {
+  lockCouponForOrder,
+  previewCoupon,
+  replaceCouponForOrder,
+  type AppliedCoupon,
+} from "./coupons";
 import { lockDeliverySelection, readDeliverySelection, type DeliverySelection } from "./delivery";
 import { lockOrderPrices, priceOrderLines, readOrderPrices, type OrderPriceLine } from "./pricing";
 import { isUnitOfWork } from "./transaction";
@@ -160,5 +165,25 @@ export async function lockQuoteForOrder(
   const prices = await lockOrderPrices(tx, lines);
   const code = typed(input.couponCode);
   const appliedCoupon = code ? await lockCouponForOrder(tx, code, subtotal(prices)) : null;
+  return { ...assemble(delivery, prices, appliedCoupon), appliedCoupon };
+}
+
+/** Existing-order quote: replaces/releases its coupon while all coupon rows stay sorted/locked. */
+export async function lockQuoteForOrderEdit(
+  tx: Tx,
+  orderId: string,
+  input: QuoteInput,
+  preservedUnitPrices: ReadonlyMap<string, number> = new Map(),
+) {
+  if (!isUnitOfWork(tx)) throw new Error("Locking an edit quote requires a unit of work");
+  const lines = mergeOrderLines(input.lines);
+  const delivery = await lockDeliverySelection(tx, input.areaId);
+  const currentPrices = await lockOrderPrices(tx, lines);
+  const prices = currentPrices.map((line) => ({
+    ...line,
+    unitPriceFils: preservedUnitPrices.get(line.variantId) ?? line.unitPriceFils,
+  }));
+  const code = typed(input.couponCode);
+  const appliedCoupon = await replaceCouponForOrder(tx, orderId, code, subtotal(prices));
   return { ...assemble(delivery, prices, appliedCoupon), appliedCoupon };
 }

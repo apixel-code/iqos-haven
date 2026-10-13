@@ -567,7 +567,7 @@ describe("orders, lines and status history (real PostgreSQL, isolated schema)", 
       "23505",
     );
   });
-  it("gives the runtime role no way to delete orders or rewrite history", async () => {
+  it("lets the runtime role replace editable lines but never delete orders or rewrite history", async () => {
     if (!runtimeRole) return;
     const privilege = async (table: string, name: string) =>
       (
@@ -579,7 +579,7 @@ describe("orders, lines and status history (real PostgreSQL, isolated schema)", 
     for (const table of ["orders", "order_items", "order_status_history"]) {
       expect(await privilege(table, "SELECT")).toBe(true);
       expect(await privilege(table, "INSERT")).toBe(true);
-      expect(await privilege(table, "DELETE")).toBe(false);
+      expect(await privilege(table, "DELETE")).toBe(table === "order_items");
       expect(await privilege(table, "TRUNCATE")).toBe(false);
     }
     expect(await privilege("orders", "UPDATE")).toBe(true);

@@ -109,8 +109,8 @@ export async function lockCouponForOrder(
  * Records the order's use of a coupon. Accepts only the very object `lockCouponForOrder`
  * returned in this transaction, so the terms, subtotal and discount written are the ones
  * decided under the lock. The use count is raised by the database from this insert. An order
- * can redeem once, ever. The owning order command writes the audit entry and events; nothing
- * else may call this.
+ * has at most one active redemption; editable orders retain released rows as history. The owning
+ * order command writes the audit entry and events; nothing else may call this.
  */
 export async function redeemCoupon(tx: Tx, orderId: string, coupon: AppliedCoupon) {
   if (!isUnitOfWork(tx)) throw new Error("Redeeming a coupon requires a unit of work");
@@ -127,6 +127,52 @@ export async function redeemCoupon(tx: Tx, orderId: string, coupon: AppliedCoupo
     },
   });
 }
+
+/** Replaces/removes an editable order's active coupon under sorted coupon locks. */
+export async function replaceCouponForOrder(
+  tx: Tx,
+  orderId: string,
+  code: string | null,
+  merchandiseSubtotalFils: number,
+): Promise<AppliedCoupon | null> {
+  if (!isUnitOfWork(tx) || !hasReachedLockGroup(tx, "order"))
+    throw new Error("Replacing a coupon requires the locked order unit of work");
+  const [current] = await tx.$queryRaw<Array<{ couponId: string }>>(Prisma.sql`
+    SELECT coupon_id AS "couponId" FROM coupon_redemptions
+    WHERE order_id=${orderId}::uuid AND released_at IS NULL`);
+  let normalized: string | null = null;
+  let nextId: string | null = null;
+  if (code !== null) {
+    try {
+      normalized = normalizeCouponCode(code);
+    } catch {
+      throw new CouponRejectedError("UNKNOWN");
+    }
+    const [next] = await tx.$queryRaw<Array<{ id: string }>>(
+      Prisma.sql`SELECT id FROM coupons WHERE code=${normalized}`,
+    );
+    if (!next) throw new CouponRejectedError("UNKNOWN");
+    nextId = next.id;
+  }
+  const ids = [...new Set([current?.couponId, nextId].filter((id): id is string => !!id))].sort();
+  if (ids.length) {
+    enterLockGroup(tx, "coupon");
+    await tx.$queryRaw(
+      Prisma.sql`SELECT id FROM coupons WHERE id=ANY(${ids}::uuid[]) ORDER BY id FOR UPDATE`,
+    );
+  }
+  if (current)
+    await tx.$executeRaw(
+      Prisma.sql`UPDATE coupon_redemptions SET released_at=statement_timestamp()
+        WHERE order_id=${orderId}::uuid AND released_at IS NULL`,
+    );
+  if (normalized === null) return null;
+  const applied = await evaluate(tx, normalized, merchandiseSubtotalFils, false);
+  const held = lockedCoupons.get(tx) ?? new WeakSet<AppliedCoupon>();
+  lockedCoupons.set(tx, held);
+  held.add(applied);
+  return applied;
+}
 /**
  * Gives the use back when an order is cancelled before delivery. The caller holds the order
  * lock; this takes the coupon lock next, as the resource order requires. Returns true the one
@@ -138,7 +184,7 @@ export async function releaseCouponRedemption(tx: Tx, orderId: string): Promise<
   if (!hasReachedLockGroup(tx, "order"))
     throw new Error("Release a coupon only after locking its order in this unit of work");
   const [redemption] = await tx.$queryRaw<Array<{ couponId: string }>>(
-    Prisma.sql`SELECT coupon_id AS "couponId" FROM coupon_redemptions WHERE order_id=${orderId}::uuid`,
+    Prisma.sql`SELECT coupon_id AS "couponId" FROM coupon_redemptions WHERE order_id=${orderId}::uuid AND released_at IS NULL`,
   );
   if (!redemption) return false;
   enterLockGroup(tx, "coupon");

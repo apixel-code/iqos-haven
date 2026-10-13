@@ -3,11 +3,15 @@ import { useState } from "react";
 import {
   adminOrderResponseSchema,
   adminOrdersResponseSchema,
+  orderEditRequestSchema,
+  orderEditResponseSchema,
   orderTransitionResponseSchema,
   type AdminOrderResponse,
   type AdminOrderSummary,
+  type OrderEditDiff,
+  type OrderEditRequest,
 } from "@ih/contracts";
-import { managementRequest } from "../lib/management";
+import { managementRequest, validate } from "../lib/management";
 import { addressLine, COD_STATUS_LABELS, money, ORDER_STATUS_LABELS, when } from "../lib/orders";
 import { ResourceNotice, useManagementResource } from "./management-resource";
 
@@ -25,9 +29,11 @@ const STATUSES = [
 export function OrderManagement({
   canReadContact,
   canTransition,
+  canEdit,
 }: {
   canReadContact: boolean;
   canTransition: boolean;
+  canEdit: boolean;
 }) {
   const [status, setStatus] = useState<(typeof STATUSES)[number]>("all");
   const [search, setSearch] = useState("");
@@ -46,7 +52,13 @@ export function OrderManagement({
   const resetPage = () => setCursors([]);
   if (selected)
     return (
-      <OrderDetail id={selected} canTransition={canTransition} onBack={() => setSelected(null)} />
+      <OrderDetail
+        id={selected}
+        canReadContact={canReadContact}
+        canTransition={canTransition}
+        canEdit={canEdit}
+        onBack={() => setSelected(null)}
+      />
     );
   return (
     <section className="management-card order-management">
@@ -214,11 +226,15 @@ const NEXT: Partial<Record<AdminOrderResponse["status"], { to: TransitionTarget;
 
 function OrderDetail({
   id,
+  canReadContact,
   canTransition,
+  canEdit,
   onBack,
 }: {
   id: string;
+  canReadContact: boolean;
   canTransition: boolean;
+  canEdit: boolean;
   onBack: () => void;
 }) {
   const order = useManagementResource(`/orders/${id}`, adminOrderResponseSchema);
@@ -278,11 +294,260 @@ function OrderDetail({
               </small>
             </div>
           )}
+          {canEdit && ["pending", "confirmed", "processing"].includes(order.data.status) && (
+            <OrderEditPanel
+              key={`${order.data.id}:${order.data.version}`}
+              order={order.data}
+              canReadContact={canReadContact}
+              disabled={order.disabled}
+              save={(request) =>
+                order.run((signal) =>
+                  managementRequest(
+                    `/orders/${id}`,
+                    orderEditResponseSchema,
+                    "PATCH",
+                    request,
+                    signal,
+                  ),
+                )
+              }
+              done={order.reload}
+            />
+          )}
           <OrderDetailBody order={order.data} />
         </>
       )}
     </section>
   );
+}
+
+function sameAddress(order: AdminOrderResponse, data: FormData) {
+  const address = order.customer?.address;
+  if (!address) return true;
+  const value = (name: string) => String(data.get(name) ?? "").trim() || null;
+  return (
+    value("address.type") === address.type &&
+    value("address.building") === address.building &&
+    value("address.unit") === address.unit &&
+    value("address.street") === address.street &&
+    value("address.makani") === address.makani &&
+    value("address.notes") === address.notes
+  );
+}
+
+function editCommand(order: AdminOrderResponse, data: FormData): OrderEditRequest {
+  const command: Record<string, unknown> = {
+    expectedVersion: order.version,
+    commandId: crypto.randomUUID(),
+  };
+  if (order.status !== "processing") {
+    const lines = order.items
+      .filter((item) => item.variantId)
+      .map((item) => ({
+        variantId: item.variantId!,
+        quantity: Number(data.get(`quantity.${item.variantId}`)),
+      }))
+      .filter((line) => line.quantity > 0);
+    const addedId = String(data.get("addedVariantId") ?? "").trim();
+    const addedQuantity = Number(data.get("addedQuantity") ?? 1);
+    if (addedId) lines.push({ variantId: addedId, quantity: addedQuantity });
+    const quantitiesChanged =
+      Boolean(addedId) ||
+      lines.length !== order.items.length ||
+      order.items.some(
+        (item) =>
+          !item.variantId ||
+          lines.find((line) => line.variantId === item.variantId)?.quantity !== item.quantity,
+      );
+    if (quantitiesChanged) command.lines = lines;
+    const coupon = String(data.get("couponCode") ?? "").trim() || null;
+    if (coupon !== (order.coupon?.code ?? null)) command.couponCode = coupon;
+    if (order.customer && order.area.id && !sameAddress(order, data))
+      command.address = {
+        areaId: order.area.id,
+        type: String(data.get("address.type")),
+        building: String(data.get("address.building") ?? "").trim(),
+        unit: String(data.get("address.unit") ?? "").trim() || null,
+        street: String(data.get("address.street") ?? "").trim() || null,
+        makani: String(data.get("address.makani") ?? "").trim() || null,
+        notes: String(data.get("address.notes") ?? "").trim() || null,
+      };
+  }
+  const note = String(data.get("operationalNote") ?? "").trim() || null;
+  if (note !== order.operationalNote) command.operationalNote = note;
+  return validate(orderEditRequestSchema, command);
+}
+
+function OrderEditPanel({
+  order,
+  canReadContact,
+  disabled,
+  save,
+  done,
+}: {
+  order: AdminOrderResponse;
+  canReadContact: boolean;
+  disabled: boolean;
+  save: (request: OrderEditRequest) => Promise<{ ok: boolean }>;
+  done: () => void;
+}) {
+  const commerce = order.status === "pending" || order.status === "confirmed";
+  const [validationMessage, setValidationMessage] = useState("");
+  return (
+    <article className="record-card">
+      <h3>Edit order</h3>
+      <p className="muted">
+        {commerce
+          ? "Quantities, coupon, delivery address and the operational note can be changed before processing. Set a quantity to zero to remove that item."
+          : "Only the operational note can change while this order is processing."}
+      </p>
+      <form
+        className="form-grid"
+        onSubmit={(event) => {
+          event.preventDefault();
+          let request: OrderEditRequest;
+          try {
+            request = editCommand(order, new FormData(event.currentTarget));
+            setValidationMessage("");
+          } catch {
+            setValidationMessage("Change at least one valid field before saving.");
+            return;
+          }
+          void save(request).then((result) => result.ok && done());
+        }}
+      >
+        {commerce && (
+          <>
+            {order.items.map((item) => (
+              <label key={item.id}>
+                <span>
+                  {item.productName} · {item.sku}
+                </span>
+                <input
+                  name={`quantity.${item.variantId}`}
+                  type="number"
+                  min={0}
+                  max={10}
+                  step={1}
+                  defaultValue={item.quantity}
+                  required
+                />
+              </label>
+            ))}
+            <label>
+              <span>Add variant ID</span>
+              <input name="addedVariantId" type="text" placeholder="UUID" />
+            </label>
+            <label>
+              <span>Added quantity</span>
+              <input name="addedQuantity" type="number" min={1} max={10} defaultValue={1} />
+            </label>
+            <label>
+              <span>Coupon code</span>
+              <input
+                name="couponCode"
+                type="text"
+                maxLength={32}
+                defaultValue={order.coupon?.code ?? ""}
+              />
+            </label>
+            {canReadContact && order.customer && order.area.id && (
+              <>
+                <label>
+                  <span>Address type</span>
+                  <select name="address.type" defaultValue={order.customer.address.type}>
+                    <option value="apartment">Apartment</option>
+                    <option value="villa">Villa</option>
+                    <option value="office">Office</option>
+                  </select>
+                </label>
+                <label>
+                  <span>Building</span>
+                  <input
+                    name="address.building"
+                    maxLength={150}
+                    defaultValue={order.customer.address.building}
+                    required
+                  />
+                </label>
+                <label>
+                  <span>Unit</span>
+                  <input
+                    name="address.unit"
+                    maxLength={50}
+                    defaultValue={order.customer.address.unit ?? ""}
+                  />
+                </label>
+                <label>
+                  <span>Street</span>
+                  <input
+                    name="address.street"
+                    maxLength={150}
+                    defaultValue={order.customer.address.street ?? ""}
+                  />
+                </label>
+                <label>
+                  <span>Makani</span>
+                  <input
+                    name="address.makani"
+                    maxLength={10}
+                    defaultValue={order.customer.address.makani ?? ""}
+                  />
+                </label>
+                <label className="wide-field">
+                  <span>Delivery notes</span>
+                  <textarea
+                    name="address.notes"
+                    maxLength={500}
+                    rows={2}
+                    defaultValue={order.customer.address.notes ?? ""}
+                  />
+                </label>
+              </>
+            )}
+          </>
+        )}
+        <label className="wide-field">
+          <span>Operational note</span>
+          <textarea
+            name="operationalNote"
+            maxLength={500}
+            rows={3}
+            defaultValue={order.operationalNote ?? ""}
+          />
+        </label>
+        <div className="form-actions wide-field">
+          <button type="submit" className="primary-button" disabled={disabled}>
+            Save order edit
+          </button>
+          <small className="muted">
+            Uses order version {order.version}; concurrent changes are refused.
+          </small>
+        </div>
+        {validationMessage && <p className="form-error wide-field">{validationMessage}</p>}
+      </form>
+    </article>
+  );
+}
+
+function editDiffLines(diff: OrderEditDiff) {
+  const lines: string[] = [];
+  if (diff.items) {
+    const show = (items: typeof diff.items.before) =>
+      items.map((item) => `${item.sku} × ${item.quantity}`).join(", ") || "none";
+    lines.push(`Items: ${show(diff.items.before)} → ${show(diff.items.after)}`);
+  }
+  if (diff.coupon)
+    lines.push(`Coupon: ${diff.coupon.before ?? "none"} → ${diff.coupon.after ?? "none"}`);
+  if (diff.delivery)
+    lines.push(
+      `Delivery address updated: ${diff.delivery.beforeArea} → ${diff.delivery.afterArea}`,
+    );
+  if (diff.operationalNote)
+    lines.push(`Operational note: ${diff.operationalNote.after ?? "cleared"}`);
+  if (diff.total)
+    lines.push(`Total: ${money(diff.total.beforeFils)} → ${money(diff.total.afterFils)}`);
+  return lines;
 }
 
 function OrderDetailBody({ order }: { order: AdminOrderResponse }) {
@@ -367,6 +632,25 @@ function OrderDetailBody({ order }: { order: AdminOrderResponse }) {
           ))}
         </div>
       </article>
+      {order.edits.length > 0 && (
+        <article className="record-card">
+          <h3>Edit history</h3>
+          <ol className="order-history">
+            {order.edits.map((edit) => (
+              <li key={edit.id}>
+                <span className="badge">v{edit.orderVersion}</span>
+                <div>
+                  <strong>{edit.actor.name}</strong>
+                  <small>{when(edit.editedAt)}</small>
+                  {editDiffLines(edit.diff).map((line) => (
+                    <p key={line}>{line}</p>
+                  ))}
+                </div>
+              </li>
+            ))}
+          </ol>
+        </article>
+      )}
       <article className="record-card">
         <h3>History</h3>
         <ol className="order-history">

@@ -11,6 +11,7 @@ import {
   adminOrderResponseSchema,
   adminOrdersResponseSchema,
   errorEnvelopeSchema,
+  orderEditResponseSchema,
   orderTransitionResponseSchema,
 } from "@ih/contracts";
 import { createDatabase, createPool } from "@ih/db";
@@ -47,12 +48,13 @@ let app: INestApplication;
 let base = "";
 let staffCookie = "";
 let staffRoleId = "";
+let staffId = "";
 let first: Awaited<ReturnType<typeof seedOrder>>;
 let second: Awaited<ReturnType<typeof seedOrder>>;
 let lifecycle: Awaited<ReturnType<typeof seedOrder>>;
 
 async function setStaffPermission(
-  key: "orders.read" | "customers.read" | "orders.transition",
+  key: "orders.read" | "customers.read" | "orders.transition" | "orders.edit",
   enabled: boolean,
 ) {
   if (enabled)
@@ -87,8 +89,48 @@ const transition = (
     },
     body: JSON.stringify(body),
   });
+const edit = (orderId: string, body: unknown, options: { cookie?: string; origin?: string } = {}) =>
+  fetch(`${base}/v1/admin/orders/${orderId}`, {
+    method: "PATCH",
+    headers: {
+      cookie: options.cookie ?? staffCookie,
+      origin: options.origin ?? ADMIN,
+      "content-type": "application/json",
+      "x-ih-client-ip": "192.0.2.85",
+    },
+    body: JSON.stringify(body),
+  });
 const errorCode = async (response: Response) =>
   errorEnvelopeSchema.parse(await response.json()).error.code;
+
+async function makeEditableCommerceFixture(
+  seeded: Awaited<ReturnType<typeof seedOrder>>,
+  stock = 20,
+) {
+  await pool.query(
+    `UPDATE brands SET active=true WHERE id=(SELECT p.brand_id FROM products p
+       JOIN variants v ON v.product_id=p.id WHERE v.id=$1)`,
+    [seeded.variantId],
+  );
+  await pool.query(
+    `UPDATE categories SET active=true WHERE id=(SELECT p.category_id FROM products p
+       JOIN variants v ON v.product_id=p.id WHERE v.id=$1)`,
+    [seeded.variantId],
+  );
+  await pool.query(
+    "UPDATE products SET status='published' WHERE id=(SELECT product_id FROM variants WHERE id=$1)",
+    [seeded.variantId],
+  );
+  await pool.query(
+    "UPDATE delivery_areas SET active=true WHERE id=(SELECT area_id FROM orders WHERE id=$1)",
+    [seeded.orderId],
+  );
+  await pool.query(
+    `INSERT INTO stock_movements (variant_id,delta,balance_after,reason,command_id,effect,actor_id)
+       VALUES ($1,$2,$2,'INITIAL_STOCK',$3,'adjust',$4)`,
+    [seeded.variantId, stock, `edit-stock-${seeded.variantId}`, staffId],
+  );
+}
 
 describe("admin order list and snapshot detail through the real API and PostgreSQL", () => {
   beforeAll(async () => {
@@ -103,6 +145,7 @@ describe("admin order list and snapshot detail through the real API and PostgreS
         passwordHash: await hasher.hash(PASSWORD),
       },
     });
+    staffId = staff.id;
     first = await seedOrder(pool, { quantity: 2 });
     second = await seedOrder(pool, { status: "confirmed" });
     lifecycle = await seedOrder(pool);
@@ -360,6 +403,184 @@ describe("admin order list and snapshot detail through the real API and PostgreS
       "out_for_delivery",
       "delivered",
     ]);
+  });
+
+  it("edits merchandise, coupon, address and notes atomically with net stock and replay-safe diffs", async () => {
+    const target = await seedOrder(pool, { quantity: 2 });
+    const addition = await seedOrder(pool);
+    await makeEditableCommerceFixture(target);
+    await makeEditableCommerceFixture(addition);
+    await db.setting.upsert({
+      where: { key: "delivery" },
+      create: {
+        key: "delivery",
+        value: { flatFeeFils: 1500, etaText: "Seed ETA", freeThresholdFils: null },
+        updatedBy: staffId,
+      },
+      update: {
+        value: { flatFeeFils: 1500, etaText: "Seed ETA", freeThresholdFils: null },
+        updatedBy: staffId,
+      },
+    });
+    await db.coupon.create({
+      data: { code: "EDIT10", percentBps: 1000, active: true, updatedBy: staffId },
+    });
+    const commandId = randomUUID();
+    const body = {
+      expectedVersion: 1,
+      commandId,
+      lines: [
+        { variantId: target.variantId, quantity: 3 },
+        { variantId: addition.variantId, quantity: 1 },
+      ],
+      couponCode: "edit10",
+      address: {
+        areaId: (await pool.query("SELECT area_id FROM orders WHERE id=$1", [target.orderId]))
+          .rows[0].area_id,
+        type: "villa",
+        building: "Seed Villa 2",
+        unit: null,
+        street: "Palm Street",
+        makani: null,
+        notes: "Back gate",
+      },
+      operationalNote: "Call on arrival",
+    };
+    const responses = await Promise.all([
+      edit(target.orderId, body),
+      edit(target.orderId, body),
+      edit(target.orderId, body),
+    ]);
+    for (const response of responses) expect(response.status).toBe(200);
+    const receipts = await Promise.all(
+      responses.map(async (response) => orderEditResponseSchema.parse(await response.json())),
+    );
+    expect(receipts.filter((receipt) => !receipt.replayed)).toHaveLength(1);
+    expect(receipts[0]).toMatchObject({
+      orderId: target.orderId,
+      orderVersion: 2,
+      actor: { name: "Order Reader" },
+      diff: {
+        coupon: { before: null, after: "EDIT10" },
+        delivery: { addressChanged: true },
+        operationalNote: { before: null, after: "Call on arrival" },
+      },
+    });
+    const state = (
+      await pool.query(
+        `SELECT version,total_fils::int,address_building,coupon_code FROM orders WHERE id=$1`,
+        [target.orderId],
+      )
+    ).rows[0];
+    expect(state).toEqual({
+      version: 2,
+      total_fils: 19500,
+      address_building: "Seed Villa 2",
+      coupon_code: "EDIT10",
+    });
+    expect(
+      (
+        await pool.query(
+          `SELECT id AS variant_id,stock_on_hand FROM variants WHERE id=ANY($1::uuid[]) ORDER BY id`,
+          [[target.variantId, addition.variantId]],
+        )
+      ).rows.map((row) => [row.variant_id, row.stock_on_hand]),
+    ).toEqual(
+      [
+        [target.variantId, 19],
+        [addition.variantId, 19],
+      ].sort(([a], [b]) => String(a).localeCompare(String(b))),
+    );
+    expect(
+      Number(
+        (
+          await pool.query("SELECT count(*) FROM order_edit_history WHERE order_id=$1", [
+            target.orderId,
+          ])
+        ).rows[0].count,
+      ),
+    ).toBe(1);
+
+    const removal = await edit(target.orderId, {
+      expectedVersion: 2,
+      commandId: randomUUID(),
+      lines: [{ variantId: addition.variantId, quantity: 1 }],
+      couponCode: null,
+    });
+    expect(removal.status).toBe(200);
+    expect(orderEditResponseSchema.parse(await removal.json())).toMatchObject({
+      orderVersion: 3,
+      diff: { coupon: { before: "EDIT10", after: null } },
+    });
+    expect(
+      (await pool.query("SELECT stock_on_hand FROM variants WHERE id=$1", [target.variantId]))
+        .rows[0].stock_on_hand,
+    ).toBe(22);
+    expect(
+      Number(
+        (
+          await pool.query(
+            "SELECT count(*) FROM coupon_redemptions WHERE order_id=$1 AND released_at IS NULL",
+            [target.orderId],
+          )
+        ).rows[0].count,
+      ),
+    ).toBe(0);
+    const detail = adminOrderResponseSchema.parse(await (await call("/" + target.orderId)).json());
+    expect(detail).toMatchObject({
+      version: 3,
+      operationalNote: "Call on arrival",
+      items: [{ variantId: addition.variantId, quantity: 1 }],
+    });
+    expect(detail.edits).toHaveLength(2);
+  });
+
+  it("allows only operational notes during processing and refuses stale or unauthorized edits", async () => {
+    const target = await seedOrder(pool, { status: "confirmed" });
+    const processing = await transition(target.orderId, {
+      to: "processing",
+      expectedVersion: 1,
+      commandId: randomUUID(),
+    });
+    expect(processing.status).toBe(200);
+    const stale = await edit(target.orderId, {
+      expectedVersion: 1,
+      commandId: randomUUID(),
+      operationalNote: "stale",
+    });
+    expect(stale.status).toBe(409);
+    expect(await errorCode(stale)).toBe("VERSION_CONFLICT");
+    const merchandise = await edit(target.orderId, {
+      expectedVersion: 2,
+      commandId: randomUUID(),
+      lines: [{ variantId: target.variantId, quantity: 2 }],
+    });
+    expect(merchandise.status).toBe(409);
+    expect(await errorCode(merchandise)).toBe("ORDER_NOT_EDITABLE");
+    const note = await edit(target.orderId, {
+      expectedVersion: 2,
+      commandId: randomUUID(),
+      operationalNote: "Pack separately",
+    });
+    expect(note.status, await note.clone().text()).toBe(200);
+    expect(orderEditResponseSchema.parse(await note.json())).toMatchObject({
+      orderVersion: 3,
+      diff: { operationalNote: { before: null, after: "Pack separately" } },
+    });
+    await setStaffPermission("orders.edit", false);
+    try {
+      expect(
+        (
+          await edit(target.orderId, {
+            expectedVersion: 3,
+            commandId: randomUUID(),
+            operationalNote: "Denied",
+          })
+        ).status,
+      ).toBe(403);
+    } finally {
+      await setStaffPermission("orders.edit", true);
+    }
   });
 
   it("rolls the order and history back when required audit cannot be written", async () => {
