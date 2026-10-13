@@ -5,6 +5,7 @@ import type { StoreQuoteRequest, StoreQuoteResponse } from "@ih/contracts";
 import {
   CouponRejectedError,
   previewQuote,
+  quoteChargeFacts,
   VariantUnavailableError,
   type Database,
   type Quote,
@@ -14,22 +15,7 @@ import { quoteFingerprint, signQuote, type QuoteFacts, type QuoteKey } from "@ih
 import { API_ENV, DATABASE } from "../infra/tokens";
 
 /** The facts a shopper accepts: what is charged, and nothing that does not change it. */
-export function quoteFacts(quote: Quote): QuoteFacts {
-  return {
-    areaId: quote.delivery.areaId,
-    deliveryFeeFils: quote.deliveryFeeFils,
-    couponCode: quote.coupon?.code ?? null,
-    couponPercentBps: quote.coupon?.percentBps ?? 0,
-    merchandiseSubtotalFils: quote.merchandiseSubtotalFils,
-    discountFils: quote.discountFils,
-    totalFils: quote.totalFils,
-    lines: quote.lines.map(({ variantId, quantity, unitPriceFils }) => ({
-      variantId,
-      quantity,
-      unitPriceFils,
-    })),
-  };
-}
+export const quoteFacts: (quote: Quote) => QuoteFacts = quoteChargeFacts;
 /**
  * Cart quote (roadmap step 71, ADR 0041): the authoritative total for a cart, an area and at
  * most one code, with a signed token saying what was shown. Nothing is reserved or recorded.

@@ -91,6 +91,33 @@ function assemble(
   };
 }
 // At most 50 lines × 10 × 1,000,000,000 fils = 5e11: far inside the safe integer range.
+/** Exactly what a shopper is charged for: the input of the quote fingerprint (ADR 0041). */
+export interface QuoteChargeFacts {
+  areaId: string;
+  deliveryFeeFils: number;
+  couponCode: string | null;
+  couponPercentBps: number;
+  merchandiseSubtotalFils: number;
+  discountFils: number;
+  totalFils: number;
+  lines: Array<{ variantId: string; quantity: number; unitPriceFils: number }>;
+}
+export function quoteChargeFacts(quote: Quote): QuoteChargeFacts {
+  return {
+    areaId: quote.delivery.areaId,
+    deliveryFeeFils: quote.deliveryFeeFils,
+    couponCode: quote.coupon?.code ?? null,
+    couponPercentBps: quote.coupon?.percentBps ?? 0,
+    merchandiseSubtotalFils: quote.merchandiseSubtotalFils,
+    discountFils: quote.discountFils,
+    totalFils: quote.totalFils,
+    lines: quote.lines.map(({ variantId, quantity, unitPriceFils }) => ({
+      variantId,
+      quantity,
+      unitPriceFils,
+    })),
+  };
+}
 const subtotal = (prices: readonly OrderPriceLine[]) =>
   prices.reduce((sum, line) => sum + line.unitPriceFils * line.quantity, 0);
 const typed = (code: string | null | undefined) => (code && code.trim() !== "" ? code : null);
