@@ -263,14 +263,47 @@ describe("origin validation", () => {
     expect(
       isSameOriginPost(headers({ origin: ORIGIN, "sec-fetch-site": "same-origin" }), [ORIGIN]),
     ).toBe(true);
+    expect(
+      isSameOriginPost(headers({ origin: ORIGIN, "sec-fetch-site": "same-site" }), [ORIGIN]),
+    ).toBe(true);
+    expect(
+      isSameOriginPost(headers({ origin: ORIGIN, "sec-fetch-site": "cross-site" }), [ORIGIN]),
+    ).toBe(true);
     expect(isSameOriginPost(headers({}), [ORIGIN])).toBe(false);
     expect(isSameOriginPost(headers({ origin: "null" }), [ORIGIN])).toBe(false);
+    expect(
+      isSameOriginPost(
+        headers({
+          origin: "null",
+          host: "internal:3000",
+          "x-forwarded-host": "shop.example",
+          "sec-fetch-site": "same-origin",
+        }),
+        [ORIGIN],
+      ),
+    ).toBe(true);
+    expect(
+      isSameOriginPost(
+        headers({
+          origin: "null",
+          "x-forwarded-host": "evil.example",
+          "sec-fetch-site": "same-origin",
+        }),
+        [ORIGIN],
+      ),
+    ).toBe(false);
+    expect(
+      isSameOriginPost(
+        headers({
+          origin: "null",
+          "x-forwarded-host": "shop.example",
+          "sec-fetch-site": "cross-site",
+        }),
+        [ORIGIN],
+      ),
+    ).toBe(false);
     expect(isSameOriginPost(headers({ origin: "https://evil.example" }), [ORIGIN])).toBe(false);
     expect(isSameOriginPost(headers({ origin: ORIGIN + ".evil.example" }), [ORIGIN])).toBe(false);
-    for (const site of ["cross-site", "same-site"])
-      expect(isSameOriginPost(headers({ origin: ORIGIN, "sec-fetch-site": site }), [ORIGIN])).toBe(
-        false,
-      );
   });
 });
 
@@ -330,12 +363,11 @@ describe("accept and reject handlers", () => {
     ]);
   });
 
-  it("refuses foreign, missing and cross-site origins without setting any cookie", async () => {
+  it("refuses foreign and missing origins without setting any cookie", async () => {
     const handlers = createAgeHandlers(runtime());
     const foreign: Array<Record<string, string>> = [
       { origin: "https://evil.example" },
       { origin: "null" },
-      { "sec-fetch-site": "cross-site" },
     ];
     for (const headers of foreign)
       for (const call of [handlers.accept, handlers.reject]) {
