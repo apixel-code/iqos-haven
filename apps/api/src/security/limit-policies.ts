@@ -27,7 +27,7 @@ export const LOGIN_POLICY: EndpointLimitPolicy<"ip" | "identityNetwork" | "ident
   outage: "fail_closed",
 };
 
-/** Order submission (used from step 75): attempted submissions count, not just orders. */
+/** Order submission (step 77): attempted submissions count, not just orders. */
 export const checkoutPolicy = (env: ApiEnv): EndpointLimitPolicy<"ip" | "phone"> => ({
   endpoint: "checkout",
   rules: { ip: perMinute(10), phone: perMinute(5) },
@@ -126,6 +126,27 @@ export const STORE_QUOTE_POLICY: EndpointLimitPolicy<"ip"> = {
   rules: { ip: perMinute(30) },
   outage: { fallback: { ip: perMinute(15) }, processCeiling: perMinute(1500) },
 };
+
+/**
+ * Refused coupon codes (step 77), counted across the quote and the order route. Only a refused
+ * code (unknown, inactive, expired or full) uses this budget, so re-pricing a cart with a good code is never slowed; once it is
+ * spent, any request that carries a code is refused before the code is looked at, which keeps a
+ * guesser from telling a right code from a wrong one. Requests without a code are unaffected.
+ */
+const TEN_MINUTES = 10 * MINUTE;
+export const couponFailurePolicy = (env: ApiEnv): EndpointLimitPolicy<"ip"> => ({
+  endpoint: "store_coupon_failure",
+  rules: { ip: { limit: 10, windowMs: TEN_MINUTES } },
+  outage: {
+    fallback: {
+      ip: {
+        limit: Math.max(1, Math.floor(5 / env.RATE_LIMIT_MAX_REPLICAS)),
+        windowMs: TEN_MINUTES,
+      },
+    },
+    processCeiling: { limit: 300, windowMs: TEN_MINUTES },
+  },
+});
 
 /**
  * Search and facets (step 60) are not cached, because the text is free-form, so their budget is

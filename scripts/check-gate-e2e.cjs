@@ -287,6 +287,25 @@ async function main() {
           ...body,
         }),
       });
+    const order = (headers = {}) =>
+      fetch(base + "/api/v1/store/orders", {
+        method: "POST",
+        redirect: "manual",
+        headers: {
+          "content-type": "application/json",
+          origin: ORIGIN,
+          "idempotency-key": randomBytes(24).toString("base64url"),
+          ...headers,
+        },
+        body: JSON.stringify({
+          contact: { name: "Gate Probe", phone: "0501234567" },
+          address: { areaId: area.id, type: "villa", building: "Gate Villa 1" },
+          lines: [{ variantId: visible.variants[0].id, quantity: 1 }],
+          couponCode: null,
+          quoteToken: "v1.gate.0.probe",
+          ageConfirmed: true,
+        }),
+      });
     let ready = false;
     for (let attempt = 0; attempt < 150 && !ready; attempt++) {
       if (store.exitCode !== null) break;
@@ -365,6 +384,15 @@ async function main() {
           !leaks(body) && !settingsLeak(body) && !/totalFils|deliveryFeeFils|etaText/.test(body),
           `${name} carries no price, fee or product data`,
         );
+      }
+      // Placing an order needs the ticket as well, before anything in the request is read.
+      {
+        const response = await order(headers);
+        const body = await response.text();
+        const name = `${label}: API order`;
+        check(response.status === 403, `${name} answers 403`, String(response.status));
+        check(body.includes("AGE_VERIFICATION_REQUIRED"), `${name} says the age check is required`);
+        check(!leaks(body) && !settingsLeak(body), `${name} carries no product or settings data`);
       }
       for (const target of API_ROUTES) {
         const response = await get(target, headers);
@@ -589,6 +617,20 @@ async function main() {
           String(crossSite.status),
         );
       }
+    }
+
+    {
+      // Order submission stays off until it is switched on deliberately (step 77).
+      const orders = async () =>
+        (await pool.query("SELECT count(*)::int AS n FROM orders")).rows[0].n;
+      const before = await orders();
+      const response = await order(verified);
+      check(
+        response.status === 503,
+        "a verified order is refused while submission is off",
+        String(response.status),
+      );
+      check((await orders()) === before, "no order was written");
     }
 
     // 4. Warm: the API's catalogue cache now holds what the verified shopper loaded.

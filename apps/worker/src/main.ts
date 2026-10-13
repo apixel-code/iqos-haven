@@ -17,6 +17,7 @@ import { EffectRunner, startEffectWorkers, systemProbeHandler } from "./effects"
 import { BullEffectEnqueuer, createQueueConnection } from "./queue";
 import { EffectReconciler } from "./reconciler";
 import { OutboxRelay } from "./relay";
+import { createIdempotencyCleanupJob } from "./idempotency";
 import { Scheduler } from "./scheduler";
 import { startWorker, type WorkerRuntime } from "./runtime";
 const SHUTDOWN_TIMEOUT_MS = 20000;
@@ -70,6 +71,7 @@ async function main(): Promise<void> {
     jobs: [
       createMediaCleanupJob({ db: database, storage, log }),
       createStockReconciliationJob({ db: database, log }),
+      createIdempotencyCleanupJob({ db: database, log }),
     ],
   });
   let effectWorkers: { stop(): Promise<void> } | undefined;

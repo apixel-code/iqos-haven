@@ -21,8 +21,8 @@ const FINGERPRINT = /^[A-Za-z0-9_-]{43}$/;
 /**
  * Places a storefront order (roadmap step 76). Supplies what the database layer cannot know:
  * the quote signing keys and the age policy the shopper confirmed. Everything else, including
- * every lock and write, happens in `createStoreOrder`'s single transaction. No route calls
- * this yet (step 77).
+ * every lock and write, happens in `createStoreOrder`'s single transaction. Reached through
+ * `StoreOrdersController` (step 77).
  */
 @Injectable()
 export class CreateOrderService {

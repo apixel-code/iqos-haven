@@ -1016,3 +1016,26 @@ Not covered: these locks under a real order creation (step 76); the staff row fo
 Found by this step's own run: the service threw one refusal synchronously instead of returning a rejected promise; it is now `async`.
 
 Not covered: placing an order over HTTP (step 77); the second 18+ confirmation as an input (required by the step-77 contract); notifications and the confirmation cookie (steps 78–79). The dev database has the migration applied.
+
+## Step 77 — store order route, limits and outage fallback (2026-10-13, local)
+
+`pnpm verify -- --integration`: exit 0, twice (before and after the review fixes). Unit 554, integration 469, gateway 29, age-preview 1847, gate 1978.
+
+**Integration (`store-orders.int.test.ts`, real API over HTTP and PostgreSQL, 10 tests):**
+
+- **Placing:** a two-unit order with a 10 % code answers 201 with the order number, total (AED 159.00) and time only, `private, no-store`, no cookie; one order, sale, coupon use, customer, idempotency answer and event are written; the stored order carries the age policy version.
+- **Switched off:** with `CHECKOUT_SUBMISSION_ENABLED` unset a valid, age-verified order answers 503 and writes nothing.
+- **Age and Origin:** no ticket (also with a crawler user agent) is 403 `AGE_VERIFICATION_REQUIRED`; no Origin, another Origin and a cross-site request are 403; nothing is written.
+- **Invalid input:** a bad name, phone and unit name their paths with the fixed text and do not echo the typed phone; `ageConfirmed` false or missing, a client total, a client line price, no lines, an empty token, and a missing, short or malformed `Idempotency-Key` are 400.
+- **Retry and conflict:** the same key and request (spelled differently, from another address) returns the same answer; two at once make one order (the loser gets the same answer or `IDEMPOTENCY_IN_PROGRESS`); another quantity on the same key is `IDEMPOTENCY_CONFLICT`.
+- **Old key:** after the answer expires and after the cleanup function removed it, the key answers `CHECKOUT_RECOVERY_REQUIRED` without the order ID or number and makes no order.
+- **Refusals:** `QUOTE_CHANGED` (price moved, token not ours), `QUOTE_EXPIRED`, `INSUFFICIENT_STOCK` (no variant ID in the body), `VARIANT_UNAVAILABLE`, `AREA_UNAVAILABLE`, `COUPON_INVALID`; row counts and stock unchanged.
+- **Attempt limits:** the sixth attempt a minute for one phone and the eleventh for one address are 429 with `Retry-After`, refused attempts counted; a real order from the limited address is refused and not written; quotes from it still work.
+- **Code guessing:** four refused codes at checkout plus six on the cart spend the budget; good codes in between use none; afterwards a right code and a wrong one both get 429 on both routes, an order with a code is refused and not written, an order without a code is placed, and another address is unaffected.
+- **Shared limiter down** (replicated profile, unreachable Redis): an order and its retry are placed, the third attempt for that phone is 429, and after five refused codes no code is looked at.
+
+**Other tests:** limiter `peek` (local, overflow partition, endpoint, outage and fail-closed in `rate-limit.test.ts`; Redis in `security.int.test.ts`); the quote limit test now shows ten refused codes, then 429, and thirty priced quotes a minute. `pnpm test:gate`: an order POST without a ticket is 403 for every attempt type, and a verified one is 503 with no order row while submission is off.
+
+**`invariant-reviewer`:** no blockers. Done: every coupon refusal counts; a failed count cannot replace the answer. Recorded in ADR 0046: the code budget can be exceeded by one simultaneous burst (bounded by the per-minute address limits); limits run before the replay.
+
+Not covered: a burst of simultaneous wrong codes; the `idempotency.cleanup` job wrapper; a browser flow (no checkout form until step 80). Limit values are not measured capacity (M11).

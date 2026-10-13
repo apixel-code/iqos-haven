@@ -652,6 +652,11 @@ export const apiEnvSchema = baseEnvSchema
     ...resetEnvFields,
     ...invitationEnvFields,
     ...quoteEnvFields,
+    /**
+     * Whether the store accepts orders (step 77). Off by default: the order route answers 503
+     * until the checkout gate (step 82) has passed and the Owner is ready to take orders.
+     */
+    CHECKOUT_SUBMISSION_ENABLED: strictBoolean.default(false),
     ...securityEnvFields,
     ...catalogueCacheEnvFields,
     ...ageVerifierEnvFields,

@@ -367,15 +367,32 @@ describe("cart quote through the real API (PostgreSQL, Ed25519 ticket)", () => {
       await errorCode(await post({ ...good, areaId: closedAreaId, couponCode: "NOSUCHCODE" })),
     ).toBe("AREA_UNAVAILABLE");
   });
-  it("limits quotes per client address so codes cannot be guessed quickly", async () => {
+  it("limits quotes per client address, and wrong codes much sooner", async () => {
     const address = "203.0.113.77";
     const statuses: number[] = [];
-    for (let n = 0; n < 33; n++)
+    for (let n = 0; n < 13; n++)
       statuses.push(
         (await post({ ...cart(), couponCode: "GUESS" + n }, { cookie, origin: STORE }, address))
           .status,
       );
-    expect(statuses.slice(0, 30).every((status) => status === 409)).toBe(true);
-    expect(statuses.slice(30)).toEqual([429, 429, 429]);
+    // Ten wrong codes in ten minutes; after that a code is not looked at, right or wrong.
+    expect(statuses.slice(0, 10).every((status) => status === 409)).toBe(true);
+    expect(statuses.slice(10)).toEqual([429, 429, 429]);
+    expect((await post(cart(), { cookie, origin: STORE }, address)).status).toBe(429);
+    // Re-pricing with a good code or with none has the wider budget of thirty a minute.
+    const other = "203.0.113.78";
+    const priced: number[] = [];
+    for (let n = 0; n < 33; n++)
+      priced.push(
+        (
+          await post(
+            { ...cart(), couponCode: n % 2 ? "QUOTE15" : null },
+            { cookie, origin: STORE },
+            other,
+          )
+        ).status,
+      );
+    expect(priced.slice(0, 30).every((status) => status === 200)).toBe(true);
+    expect(priced.slice(30)).toEqual([429, 429, 429]);
   });
 });

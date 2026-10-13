@@ -1,7 +1,13 @@
 import { Module } from "@nestjs/common";
 import { StoreModule } from "../store/store.module";
 import { CreateOrderService } from "./create-order.service";
+import { StoreOrdersController } from "./store-orders.controller";
 
-/** Order commands. The store route that reaches them arrives in step 77. */
-@Module({ imports: [StoreModule], providers: [CreateOrderService], exports: [CreateOrderService] })
+/** Order commands and the store route that places an order (step 77). */
+@Module({
+  imports: [StoreModule],
+  controllers: [StoreOrdersController],
+  providers: [CreateOrderService],
+  exports: [CreateOrderService],
+})
 export class OrdersModule {}

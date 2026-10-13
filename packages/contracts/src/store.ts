@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { ORDER_LIMITS, UAE_EMIRATES } from "@ih/domain";
 import { catalogueSlugSchema } from "./catalogue";
-import { orderLinesSchema } from "./checkout";
+import { checkoutAddressSchema, checkoutContactSchema, orderLinesSchema } from "./checkout";
 import { couponCodeInputSchema } from "./coupons";
 import { disposableSpecsSchema, kitSpecsSchema, productFilsSchema } from "./products";
 
@@ -355,3 +355,30 @@ export const storeQuoteResponseSchema = z.strictObject({
   }),
 });
 export type StoreQuoteResponse = z.infer<typeof storeQuoteResponseSchema>;
+
+// --- Order submission (roadmap step 77, ADR 0046) ---
+/**
+ * What a shopper sends to place an order: who and where, the lines, at most one code, the token
+ * of the total they accepted and the second 18+ confirmation. There is no field for a price, a
+ * fee, a discount or a total. The attempt key travels in the `Idempotency-Key` header.
+ */
+export const storeOrderRequestSchema = z.strictObject({
+  contact: checkoutContactSchema,
+  address: checkoutAddressSchema,
+  lines: orderLinesSchema,
+  couponCode: couponCodeInputSchema,
+  quoteToken: z.string().min(1).max(256),
+  /** The shopper ticked "I am 18 or older" on the checkout form. Only `true` is an order. */
+  ageConfirmed: z.literal(true),
+});
+export type StoreOrderRequest = z.input<typeof storeOrderRequestSchema>;
+/**
+ * The answer for a placed order, given again unchanged when the same attempt is retried.
+ * Nothing personal and nothing that grants access: the order number is a display reference.
+ */
+export const storeOrderResponseSchema = z.strictObject({
+  orderNumber: z.string().max(32),
+  totalFils: z.number().int().min(0),
+  placedAt: z.iso.datetime(),
+});
+export type StoreOrderResponse = z.infer<typeof storeOrderResponseSchema>;
