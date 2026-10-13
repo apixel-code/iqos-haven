@@ -208,7 +208,7 @@ describe("OutboxRelay (real PostgreSQL + Redis)", () => {
   it("never claims completed events (including zero-consumer events)", async () => {
     const orderId = randomUUID();
     await withTransaction(db, (tx) =>
-      writer.publish(tx, defineEvent("order.created", orderId, { orderId })),
+      writer.publish(tx, defineEvent("order.updated", orderId, { orderId })),
     );
     expect(await relay(new RecordingEnqueuer()).tick()).toEqual({ claimed: 0, dispatched: 0 });
   });

@@ -95,7 +95,7 @@ describe("PrismaOutboxWriter (real PostgreSQL)", () => {
   it("marks an event with no required consumers complete at write time", async () => {
     const orderId = randomUUID();
     const eventId = await withTransaction(db, (tx) =>
-      outbox.publish(tx, defineEvent("order.created", orderId, { orderId }, 0)),
+      outbox.publish(tx, defineEvent("order.updated", orderId, { orderId }, 0)),
     );
     const row = await db.outboxEvent.findUniqueOrThrow({
       where: { id: eventId },

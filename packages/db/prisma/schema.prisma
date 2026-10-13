@@ -142,6 +142,7 @@ model StaffUser {
   settingsUpdates     Setting[]
   deliveryAreaUpdates DeliveryArea[]
   couponUpdates       Coupon[]
+  notificationReceipts NotificationReceipt[]
   ordersCreated       Order[]              @relation("OrderCreatedBy")
   ordersCollected     Order[]              @relation("OrderCollectedBy")
   orderStatusChanges  OrderStatusHistory[]
@@ -691,3 +692,33 @@ model IdempotencyRecord {
   @@map("idempotency_records")
 }
 
+
+/// Staff notification content, written once per source event and type (step 78). Immutable.
+model Notification {
+  id            String                @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  sourceEventId String                @map("source_event_id") @db.Uuid
+  type          String                @db.VarChar(64)
+  title         String                @db.VarChar(150)
+  body          String                @db.VarChar(500)
+  link          String?               @db.VarChar(300)
+  createdAt     DateTime              @default(dbgenerated("statement_timestamp()")) @map("created_at") @db.Timestamptz(6)
+  receipts      NotificationReceipt[]
+
+  @@unique([sourceEventId, type], map: "notifications_source")
+  @@index([createdAt], map: "notifications_created")
+  @@map("notifications")
+}
+
+/// One per recipient; `readAt` is that user's own read flag.
+model NotificationReceipt {
+  notificationId String       @map("notification_id") @db.Uuid
+  userId         String       @map("user_id") @db.Uuid
+  notification   Notification @relation(fields: [notificationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  user           StaffUser    @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  deliveredAt    DateTime     @default(dbgenerated("statement_timestamp()")) @map("delivered_at") @db.Timestamptz(6)
+  readAt         DateTime?    @map("read_at") @db.Timestamptz(6)
+
+  @@id([notificationId, userId])
+  @@index([userId, readAt, notificationId], map: "notification_receipts_inbox")
+  @@map("notification_receipts")
+}

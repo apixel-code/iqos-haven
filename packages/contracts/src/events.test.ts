@@ -67,14 +67,17 @@ describe("event catalogue", () => {
     expect(required.filter((consumer) => planned.includes(consumer))).toEqual([]);
   });
 
-  it("only wires consumers whose handlers exist (probe, email, media, revalidation)", () => {
+  it("only wires consumers whose handlers exist (probe, email, media, revalidation, inbox)", () => {
     const wired = entries.flatMap(([, definition]) => definition.consumers as readonly string[]);
     expect([...new Set(wired)].sort()).toEqual([
       "email",
       "media_processor",
+      "notification",
       "storefront_revalidate",
       "system_probe",
     ]);
+    // A new order must reach the inbox and the email planner (step 78).
+    expect(EVENT_CATALOGUE["order.created"].consumers).toEqual(["notification", "email"]);
   });
 });
 

@@ -250,6 +250,17 @@ describe("POST /v1/store/orders through the real API (PostgreSQL, Ed25519 ticket
       couponCode: "ROUTE10",
     });
     expect(Number(stored.totalFils)).toBe(15900);
+    // The inbox notification and the shop email are required work of this order (step 78),
+    // written with it and waiting for the worker.
+    const event = await db.outboxEvent.findFirstOrThrow({
+      where: { aggregateId: stored.id, eventType: "order.created" },
+      include: { effects: true },
+    });
+    expect(event.completedAt).toBeNull();
+    expect(event.effects.map((effect) => [effect.consumer, effect.status]).sort()).toEqual([
+      ["email", "pending"],
+      ["notification", "pending"],
+    ]);
   });
 
   it("refuses everything while submission is switched off, and writes nothing", async () => {

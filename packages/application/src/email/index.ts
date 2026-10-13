@@ -4,3 +4,5 @@ export * from "./template";
 export * from "./password-reset";
 
 export * from "./staff-invitation";
+
+export * from "./new-order";

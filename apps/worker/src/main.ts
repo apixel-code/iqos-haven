@@ -18,6 +18,7 @@ import { BullEffectEnqueuer, createQueueConnection } from "./queue";
 import { EffectReconciler } from "./reconciler";
 import { OutboxRelay } from "./relay";
 import { createIdempotencyCleanupJob } from "./idempotency";
+import { createNotificationConsumer, newOrderEmailPlanner } from "./order-notifications";
 import { Scheduler } from "./scheduler";
 import { startWorker, type WorkerRuntime } from "./runtime";
 const SHUTDOWN_TIMEOUT_MS = 20000;
@@ -45,6 +46,7 @@ async function main(): Promise<void> {
     planners: {
       "staff.password_reset_requested": passwordResetEmailPlanner(database, env),
       "staff.invited": staffInvitationEmailPlanner(database, env),
+      "order.created": newOrderEmailPlanner(database),
     },
   });
   // Image processing is CPU/memory heavy: one libvips thread per job, bounded worker concurrency.
@@ -59,7 +61,13 @@ async function main(): Promise<void> {
     db: database,
     owner,
     log,
-    handlers: [systemProbeHandler, emailConsumer, mediaConsumer, revalidateConsumer],
+    handlers: [
+      systemProbeHandler,
+      emailConsumer,
+      mediaConsumer,
+      revalidateConsumer,
+      createNotificationConsumer({ log }),
+    ],
     retries: enqueuer,
   });
   const reconciler = new EffectReconciler({ db: database, enqueuer, log });

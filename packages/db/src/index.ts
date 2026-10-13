@@ -33,5 +33,6 @@ export * from "./coupons";
 export * from "./coupon-admin";
 export * from "./quote";
 export * from "./idempotency";
+export * from "./notifications";
 export * from "./order-locks";
 export * from "./order-create";

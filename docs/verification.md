@@ -1039,3 +1039,23 @@ Not covered: placing an order over HTTP (step 77); the second 18+ confirmation a
 **`invariant-reviewer`:** no blockers. Done: every coupon refusal counts; a failed count cannot replace the answer. Recorded in ADR 0046: the code budget can be exceeded by one simultaneous burst (bounded by the per-minute address limits); limits run before the replay.
 
 Not covered: a burst of simultaneous wrong codes; the `idempotency.cleanup` job wrapper; a browser flow (no checkout form until step 80). Limit values are not measured capacity (M11).
+
+## Step 78 — new-order inbox notification and email (2026-10-13, local)
+
+`pnpm verify -- --integration`: exit 0, twice (before and after the review fixes). Unit 554, integration 476, gateway 29, age-preview 1847, gate 1978.
+
+**Integration (`order-notifications.int.test.ts`, real PostgreSQL through `EffectRunner`, 7 tests):**
+
+- A new `order.created` event carries exactly the `notification` and `email` effects.
+- **Inbox:** one notification ("New order IH-…", "3 items · AED 165.00 · area", link `/orders/<id>`) with receipts for the active Owner and Staff users, none for a deactivated user or a role without `notifications.read_own`; a second delivery is a duplicate; no customer name, phone or address in it.
+- **Redelivery:** content stays as first written, one user's read flag survives and another's stays unread, a newly eligible user gets one receipt, nobody gets two. The database refuses changing or deleting a notification, un-reading or moving or deleting a receipt, and an absolute URL as a link.
+- **Inbox off:** nothing is written and the effect completes.
+- **Email:** nothing is sent while unconfigured or disabled (`no-recipients`); when enabled, one message to the listed addresses with the order number and AED 115.00 in the subject, item count and area in the text, and no customer data, order ID or link; a second run is a duplicate.
+- **No email dependency:** with a failing provider the email effect is `retry`, the inbox entry is written, the order is untouched and the stored error holds no address.
+- An event without an order goes to `dead` with `ORDER_NOT_FOUND`.
+
+**Other tests:** an order placed over HTTP (`store-orders.int.test.ts`) leaves both effects pending with its event; the catalogue test lists `notification` among wired consumers; two tests that used `order.created` as an event without consumers now use `order.updated`.
+
+**`invariant-reviewer`:** no blockers. Done: column-level `UPDATE (read_at)` for the runtime role; ADR notes on retention and on re-checking permissions in step 91.
+
+Not covered: sending this email through Mailpit or Resend (stub adapter here); reading the inbox (step 91); the worker process picking the effects up from the queue end to end (the M7 gate, step 82).

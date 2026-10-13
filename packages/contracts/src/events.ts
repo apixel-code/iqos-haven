@@ -155,8 +155,10 @@ export const EVENT_CATALOGUE = {
     schemaVersion: 1,
     aggregateType: "order",
     payload: z.strictObject({ orderId: id }),
-    consumers: [],
-    plannedConsumers: { notification: 78, email: 78, analytics_rollup: 106 },
+    // Step 78 (ADR 0047). No backfill: order submission was never switched on, so the only
+    // earlier events are in development and test databases and keep their empty snapshot.
+    consumers: ["notification", "email"],
+    plannedConsumers: { analytics_rollup: 106 },
   }),
   "order.updated": define({
     schemaVersion: 1,
