@@ -11,12 +11,12 @@ export const metadata: Metadata = { title: `Your cart · ${SITE.name}` };
  * and is drawn in the browser. Like every page here it is behind the routing gate.
  */
 export default async function CartPage() {
-  const { whatsappNumber } = await storeInfo();
+  const { whatsappNumber, checkoutOpen } = await storeInfo();
   return (
     <>
       <Breadcrumbs trail={[{ label: "Home", href: "/" }, { label: "Cart" }]} />
       <PageHead title="Your cart" />
-      <CartView whatsappNumber={whatsappNumber} />
+      <CartView whatsappNumber={whatsappNumber} checkoutOpen={checkoutOpen} />
     </>
   );
 }

@@ -286,6 +286,8 @@ export const storeInfoResponseSchema = z.strictObject({
     .string()
     .regex(/^\+[1-9]\d{7,14}$/)
     .nullable(),
+  /** Whether orders are being taken (step 80). The order route decides again on every order. */
+  checkoutOpen: z.boolean(),
 });
 export type StoreInfoResponse = z.infer<typeof storeInfoResponseSchema>;
 

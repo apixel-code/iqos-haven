@@ -29,3 +29,17 @@ Afterwards stop both servers and drop the schema:
 Notes: ports 3001, 4000 and 4099 (loopback QA status probe: counts only) must be free; the `API_INTERNAL_URL` value is a placeholder required by
 the production admin start (the admin client only calls the same-origin `/api`). Real mobile
 touch/keyboard and reset/invite submissions are not covered.
+
+## Storefront checkout (step 80)
+
+`checkout.mjs` drives the checkout form at 360px against the stack served by the gate script:
+
+```sh
+pnpm build && node scripts/check-gate-e2e.cjs --serve --checkout-open &   # prints SERVING, COOKIE, VARIANT, SCHEMA
+QA_PLAYWRIGHT_DIR=/tmp/ih-qa node scripts/browser-qa/checkout.mjs <SERVING> <COOKIE> /tmp/ih-qa/shots <VARIANT>
+```
+
+It checks the empty-form messages, that nothing typed reaches device storage, a lost answer, the
+attempt key surviving a reload, the retry returning the same order, and the cart and key being
+cleared only after the acknowledgement. Stop the stack afterwards and drop the printed schema:
+SIGINT does not always get to drop it.

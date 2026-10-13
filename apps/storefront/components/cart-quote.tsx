@@ -20,12 +20,21 @@ import {
   type AcceptedQuote,
   type QuoteProblem,
 } from "@/lib/cart/quote";
+import type { QuoteChoice } from "@/lib/checkout/memory";
 import { displayAed } from "@/lib/store/listing";
 
 interface Line {
   variantId: string;
   quantity: number;
   name: string;
+}
+/** Exactly what was priced and accepted: what an order made from this total must send. */
+export interface AcceptedOrderQuote {
+  lines: Array<{ variantId: string; quantity: number }>;
+  areaId: string;
+  couponCode: string | null;
+  token: string;
+  totalFils: number;
 }
 const FIELD =
   "h-11 w-full rounded-md border border-line bg-surface px-3 text-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus";
@@ -41,6 +50,11 @@ export function CartQuote({
   blocked,
   onUnavailable,
   onReady,
+  initial,
+  onChoice,
+  onAccepted,
+  refresh = 0,
+  areaError,
 }: {
   /** Buyable lines of the cart. */
   lines: readonly Line[];
@@ -50,11 +64,21 @@ export function CartQuote({
   onUnavailable: () => void;
   /** Whether the shopper holds an accepted, current total. */
   onReady: (ready: boolean) => void;
+  /** Area and code chosen earlier in this visit (memory only). */
+  initial?: QuoteChoice;
+  /** The shopper chose an area or a code. */
+  onChoice?: (choice: QuoteChoice) => void;
+  /** The accepted, current total with what it was for; null while there is none. */
+  onAccepted?: (accepted: AcceptedOrderQuote | null) => void;
+  /** Change it to ask for the same total again (the order route said it moved). */
+  refresh?: number;
+  /** Shown under the area field by a form that requires it. */
+  areaError?: string | undefined;
 }) {
   const [delivery, setDelivery] = useState<StoreDeliveryResponse | null | "failed">(null);
-  const [areaId, setAreaId] = useState("");
-  const [typedCode, setTypedCode] = useState("");
-  const [code, setCode] = useState<string | null>(null);
+  const [areaId, setAreaId] = useState(initial?.areaId ?? "");
+  const [typedCode, setTypedCode] = useState(initial?.couponCode ?? "");
+  const [code, setCode] = useState<string | null>(initial?.couponCode ?? null);
   const [quote, setQuote] = useState<StoreQuoteResponse | null>(null);
   const [quoteKey, setQuoteKey] = useState("");
   const [accepted, setAccepted] = useState<AcceptedQuote | null>(null);
@@ -165,9 +189,9 @@ export function CartQuote({
       controller.abort();
       setBusy(false);
     };
-    // `retry` asks again for the same request (expired token, "Try again").
+    // `retry` and `refresh` ask again for the same request (expired token, "Try again").
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key, retry]);
+  }, [key, retry, refresh]);
 
   // An accepted total is only good until its token expires: ask again then.
   useEffect(() => {
@@ -181,6 +205,13 @@ export function CartQuote({
   // eslint-disable-next-line react-hooks/purity -- the clock decides only whether a token is still usable
   const ready = canProceed(accepted, key, current, Date.now());
   useEffect(() => onReady(ready), [onReady, ready]);
+  useEffect(() => onChoice?.({ areaId, couponCode: code }), [onChoice, areaId, code]);
+  const token = ready ? accepted!.token : null;
+  useEffect(() => {
+    onAccepted?.(token && request ? { ...request, token, totalFils: accepted!.totalFils } : null);
+    // `key` stands for the request and `token` for the accepted total.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [onAccepted, token, key]);
 
   if (delivery === null)
     return (
@@ -205,8 +236,11 @@ export function CartQuote({
       <label className="flex flex-col gap-1.5 text-sm">
         <span className="font-medium">Delivery area</span>
         <select
+          id="checkout-area"
           className={FIELD}
           value={areaId}
+          aria-invalid={areaError ? true : undefined}
+          aria-describedby={areaError ? "checkout-area-error" : undefined}
           onChange={(event) => {
             setAreaId(event.target.value);
             droppedFrom.current = null;
@@ -228,6 +262,11 @@ export function CartQuote({
             </optgroup>
           ))}
         </select>
+        {areaError && (
+          <span id="checkout-area-error" className="text-sm font-medium text-error">
+            {areaError}
+          </span>
+        )}
       </label>
       <form
         className="flex items-end gap-2"

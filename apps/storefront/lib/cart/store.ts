@@ -73,6 +73,11 @@ export function setCartQuantity(variantId: string, quantity: number): void {
   if (next !== cached.cart) write(next);
 }
 
+/** Empties the cart. Called only after the API has acknowledged the order made from it. */
+export function clearCart(): void {
+  write(EMPTY_CART);
+}
+
 export function removeFromCart(variantId: string): void {
   const next = removeLine(read(), variantId);
   if (next !== cached.cart) write(next);

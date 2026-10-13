@@ -1,19 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
-import { storeCartLinesResponseSchema, type StoreCartLine } from "@ih/contracts";
-import { CART_LIMITS, cartView, type CartViewLine } from "@/lib/cart/cart";
-import { removeFromCart, setCartQuantity, useCart } from "@/lib/cart/store";
+import { useState } from "react";
+import { CART_LIMITS, type CartViewLine } from "@/lib/cart/cart";
+import { useFreshCart } from "@/lib/cart/fresh";
+import { removeFromCart, setCartQuantity } from "@/lib/cart/store";
+import { rememberChoice, rememberedChoice } from "@/lib/checkout/memory";
 import { SITE } from "@/lib/site";
 import { displayAed } from "@/lib/store/listing";
 import { whatsappHref, WHATSAPP_MESSAGES } from "@/lib/whatsapp";
 import { CartQuote } from "./cart-quote";
 import { RecentlyViewed } from "./recently-viewed";
-
-/** Outcome of the latest refresh, tagged with the variant set it was for. */
-type Outcome = { key: string; ok: boolean } | null;
-type Known = ReadonlyMap<string, StoreCartLine | null>;
 
 const STATUS_TEXT: Partial<Record<CartViewLine["status"], string>> = {
   sold_out: "Sold out. Remove it to continue, or check back later.",
@@ -26,63 +23,17 @@ const STATUS_TEXT: Partial<Record<CartViewLine["status"], string>> = {
  * variants changes. A line that is sold out or no longer offered stays visible and flagged; it
  * is never replaced by another variant and never counted in the subtotal.
  */
-export function CartView({ whatsappNumber }: { whatsappNumber: string | null }) {
-  const cart = useCart();
-  // Only the set of variants matters for the refresh, not their quantities.
-  const key = useMemo(
-    () =>
-      cart.lines
-        .map((line) => line.variantId)
-        .sort()
-        .join(","),
-    [cart.lines],
-  );
-  // Latest server answer per variant. Kept across refreshes: what the server said about a
-  // variant applies for as long as it is in the cart.
-  const [known, setKnown] = useState<Known>(new Map());
-  const [outcome, setOutcome] = useState<Outcome>(null);
-  // Bumped when the quote says a line is no longer offered, to refresh the lines at once.
-  const [refresh, setRefresh] = useState(0);
-  const recheck = useCallback(() => setRefresh((count) => count + 1), []);
+export function CartView({
+  whatsappNumber,
+  checkoutOpen,
+}: {
+  whatsappNumber: string | null;
+  /** Whether the shop is taking orders; the API decides again when one is placed. */
+  checkoutOpen: boolean;
+}) {
+  const { cart, known, view, failed, mounted, recheck } = useFreshCart();
   // Whether the shopper holds an accepted, current server total (step 71).
   const [quoteReady, setQuoteReady] = useState(false);
-  // False while the server-rendered frame is shown; the device cart is read after hydration.
-  const mounted = useSyncExternalStore(
-    () => () => undefined,
-    () => true,
-    () => false,
-  );
-
-  useEffect(() => {
-    if (!key) return;
-    const controller = new AbortController();
-    const ids = key.split(",");
-    fetch(`/api/v1/store/cart/lines?${ids.map((id) => `variant=${id}`).join("&")}`, {
-      credentials: "same-origin",
-      cache: "no-store",
-      signal: controller.signal,
-    })
-      .then((response) => (response.ok ? response.json() : Promise.reject(new Error("refresh"))))
-      .then((body: unknown) => {
-        const parsed = storeCartLinesResponseSchema.safeParse(body);
-        if (!parsed.success) throw new Error("contract");
-        const returned = new Map(parsed.data.lines.map((line) => [line.variantId, line]));
-        // Every requested ID now has an answer: its line, or null for "not offered".
-        setKnown((previous) => {
-          const next = new Map(previous);
-          for (const id of ids) next.set(id, returned.get(id) ?? null);
-          return next;
-        });
-        setOutcome({ key, ok: true });
-      })
-      .catch(() => {
-        if (!controller.signal.aborted) setOutcome({ key, ok: false });
-      });
-    return () => controller.abort();
-  }, [key, refresh]);
-
-  const view = cartView(cart, known);
-  const failed = outcome?.key === key && !outcome.ok;
   const images = new Map(
     [...known].flatMap(([id, line]) => (line ? [[id, line.image] as const] : [])),
   );
@@ -260,6 +211,8 @@ export function CartView({ whatsappNumber }: { whatsappNumber: string | null }) 
             blocked={view.blockedCount}
             onUnavailable={recheck}
             onReady={setQuoteReady}
+            initial={rememberedChoice()}
+            onChoice={rememberChoice}
           />
           <p className="text-xs text-ink-3">
             Cash on delivery: no account needed, pay when your order arrives.
@@ -270,19 +223,32 @@ export function CartView({ whatsappNumber }: { whatsappNumber: string | null }) 
               out.
             </p>
           )}
-          {/* Checkout arrives with the order milestone; the button is honest about that. */}
-          <button
-            type="button"
-            disabled
-            className="h-12 cursor-not-allowed rounded-pill bg-primary px-6 text-base font-medium text-on-primary opacity-50"
-          >
-            Checkout · Cash on delivery
-          </button>
-          <p className="text-center text-xs text-ink-3">
-            {quoteReady
-              ? "Your total is confirmed. Checkout is not open yet."
-              : "Checkout is not open yet."}
-          </p>
+          {checkoutOpen && quoteReady && view.blockedCount === 0 ? (
+            <Link
+              href="/checkout"
+              prefetch={false}
+              className="flex h-12 items-center justify-center rounded-pill bg-primary px-6 text-base font-medium text-on-primary hover:bg-primary-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+            >
+              Checkout · Cash on delivery
+            </Link>
+          ) : (
+            <>
+              <button
+                type="button"
+                disabled
+                className="h-12 cursor-not-allowed rounded-pill bg-primary px-6 text-base font-medium text-on-primary opacity-50"
+              >
+                Checkout · Cash on delivery
+              </button>
+              <p className="text-center text-xs text-ink-3">
+                {!checkoutOpen
+                  ? quoteReady
+                    ? "Your total is confirmed. Checkout is not open yet."
+                    : "Checkout is not open yet."
+                  : "Choose your delivery area to continue."}
+              </p>
+            </>
+          )}
           <Link
             href="/shop"
             prefetch={false}

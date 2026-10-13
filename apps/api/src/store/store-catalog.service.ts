@@ -54,7 +54,7 @@ export class StoreCatalogService {
   constructor(
     @Inject(DATABASE) private readonly db: Database,
     @Inject(OBJECT_STORAGE) private readonly storage: ObjectStorage,
-    @Inject(API_ENV) env: ApiEnv,
+    @Inject(API_ENV) private readonly env: ApiEnv,
     private readonly cache: CatalogueCacheService,
   ) {
     this.log = createLogger({ service: "api-store-catalog", level: env.LOG_LEVEL });
@@ -124,8 +124,10 @@ export class StoreCatalogService {
   }
 
   /** Shell settings. Cached like other catalogue reads: a change shows within the cache TTL. */
-  info(): Promise<StoreInfoResponse> {
-    return this.cache.getOrLoad("store:info", () => readStoreInfo(this.db));
+  async info(): Promise<StoreInfoResponse> {
+    const settings = await this.cache.getOrLoad("store:info", () => readStoreInfo(this.db));
+    // Only lets the storefront open or close its checkout page; the order route decides.
+    return { ...settings, checkoutOpen: this.env.CHECKOUT_SUBMISSION_ENABLED };
   }
 
   /**

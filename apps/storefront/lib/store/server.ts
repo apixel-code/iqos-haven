@@ -65,7 +65,7 @@ export const storeInfo = cache(async (): Promise<StoreInfoResponse> => {
   } catch (error) {
     // Never redirect from the shell: a page that needs catalogue data decides that itself.
     if (error instanceof StoreApiError || error instanceof AgeRequiredError)
-      return { whatsappNumber: null };
+      return { whatsappNumber: null, checkoutOpen: false };
     throw error;
   }
 });

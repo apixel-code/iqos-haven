@@ -209,6 +209,11 @@ async function main() {
       // The store origins a browser would send with the quote POST: the nominal one used by
       // these checks, and the local gateway address for a manual browser pass (`--serve`).
       STOREFRONT_ORIGINS: `${ORIGIN},http://127.0.0.1:${gatewayPort}`,
+      // Orders stay off for the checks (they prove that). A manual browser pass of the
+      // checkout form asks for them with `--serve --checkout-open`.
+      CHECKOUT_SUBMISSION_ENABLED: String(
+        process.argv.includes("--serve") && process.argv.includes("--checkout-open"),
+      ),
     });
     const { createApp } = api(root + "/apps/api/dist/bootstrap.js");
     const app = await createApp(env, { pool, database: db });
@@ -338,6 +343,7 @@ async function main() {
       "/search?q=gatecheck",
       "/p/gatecheck-halo",
       "/cart",
+      "/checkout",
       "/wishlist",
       "/compare",
       "/_next/image?url=%2Fmedia%2Fgatecheck.webp&w=640&q=75",
@@ -497,6 +503,7 @@ async function main() {
     await page("/search?q=gatecheck", 200, NAMES[0], "1</b> product");
     await page("/p/gatecheck-halo", 200, NAMES[0], "choose one", "grape", "mint", "Add to cart");
     await page("/p/gatecheck-hidden", 404);
+    await page("/checkout", 200, "Checkout is not open yet.");
     await page("/cart", 200, "Your cart");
     const apiJson = async (target, expected = 200) => {
       const response = await get(target, verified);
@@ -514,8 +521,8 @@ async function main() {
     };
     const infoText = await apiJson("/api/v1/store/info");
     check(
-      infoText === JSON.stringify({ whatsappNumber: WHATSAPP }),
-      "store info is exactly the WhatsApp number",
+      infoText === JSON.stringify({ whatsappNumber: WHATSAPP, checkoutOpen: false }),
+      "store info is exactly the WhatsApp number and the closed checkout",
       infoText,
     );
     check(

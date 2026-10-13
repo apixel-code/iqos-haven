@@ -99,7 +99,7 @@ const card = (name, overrides = {}) => ({
   ...overrides,
 });
 const CATALOGUE = {
-  "/v1/store/info": { whatsappNumber: "+971501234567" },
+  "/v1/store/info": { whatsappNumber: "+971501234567", checkoutOpen: false },
   "/v1/store/brands": {
     items: [
       { name: "Orbe", slug: "orbe", description: "Synthetic brand story.", productCount: 2 },
@@ -569,6 +569,30 @@ try {
   await page("/p/Not_A_Slug", 404);
   check(productCalls() === badSlug, "an impossible slug is refused without a product API call");
 
+  // Checkout page: closed unless the API says orders are being taken; never any catalogue data.
+  const checkoutClosed = await page("/checkout");
+  check(
+    checkoutClosed.includes("<title>Checkout · Iqos Haven</title>") &&
+      checkoutClosed.includes("Checkout is not open yet."),
+    "checkout page says it is closed while the API is not taking orders",
+  );
+  CATALOGUE["/v1/store/info"] = { whatsappNumber: "+971501234567", checkoutOpen: true };
+  const checkoutOpen = await page("/checkout");
+  CATALOGUE["/v1/store/info"] = { whatsappNumber: "+971501234567", checkoutOpen: false };
+  check(
+    checkoutOpen.includes("Loading checkout") &&
+      !checkoutOpen.includes("Checkout is not open yet."),
+    "checkout page frame renders when orders are being taken",
+  );
+  check(
+    !/AED|Halo/.test(checkoutOpen.replace(/<script[\s\S]*?<\/script>/g, "")),
+    "checkout page carries no catalogue data from the server",
+  );
+  check(
+    /<meta name="referrer" content="no-referrer"/.test(checkoutOpen),
+    "checkout page sends no referrer",
+  );
+
   // Cart page: the server renders only the frame; the cart itself is device state.
   const cartPage = await page("/cart");
   check(
@@ -622,10 +646,10 @@ try {
     ),
     "product page WhatsApp link names the product and its price",
   );
-  CATALOGUE["/v1/store/info"] = { whatsappNumber: null };
+  CATALOGUE["/v1/store/info"] = { whatsappNumber: null, checkoutOpen: false };
   const noNumber = await page("/");
   check(!noNumber.includes("wa.me"), "no WhatsApp link without a configured number");
-  CATALOGUE["/v1/store/info"] = { whatsappNumber: "+971501234567" };
+  CATALOGUE["/v1/store/info"] = { whatsappNumber: "+971501234567", checkoutOpen: false };
 
   // Search: term, filters and the similar-results notice; only contract parameters reach the API.
   const found = await page(
