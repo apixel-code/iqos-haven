@@ -57,6 +57,7 @@ export interface CreateStoreOrderInput {
   /** The second 18+ confirmation given at checkout. */
   age: { policyVersion: string };
   requestId: string;
+  confirmation?: { hash: Buffer; material: Buffer };
 }
 /** The answer given for a placed order, and given again on a retry. Nothing personal. */
 export interface OrderPlacedResponse extends Record<string, unknown> {
@@ -141,7 +142,11 @@ export async function createStoreOrder(
 
       const { address } = input;
       const [order] = await tx.$queryRaw<
-        Array<{ id: string; orderNumber: string; createdAt: Date }>
+        Array<{
+          id: string;
+          orderNumber: string;
+          createdAt: Date;
+        }>
       >(Prisma.sql`
         INSERT INTO orders (customer_id, status, source, customer_name, customer_phone_e164,
           area_id, area_code, area_name, area_emirate, address_type, address_building,
@@ -149,7 +154,7 @@ export async function createStoreOrder(
           merchandise_subtotal_fils, discount_fils, delivery_fee_fils, total_fils,
           coupon_code, coupon_percent_bps, delivery_eta_text, area_version,
           delivery_configuration_version, quote_fingerprint, age_confirmed_at,
-          age_policy_version, creation_scope, creation_key_hash, creation_payload_hash)
+          age_policy_version, creation_scope, creation_key_hash, creation_payload_hash, confirmation_hash, confirmation_expires_at)
         VALUES (${customer.id}::uuid, 'pending', 'storefront', ${customer.displayName},
           ${customer.phoneE164},
           ${quote.delivery.areaId}::uuid, ${quote.delivery.areaCode}, ${quote.delivery.areaName},
@@ -160,7 +165,8 @@ export async function createStoreOrder(
           ${quote.coupon?.percentBps ?? null}::int, ${quote.delivery.etaText},
           ${quote.delivery.areaVersion}, ${quote.delivery.configurationVersion},
           ${input.quote.fingerprint}, statement_timestamp(), ${input.age.policyVersion},
-          ${STORE_CHECKOUT_SCOPE}, ${keyHash}, ${payloadHash})
+          ${STORE_CHECKOUT_SCOPE}, ${keyHash}, ${payloadHash}, ${input.confirmation?.hash ?? null},
+          CASE WHEN ${!!input.confirmation} THEN statement_timestamp()+interval '30 minutes' ELSE NULL END)
         RETURNING id, order_number::text AS "orderNumber", created_at AS "createdAt"`);
       const orderId = order!.id;
 
@@ -236,7 +242,16 @@ export async function createStoreOrder(
         tx,
         defineEvent("order.created", orderId, { orderId }, 1),
       );
-      return { response, resourceType: "order", resourceId: orderId };
+      return {
+        response,
+        resourceType: "order",
+        resourceId: orderId,
+        ...(input.confirmation
+          ? {
+              replayCookieMaterial: input.confirmation.material,
+            }
+          : {}),
+      };
     },
   );
   return { replayed: result.replayed, orderId: result.resourceId, response: result.response };

@@ -1,3 +1,4 @@
+import { OrderConfirmationService } from "./order-confirmation.service";
 import { Inject, Injectable } from "@nestjs/common";
 import type { ApiEnv } from "@ih/config";
 import type { CheckoutAddress, CheckoutContact } from "@ih/contracts";
@@ -30,6 +31,7 @@ export class CreateOrderService {
     @Inject(DATABASE) private readonly db: Database,
     @Inject(API_ENV) private readonly env: ApiEnv,
     private readonly quotes: CartQuoteService,
+    private readonly confirmations: OrderConfirmationService,
   ) {}
   // Async so that every refusal, including the early one below, is a rejected promise.
   async place(command: PlaceOrderCommand) {
@@ -46,6 +48,7 @@ export class CreateOrderService {
     const issued = verifyQuote(command.quoteToken, this.quotes.keys, now);
     if (!issued.ok && issued.reason !== "expired") throw new QuoteNotAcceptedError("QUOTE_CHANGED");
     return createStoreOrder(this.db, {
+      confirmation: this.confirmations.mint(command.idempotencyKey),
       idempotencyKey: command.idempotencyKey,
       contact: command.contact,
       address: command.address,

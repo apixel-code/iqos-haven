@@ -12,10 +12,18 @@ import {
   AGE_VERIFICATION_REQUIRED,
   errorEnvelopeSchema,
   storeOrderResponseSchema,
+  orderConfirmationResponseSchema,
 } from "@ih/contracts";
-import { createDatabase, createPool, deleteExpiredIdempotencyRecords } from "@ih/db";
+import {
+  createDatabase,
+  createPool,
+  deleteExpiredIdempotencyRecords,
+  clearExpiredConfirmationReplay,
+} from "@ih/db";
 import { applyMigrations } from "@ih/db/testing";
 import {
+  ORDER_COOKIE,
+  confirmationHash,
   AGE_COOKIE,
   ageTicketPublicKey,
   ageTicketSigner,
@@ -61,6 +69,7 @@ const disabledEnv = apiEnvSchema.parse({
   AGE_TICKET_PUBLIC_KEYS: `k1:${ageTicketPublicKey(signer)}`,
   STOREFRONT_ORIGINS: STORE,
   // One ring for every app below, so a total shown by one can be accepted by another.
+  ORDER_CONFIRMATION_KEYS: `confirmation:c1:${randomBytes(32).toString("base64url")}`,
   QUOTE_SIGNING_KEYS: `quote:t1:${randomBytes(32).toString("base64url")}`,
 });
 const env = { ...disabledEnv, CHECKOUT_SUBMISSION_ENABLED: true };
@@ -227,7 +236,7 @@ describe("POST /v1/store/orders through the real API (PostgreSQL, Ed25519 ticket
     const response = await post(body);
     expect(response.status).toBe(201);
     expect(response.headers.get("cache-control")).toBe("private, no-store");
-    expect(response.headers.get("set-cookie")).toBeNull();
+    expect(response.headers.get("set-cookie")).toContain("__Host-ih_order=");
     const placed = storeOrderResponseSchema.parse(await response.json());
     // 2 × 80.00 less 10 % plus 15.00 delivery, in fils.
     expect(placed.totalFils).toBe(15900);
@@ -385,12 +394,16 @@ describe("POST /v1/store/orders through the real API (PostgreSQL, Ed25519 ticket
     const placed = storeOrderResponseSchema.parse(await (await post(body, sent)).json());
     const stored = await db.order.findFirstOrThrow({ orderBy: { createdAt: "desc" } });
     // What the hourly cleanup does once the answer is more than a day old.
-    await pool.query("ALTER TABLE idempotency_records DISABLE TRIGGER idempotency_records_guard");
     await pool.query(
-      "UPDATE idempotency_records SET created_at=created_at-interval '2 days', expires_at=expires_at-interval '2 days' WHERE resource_id=$1",
+      "ALTER TABLE idempotency_records DISABLE TRIGGER idempotency_records_guard; ALTER TABLE idempotency_records DISABLE TRIGGER idempotency_cookie_guard",
+    );
+    await pool.query(
+      "UPDATE idempotency_records SET created_at=created_at-interval '2 days', expires_at=expires_at-interval '2 days', replay_cookie_expires_at=replay_cookie_expires_at-interval '2 days' WHERE resource_id=$1",
       [stored.id],
     );
-    await pool.query("ALTER TABLE idempotency_records ENABLE TRIGGER idempotency_records_guard");
+    await pool.query(
+      "ALTER TABLE idempotency_records ENABLE TRIGGER idempotency_records_guard; ALTER TABLE idempotency_records ENABLE TRIGGER idempotency_cookie_guard",
+    );
     await refusal(await post(body, sent), 409, "CHECKOUT_RECOVERY_REQUIRED");
     expect(await deleteExpiredIdempotencyRecords(db)).toBeGreaterThanOrEqual(1);
     const before = await footprint();
@@ -540,6 +553,159 @@ describe("POST /v1/store/orders through the real API (PostgreSQL, Ed25519 ticket
       await refusal(await guess("ROUTE10"), 429, "RATE_LIMITED");
     } finally {
       await degraded.close();
+    }
+  });
+  const confirmation = (cookieValue: string | undefined, query = "", ip = address()) =>
+    fetch(base + "/v1/store/order-confirmation" + query, {
+      headers: { "x-ih-client-ip": ip, ...(cookieValue ? { cookie: cookieValue } : {}) },
+    });
+  it("returns only cookie-authorized snapshots and never needs an age or admin credential", async () => {
+    const body = await order(cart),
+      sent = { key: attemptKey() };
+    const first = await post(body, sent);
+    const placed = storeOrderResponseSchema.parse(await first.json());
+    const set = first.headers.get("set-cookie")!;
+    expect(set).toMatch(/Max-Age=(17[0-9]{2}|1800); Path=\/; Secure; HttpOnly; SameSite=Lax/);
+    const cap = set.split(";", 1)[0]!;
+    const token = cap.split("=")[1]!;
+    const record = await db.idempotencyRecord.findFirstOrThrow({
+      where: { response: { path: ["orderNumber"], equals: placed.orderNumber } },
+    });
+    const stored = await db.order.findUniqueOrThrow({ where: { id: record.resourceId! } });
+    expect(Buffer.from(stored.confirmationHash!)).toEqual(confirmationHash(token));
+    expect(stored.confirmationExpiresAt!.getTime() - stored.createdAt.getTime()).toBeGreaterThan(
+      1790000,
+    );
+    expect(JSON.stringify(record.response)).not.toContain(token);
+    expect(Buffer.from(record.replayCookieMaterial!).toString()).not.toContain(token);
+    const response = await confirmation(cap);
+    expect(response.status).toBe(200);
+    expect(response.headers.get("cache-control")).toBe("private, no-store");
+    expect(response.headers.get("referrer-policy")).toBe("no-referrer");
+    const snapshot = orderConfirmationResponseSchema.parse(await response.json());
+    expect(snapshot.orderNumber).toBe(placed.orderNumber);
+    expect(snapshot.items[0]?.name).toBe("Synthetic product");
+    expect(snapshot.address.building).toBe("Synthetic Tower");
+    const text = JSON.stringify(snapshot);
+    for (const secret of [stored.customerName, stored.customerPhoneE164, stored.id, token])
+      expect(text).not.toContain(secret);
+    const retry = await post(body, sent);
+    expect(await retry.json()).toEqual(placed);
+    expect(retry.headers.get("set-cookie")?.split(";", 1)[0]).toBe(cap);
+  });
+  it("denies missing, malformed, forged, duplicate and URL-only capabilities", async () => {
+    const body = await order(cart);
+    const created = await post(body);
+    const set = created.headers.get("set-cookie")!.split(";", 1)[0]!;
+    for (const cap of [
+      undefined,
+      `${ORDER_COOKIE}=bad`,
+      `${ORDER_COOKIE}=${randomBytes(32).toString("base64url")}`,
+      set + "; " + set,
+      cookie,
+    ])
+      expect((await confirmation(cap)).status).toBe(401);
+    expect((await confirmation(undefined, "?orderNumber=IH-001001")).status).toBe(400);
+    expect((await confirmation(set, "?token=ignored")).status).toBe(400);
+  });
+  it("keeps each capability scoped to its own order; acknowledgement replaces the browser cookie", async () => {
+    const one = await post(await order(cart)),
+      two = await post(await order(cart));
+    const a = storeOrderResponseSchema.parse(await one.json()),
+      b = storeOrderResponseSchema.parse(await two.json());
+    const ca = one.headers.get("set-cookie")!.split(";", 1)[0]!,
+      cb = two.headers.get("set-cookie")!.split(";", 1)[0]!;
+    expect(ca).not.toBe(cb);
+    expect(
+      orderConfirmationResponseSchema.parse(await (await confirmation(ca)).json()).orderNumber,
+    ).toBe(a.orderNumber);
+    expect(
+      orderConfirmationResponseSchema.parse(await (await confirmation(cb)).json()).orderNumber,
+    ).toBe(b.orderNumber);
+  });
+  it("expires private access, erases ciphertext and still replays success without another order", async () => {
+    const body = await order(cart),
+      sent = { key: attemptKey() },
+      first = await post(body, sent);
+    const placed = await first.json();
+    const cap = first.headers.get("set-cookie")!.split(";", 1)[0]!;
+    const stored = await db.order.findFirstOrThrow({
+      where: { confirmationHash: new Uint8Array(confirmationHash(cap.split("=")[1]!)) },
+    });
+    const before = await footprint();
+    await expect(
+      pool.query(
+        "UPDATE idempotency_records SET replay_cookie_material=NULL,replay_cookie_expires_at=NULL WHERE resource_id=$1",
+        [stored.id],
+      ),
+    ).rejects.toMatchObject({ code: "23514" });
+    // Advance only this synthetic fixture's capability clock; production guards stay enabled.
+    await pool.query(
+      "ALTER TABLE orders DISABLE TRIGGER USER; ALTER TABLE idempotency_records DISABLE TRIGGER idempotency_cookie_guard",
+    );
+    try {
+      await pool.query(
+        "UPDATE orders SET confirmation_expires_at=statement_timestamp()-interval '1 microsecond' WHERE id=$1",
+        [stored.id],
+      );
+      await pool.query(
+        "UPDATE idempotency_records SET replay_cookie_expires_at=statement_timestamp()-interval '1 microsecond' WHERE resource_id=$1",
+        [stored.id],
+      );
+    } finally {
+      await pool.query(
+        "ALTER TABLE orders ENABLE TRIGGER USER; ALTER TABLE idempotency_records ENABLE TRIGGER idempotency_cookie_guard",
+      );
+    }
+    expect((await confirmation(cap)).status).toBe(401);
+    expect(await clearExpiredConfirmationReplay(db)).toBeGreaterThanOrEqual(1);
+    const replay = await post(body, sent);
+    expect(replay.status).toBe(201);
+    expect(await replay.json()).toEqual(placed);
+    expect(replay.headers.get("set-cookie")).toBeNull();
+    expect(await footprint()).toEqual(before);
+    const record = await db.idempotencyRecord.findFirstOrThrow({
+      where: { resourceId: stored.id },
+    });
+    expect(record.replayCookieMaterial).toBeNull();
+    expect(record.response).toEqual(placed);
+    await expect(
+      pool.query(
+        "UPDATE idempotency_records SET replay_cookie_material=$1,replay_cookie_expires_at=statement_timestamp()+interval '1 minute' WHERE resource_id=$2",
+        [Buffer.alloc(40), stored.id],
+      ),
+    ).rejects.toMatchObject({ code: "23514" });
+  });
+  it("bounds capability guessing by client address", async () => {
+    const ip = address();
+    for (let n = 0; n < 60; n++) expect((await confirmation(undefined, "", ip)).status).toBe(401);
+    expect((await confirmation(undefined, "", ip)).status).toBe(429);
+    expect((await confirmation(undefined)).status).toBe(401);
+  });
+  it("restores an acknowledged or lost-response cookie after API restart/key rotation without repeating writes", async () => {
+    const body = await order(cart),
+      sent = { key: attemptKey() },
+      first = await post(body, sent);
+    const placed = storeOrderResponseSchema.parse(await first.json());
+    const cap = first.headers.get("set-cookie")!.split(";", 1)[0]!;
+    const before = await footprint();
+    const next = { keyId: "c2", secret: randomBytes(32).toString("base64url") };
+    for (const keys of [[next, ...env.ORDER_CONFIRMATION_KEYS], [next]]) {
+      const other = await createApp(
+        { ...env, ORDER_CONFIRMATION_KEYS: keys },
+        { pool, database: db },
+      );
+      await other.listen(0, "127.0.0.1");
+      try {
+        const response = await post(body, { ...sent, to: await other.getUrl() });
+        expect(response.status).toBe(201);
+        expect(await response.json()).toEqual(placed);
+        if (keys.length > 1) expect(response.headers.get("set-cookie")?.split(";", 1)[0]).toBe(cap);
+        else expect(response.headers.get("set-cookie")).toBeNull();
+        expect(await footprint()).toEqual(before);
+      } finally {
+        await other.close();
+      }
     }
   });
 });

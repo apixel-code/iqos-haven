@@ -6,6 +6,7 @@ const { z } = require("zod");
 const contracts = require("@ih/contracts");
 const schemas = Object.fromEntries(
   [
+    "OrderConfirmationResponse",
     "LivenessResponse",
     "ReadinessResponse",
     "ErrorEnvelope",
@@ -442,6 +443,26 @@ const document = {
         },
       },
     },
+    "/v1/store/order-confirmation": {
+      get: {
+        operationId: "orderConfirmation",
+        security: [{ orderConfirmation: [] }],
+        description:
+          "Cookie-only 30-minute confirmation access; no URL credentials or order-number lookup. Private no-store, no-referrer. Unknown queries rejected.",
+        responses: {
+          200: {
+            description: "Private confirmation snapshot",
+            content: content("OrderConfirmationResponse"),
+          },
+          400: { description: "Invalid query", content: content("ErrorEnvelope") },
+          401: {
+            description: "Missing, invalid or expired capability",
+            content: content("ErrorEnvelope"),
+          },
+          429: { description: "Read budget exceeded", content: content("ErrorEnvelope") },
+        },
+      },
+    },
     "/v1/health/live": {
       get: {
         operationId: "healthLive",
@@ -460,7 +481,10 @@ const document = {
   },
   components: {
     schemas,
-    securitySchemes: { adminSession: { type: "apiKey", in: "cookie", name: "__Host-ih_admin" } },
+    securitySchemes: {
+      orderConfirmation: { type: "apiKey", in: "cookie", name: "__Host-ih_order" },
+      adminSession: { type: "apiKey", in: "cookie", name: "__Host-ih_admin" },
+    },
   },
 };
 const file = "docs/api.openapi.json";

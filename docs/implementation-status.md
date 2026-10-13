@@ -94,6 +94,8 @@
 - Step 77 (ADR 0046): `POST /v1/store/orders` (`StoreOrdersController`) behind the age ticket and store Origin, off unless `CHECKOUT_SUBMISSION_ENABLED`; `storeOrderRequestSchema` with the required second 18+ confirmation and the `Idempotency-Key` header; attempt limits per address and phone; a refused-coupon budget shared by the quote and order routes (limiter `peek`); one stable code per refusal; bounded local limits when the shared limiter is down; hourly `idempotency.cleanup` in the worker. No confirmation cookie and no checkout form yet.
 - Step 76 (ADR 0045): `createStoreOrder` in `@ih/db` and `CreateOrderService` in the API — idempotency claim, canonical locks, accepted-quote check, stock through `SALE` ledger movements, order with snapshots, lines and history, coupon redemption, saved address, audit and `order.created`, all in one transaction. `stock_movements.order_id`.
 
+- Step 79 (ADR 0048): storefront-origin `__Host-ih_order` capability cookie, atomic verifier/encrypted replay material and 30-minute DB expiry; cookie-only bounded private confirmation API; non-extending retry restoration and minute-based ciphertext cleanup. Sanitized replay remains valid independently; expired/retired access never creates another order. No checkout or confirmation page yet (steps 80–81).
+
 - Uploaded architecture, ordered roadmap, corrected prototypes, derived requirements/design/acceptance/database/security/operational references.
 
 ## Partial or awaiting review
@@ -102,9 +104,9 @@ Milestone 0 documentation exists, but business inputs, final screen states/asset
 
 ## Not implemented
 
-Remaining operational admin feature UI; approved real delivery configuration; business tables and media processing; catalogue/variants/inventory; Ed25519 age gate; private confirmation capabilities; tax/quote/coupons; transactional checkout/idempotency; operational orders/COD/returns; notifications/reviews/CMS/reports/SEO; production deployment, PITR and recovery drills.
+Checkout/confirmation UI and the complete checkout gate (80–82); operational order/fulfillment/COD/returns/customer/inbox UI (83–92); reviews/CMS and remaining storefront content (93–102); analytics/dashboard/reports/SEO (103–114); final acceptance, production deployment, monitoring, retention, backups and recovery drills (115–132). Approved real delivery/catalogue/contact configuration and staging/release evidence are still required.
 
-No feature becomes complete because a document, exported primitive or demo screen exists. `packages/domain` money/order helpers are building blocks only. `packages/application` remains a use-case placeholder. Gateway and backend authentication exist; storefront remains a foundation page, and admin has real auth integration with operational feature workspaces still pending.
+Code implemented through step 79 does not automatically close milestone gates. Catalogue, inventory, media, age-gated storefront browsing, pricing/quotes and atomic order creation are implemented; the end-to-end customer checkout and operational fulfillment journeys remain incomplete.
 
 ## Next implementation sequence
 

@@ -382,3 +382,44 @@ export const storeOrderResponseSchema = z.strictObject({
   placedAt: z.iso.datetime(),
 });
 export type StoreOrderResponse = z.infer<typeof storeOrderResponseSchema>;
+
+/** Cookie-authorized confirmation snapshots; excludes customer identity, phone, notes and internal IDs. */
+export const orderConfirmationResponseSchema = z.strictObject({
+  orderNumber: z.string().regex(/^IH-[0-9]{6,}$/),
+  placedAt: z.iso.datetime(),
+  status: z.enum([
+    "pending",
+    "confirmed",
+    "processing",
+    "out_for_delivery",
+    "delivered",
+    "cancelled",
+  ]),
+  totalFils: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
+  deliveryFeeFils: z.number().int().nonnegative(),
+  discountFils: z.number().int().nonnegative(),
+  etaText: z.string().max(500),
+  address: z.strictObject({
+    area: z.string().max(100),
+    emirate: z.string().max(32),
+    type: z.enum(["apartment", "villa", "office"]),
+    building: z.string().max(200),
+    unit: z.string().max(100).nullable(),
+    street: z.string().max(200).nullable(),
+  }),
+  items: z
+    .array(
+      z.strictObject({
+        name: z.string().max(150),
+        attributes: z.record(z.string(), z.string()),
+        quantity: z.number().int().positive(),
+        unitPriceFils: z.number().int().nonnegative(),
+        totalFils: z.number().int().nonnegative(),
+      }),
+    )
+    .min(1)
+    .max(100),
+});
+export type OrderConfirmationResponse = z.infer<typeof orderConfirmationResponseSchema>;
+
+export const orderConfirmationQuerySchema = z.strictObject({});

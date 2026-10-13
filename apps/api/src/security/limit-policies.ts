@@ -176,3 +176,10 @@ export const STORE_CARDS_POLICY: EndpointLimitPolicy<"ip"> = {
   rules: { ip: perMinute(120) },
   outage: { fallback: { ip: perMinute(60) }, processCeiling: perMinute(3000) },
 };
+
+/** Capability reads: bounded address budget; no public order lookup without the cookie. */
+export const ORDER_CONFIRMATION_POLICY: EndpointLimitPolicy<"ip"> = {
+  endpoint: "order_confirmation",
+  rules: { ip: perMinute(60) },
+  outage: { fallback: { ip: perMinute(30) }, processCeiling: perMinute(1500) },
+};

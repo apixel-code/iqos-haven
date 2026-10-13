@@ -1,4 +1,8 @@
-import { deleteExpiredIdempotencyRecords, type Database } from "@ih/db";
+import {
+  clearExpiredConfirmationReplay,
+  deleteExpiredIdempotencyRecords,
+  type Database,
+} from "@ih/db";
 import type { Logger } from "@ih/logger";
 import type { ScheduledJob } from "./scheduler";
 
@@ -27,6 +31,30 @@ export function createIdempotencyCleanupJob(options: {
         if (count < BATCH) break;
       }
       log.info({ deleted }, "idempotency cleanup");
+    },
+  };
+}
+
+/** Separately encrypted material is erased within the next bounded cleanup pass after expiry. */
+export function createConfirmationCleanupJob({
+  db,
+  log,
+}: {
+  db: Database;
+  log: Logger;
+}): ScheduledJob {
+  return {
+    name: "confirmation.cleanup",
+    spec: { kind: "interval", everyMs: 60_000 },
+    catchUp: 1,
+    async run() {
+      let cleared = 0;
+      for (let batch = 0; batch < 50; batch++) {
+        const count = await clearExpiredConfirmationReplay(db, BATCH);
+        cleared += count;
+        if (count < BATCH) break;
+      }
+      log.info({ cleared }, "confirmation replay cleanup");
     },
   };
 }

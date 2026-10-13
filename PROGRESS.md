@@ -3,9 +3,9 @@
 ## Current position
 
 - Date: 2026-10-13
-- Milestone: M7 — transactional checkout and first complete order: steps 73–78 done. M6: all steps (65–72) done; gate evidence ready, awaiting Marina's decision. M5: PASSED 2026-10-11. M4 steps done, gate awaits Marina's decision (publishing unblocked); M3 gate not closed; M0 review and M1 staging/fixtures still open
-- Step: 78 (new-order inbox notification and email handlers) — done; next is 79
-- Branch: `step/78-order-notifications` (stacked on `step/77-order-route`, PR #59; `main` holds everything through step 76; both PRs wait for Marina's merge)
+- Milestone: M7 — transactional checkout and first complete order: steps 73–79 done. M6: all steps (65–72) done; gate evidence ready, awaiting Marina's decision. M5: PASSED 2026-10-11. M4 steps done, gate awaits Marina's decision (publishing unblocked); M3 gate not closed; M0 review and M1 staging/fixtures still open
+- Step: 79 (private confirmation cookie/API and replay expiry) — done; next is 80
+- Branch: `step/79-order-confirmation` (stacked on step 78 commit `f4da894`; main through step 76, PRs #59/#60 remain open; step-79 local commit complete; push/PR blocked by automatic approval review pending explicit permission)
 - See docs/verification.md for actual checks.
 
 ## Next action
@@ -16,12 +16,14 @@
 - Toolchain: prefix commands with `export PATH="/opt/homebrew/opt/node@24/bin:$HOME/.docker/bin:$PATH"`. If Docker is down, run `open -a Docker` and then `pnpm infra:up`.
 - Marina's answers (2026-10-12, ADR 0036, docs/business-inputs.md): prices are final as entered, no tax calculation (BI-02); delivery covers the seven emirates at one flat fee (BI-03); minimum age 18 as built (BI-04); Hostinger VPS (BI-06); catalogue, Owner and staff are entered through the admin (BI-10/11); retention defaults chosen by Apixel (BI-08). Still open: BI-01, BI-09 (demo values for now), BI-05 (indexing stays off).
 
-1. **Marina merges** from her terminal (`gh pr merge <number> --merge`) or on GitHub ("Create a merge commit"). PR #59 (step 77) and the step-78 PR are stacked: merging only the step-78 PR lands both. Then `git checkout main && git pull --ff-only`, and check that the CI run on `main` finished (a cancelled run is rerun with `gh run rerun <id>`).
-2. **Marina: decide the M6 gate (and M4).** Evidence and caveats: docs/verification.md "Step 72".
-3. **Next step: `/step 79` (confirmation cookie/API and replay expiry handling).** Find the row with `rg -n "^| 79 " docs/roadmap.md`; read architecture §7 "Confirmation transport". It adds the 256-bit capability behind `__Host-ih_order` (hash and expiry on the order, set from the storefront origin, 30 minutes), an `OrderConfirmationController` that resolves the cookie to the confirmation fields, and the replay rule: a retry restores the cookie only while the capability is valid; the idempotency answer never holds the raw capability; expired access never makes another order.
-4. **Rules that carry forward:**
+1. **Step-79 push/PR approval:** automatic approval review rejected `git push -u origin step/79-order-confirmation` because exporting source to the external remote was not explicitly authorized. User approval for the `apixel-code/iqos-haven` GitHub destination is required; no retry/bypass. PR description prepared at `/tmp/ih-step79-pr-body.md` (temporary).
+2. **Marina merges** from her terminal (`gh pr merge <number> --merge`) or on GitHub ("Create a merge commit"). PR #59 (step 77), #60 (step 78) and step 79 are stacked: merge the highest verified branch to include its dependencies. Then `git checkout main && git pull --ff-only`, and check that the CI run on `main` finished (a cancelled run is rerun with `gh run rerun <id>`).
+3. **Marina: decide the M6 gate (and M4).** Evidence and caveats: docs/verification.md "Step 72".
+4. **Next step: `/step 80` (checkout form and durable attempt-key UI).** Read roadmap row 80, architecture §7, checkout contracts and ADRs 0035/0041/0045/0046/0048. Customer/address/quote remain memory-only; persist only a random attempt key and creation metadata. Preserve the key on network errors/429/503/in-progress; success clears the cart only after acknowledgement. Quote changes require explicit acceptance, recovery-required never submits a new order. Confirmation page remains step 81; checkout remains off by default until the step-82 gate.
+5. **Rules that carry forward:**
+   - Confirmation (ADR 0048): API-only `ORDER_CONFIRMATION_KEYS`; AES-GCM bound to the scoped attempt hash. SQL copies expiry (do not round-trip through JS Date); normalize BYTEA before decryption. `__Host-ih_order` grants only 30-minute private confirmation; same success replays without cookie after expiry/key retirement, never another order. `confirmation.cleanup` clears ciphertext every minute in bounded batches. GET accepts no query fields; UI must be no-store/no-referrer and excluded from analytics/session replay.
    - Notifications (ADR 0047): `order.created` requires the `notification` and `email` consumers. Inbox rows are written only by `writeNewOrderNotification` inside the effect's transaction; content is immutable and `read_at` is set once (the runtime role may update that column only). Notification and email text never hold a customer's name, phone or address. A new notification type adds its consumer to the event with a backfill decision. Step 91's inbox API must re-check the permission behind each notification type. A test that needs an event with no consumers uses `order.updated`.
-   - Order route (ADR 0046): `POST /v1/store/orders` (`StoreOrdersController`), body `storeOrderRequestSchema`, `Idempotency-Key` header, answer `storeOrderResponseSchema`. Off unless `CHECKOUT_SUBMISSION_ENABLED=true` (503). Step 79 adds the confirmation cookie to this answer; step 80's form must keep the same key on 429, 503, `IDEMPOTENCY_IN_PROGRESS` and network errors, and treat `CHECKOUT_RECOVERY_REQUIRED` as "already placed". A new store route that takes a coupon code must call `assertOpen`/`record` with `couponFailurePolicy`. A new `RateLimiter` implementation needs `peek`.
+   - Order route (ADR 0046): `POST /v1/store/orders` (`StoreOrdersController`), body `storeOrderRequestSchema`, `Idempotency-Key` header, answer `storeOrderResponseSchema`. Off unless `CHECKOUT_SUBMISSION_ENABLED=true` (503). Step 79 sets the confirmation cookie separately from this sanitized answer; step 80's form must keep the same key on 429, 503, `IDEMPOTENCY_IN_PROGRESS` and network errors, and treat `CHECKOUT_RECOVERY_REQUIRED` as "already placed". A new store route that takes a coupon code must call `assertOpen`/`record` with `couponFailurePolicy`. A new `RateLimiter` implementation needs `peek`.
    - Checkout input (ADR 0035): parse with `checkoutContactSchema`, `checkoutAddressSchema` and `orderLinesSchema` from `@ih/contracts`; never add a second copy of a rule or message. The route must map issues to the error envelope `fields` without echoing typed values. Pre-check the area with `readDeliverableArea`; the transaction decides again with `lockDeliverySelection`.
    - Pricing (ADR 0037): totals only through `priceOrder`/`priceOrderLines`; prices only from `readOrderPrices` (preview) or `lockOrderPrices` (order transaction, after settings/area and before coupons and variants). Never share-lock variant rows. Throw `TransactionRestartError` to restart a unit of work.
    - Order creation (ADR 0045): `CreateOrderService.place` → `createStoreOrder`, one transaction. A new stock writer adds its own ledger reason and calls `publishLowStockCrossing`. The answer stored for replay is order number, total and time only.
@@ -42,9 +44,9 @@
    - Local storefront dev needs age keys in `.env`: run `pnpm age:keygen` and paste the three lines (Claude cannot read or edit `.env`). Without them every page redirects to the age check and accepting answers 503.
    - If `http://localhost:8080/api/age/*` answers 404, the gateway container is running an old config: `docker compose restart gateway`.
    - Every later stock writer (orders, steps 75–76, 85–86) must call `publishLowStockCrossing` in its transaction (ADR 0023).
-5. **Publishing works without a tax reference** (ADR 0036): a complete product can be published from the admin. The dev database has all migrations applied (2026-10-12) but no products yet; tests still seed their own.
-6. **Local invalidation call:** to exercise the worker → API call in dev, set `INTERNAL_SERVICE_KEYS` and the worker's `INTERNAL_SERVICE_*` in `.env` (see `.env.example`). Without them the effect completes as `skipped:not_configured`.
-7. **Browser QA for later admin steps:** use `scripts/browser-qa/` (README). `/tmp/ih-qa` does not survive; reinstall `playwright-core` there (or any directory) and set `QA_PLAYWRIGHT_DIR`.
+6. **Publishing works without a tax reference** (ADR 0036): a complete product can be published from the admin. The dev database has all migrations applied (2026-10-12) but no products yet; tests still seed their own.
+7. **Local invalidation call:** to exercise the worker → API call in dev, set `INTERNAL_SERVICE_KEYS` and the worker's `INTERNAL_SERVICE_*` in `.env` (see `.env.example`). Without them the effect completes as `skipped:not_configured`.
+8. **Browser QA for later admin steps:** use `scripts/browser-qa/` (README). `/tmp/ih-qa` does not survive; reinstall `playwright-core` there (or any directory) and set `QA_PLAYWRIGHT_DIR`.
 
 ## Blockers
 
@@ -84,7 +86,8 @@ BI-07: a verified sending domain and sender address are still needed before real
 - 63 — device lists `ih_lists_v1` (saved, compare, recently viewed; slugs only), `GET /v1/store/product-cards`, heart on cards and product page, `/wishlist`, `/compare`, recently-viewed rail (ADR 0032) — 42da99d
 - 64 — store shell and home shell, `GET /v1/store/info` + WhatsApp links only when configured, `pnpm test:gate` real-stack age-boundary check (ADR 0033; BI-01/BI-09 pending) — 82ce9b9
 - 65 — `customers` + `customer_addresses` (phone-keyed, no credentials, immutable phone and address rows, no runtime delete), `normalizePhone`, transaction-only customer primitives (ADR 0034) — 209e62f
-- 78 — `notifications` + `notification_receipts`, `order.created` → inbox notification with per-user receipts and the `order.new` email to the Settings recipients, no customer data in either (ADR 0047) — `step(78)` commit on `step/78-order-notifications`
+- 79 — cookie-only private confirmation API, 30-minute hashed capabilities, separately encrypted/non-extending replay and bounded ciphertext cleanup (ADR 0048) — commit `step(79): private order confirmation and encrypted replay`
+- 78 — `notifications` + `notification_receipts`, `order.created` → inbox notification with per-user receipts and the `order.new` email to the Settings recipients, no customer data in either (ADR 0047) — f4da894
 - 77 — `POST /v1/store/orders` behind the age ticket, store Origin and `CHECKOUT_SUBMISSION_ENABLED`; attempt limits per address and phone, refused-coupon limit across quote and order routes (limiter `peek`), stable error codes, bounded limiter-outage fallback, hourly `idempotency.cleanup` (ADR 0046) — c0af04e
 - 76 — `createStoreOrder` / `CreateOrderService`: claim, locks, accepted-quote check, `SALE` ledger movements, order with snapshots, lines and history, coupon use, address, audit and `order.created` in one transaction; `stock_movements.order_id` (ADR 0045) — 116c94a
 - 75 — seven lock groups with a run-time order check in every commerce lock primitive, `lockOrder`, `lockVariantsForStock`, `lockForOrderCreation` (ADR 0044) — 2c5aa72
@@ -104,29 +107,21 @@ BI-07: a verified sending domain and sender address are still needed before real
 - Event `consumers` lists only implemented consumers (now `system_probe`, `email`, `media_processor`, `storefront_revalidate`); planned ones are documented with roadmap steps and move in with a backfill decision (architecture §8: adding a consumer must not redefine old completions).
 - `audit_log` migration revokes UPDATE/DELETE/TRUNCATE only from a role named `ih_app`; other runtime role names must be revoked at provisioning (trigger blocks mutations regardless).
 
-## Last session handoff (2026-10-13, step 78)
+## Last session handoff (2026-10-13, step 79)
 
-Done:
+Done: ADR 0048, atomic capability verifier/encrypted replay material, cookie-only private snapshot API, independent key ring, non-extending replay, strict credential/query denial and bounded minute-based ciphertext cleanup. DB guards preserve completed material; expired/retired access never creates another order. No M7 gate claimed.
 
-- **Step 78 (ADR 0047):** migration `20261013000100_notifications`; `packages/db/src/notifications.ts` (`writeNewOrderNotification`, `loadNewOrderEmail`); template `order.new`; worker `notification` consumer and `order.created` email planner; `order.created` now requires both consumers.
-- **`invariant-reviewer`:** no blockers; done: the runtime role may update only `read_at`; the ADR records that the inbox is not pruned yet and that step 91 must re-check permissions; an order placed over HTTP is shown to carry both pending effects.
-- Dev database migrated through `20261013000100`.
+Files: `.env.example`, `packages/{config/src/index*,platform/src/confirmation/**,platform/src/index.ts,contracts/src/store.ts,db/prisma/schema.prisma,db/prisma/migrations/20261013000200_order_confirmation/migration.sql,db/src/{order-confirmation,order-create,idempotency,index}.ts}`, `apps/api/src/orders/**`, `apps/api/src/security/limit-policies.ts`, `apps/worker/src/{idempotency,main}.ts`, `scripts/generate-api-contract.mjs`, `docs/api.openapi.json`, `docs/decisions/0048-order-confirmation-capability.md`, `docs/runbooks/secrets-and-keys.md`, `docs/{verification,implementation-status,task-backlog,security-boundaries}.md`, `README.md`, `START-HERE-BN.md`, `PROGRESS.md`.
 
-Files: `packages/db/prisma/{schema.prisma,migrations/20261013000100_notifications/migration.sql}`, `packages/db/src/{notifications.ts,index.ts,outbox-writer.int.test.ts}`, `packages/contracts/src/{events.ts,events.test.ts}`, `packages/application/src/email/{new-order.ts,index.ts}`, `apps/worker/src/{order-notifications.ts,order-notifications.int.test.ts,main.ts,relay.int.test.ts}`, `apps/api/src/orders/store-orders.int.test.ts`, `docs/decisions/0047-new-order-notifications.md`, `docs/{implementation-status,task-backlog,verification}.md`, `PROGRESS.md`.
+Push/PR: blocked by automatic approval review; explicit destination/push authorization required. No branch was pushed and no PR was created.
 
-Tests: `pnpm verify -- --integration` PASS, before and after the review fixes (unit 554, integration 476, gateway 29, age-preview 1847, gate 1978).
+Tests: final `pnpm verify -- --integration` PASS (unit 562, integration 482, gateway 29, age-preview 1847, gate 1978); targeted order suites 29 PASS. Reviewer: no issues after exact/canonical key fix. Integration-found BYTEA decoding and expiry microsecond loss fixed; expiry copied in SQL. Rotation/restart/retirement, forged/duplicate/query denial, cleanup and no-second-order replay demonstrated.
 
-Unfinished:
-
-- PR #59 (step 77) and the step-78 PR wait for Marina's merge. M4 and M6 gates await her decision.
-- Nothing in the admin shows the inbox yet (step 91). Submission is still off; the Checkout button is still disabled (steps 79–81).
-- The new-order email was tested with a stub adapter, not through Mailpit or Resend; the provider paths are covered by the earlier email tests. Real sending waits for BI-07 (sending domain and sender address).
-- Not tested: a burst of simultaneous wrong coupon codes and the `idempotency.cleanup` job wrapper (step 77; for the step-82 gate list).
-- The admin product and delivery screens were not opened in a browser after the ADR 0036 change; `scripts/browser-qa/qa.mjs` still expects a disabled Publish button for its QA product and has no coupon checks.
-- The Owner has not entered areas, fee or ETA, so the dev storefront shows "Delivery is not available yet."
+Unfinished: steps 80–82 UI/full checkout acceptance, actual browser confirmation cookie/scheduled worker cleanup pass, PR merges and M4/M6 gate decisions. Apply the new migration and provision API-only keys before enabling deployed checkout; no live migration, `.env` reads/edits, real keys/identities/emails. Step-78 email-through-provider/queue acceptance and admin/mobile QA caveats remain recorded in verification and prior handoff history.
 
 ## History (summary)
 
+- 2026-10-13 step 78: immutable inbox/receipts and new-order email consumers, ADR 0047 (f4da894, PR #60); verify unit 554/integration 476/gateway 29/age-preview 1847/gate 1978. Provider email/queued worker journey and inbox UI remain open; checkout off.
 - 2026-10-13 step 77: store order route, limits and outage fallback (c0af04e, PR #59); verify unit 554/integration 469/gateway 29/age-preview 1847/gate 1978.
 - 2026-10-13 step 76: atomic order creation (116c94a, PR #58, merged); verify unit 550/integration 458/gateway 29/age-preview 1847/gate 1928.
 - 2026-10-12 step 75: canonical lock order (2c5aa72, PR #57); verify unit 550/integration 445/gateway 29/age-preview 1847/gate 1928.

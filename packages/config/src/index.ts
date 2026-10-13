@@ -638,6 +638,21 @@ const quoteSafety = (
     });
 };
 
+export const confirmationEnvFields = {
+  ORDER_CONFIRMATION_KEYS: serviceKeysSchema
+    .refine(
+      (keys) =>
+        keys.every(
+          (key) =>
+            key.service === "confirmation" &&
+            Buffer.from(key.secret, "base64url").length === 32 &&
+            Buffer.from(key.secret, "base64url").toString("base64url") === key.secret,
+        ),
+      "Confirmation keys require confirmation service and canonical 32-byte secrets",
+    )
+    .transform((keys) => keys.map(({ keyId, secret }) => ({ keyId, secret }))),
+};
+
 export const apiEnvSchema = baseEnvSchema
   .extend({
     API_PORT: port.default(4000),
@@ -652,6 +667,7 @@ export const apiEnvSchema = baseEnvSchema
     ...resetEnvFields,
     ...invitationEnvFields,
     ...quoteEnvFields,
+    ...confirmationEnvFields,
     /**
      * Whether the store accepts orders (step 77). Off by default: the order route answers 503
      * until the checkout gate (step 82) has passed and the Owner is ready to take orders.
@@ -666,6 +682,16 @@ export const apiEnvSchema = baseEnvSchema
     ageSafety({ ...value, AGE_TICKET_PRIVATE_KEY: undefined }, ctx);
     noForeignAgeSigningKey(value, ctx);
     quoteSafety(value, ctx);
+    if (
+      value.CHECKOUT_SUBMISSION_ENABLED &&
+      !value.ORDER_CONFIRMATION_KEYS.length &&
+      (value.APP_ENV === "staging" || value.APP_ENV === "production")
+    )
+      ctx.addIssue({
+        code: "custom",
+        path: ["ORDER_CONFIRMATION_KEYS"],
+        message: "required for checkout outside development and test",
+      });
     separateCacheRedis(value, ctx);
     storageSafety(value, ctx);
     securitySafety(value, ctx);

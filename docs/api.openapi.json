@@ -936,6 +936,41 @@
         }
       }
     },
+    "/v1/store/order-confirmation": {
+      "get": {
+        "operationId": "orderConfirmation",
+        "security": [{ "orderConfirmation": [] }],
+        "description": "Cookie-only 30-minute confirmation access; no URL credentials or order-number lookup. Private no-store, no-referrer. Unknown queries rejected.",
+        "responses": {
+          "200": {
+            "description": "Private confirmation snapshot",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/OrderConfirmationResponse" }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid query",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid or expired capability",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
+            }
+          },
+          "429": {
+            "description": "Read budget exceeded",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
+            }
+          }
+        }
+      }
+    },
     "/v1/health/live": {
       "get": {
         "operationId": "healthLive",
@@ -971,6 +1006,79 @@
   },
   "components": {
     "schemas": {
+      "OrderConfirmationResponse": {
+        "type": "object",
+        "properties": {
+          "orderNumber": { "type": "string", "pattern": "^IH-[0-9]{6,}$" },
+          "placedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "confirmed",
+              "processing",
+              "out_for_delivery",
+              "delivered",
+              "cancelled"
+            ]
+          },
+          "totalFils": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+          "deliveryFeeFils": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+          "discountFils": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+          "etaText": { "type": "string", "maxLength": 500 },
+          "address": {
+            "type": "object",
+            "properties": {
+              "area": { "type": "string", "maxLength": 100 },
+              "emirate": { "type": "string", "maxLength": 32 },
+              "type": { "type": "string", "enum": ["apartment", "villa", "office"] },
+              "building": { "type": "string", "maxLength": 200 },
+              "unit": { "nullable": true, "type": "string", "maxLength": 100 },
+              "street": { "nullable": true, "type": "string", "maxLength": 200 }
+            },
+            "required": ["area", "emirate", "type", "building", "unit", "street"],
+            "additionalProperties": false
+          },
+          "items": {
+            "minItems": 1,
+            "maxItems": 100,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": { "type": "string", "maxLength": 150 },
+                "attributes": { "type": "object", "additionalProperties": { "type": "string" } },
+                "quantity": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "exclusiveMinimum": true,
+                  "maximum": 9007199254740991
+                },
+                "unitPriceFils": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+                "totalFils": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 }
+              },
+              "required": ["name", "attributes", "quantity", "unitPriceFils", "totalFils"],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "orderNumber",
+          "placedAt",
+          "status",
+          "totalFils",
+          "deliveryFeeFils",
+          "discountFils",
+          "etaText",
+          "address",
+          "items"
+        ],
+        "additionalProperties": false
+      },
       "LivenessResponse": {
         "type": "object",
         "properties": { "status": { "type": "string", "enum": ["ok"] } },
@@ -2138,6 +2246,7 @@
       }
     },
     "securitySchemes": {
+      "orderConfirmation": { "type": "apiKey", "in": "cookie", "name": "__Host-ih_order" },
       "adminSession": { "type": "apiKey", "in": "cookie", "name": "__Host-ih_admin" }
     }
   }

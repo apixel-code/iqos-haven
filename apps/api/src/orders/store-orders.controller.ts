@@ -1,3 +1,4 @@
+import { OrderConfirmationService } from "./order-confirmation.service";
 import {
   BadRequestException,
   Body,
@@ -82,6 +83,7 @@ export class StoreOrdersController {
   private readonly couponFailures: EndpointLimitPolicy<"ip">;
   constructor(
     private readonly orders: CreateOrderService,
+    private readonly confirmations: OrderConfirmationService,
     private readonly limits: RateLimitService,
     @Inject(API_ENV) private readonly env: ApiEnv,
   ) {
@@ -98,7 +100,10 @@ export class StoreOrdersController {
     @Req() request: FastifyRequest,
     @Res({ passthrough: true }) reply: FastifyReply,
   ) {
-    reply.header("Cache-Control", "private, no-store").header("Vary", "Cookie");
+    reply
+      .header("Cache-Control", "private, no-store")
+      .header("Vary", "Cookie")
+      .header("Referrer-Policy", "no-referrer");
     if (!this.env.CHECKOUT_SUBMISSION_ENABLED) throw new ServiceUnavailableException();
     if (!isIdempotencyKey(idempotencyKey))
       throw new BadRequestException({
@@ -120,6 +125,8 @@ export class StoreOrdersController {
         quoteToken: body.quoteToken,
         requestId: requestId(request.raw as typeof request.raw & { id?: string }),
       });
+      const cookie = await this.confirmations.restore(idempotencyKey);
+      if (cookie) reply.header("Set-Cookie", cookie);
       return placed.response;
     } catch (error) {
       if (error instanceof CouponRejectedError)

@@ -41,3 +41,9 @@ Use independent `PASSWORD_RESET_KEYS` on API/worker, delivered by the chosen sec
 ## Staff-invitation key ring
 
 Provision independent `STAFF_INVITATION_KEYS` for API/worker; never share reset/internal keys. Deploy new readers before changing the first issuing key. Retain old keys through the last 24-hour invitation expiry and rollout. Compromise: revoke unused `staff_invitation_tokens` for that key ID, remove the key everywhere, record audited incident evidence. Key removal alone does not invalidate delivered verifiers. Never log invitation links or expose secrets in event payloads. ADR 0007 records the threat model and terminal-state rules.
+
+## Order-confirmation encryption ring (step 79, ADR 0048)
+
+Provision API-only `ORDER_CONFIRMATION_KEYS` with independent canonical 32-byte AES keys, never quote/age/internal/reset keys. Entries are `confirmation:keyId:base64urlSecret`, first encrypts and all retained entries decrypt. Install new readers on every API instance before changing the first key; retain old decrypt keys for the last 30-minute capability lifetime plus rollout margin. Dev/test ephemeral keys do not survive restart. No ephemeral encryption keys are used outside dev/test.
+
+After key retirement a matching checkout retry still gets its sanitized success, but cannot restore that cookie; it never places a second order. Existing cookie verifiers remain valid until their database expiry even if the encryption key is removed. Removing an encryption key is not capability revocation. Monitor the worker's minute-based `confirmation.cleanup` job: expired ciphertext is cleared in bounded batches, while DB-clock reads deny expired access immediately. Store only key IDs/times/manager references in operational evidence, never raw keys, cookies or ciphertext.

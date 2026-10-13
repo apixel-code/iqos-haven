@@ -11,3 +11,5 @@ export * from "./image/image";
 export * from "./cache/cache";
 export * from "./age/age-ticket";
 export * from "./quote/quote-token";
+
+export * from "./confirmation/confirmation";

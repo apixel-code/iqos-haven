@@ -17,11 +17,11 @@ pnpm dev
 
 Through the gateway (as browsers will use it): storefront http://localhost:8080 · admin http://localhost:8081. Direct dev servers: storefront http://localhost:3000 · admin http://localhost:3001 · API: http://localhost:4000/v1/health/ready · Mailpit: http://localhost:8025 · MinIO: http://localhost:9001.
 
-The admin now has real login, password reset/invitation acceptance, a session-aware workspace and permission-derived navigation (through step 37). Backend staff/fixed-role administration, typed Owner-only settings API (step 38), delivery area/flat-fee/ETA API (step 39) and durable audit/outbox/effects exist. Settings and delivery have no seeded brand/contact/recipients/areas/fees; deploy the additive migration before enabling the new API. Step 40 adds real settings, staff/invitation and delivery management forms, current-version conflict recovery and independent permission gates. Other operational section bodies are placeholders; the storefront, public products, age tickets, checkout and order persistence remain pending. Open admin through its gateway origin for auth; direct Next ports do not proxy the browser API. Health responses include dependency checks. Local Compose credentials are development examples only. Wait for services to become healthy and inspect `docker compose logs minio-init` before using object storage.
+Implementation reaches step 79: real admin auth/settings/catalogue/inventory/media/coupons, age-gated storefront browsing/search/cart, server quotes, atomic order creation and cookie-only private confirmation API. Checkout and confirmation pages, order operations and production release work remain pending; checkout submission is off by default. Configuration has no seeded real catalogue/delivery/contact values. Open each browser surface through its gateway origin; direct Next ports do not proxy browser APIs. See PROGRESS.md and docs/verification.md for current gates and evidence.
 
 ## Database workflow
 
-Prisma + PostgreSQL 18, NestJS + Fastify. The Prisma schema intentionally has no business models; the 40 planned tables are specified in `docs/database-contract.md`.
+Prisma + PostgreSQL 18, NestJS + Fastify. Business models and forward-only migrations are introduced in roadmap order; the table contracts are specified in `docs/database-contract.md`.
 
 ```bash
 pnpm db:generate                 # generate client; does not create SQL migrations

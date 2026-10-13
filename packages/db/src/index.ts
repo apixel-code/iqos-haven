@@ -36,3 +36,5 @@ export * from "./idempotency";
 export * from "./notifications";
 export * from "./order-locks";
 export * from "./order-create";
+
+export * from "./order-confirmation";

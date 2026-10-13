@@ -180,12 +180,20 @@ export async function claimIdempotency(
 export async function completeIdempotency(
   tx: Tx,
   recordId: string,
-  result: { response: Record<string, unknown>; resourceType?: string; resourceId?: string },
+  result: {
+    response: Record<string, unknown>;
+    resourceType?: string;
+    resourceId?: string;
+    replayCookieMaterial?: Buffer;
+  },
 ) {
   if (!isUnitOfWork(tx)) throw new Error("Completing a claim requires a unit of work");
   const updated = await tx.$executeRaw(Prisma.sql`
     UPDATE idempotency_records SET response=${JSON.stringify(result.response)}::jsonb,
-      resource_type=${result.resourceType ?? null}, resource_id=${result.resourceId ?? null}::uuid
+      resource_type=${result.resourceType ?? null}, resource_id=${result.resourceId ?? null}::uuid,
+      replay_cookie_material=${result.replayCookieMaterial ?? null}, replay_cookie_expires_at=CASE WHEN ${!!result.replayCookieMaterial}
+       THEN (SELECT confirmation_expires_at FROM orders WHERE id=${result.resourceId ?? null}::uuid)
+       ELSE NULL END
     WHERE id=${recordId}::uuid AND response IS NULL`);
   if (updated !== 1) throw new Error("Idempotency claim is not open");
 }
@@ -201,7 +209,12 @@ export async function completeIdempotency(
 export async function runIdempotent<R extends Record<string, unknown>>(
   db: Database,
   request: IdempotencyRequest,
-  work: (tx: Tx) => Promise<{ response: R; resourceType?: string; resourceId?: string }>,
+  work: (tx: Tx) => Promise<{
+    response: R;
+    resourceType?: string;
+    resourceId?: string;
+    replayCookieMaterial?: Buffer;
+  }>,
 ): Promise<{ replayed: boolean; response: R; resourceId: string | null }> {
   return withTransaction(db, async (tx) => {
     const claim = await claimIdempotency(tx, request);
