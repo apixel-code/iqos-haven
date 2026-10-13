@@ -4,7 +4,7 @@
 
 প্রথমে `README.md` অনুযায়ী setup করুন। তারপর `docs/implementation-status.md` দেখুন। সেখানে তৈরি হওয়া foundation ও বাকি business feature আলাদা করে লেখা আছে। Client decisions ও কোন input এখনও বাকি আছে তা `docs/business-inputs.md` থেকে নিন।
 
-বর্তমান implementation step 79 পর্যন্ত: admin auth/settings/catalogue/stock/media/coupons, age-gated storefront browsing/search/cart, server quote, atomic order creation, order notifications এবং cookie-only private confirmation API তৈরি হয়েছে। পরের কাজ step 80: checkout form ও durable attempt-key UI; এরপর confirmation page ও full checkout acceptance। Checkout submission default-এ বন্ধ থাকে।
+বর্তমান implementation step 83 পর্যন্ত: admin auth/settings/catalogue/stock/media/coupons ও read-only order operations, age-gated storefront browsing/search/cart/checkout/private confirmation, server quote, atomic order creation এবং order notifications তৈরি হয়েছে। পরের কাজ step 84: versioned order status transition commands ও timeline। Checkout submission default-এ বন্ধ থাকে।
 
 M2 ও M5 approved; অন্য milestone gates-এর বর্তমান অবস্থা `PROGRESS.md`-তে আছে। Business decisions `docs/business-inputs.md` ও ADR 0036-তে দেখুন: admin-entered price final, tax calculation নেই, UAE-এর সাত emirate-এ এক flat fee। Real contact/WhatsApp copy, email sender verification ও final indexing decision বাকি।
 

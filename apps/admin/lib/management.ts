@@ -20,7 +20,7 @@ export async function managementRequest<T>(
   signal?: AbortSignal,
 ): Promise<T> {
   if (
-    !/^\/(settings|staff|delivery-areas|coupons|brands|categories|products|inventory|media)(?:[/?]|$)/.test(
+    !/^\/(settings|staff|delivery-areas|coupons|brands|categories|products|inventory|media|orders)(?:[/?]|$)/.test(
       path,
     ) ||
     path.includes("..") ||

@@ -1,6 +1,6 @@
 # Iqos Haven — corrected development baseline
 
-Dubai-only, 18+ guest commerce with Cash on Delivery and WhatsApp support. This archive contains the approved architecture, the 132-step implementation roadmap, design references, derived requirements, acceptance scenarios and a runnable foundation. It is not a completed commerce application.
+UAE-wide, 18+ guest commerce with Cash on Delivery and WhatsApp support. This archive contains the approved architecture, the 132-step implementation roadmap, design references, derived requirements, acceptance scenarios and a runnable application foundation. It is not a completed commerce application.
 
 ## First run
 
@@ -17,7 +17,7 @@ pnpm dev
 
 Through the gateway (as browsers will use it): storefront http://localhost:8080 · admin http://localhost:8081. Direct dev servers: storefront http://localhost:3000 · admin http://localhost:3001 · API: http://localhost:4000/v1/health/ready · Mailpit: http://localhost:8025 · MinIO: http://localhost:9001.
 
-Implementation reaches step 79: real admin auth/settings/catalogue/inventory/media/coupons, age-gated storefront browsing/search/cart, server quotes, atomic order creation and cookie-only private confirmation API. Checkout and confirmation pages, order operations and production release work remain pending; checkout submission is off by default. Configuration has no seeded real catalogue/delivery/contact values. Open each browser surface through its gateway origin; direct Next ports do not proxy browser APIs. See PROGRESS.md and docs/verification.md for current gates and evidence.
+Implementation reaches step 83: real admin auth/settings/catalogue/inventory/media/coupons and read-only order operations; age-gated storefront browsing through private checkout confirmation; server quotes and atomic order creation. Status/edit/cancel/COD commands and production release work remain pending; checkout submission is off by default. Configuration has no seeded real catalogue/delivery/contact values. Open each browser surface through its gateway origin; direct Next ports do not proxy browser APIs. See PROGRESS.md and docs/verification.md for current gates and evidence.
 
 ## Database workflow
 

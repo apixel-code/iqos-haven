@@ -302,6 +302,133 @@ h2 {
     padding: 24px 20px;
   }
 }
+
+.order-filters {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+.order-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+}
+.order-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 900px;
+  font-size: 0.78rem;
+}
+.order-table th,
+.order-table td {
+  padding: 12px;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  vertical-align: top;
+}
+.order-table tbody tr {
+  cursor: pointer;
+}
+.order-table tbody tr:hover {
+  background: var(--surface-2);
+}
+.order-table td small,
+.order-item small,
+.order-history small {
+  display: block;
+  color: var(--ink-3);
+  margin-top: 4px;
+}
+.order-link {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--primary);
+  font-family: var(--mono);
+  font-weight: 600;
+}
+.order-status {
+  display: inline-block;
+  border-radius: 999px;
+  padding: 5px 8px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  white-space: nowrap;
+  background: var(--surface-2);
+}
+.status-pending {
+  color: var(--st-pending);
+  background: var(--st-pending-bg);
+}
+.status-confirmed {
+  color: var(--st-confirmed);
+  background: var(--st-confirmed-bg);
+}
+.status-processing {
+  color: var(--st-processing);
+  background: var(--st-processing-bg);
+}
+.status-out_for_delivery {
+  color: var(--st-ofd);
+  background: var(--st-ofd-bg);
+}
+.status-delivered {
+  color: var(--st-delivered);
+  background: var(--st-delivered-bg);
+}
+.status-cancelled {
+  color: var(--st-cancelled);
+  background: var(--st-cancelled-bg);
+}
+.order-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+.order-detail h3 {
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+.order-totals {
+  display: grid;
+  gap: 8px;
+}
+.order-totals div {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+}
+.order-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 12px;
+}
+.order-item > :last-child {
+  text-align: right;
+}
+.order-item strong {
+  display: block;
+}
+.order-history {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  gap: 16px;
+}
+.order-history li {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 14px;
+  align-items: start;
+}
+@media (max-width: 700px) {
+  .order-filters,
+  .order-detail-grid {
+    grid-template-columns: 1fr;
+  }
+}
 @media (max-width: 420px) {
   .auth-card {
     padding: 24px 18px;

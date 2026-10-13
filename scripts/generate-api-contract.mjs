@@ -7,6 +7,8 @@ const contracts = require("@ih/contracts");
 const schemas = Object.fromEntries(
   [
     "OrderConfirmationResponse",
+    "AdminOrdersResponse",
+    "AdminOrderResponse",
     "LivenessResponse",
     "ReadinessResponse",
     "ErrorEnvelope",
@@ -87,6 +89,70 @@ const document = {
       "Implemented health, identity, staff, settings and delivery administration contracts. Browser identity commands require the configured admin Origin and JSON bodies; responses are no-store. Identity UI is roadmap step 37.",
   },
   paths: {
+    "/v1/admin/orders": {
+      get: {
+        operationId: "adminOrdersList",
+        security: [{ adminSession: [] }],
+        description:
+          "Requires orders.read. Newest-first order snapshots with bounded status/date/search/keyset filters. Customer name/phone are present, and contact search is enabled, only with customers.read.",
+        parameters: [
+          {
+            name: "status",
+            in: "query",
+            schema: {
+              type: "string",
+              enum: [
+                "pending",
+                "confirmed",
+                "processing",
+                "out_for_delivery",
+                "delivered",
+                "cancelled",
+              ],
+            },
+          },
+          { name: "from", in: "query", schema: { type: "string", format: "date-time" } },
+          { name: "to", in: "query", schema: { type: "string", format: "date-time" } },
+          { name: "q", in: "query", schema: { type: "string", minLength: 1, maxLength: 100 } },
+          {
+            name: "limit",
+            in: "query",
+            schema: { type: "integer", minimum: 1, maximum: 100, default: 25 },
+          },
+          { name: "after", in: "query", schema: { type: "string", maxLength: 300 } },
+        ],
+        responses: {
+          200: {
+            description: "Bounded order snapshot page",
+            content: content("AdminOrdersResponse"),
+          },
+          400: { description: "Invalid filter or cursor", content: content("ErrorEnvelope") },
+          401: { description: "Session required", content: content("ErrorEnvelope") },
+          403: { description: "orders.read required", content: content("ErrorEnvelope") },
+        },
+      },
+    },
+    "/v1/admin/orders/{id}": {
+      get: {
+        operationId: "adminOrderDetail",
+        security: [{ adminSession: [] }],
+        description:
+          "Requires orders.read. Immutable order, item, price, delivery and status-history snapshots in one repeatable-read view. Customer contact/address requires customers.read.",
+        parameters: [
+          { name: "id", in: "path", required: true, schema: { type: "string", format: "uuid" } },
+        ],
+        responses: {
+          200: {
+            description: "Order snapshot and history",
+            content: content("AdminOrderResponse"),
+          },
+          400: { description: "Invalid order id", content: content("ErrorEnvelope") },
+          401: { description: "Session required", content: content("ErrorEnvelope") },
+          403: { description: "orders.read required", content: content("ErrorEnvelope") },
+          404: { description: "Order not found", content: content("ErrorEnvelope") },
+        },
+      },
+    },
     "/v1/admin/delivery-areas": {
       get: {
         operationId: "deliveryAreasList",

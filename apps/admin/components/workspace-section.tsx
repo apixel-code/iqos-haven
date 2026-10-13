@@ -8,6 +8,7 @@ import { StaffManagement } from "./staff-management";
 import { CatalogueParentManagement } from "./catalogue-parent-management";
 import { ProductManagement } from "./product-management";
 import { InventoryManagement } from "./inventory-management";
+import { OrderManagement } from "./order-management";
 import { sections } from "../lib/navigation";
 export function WorkspaceSection({ sectionKey }: { sectionKey: string }) {
   const session = useSession();
@@ -25,7 +26,9 @@ export function WorkspaceSection({ sectionKey }: { sectionKey: string }) {
     <main className="page-content">
       <p className="eyebrow">{section.group}</p>
       <h1>{section.label}</h1>
-      {sectionKey === "settings" ? (
+      {sectionKey === "orders" ? (
+        <OrderManagement canReadContact={session.permissions.includes("customers.read")} />
+      ) : sectionKey === "settings" ? (
         <SettingsManagement />
       ) : sectionKey === "delivery" ? (
         <DeliveryManagement />

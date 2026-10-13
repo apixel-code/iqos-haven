@@ -620,6 +620,7 @@ model Order {
   stockMovements               StockMovement[]
 
   @@unique([creationScope, creationKeyHash], map: "orders_creation_key")
+  @@index([createdAt(sort: Desc), id(sort: Desc)], map: "orders_created")
   @@index([customerId, createdAt(sort: Desc), id(sort: Desc)], map: "orders_customer")
   @@index([status, createdAt(sort: Desc), id(sort: Desc)], map: "orders_status")
   @@map("orders")

@@ -1128,3 +1128,15 @@ Not covered: the expired state with the order remembered from this visit (needs 
 - In the browser run the email goes to a stub adapter; delivery to Mailpit is shown in W, where the order is placed through the database function, not HTTP.
 - A last-coupon race over HTTP; logs on the checkout path are not captured and searched for personal data; real mobile devices; staging.
 - The cleanup-job test moves an answer's dates with the table's guard switched off; it shows the jobs remove what is past its expiry, not the passing of real time.
+
+## Step 83 — admin order list, snapshot detail and history (2026-10-13, local)
+
+`pnpm verify -- --integration`: exit 0. Unit 577, integration 493, gateway 29, age-preview 2008, gate 2175. Production builds, format, lint, typecheck, package boundaries, infrastructure/reference checks and generated OpenAPI all passed.
+
+**API/PostgreSQL (`admin-orders.int.test.ts`, 4 tests):** anonymous access is 401 and removing the current actor's `orders.read` grant takes effect on the next request with 403; page size, status, time range, unknown query, UUID and opaque cursor bounds are strict; newest-first `(created_at,id)` keyset pages do not repeat a row; status and half-open date filters work; display-order-number and customer searches work. Detail returns the immutable customer/address, item, amount and append-only history snapshots after the live customer record changes, without customer/catalogue IDs, creation/idempotency hashes, quote/confirmation fields or command IDs.
+
+Removing `customers.read` strips the entire customer object from list and detail through both repository authorization and the response field policy. A name query then returns no result while the display order number still works, so contact search cannot be used as an existence oracle. Both routes are `private, no-store`; detail reads items and history in one repeatable-read transaction. The generated OpenAPI covers both routes, and the migration adds the unfiltered/date-page `(created_at DESC,id DESC)` index.
+
+**Admin UI:** the Orders workspace now has status tabs, order/contact search (order-number-only when contact permission is absent), placement date bounds, cursor paging, responsive rows and read-only detail cards for delivery, API totals, item snapshots and history. No transition/edit/cancel/collection/manual/bulk control is present; those are steps 84–89.
+
+Not covered: browser interaction and visual inspection of the Orders workspace; query-plan measurements with representative production volume; live migration or staging. The production build validates compilation and route composition but not those browser behaviours.

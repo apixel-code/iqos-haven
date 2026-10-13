@@ -79,3 +79,4 @@ export * from "./store";
 export * from "./customers";
 export * from "./checkout";
 export * from "./coupons";
+export * from "./orders";

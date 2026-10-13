@@ -4,8 +4,8 @@
 
 - Date: 2026-10-13
 - Milestone: M7 — transactional checkout and first complete order: all steps (73–82) done; gate evidence ready, awaiting Marina's decision. M6: all steps (65–72) done; gate evidence ready, awaiting Marina's decision. M5: PASSED 2026-10-11. M4 steps done, gate awaits Marina's decision (publishing unblocked); M3 gate not closed; M0 review and M1 staging/fixtures still open
-- Step: 82 (checkout correctness gate) — done; next is 83 (M8)
-- Branch: `step/82-checkout-gate` (stacked on steps 79–81; `main` holds everything through step 76; PRs #59/#60 open; steps 79–82 are local commits, not pushed: the push needs Marina's explicit go-ahead)
+- Step: 83 (admin order list/detail/history) — done; next is 84 (status transitions)
+- Branch: `step/83-admin-orders` (stacked on steps 79–82; `main` holds everything through step 76; PRs #59/#60 open; steps 79–83 are local commits, not pushed: the push needs Marina's explicit go-ahead)
 - See docs/verification.md for actual checks.
 
 ## Next action
@@ -20,8 +20,9 @@
 2. **Marina merges** from her terminal (`gh pr merge <number> --merge`) or on GitHub ("Create a merge commit"). PR #59 (step 77), #60 (step 78) and step 79 are stacked: merge the highest verified branch to include its dependencies. Then `git checkout main && git pull --ff-only`, and check that the CI run on `main` finished (a cancelled run is rerun with `gh run rerun <id>`).
 3. **Marina: decide the M6 gate (and M4).** Evidence and caveats: docs/verification.md "Step 72".
 4. **Marina: decide the M7 gate.** Evidence, item by item, and what is not covered: docs/verification.md "Step 82". Checkout stays switched off (`CHECKOUT_SUBMISSION_ENABLED=false`) whatever the decision, until deployment inputs exist (BI-07 sender domain, real Owner, delivery areas and fee).
-5. **Next step: `/step 83`** (first step of M8, order operations). Find the row with `rg -n "^| 83 " docs/roadmap.md` and the M8 dependency line.
+5. **Next step: `/step 84`** (status transition commands and timeline). Keep Step 83's list/detail contracts stable and use each order's `version` as the expected version.
 6. **Rules that carry forward:**
+   - Admin order reads (ADR 0051): both routes require `orders.read`; the whole optional `customer` object and contact search additionally require `customers.read`. List keyset is the exact DB `(created_at,id)`; detail uses one repeatable-read snapshot. Never expose creation/idempotency hashes, confirmation data or history command IDs. Step 84 adds commands separately with expected versions.
    - Confirmation page (ADR 0050): `/order-confirmation` reads the order in the browser with the cookie; nothing from the URL, nothing stored on the device, no third-party script; only contract fields are shown and amounts are the API's. After a 201: end key, empty cart, remember the acknowledgement in memory, `router.replace`.
    - Checkout form (ADR 0049): typed details live in React state only; the device keeps `ih_checkout_attempt_v1` = `{key, createdAt}` (local storage, else session storage) and nothing else. The key ends only on an acknowledged 201 or on "Place a second order"; every other answer keeps it (`orderOutcome` in `lib/checkout/order.ts`). `GET /v1/store/info` carries `checkoutOpen`; the storefront has no switch of its own. Browser pass: `scripts/browser-qa/checkout.mjs` with `node scripts/check-gate-e2e.cjs --serve --checkout-open`.
    - Confirmation (ADR 0048): API-only `ORDER_CONFIRMATION_KEYS`; AES-GCM bound to the scoped attempt hash. SQL copies expiry (do not round-trip through JS Date); normalize BYTEA before decryption. `__Host-ih_order` grants only 30-minute private confirmation; same success replays without cookie after expiry/key retirement, never another order. `confirmation.cleanup` clears ciphertext every minute in bounded batches. GET accepts no query fields; UI must be no-store/no-referrer and excluded from analytics/session replay.
@@ -90,6 +91,7 @@ BI-07: a verified sending domain and sender address are still needed before real
 - 64 — store shell and home shell, `GET /v1/store/info` + WhatsApp links only when configured, `pnpm test:gate` real-stack age-boundary check (ADR 0033; BI-01/BI-09 pending) — 82ce9b9
 - 65 — `customers` + `customer_addresses` (phone-keyed, no credentials, immutable phone and address rows, no runtime delete), `normalizePhone`, transaction-only customer primitives (ADR 0034) — 209e62f
 - 82 — checkout correctness gate: worker gate test (order transaction → relay → queue → inbox and Mailpit, queue outage, cleanup jobs), HTTP gate cases (repeated lines, last unit, code burst), full browser journey with the worker's consumers running — `step(82)` commit on `step/82-checkout-gate`
+- 83 — admin order list/status-date-contact search/keyset paging and repeatable-read snapshot detail/history; contact fields and search require `customers.read`; responsive read-only Orders workspace (ADR 0051) — `step(83)` commit on `step/83-admin-orders`
 - 81 — `/order-confirmation` page (cookie-read snapshot, expired and failed states, WhatsApp order message), checkout success navigates there after ending the key and emptying the cart (ADR 0050) — b04d2a9
 - 80 — `/checkout` form (memory-only details, required 18+ tick, server total), durable attempt key, one outcome per API answer, cart emptied only after acknowledgement, `checkoutOpen` in store info (ADR 0049) — 678cf64
 - 79 — cookie-only private confirmation API, 30-minute hashed capabilities, separately encrypted/non-extending replay and bounded ciphertext cleanup (ADR 0048) — commit `step(79): private order confirmation and encrypted replay`
@@ -113,21 +115,21 @@ BI-07: a verified sending domain and sender address are still needed before real
 - Event `consumers` lists only implemented consumers (now `system_probe`, `email`, `media_processor`, `storefront_revalidate`); planned ones are documented with roadmap steps and move in with a backfill decision (architecture §8: adding a consumer must not redefine old completions).
 - `audit_log` migration revokes UPDATE/DELETE/TRUNCATE only from a role named `ih_app`; other runtime role names must be revoked at provisioning (trigger blocks mutations regardless).
 
-## Last session handoff (2026-10-13, step 82)
+## Last session handoff (2026-10-13, step 83)
 
 Done:
 
-- **Step 82:** `apps/worker/src/checkout-gate.int.test.ts` (3 tests); four "gate:" tests in `store-orders.int.test.ts`; `scripts/browser-qa/checkout.mjs` now runs the whole journey (49 checks) and `check-gate-e2e.cjs --serve` runs the worker's relay, queue and consumers on its schema; one misleading hint fixed in `checkout-view.tsx`.
-- **`invariant-reviewer`** judged the evidence: every gate item has a strong test; done: duplicate deliveries are now waited for, the "no queue" API test is named for what it shows, the outage test checks both effects stay untouched, the browser journey joins HTTP orders to the worker.
+- **Step 83:** `GET /v1/admin/orders` and `/:id`, typed contracts/OpenAPI, `(created_at,id)` index, repository authorization and repeatable-read detail; status/date/search/keyset filters; the admin Orders list/detail/history UI; ADR 0051.
+- Four real API/PostgreSQL tests cover current permission revocation, invalid bounds/cursors, stable paging and filters, immutable snapshots/history, field stripping and prevention of contact-search inference without `customers.read`.
 
-Files: `apps/worker/src/checkout-gate.int.test.ts`, `apps/api/src/orders/store-orders.int.test.ts`, `apps/storefront/components/checkout-view.tsx`, `scripts/{check-gate-e2e.cjs,browser-qa/checkout.mjs,browser-qa/README.md}`, `docs/{verification,task-backlog,implementation-status}.md`, `PROGRESS.md`.
+Files: `packages/contracts/src/orders.ts`, `packages/db/src/order-admin.ts`, migration `20261013000300_admin_order_reads`, `apps/api/src/orders/admin-orders.*`, `apps/admin/components/order-management.tsx`, ADR 0051, generated OpenAPI and status/verification docs.
 
-Tests: `pnpm verify -- --integration` PASS (unit 577, integration 489, gateway 29, age-preview 2008, gate 2175). Browser journey 49/49 on the final code.
+Tests: `pnpm verify -- --integration` PASS (unit 577, integration 493, gateway 29, age-preview 2008, gate 2175). Targeted Step 83 integration 4/4.
 
 Unfinished:
 
-- M7 gate decision is Marina's. Steps 79–82 are local commits; nothing was pushed. PRs #59/#60 wait for her merge; M4 and M6 gates await her decision.
-- Not covered (also in docs/verification.md): the browser journey is a local script, not part of `pnpm verify` or CI; the age answer in it is posted, not clicked; email in the browser run goes to a stub adapter (Mailpit delivery is in the worker test); real mobile devices; a last-coupon race over HTTP (service level only); log capture for PII on the checkout path.
+- M7 gate decision is Marina's. Steps 79–83 are local commits; nothing was pushed. PRs #59/#60 wait for her merge; M4 and M6 gates await her decision.
+- Step 83 admin browser interaction/visual QA, representative-data query plans and production migration remain open. Step 84 adds status commands; this screen is intentionally read-only.
 - Two `ih_test_*` schemas of unknown origin are in the test database (`…170e73fb…`, `…9acfd98f…`); left alone.
 
 ## History (summary)
