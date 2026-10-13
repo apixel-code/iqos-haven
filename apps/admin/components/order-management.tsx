@@ -3,9 +3,11 @@ import { useState } from "react";
 import {
   adminOrderResponseSchema,
   adminOrdersResponseSchema,
+  orderTransitionResponseSchema,
   type AdminOrderResponse,
   type AdminOrderSummary,
 } from "@ih/contracts";
+import { managementRequest } from "../lib/management";
 import { addressLine, COD_STATUS_LABELS, money, ORDER_STATUS_LABELS, when } from "../lib/orders";
 import { ResourceNotice, useManagementResource } from "./management-resource";
 
@@ -20,7 +22,13 @@ const STATUSES = [
 ] as const;
 
 /** Read-only order operations for step 83. Commands are added by the following roadmap steps. */
-export function OrderManagement({ canReadContact }: { canReadContact: boolean }) {
+export function OrderManagement({
+  canReadContact,
+  canTransition,
+}: {
+  canReadContact: boolean;
+  canTransition: boolean;
+}) {
   const [status, setStatus] = useState<(typeof STATUSES)[number]>("all");
   const [search, setSearch] = useState("");
   const [from, setFrom] = useState("");
@@ -36,7 +44,10 @@ export function OrderManagement({ canReadContact }: { canReadContact: boolean })
   if (cursor) params.set("after", cursor);
   const orders = useManagementResource(`/orders?${params}`, adminOrdersResponseSchema);
   const resetPage = () => setCursors([]);
-  if (selected) return <OrderDetail id={selected} onBack={() => setSelected(null)} />;
+  if (selected)
+    return (
+      <OrderDetail id={selected} canTransition={canTransition} onBack={() => setSelected(null)} />
+    );
   return (
     <section className="management-card order-management">
       <header className="card-heading">
@@ -44,7 +55,7 @@ export function OrderManagement({ canReadContact }: { canReadContact: boolean })
           <h2>Orders</h2>
           <p className="muted">Newest first · immutable order snapshots</p>
         </div>
-        <span className="badge">Read only · actions arrive in steps 84–89</span>
+        <span className="badge">Live order operations</span>
       </header>
       <div className="tab-list" role="tablist" aria-label="Order status">
         {STATUSES.map((value) => (
@@ -192,8 +203,55 @@ function OrderRow({ order, open }: { order: AdminOrderSummary; open: () => void 
   );
 }
 
-function OrderDetail({ id, onBack }: { id: string; onBack: () => void }) {
+type TransitionTarget = "confirmed" | "processing" | "out_for_delivery" | "delivered";
+const NEXT: Partial<Record<AdminOrderResponse["status"], { to: TransitionTarget; label: string }>> =
+  {
+    pending: { to: "confirmed", label: "Confirm order" },
+    confirmed: { to: "processing", label: "Start processing" },
+    processing: { to: "out_for_delivery", label: "Mark out for delivery" },
+    out_for_delivery: { to: "delivered", label: "Mark delivered" },
+  };
+
+function OrderDetail({
+  id,
+  canTransition,
+  onBack,
+}: {
+  id: string;
+  canTransition: boolean;
+  onBack: () => void;
+}) {
   const order = useManagementResource(`/orders/${id}`, adminOrderResponseSchema);
+  const [pending, setPending] = useState<{
+    commandId: string;
+    expectedVersion: number;
+    to: TransitionTarget;
+  } | null>(null);
+  const activePending = pending && order.data?.version === pending.expectedVersion ? pending : null;
+  const action = order.data ? NEXT[order.data.status] : undefined;
+  async function submitTransition() {
+    if (!order.data || !action) return;
+    const command = activePending ?? {
+      commandId: crypto.randomUUID(),
+      expectedVersion: order.data.version,
+      to: action.to,
+    };
+    if (!activePending && !window.confirm(`${action.label} for ${order.data.orderNumber}?`)) return;
+    setPending(command);
+    const result = await order.run((signal) =>
+      managementRequest(
+        `/orders/${id}/transitions`,
+        orderTransitionResponseSchema,
+        "POST",
+        command,
+        signal,
+      ),
+    );
+    if (result.ok) {
+      setPending(null);
+      order.reload();
+    }
+  }
   return (
     <section className="management-card order-detail">
       <div>
@@ -202,7 +260,27 @@ function OrderDetail({ id, onBack }: { id: string; onBack: () => void }) {
         </button>
       </div>
       <ResourceNotice resource={order} />
-      {order.data && <OrderDetailBody order={order.data} />}
+      {order.data && (
+        <>
+          {canTransition && action && (
+            <div className="form-actions">
+              <button
+                type="button"
+                className="primary-button"
+                disabled={order.disabled}
+                onClick={() => void submitTransition()}
+              >
+                {activePending ? `Retry: ${action.label}` : action.label}
+              </button>
+              <small className="muted">
+                Uses version {activePending?.expectedVersion ?? order.data.version}; the same
+                command is retried safely.
+              </small>
+            </div>
+          )}
+          <OrderDetailBody order={order.data} />
+        </>
+      )}
     </section>
   );
 }

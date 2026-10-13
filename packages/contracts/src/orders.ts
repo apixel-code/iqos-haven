@@ -5,6 +5,26 @@ import { filsSchema } from "./index";
 
 export const adminOrderStatusSchema = z.enum(ORDER_STATUSES);
 export const adminOrderParamsSchema = z.strictObject({ id: z.uuid() });
+export const orderTransitionTargetSchema = z.enum([
+  "confirmed",
+  "processing",
+  "out_for_delivery",
+  "delivered",
+]);
+export const orderTransitionRequestSchema = z.strictObject({
+  to: orderTransitionTargetSchema,
+  expectedVersion: z.number().int().min(1),
+  commandId: z.uuid(),
+});
+export const orderTransitionResponseSchema = z.strictObject({
+  orderId: z.uuid(),
+  fromStatus: adminOrderStatusSchema,
+  toStatus: orderTransitionTargetSchema,
+  orderVersion: z.number().int().min(2),
+  transitionedAt: z.iso.datetime(),
+  actor: z.strictObject({ id: z.uuid(), name: z.string().min(1).max(100) }),
+  replayed: z.boolean(),
+});
 
 const boundedInstant = z.iso.datetime({ offset: true });
 export const adminOrdersQuerySchema = z
@@ -129,3 +149,5 @@ export type AdminOrdersQuery = z.infer<typeof adminOrdersQuerySchema>;
 export type AdminOrderSummary = z.infer<typeof adminOrderSummarySchema>;
 export type AdminOrdersResponse = z.infer<typeof adminOrdersResponseSchema>;
 export type AdminOrderResponse = z.infer<typeof adminOrderResponseSchema>;
+export type OrderTransitionRequest = z.infer<typeof orderTransitionRequestSchema>;
+export type OrderTransitionResponse = z.infer<typeof orderTransitionResponseSchema>;

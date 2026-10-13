@@ -1,17 +1,23 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Inject,
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import type { AdminOrdersQuery } from "@ih/contracts";
+import type { AdminOrdersQuery, OrderTransitionRequest } from "@ih/contracts";
+import type { CommandContext } from "@ih/application";
 import {
   listAdminOrders,
   OrderCursorError,
   AdminOrderNotFoundError,
   OrderReadForbiddenError,
   readAdminOrder,
+  transitionOrder,
+  OrderTransitionConflictError,
+  OrderTransitionForbiddenError,
+  OrderTransitionNotFoundError,
   type Database,
 } from "@ih/db";
 import { DATABASE } from "../infra/tokens";
@@ -27,6 +33,10 @@ export class AdminOrdersService {
       if (error instanceof OrderReadForbiddenError) throw new ForbiddenException();
       if (error instanceof AdminOrderNotFoundError) throw new NotFoundException();
       if (error instanceof OrderCursorError) throw new BadRequestException();
+      if (error instanceof OrderTransitionForbiddenError) throw new ForbiddenException();
+      if (error instanceof OrderTransitionNotFoundError) throw new NotFoundException();
+      if (error instanceof OrderTransitionConflictError)
+        throw new ConflictException({ code: error.reason });
       throw error;
     }
   }
@@ -37,5 +47,9 @@ export class AdminOrdersService {
 
   find(actorId: string, orderId: string) {
     return this.execute(() => readAdminOrder(this.db, actorId, orderId));
+  }
+
+  transition(context: CommandContext, orderId: string, input: OrderTransitionRequest) {
+    return this.execute(() => transitionOrder(this.db, context, orderId, input));
   }
 }

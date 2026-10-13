@@ -4,8 +4,8 @@
 
 - Date: 2026-10-13
 - Milestone: M7 — transactional checkout and first complete order: all steps (73–82) done; gate evidence ready, awaiting Marina's decision. M6: all steps (65–72) done; gate evidence ready, awaiting Marina's decision. M5: PASSED 2026-10-11. M4 steps done, gate awaits Marina's decision (publishing unblocked); M3 gate not closed; M0 review and M1 staging/fixtures still open
-- Step: 83 (admin order list/detail/history) — done; next is 84 (status transitions)
-- Branch: `step/83-admin-orders` (stacked on steps 79–82; `main` holds everything through step 76; PRs #59/#60 open; steps 79–83 are local commits, not pushed: the push needs Marina's explicit go-ahead)
+- Step: 84 (versioned status transitions and timeline actions) — done; next is 85 (Pending/Confirmed order edits)
+- Branch: `step/84-order-transitions` (stacked on steps 79–83; `main` holds everything through step 76; PRs #59/#60 open; steps 79–84 are local commits, not pushed: the push needs Marina's explicit go-ahead)
 - See docs/verification.md for actual checks.
 
 ## Next action
@@ -20,9 +20,10 @@
 2. **Marina merges** from her terminal (`gh pr merge <number> --merge`) or on GitHub ("Create a merge commit"). PR #59 (step 77), #60 (step 78) and step 79 are stacked: merge the highest verified branch to include its dependencies. Then `git checkout main && git pull --ff-only`, and check that the CI run on `main` finished (a cancelled run is rerun with `gh run rerun <id>`).
 3. **Marina: decide the M6 gate (and M4).** Evidence and caveats: docs/verification.md "Step 72".
 4. **Marina: decide the M7 gate.** Evidence, item by item, and what is not covered: docs/verification.md "Step 82". Checkout stays switched off (`CHECKOUT_SUBMISSION_ENABLED=false`) whatever the decision, until deployment inputs exist (BI-07 sender domain, real Owner, delivery areas and fee).
-5. **Next step: `/step 84`** (status transition commands and timeline). Keep Step 83's list/detail contracts stable and use each order's `version` as the expected version.
+5. **Next step: `/step 85`** (Pending/Confirmed order edits and diff display). Preserve Step 84's order lock, expected-version and one-history-row invariants; stock deltas must use the ledger and low-stock crossing helper.
 6. **Rules that carry forward:**
    - Admin order reads (ADR 0051): both routes require `orders.read`; the whole optional `customer` object and contact search additionally require `customers.read`. List keyset is the exact DB `(created_at,id)`; detail uses one repeatable-read snapshot. Never expose creation/idempotency hashes, confirmation data or history command IDs. Step 84 adds commands separately with expected versions.
+   - Order transitions (ADR 0052): normal fulfilment uses `POST /v1/admin/orders/:id/transitions` with `orders.transition`, `expectedVersion` and a UUID command ID. Lock the current actor, then the order; write order/history/audit/`order.status_changed` in one transaction. A partial unique index makes staff transition command IDs global and exact retries return the original receipt. Delivered leaves COD pending.
    - Confirmation page (ADR 0050): `/order-confirmation` reads the order in the browser with the cookie; nothing from the URL, nothing stored on the device, no third-party script; only contract fields are shown and amounts are the API's. After a 201: end key, empty cart, remember the acknowledgement in memory, `router.replace`.
    - Checkout form (ADR 0049): typed details live in React state only; the device keeps `ih_checkout_attempt_v1` = `{key, createdAt}` (local storage, else session storage) and nothing else. The key ends only on an acknowledged 201 or on "Place a second order"; every other answer keeps it (`orderOutcome` in `lib/checkout/order.ts`). `GET /v1/store/info` carries `checkoutOpen`; the storefront has no switch of its own. Browser pass: `scripts/browser-qa/checkout.mjs` with `node scripts/check-gate-e2e.cjs --serve --checkout-open`.
    - Confirmation (ADR 0048): API-only `ORDER_CONFIRMATION_KEYS`; AES-GCM bound to the scoped attempt hash. SQL copies expiry (do not round-trip through JS Date); normalize BYTEA before decryption. `__Host-ih_order` grants only 30-minute private confirmation; same success replays without cookie after expiry/key retirement, never another order. `confirmation.cleanup` clears ciphertext every minute in bounded batches. GET accepts no query fields; UI must be no-store/no-referrer and excluded from analytics/session replay.

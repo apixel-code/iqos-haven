@@ -1140,3 +1140,13 @@ Removing `customers.read` strips the entire customer object from list and detail
 **Admin UI:** the Orders workspace now has status tabs, order/contact search (order-number-only when contact permission is absent), placement date bounds, cursor paging, responsive rows and read-only detail cards for delivery, API totals, item snapshots and history. No transition/edit/cancel/collection/manual/bulk control is present; those are steps 84–89.
 
 Not covered: browser interaction and visual inspection of the Orders workspace; query-plan measurements with representative production volume; live migration or staging. The production build validates compilation and route composition but not those browser behaviours.
+
+## Step 84 — status transition commands and timeline actions (2026-10-13, local)
+
+`pnpm verify -- --integration`: exit 0. Unit 577, integration 497, gateway 29, age-preview 2008, gate 2175. Production builds, format, lint, typecheck, package boundaries, infrastructure/reference checks and generated API contracts all passed.
+
+`POST /v1/admin/orders/:id/transitions` enforces current `orders.transition`, admin Origin, strict UUID/body fields and a fail-closed staff mutation limit. Tests cover anonymous and revoked access, malformed IDs, unknown fields and the exclusion of cancellation from this command. Stale versions return `VERSION_CONFLICT`; skipped states return `INVALID_TRANSITION`; neither changes the order.
+
+The complete Pending → Confirmed → Processing → Out for Delivery → Delivered path records versions 2–5, the acting staff member and database times. Five concurrent copies of one command create one transition and replay one receipt; reusing that command for another target or order returns `COMMAND_REUSED`. The resulting order has one creation plus four transition history rows, four audits and four `order.status_changed` events. Dispatch and delivery times are present, while COD remains pending. A forced audit failure proves the order update, history and event roll back together.
+
+The admin detail exposes only the next valid fulfilment action to staff with `orders.transition`. It sends the displayed order version, retains its UUID across an uncertain retry and reloads the authoritative detail/timeline after success. Browser interaction and visual inspection, representative contention/load, live migration and staging remain outside this local step.

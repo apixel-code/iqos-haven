@@ -27,7 +27,10 @@ export function WorkspaceSection({ sectionKey }: { sectionKey: string }) {
       <p className="eyebrow">{section.group}</p>
       <h1>{section.label}</h1>
       {sectionKey === "orders" ? (
-        <OrderManagement canReadContact={session.permissions.includes("customers.read")} />
+        <OrderManagement
+          canReadContact={session.permissions.includes("customers.read")}
+          canTransition={session.permissions.includes("orders.transition")}
+        />
       ) : sectionKey === "settings" ? (
         <SettingsManagement />
       ) : sectionKey === "delivery" ? (

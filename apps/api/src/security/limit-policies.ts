@@ -106,6 +106,11 @@ export const INVENTORY_ADJUST_POLICY = {
   endpoint: "inventory_adjust",
 } as const;
 
+export const ORDER_TRANSITION_POLICY = {
+  ...CATALOG_MANAGE_POLICY,
+  endpoint: "order.transition",
+} as const;
+
 /**
  * Shopper catalogue reads (step 58), per client address. Browsing must keep working when the
  * shared limiter is down, so the outage path is a bounded local budget plus a process ceiling.

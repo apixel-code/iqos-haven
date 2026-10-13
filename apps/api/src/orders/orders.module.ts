@@ -6,11 +6,17 @@ import { CreateOrderService } from "./create-order.service";
 import { StoreOrdersController } from "./store-orders.controller";
 import { AdminOrdersController } from "./admin-orders.controller";
 import { AdminOrdersService } from "./admin-orders.service";
+import { OrderTransitionsController } from "./order-transitions.controller";
 
 /** Order commands and the store route that places an order (step 77). */
 @Module({
   imports: [StoreModule],
-  controllers: [StoreOrdersController, OrderConfirmationController, AdminOrdersController],
+  controllers: [
+    StoreOrdersController,
+    OrderConfirmationController,
+    AdminOrdersController,
+    OrderTransitionsController,
+  ],
   providers: [CreateOrderService, OrderConfirmationService, AdminOrdersService],
   exports: [CreateOrderService],
 })

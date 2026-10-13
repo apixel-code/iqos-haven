@@ -7,7 +7,12 @@ import {
   loadEnv,
   loadLocalEnvFile,
 } from "@ih/config";
-import { adminOrderResponseSchema, adminOrdersResponseSchema } from "@ih/contracts";
+import {
+  adminOrderResponseSchema,
+  adminOrdersResponseSchema,
+  errorEnvelopeSchema,
+  orderTransitionResponseSchema,
+} from "@ih/contracts";
 import { createDatabase, createPool } from "@ih/db";
 import { applyMigrations, seedOrder } from "@ih/db/testing";
 import { Argon2PasswordHasher } from "@ih/platform";
@@ -44,8 +49,12 @@ let staffCookie = "";
 let staffRoleId = "";
 let first: Awaited<ReturnType<typeof seedOrder>>;
 let second: Awaited<ReturnType<typeof seedOrder>>;
+let lifecycle: Awaited<ReturnType<typeof seedOrder>>;
 
-async function setStaffPermission(key: "orders.read" | "customers.read", enabled: boolean) {
+async function setStaffPermission(
+  key: "orders.read" | "customers.read" | "orders.transition",
+  enabled: boolean,
+) {
   if (enabled)
     await pool.query(
       `INSERT INTO role_permissions (role_id,permission_id)
@@ -63,6 +72,23 @@ const call = (path: string, cookie = staffCookie) =>
   fetch(`${base}/v1/admin/orders${path}`, {
     headers: { cookie, "x-ih-client-ip": "192.0.2.83" },
   });
+const transition = (
+  orderId: string,
+  body: unknown,
+  options: { cookie?: string; origin?: string } = {},
+) =>
+  fetch(`${base}/v1/admin/orders/${orderId}/transitions`, {
+    method: "POST",
+    headers: {
+      cookie: options.cookie ?? staffCookie,
+      origin: options.origin ?? ADMIN,
+      "content-type": "application/json",
+      "x-ih-client-ip": "192.0.2.84",
+    },
+    body: JSON.stringify(body),
+  });
+const errorCode = async (response: Response) =>
+  errorEnvelopeSchema.parse(await response.json()).error.code;
 
 describe("admin order list and snapshot detail through the real API and PostgreSQL", () => {
   beforeAll(async () => {
@@ -79,6 +105,7 @@ describe("admin order list and snapshot detail through the real API and PostgreS
     });
     first = await seedOrder(pool, { quantity: 2 });
     second = await seedOrder(pool, { status: "confirmed" });
+    lifecycle = await seedOrder(pool);
     await db.customer.update({
       where: { id: first.customerId },
       data: { displayName: "Changed customer record" },
@@ -199,5 +226,184 @@ describe("admin order list and snapshot detail through the real API and PostgreS
     } finally {
       await setStaffPermission("customers.read", true);
     }
+  });
+
+  it("enforces permission, origin and the strict transition command contract", async () => {
+    const body = { to: "confirmed", expectedVersion: 1, commandId: randomUUID() };
+    expect((await transition(lifecycle.orderId, body, { cookie: "" })).status).toBe(401);
+    expect(
+      (await transition(lifecycle.orderId, body, { origin: "https://evil.example" })).status,
+    ).toBe(403);
+    await setStaffPermission("orders.transition", false);
+    try {
+      expect((await transition(lifecycle.orderId, body)).status).toBe(403);
+    } finally {
+      await setStaffPermission("orders.transition", true);
+    }
+    expect((await transition("not-a-uuid", body)).status).toBe(400);
+    expect((await transition(lifecycle.orderId, { ...body, extra: true })).status).toBe(400);
+    expect((await transition(lifecycle.orderId, { ...body, to: "cancelled" })).status).toBe(400);
+  });
+
+  it("rejects stale and forbidden moves without an effect", async () => {
+    const before = await pool.query("SELECT version,status FROM orders WHERE id=$1", [
+      lifecycle.orderId,
+    ]);
+    const stale = await transition(lifecycle.orderId, {
+      to: "confirmed",
+      expectedVersion: 9,
+      commandId: randomUUID(),
+    });
+    expect(stale.status).toBe(409);
+    expect(await errorCode(stale)).toBe("VERSION_CONFLICT");
+    const skipped = await transition(lifecycle.orderId, {
+      to: "processing",
+      expectedVersion: 1,
+      commandId: randomUUID(),
+    });
+    expect(skipped.status).toBe(409);
+    expect(await errorCode(skipped)).toBe("INVALID_TRANSITION");
+    expect(
+      (await pool.query("SELECT version,status FROM orders WHERE id=$1", [lifecycle.orderId])).rows,
+    ).toEqual(before.rows);
+  });
+
+  it("runs the fulfilment state machine with replay-safe history, audit and events", async () => {
+    const steps = ["confirmed", "processing", "out_for_delivery", "delivered"] as const;
+    let version = 1;
+    for (const to of steps) {
+      const commandId = randomUUID();
+      const body = { to, expectedVersion: version, commandId };
+      const responses =
+        version === 1
+          ? await Promise.all(Array.from({ length: 5 }, () => transition(lifecycle.orderId, body)))
+          : [await transition(lifecycle.orderId, body)];
+      for (const response of responses) expect(response.status).toBe(200);
+      const receipts = await Promise.all(
+        responses.map(async (response) =>
+          orderTransitionResponseSchema.parse(await response.json()),
+        ),
+      );
+      const receipt = receipts.find((item) => !item.replayed)!;
+      expect(receipts.filter((item) => !item.replayed)).toHaveLength(1);
+      const response = responses[0]!;
+      expect(response.headers.get("cache-control")).toBe("no-store");
+      expect(receipt).toMatchObject({
+        orderId: lifecycle.orderId,
+        toStatus: to,
+        orderVersion: version + 1,
+        replayed: false,
+        actor: { name: "Order Reader" },
+      });
+      const replay = orderTransitionResponseSchema.parse(
+        await (await transition(lifecycle.orderId, body)).json(),
+      );
+      expect(replay).toEqual({ ...receipt, replayed: true });
+      const changed = await transition(lifecycle.orderId, {
+        ...body,
+        to: to === "confirmed" ? "processing" : "confirmed",
+      });
+      expect(changed.status).toBe(409);
+      expect(await errorCode(changed)).toBe("COMMAND_REUSED");
+      if (version === 1) {
+        const otherOrder = await transition(first.orderId, body);
+        expect(otherOrder.status).toBe(409);
+        expect(await errorCode(otherOrder)).toBe("COMMAND_REUSED");
+      }
+      version++;
+    }
+    const state = (
+      await pool.query(
+        `SELECT status,version,cod_status,dispatched_at,delivered_at FROM orders WHERE id=$1`,
+        [lifecycle.orderId],
+      )
+    ).rows[0];
+    expect(state).toMatchObject({ status: "delivered", version: 5, cod_status: "pending" });
+    expect(state.dispatched_at).toBeInstanceOf(Date);
+    expect(state.delivered_at).toBeInstanceOf(Date);
+    expect(
+      Number(
+        (
+          await pool.query("SELECT count(*) FROM order_status_history WHERE order_id=$1", [
+            lifecycle.orderId,
+          ])
+        ).rows[0].count,
+      ),
+    ).toBe(5);
+    expect(
+      Number(
+        (
+          await pool.query(
+            "SELECT count(*) FROM audit_log WHERE entity_id=$1 AND action='order.status_changed'",
+            [lifecycle.orderId],
+          )
+        ).rows[0].count,
+      ),
+    ).toBe(4);
+    expect(
+      Number(
+        (
+          await pool.query(
+            "SELECT count(*) FROM outbox_events WHERE aggregate_id=$1 AND event_type='order.status_changed'",
+            [lifecycle.orderId],
+          )
+        ).rows[0].count,
+      ),
+    ).toBe(4);
+    const detail = adminOrderResponseSchema.parse(
+      await (await call("/" + lifecycle.orderId)).json(),
+    );
+    expect(detail.history.map((entry) => entry.toStatus)).toEqual([
+      "pending",
+      "confirmed",
+      "processing",
+      "out_for_delivery",
+      "delivered",
+    ]);
+  });
+
+  it("rolls the order and history back when required audit cannot be written", async () => {
+    const target = await seedOrder(pool);
+    await pool.query(`CREATE FUNCTION reject_transition_audit() RETURNS trigger LANGUAGE plpgsql AS $$
+      BEGIN IF NEW.action='order.status_changed' THEN RAISE EXCEPTION 'synthetic audit failure'; END IF;
+      RETURN NEW; END $$;
+      CREATE TRIGGER reject_transition_audit BEFORE INSERT ON audit_log
+      FOR EACH ROW EXECUTE FUNCTION reject_transition_audit()`);
+    try {
+      expect(
+        (
+          await transition(target.orderId, {
+            to: "confirmed",
+            expectedVersion: 1,
+            commandId: randomUUID(),
+          })
+        ).status,
+      ).toBe(500);
+    } finally {
+      await pool.query(
+        "DROP TRIGGER reject_transition_audit ON audit_log; DROP FUNCTION reject_transition_audit()",
+      );
+    }
+    expect(
+      (await pool.query("SELECT status,version FROM orders WHERE id=$1", [target.orderId])).rows[0],
+    ).toEqual({ status: "pending", version: 1 });
+    expect(
+      Number(
+        (
+          await pool.query("SELECT count(*) FROM order_status_history WHERE order_id=$1", [
+            target.orderId,
+          ])
+        ).rows[0].count,
+      ),
+    ).toBe(1);
+    expect(
+      Number(
+        (
+          await pool.query("SELECT count(*) FROM outbox_events WHERE aggregate_id=$1", [
+            target.orderId,
+          ])
+        ).rows[0].count,
+      ),
+    ).toBe(0);
   });
 });

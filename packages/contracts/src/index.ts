@@ -16,6 +16,7 @@ export type ErrorEnvelope = z.infer<typeof errorEnvelopeSchema>;
 /** Stable 409 reasons a client may act on; anything else stays the generic CONFLICT. */
 export const CONFLICT_CODES = [
   "VERSION_CONFLICT",
+  "INVALID_TRANSITION",
   "DUPLICATE",
   "IN_USE",
   "TRASHED",
