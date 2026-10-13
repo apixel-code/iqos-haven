@@ -1083,3 +1083,17 @@ No live migration, `.env` reads/edits, real keys/identities/emails or M7 gate cl
 **`invariant-reviewer`:** no blockers; four should-fixes done (see PROGRESS).
 
 Not covered: a changed total, a sold-out line and the "already placed" screen in a browser; `CartQuote`'s accepted-total callback as a component test; real mobile devices; the confirmation page (step 81).
+
+## Step 81 — order confirmation page (2026-10-13, local)
+
+`pnpm verify -- --integration`: exit 0, twice (before and after the review fixes). Unit 577, integration 482, gateway 29, age-preview 2008, gate 2175.
+
+**Unit (`lib/checkout/checkout.test.ts`, 4 more tests):** only a snapshot that matches the contract exactly is shown (an extra field such as a phone is refused); 401 is "expired", 429 and 5xx are "could not load"; the subtotal row is the API's total less delivery plus discount (AED 159.00 − 15.00 + 16.00 = 160.00); address lines, option text and UAE-time formatting; the acknowledgement is remembered as number, total and time.
+
+**Browser (`scripts/browser-qa/checkout.mjs`, headless Chromium at 360px, real stack with checkout open, 28 checks, run twice):** the 21 checks of step 80, and: after the order the browser is on `/order-confirmation` with the order number, AED 64 to pay in cash, the next steps and the delivery address; the page shows no name, phone or delivery note; no horizontal scroll; no script or frame from another origin; a reload shows the order again; Back does not return to the checkout form; with the cookie removed the page says the order cannot be shown and shows no order detail. One order row from two submissions.
+
+**Scripts:** `/order-confirmation` (also with `?order=…&phone=…`) is refused before the age check; for a verified shopper the server-rendered frame carries no order or catalogue data, nothing from its address, `no-referrer`, `noindex`, and nothing loaded from another origin.
+
+**`invariant-reviewer`:** no blockers; the subtotal identity is guaranteed by the `order_total` database check.
+
+Not covered: the expired state with the order remembered from this visit (needs the cookie to lapse without a reload); status lines other than "received"; real mobile devices.

@@ -1,4 +1,13 @@
 import { describe, expect, it } from "vitest";
+import {
+  addressLines,
+  confirmationView,
+  optionText,
+  placedText,
+  rememberedPlaced,
+  rememberPlaced,
+  subtotalFils,
+} from "./confirmation";
 import { ATTEMPT_STORAGE_KEY, attemptFrom, newAttempt, parseAttempt } from "./attempt";
 import {
   EMPTY_FORM,
@@ -222,5 +231,81 @@ describe("order route answers", () => {
         envelope("VALIDATION_ERROR", [{ path: "contact.name", message: "Invalid field" }, 7]),
       ),
     ).toEqual({ kind: "invalid", fields: [{ path: "contact.name", message: "Invalid field" }] });
+  });
+});
+
+describe("order confirmation", () => {
+  const order = {
+    orderNumber: "IH-001001",
+    placedAt: "2026-10-13T08:05:00.000Z",
+    status: "pending" as const,
+    totalFils: 15900,
+    deliveryFeeFils: 1500,
+    discountFils: 1600,
+    etaText: "Synthetic ETA",
+    address: {
+      area: "Synthetic Area",
+      emirate: "sharjah",
+      type: "apartment" as const,
+      building: "Synthetic Tower",
+      unit: "1204",
+      street: null,
+    },
+    items: [
+      {
+        name: "Synthetic Kit",
+        attributes: { flavour: "Grape", strength: "20 mg" },
+        quantity: 2,
+        unitPriceFils: 8000,
+        totalFils: 14400,
+      },
+    ],
+  };
+
+  it("shows only a snapshot that matches the contract", () => {
+    expect(confirmationView(200, order)).toEqual({ kind: "shown", order });
+    // Anything extra (a name, a phone) or missing is not an order to show.
+    expect(confirmationView(200, { ...order, customerPhone: "+971501234567" })).toEqual({
+      kind: "failed",
+      limited: false,
+    });
+    expect(confirmationView(200, null).kind).toBe("failed");
+  });
+
+  it("tells expired access from a page that could not ask", () => {
+    expect(confirmationView(401, { error: { code: "UNAUTHENTICATED" } })).toEqual({
+      kind: "expired",
+    });
+    expect(confirmationView(429, null)).toEqual({ kind: "failed", limited: true });
+    expect(confirmationView(503, null)).toEqual({ kind: "failed", limited: false });
+    expect(confirmationView(403, null).kind).toBe("failed");
+  });
+
+  it("words the snapshot from the API's own amounts", () => {
+    // 159.00 total − 15.00 delivery + 16.00 discount = 160.00 of items.
+    expect(subtotalFils(order)).toBe(16000);
+    expect(addressLines(order.address)).toEqual([
+      "Apartment 1204, Synthetic Tower",
+      "Synthetic Area, Sharjah",
+    ]);
+    expect(
+      addressLines({
+        ...order.address,
+        type: "villa",
+        unit: null,
+        building: "Villa 24",
+        street: "Near the park",
+      }),
+    ).toEqual(["Villa 24", "Near the park", "Synthetic Area, Sharjah"]);
+    expect(optionText(order.items[0]!.attributes)).toBe("Grape · 20 mg");
+    // UAE time, whatever the device is set to.
+    expect(placedText(order.placedAt)).toBe("13 Oct 2026, 12:05");
+  });
+
+  it("remembers the acknowledged order for this visit only, as number, total and time", () => {
+    expect(rememberedPlaced()).toBeNull();
+    const placed = { orderNumber: "IH-001001", totalFils: 15900, placedAt: order.placedAt };
+    rememberPlaced(placed);
+    expect(rememberedPlaced()).toEqual(placed);
   });
 });

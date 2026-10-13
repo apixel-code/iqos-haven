@@ -162,9 +162,14 @@ await page.getByLabel("Delivery area").selectOption({ index: 1 });
 await page.getByText("Total", { exact: true }).waitFor({ timeout: 10000 });
 await fill();
 await page.getByRole("button", { name: /^Place order · AED/ }).click();
-await page.getByRole("heading", { name: "Order placed" }).waitFor({ timeout: 15000 });
-const placedText = await page.locator("section").filter({ hasText: "Order placed" }).innerText();
-check(/IH-\d{6}/.test(placedText), "the retry is answered with the order number", placedText);
+await page.waitForURL("**/order-confirmation", { timeout: 15000 });
+await page.getByRole("heading", { name: "Order placed. Thank you." }).waitFor({ timeout: 15000 });
+const placedText = await page.locator("main").innerText();
+check(
+  /IH-\d{6}/.test(placedText),
+  "the retry is answered with the order number",
+  placedText.slice(0, 200),
+);
 check(
   orderPosts.length === 2 && orderPosts[1] === stored.key,
   "the retry used the same key",
@@ -192,7 +197,51 @@ check(
   "nothing is put in the URL",
   page.url(),
 );
-await page.screenshot({ path: join(shots, "checkout-placed-360.png"), fullPage: true });
+// The confirmation page (step 81): the API's snapshot, read with the cookie.
+check(
+  ["Pay in cash on delivery", "AED 64", "What happens next", "Probe Tower", "Total to pay"].every(
+    (text) => placedText.includes(text),
+  ),
+  "the confirmation shows the total, the next steps and the delivery address",
+  placedText.slice(0, 400),
+);
+check(
+  !["Synthetic Buyer", "501234567", "Gate code"].some((text) => placedText.includes(text)),
+  "the confirmation shows no name, phone or delivery note",
+);
+check(
+  !(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)),
+  "confirmation: no horizontal scroll at 360px",
+);
+const foreign = await page.evaluate(() =>
+  [...document.querySelectorAll("script[src],iframe[src]")]
+    .map((node) => node.src)
+    .filter((src) => new URL(src).origin !== location.origin),
+);
+check(
+  foreign.length === 0,
+  "the confirmation loads no script from another origin",
+  foreign.join(" "),
+);
+await page.screenshot({ path: join(shots, "confirmation-360.png"), fullPage: true });
+await page.reload();
+await page.getByRole("heading", { name: "Order placed. Thank you." }).waitFor({ timeout: 15000 });
+check(true, "a reload shows the order again while the cookie is valid");
+await page.goBack();
+await page.waitForLoadState("domcontentloaded");
+check(!page.url().endsWith("/checkout"), "Back does not return to the checkout form", page.url());
+// Without the cookie (expired, or another device) the page says so and shows nothing.
+await context.clearCookies({ name: "__Host-ih_order" });
+await page.goto(base + "/order-confirmation");
+await page
+  .getByRole("heading", { name: "This order can't be shown here" })
+  .waitFor({ timeout: 15000 });
+const expiredText = await page.locator("main").innerText();
+check(
+  !/IH-\d{6}|Probe Tower|AED 64/.test(expiredText),
+  "without the cookie no order detail is shown",
+);
+await page.screenshot({ path: join(shots, "confirmation-expired-360.png"), fullPage: true });
 
 // Desktop layout.
 await page.setViewportSize({ width: 1280, height: 900 });

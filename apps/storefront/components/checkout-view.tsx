@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import type { StoreOrderResponse } from "@ih/contracts";
 import { useFreshCart } from "@/lib/cart/fresh";
 import { clearCart } from "@/lib/cart/store";
 import { currentAttempt, endAttempt } from "@/lib/checkout/attempt";
+import { rememberedPlaced, rememberPlaced } from "@/lib/checkout/confirmation";
 import { rememberChoice, rememberedChoice, type QuoteChoice } from "@/lib/checkout/memory";
 import {
   EMPTY_FORM,
@@ -137,7 +138,9 @@ export function CheckoutView() {
   const [refresh, setRefresh] = useState(0);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
-  const [placed, setPlaced] = useState<StoreOrderResponse | null>(null);
+  // Set once the order is acknowledged, while the confirmation page is being opened.
+  const [placed, setPlaced] = useState(false);
+  const router = useRouter();
   const [alreadyPlaced, setAlreadyPlaced] = useState(false);
   const summary = useRef<HTMLDivElement>(null);
   // Blocks a second press while the first is on its way, before React has re-rendered.
@@ -213,7 +216,11 @@ export function CheckoutView() {
         endAttempt();
         clearCart();
         setForm(EMPTY_FORM);
-        setPlaced(outcome.order);
+        // The confirmation page reads the order with the cookie the API just set; nothing
+        // goes in the URL. `replace`, so Back does not return to a form for a placed order.
+        rememberPlaced(outcome.order);
+        setPlaced(true);
+        router.replace("/order-confirmation");
         return;
       case "already_placed":
         setAlreadyPlaced(true);
@@ -254,25 +261,28 @@ export function CheckoutView() {
         Loading checkout…
       </p>
     );
-  if (placed)
+  if (placed) {
+    // Normally replaced by the confirmation page at once. If that page cannot be opened (the
+    // connection dropped), the shopper still has the order number and a way to it.
+    const order = rememberedPlaced();
     return (
-      <section
-        aria-labelledby="placed-title"
-        className="mx-auto flex max-w-lg flex-col gap-3 rounded-lg border border-line bg-surface p-6 text-center"
-      >
-        <h2 id="placed-title" className="text-xl font-semibold">
+      <div role="status" className="flex flex-col items-start gap-3 py-9 text-sm text-ink-2">
+        <p>
           Order placed
-        </h2>
-        <p className="text-sm text-ink-2">
-          Order <b className="font-mono font-semibold text-ink">{placed.orderNumber}</b> ·{" "}
-          {displayAed(placed.totalFils)} cash on delivery
+          {order && (
+            <>
+              : <b className="font-mono font-semibold text-ink">{order.orderNumber}</b> ·{" "}
+              {displayAed(order.totalFils)} cash on delivery
+            </>
+          )}
+          . Opening your confirmation…
         </p>
-        <p className="text-sm text-ink-2">Keep this number. Pay in cash when your order arrives.</p>
-        <Link href="/shop" prefetch={false} className={`${PRIMARY} mx-auto`}>
-          Continue shopping
+        <Link href="/order-confirmation" prefetch={false} className="underline underline-offset-2">
+          View your order
         </Link>
-      </section>
+      </div>
     );
+  }
   if (alreadyPlaced)
     return (
       <section
@@ -288,6 +298,9 @@ export function CheckoutView() {
           Your cart still shows them. Only continue if you want a second, separate order.
         </p>
         <div className="flex flex-wrap gap-3">
+          <Link href="/order-confirmation" prefetch={false} className={PRIMARY}>
+            View your latest order
+          </Link>
           <button
             type="button"
             className="inline-flex h-11 items-center rounded-pill border border-line px-4 text-sm font-medium hover:border-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"

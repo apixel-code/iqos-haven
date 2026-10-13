@@ -30,6 +30,8 @@ const RESTRICTED = [
   "/brands/orbe",
   "/cart",
   "/checkout",
+  "/order-confirmation",
+  "/order-confirmation?order=IH-001001&phone=0501234567",
   "/sitemap.xml",
   "/_next/image",
   "/_next/image?url=%2Fmedia%2Fhalo.webp&w=640&q=75",
@@ -591,6 +593,35 @@ try {
   check(
     /<meta name="referrer" content="no-referrer"/.test(checkoutOpen),
     "checkout page sends no referrer",
+  );
+
+  // Confirmation page: a frame only. The order is read in the browser with its cookie, so the
+  // server's HTML holds no order and loads nothing from another origin.
+  const confirmation = await page("/order-confirmation");
+  check(
+    confirmation.includes("<title>Your order · Iqos Haven</title>") &&
+      confirmation.includes("Loading your order"),
+    "confirmation page frame renders",
+  );
+  check(
+    !/AED|Halo|IH-\d/.test(confirmation.replace(/<script[\s\S]*?<\/script>/g, "")),
+    "confirmation page carries no order or catalogue data from the server",
+  );
+  check(
+    /<meta name="referrer" content="no-referrer"/.test(confirmation) &&
+      /<meta name="robots" content="noindex, nofollow"/.test(confirmation),
+    "confirmation page sends no referrer and is not indexed",
+  );
+  check(
+    [...confirmation.matchAll(/<(?:script|iframe|img|link)[^>]+(?:src|href)="([^"]+)"/g)].every(
+      ([, target]) => target.startsWith("/") && !target.startsWith("//"),
+    ),
+    "confirmation page loads nothing from another origin (no analytics or session replay)",
+  );
+  const withQuery = await page("/order-confirmation?order=IH-001001&phone=0501234567");
+  check(
+    !withQuery.replace(/<script[\s\S]*?<\/script>/g, "").includes("0501234567"),
+    "confirmation page shows nothing taken from its address",
   );
 
   // Cart page: the server renders only the frame; the cart itself is device state.

@@ -344,6 +344,7 @@ async function main() {
       "/p/gatecheck-halo",
       "/cart",
       "/checkout",
+      "/order-confirmation",
       "/wishlist",
       "/compare",
       "/_next/image?url=%2Fmedia%2Fgatecheck.webp&w=640&q=75",
