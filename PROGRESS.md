@@ -3,9 +3,9 @@
 ## Current position
 
 - Date: 2026-10-13
-- Milestone: M7 — transactional checkout and first complete order: steps 73–81 done; step 82 is the gate. M6: all steps (65–72) done; gate evidence ready, awaiting Marina's decision. M5: PASSED 2026-10-11. M4 steps done, gate awaits Marina's decision (publishing unblocked); M3 gate not closed; M0 review and M1 staging/fixtures still open
-- Step: 81 (confirmation page and cart success handling) — done; next is 82
-- Branch: `step/81-order-confirmation-page` (stacked on steps 79–80; `main` holds everything through step 76; PRs #59/#60 open; steps 79, 80 and 81 are local commits, not pushed: the push needs Marina's explicit go-ahead)
+- Milestone: M7 — transactional checkout and first complete order: all steps (73–82) done; gate evidence ready, awaiting Marina's decision. M6: all steps (65–72) done; gate evidence ready, awaiting Marina's decision. M5: PASSED 2026-10-11. M4 steps done, gate awaits Marina's decision (publishing unblocked); M3 gate not closed; M0 review and M1 staging/fixtures still open
+- Step: 82 (checkout correctness gate) — done; next is 83 (M8)
+- Branch: `step/82-checkout-gate` (stacked on steps 79–81; `main` holds everything through step 76; PRs #59/#60 open; steps 79–82 are local commits, not pushed: the push needs Marina's explicit go-ahead)
 - See docs/verification.md for actual checks.
 
 ## Next action
@@ -19,8 +19,9 @@
 1. **Step-79 push/PR approval:** automatic approval review rejected `git push -u origin step/79-order-confirmation` because exporting source to the external remote was not explicitly authorized. User approval for the `apixel-code/iqos-haven` GitHub destination is required; no retry/bypass. PR description prepared at `/tmp/ih-step79-pr-body.md` (temporary).
 2. **Marina merges** from her terminal (`gh pr merge <number> --merge`) or on GitHub ("Create a merge commit"). PR #59 (step 77), #60 (step 78) and step 79 are stacked: merge the highest verified branch to include its dependencies. Then `git checkout main && git pull --ff-only`, and check that the CI run on `main` finished (a cancelled run is rerun with `gh run rerun <id>`).
 3. **Marina: decide the M6 gate (and M4).** Evidence and caveats: docs/verification.md "Step 72".
-4. **Next step: `/step 82` (checkout correctness gate).** Find the row with `rg -n "^| 82 " docs/roadmap.md` and the M7 gate line. It is a test-and-evidence step: last unit, last coupon use, duplicate lines, simultaneous same key, changed payload, lost response, rollback, limiter and queue outage, on real PostgreSQL and end to end with the worker. Much of it exists (`create-order.int.test.ts`, `store-orders.int.test.ts`, `order-notifications.int.test.ts`, `scripts/browser-qa/checkout.mjs`); list what each proves in `docs/verification.md`, add what is missing (see "Unfinished" below), and run the worker process against a placed order so the inbox notification and email effect complete from the queue. Do not mark M7 passed: Marina decides the gate.
-5. **Rules that carry forward:**
+4. **Marina: decide the M7 gate.** Evidence, item by item, and what is not covered: docs/verification.md "Step 82". Checkout stays switched off (`CHECKOUT_SUBMISSION_ENABLED=false`) whatever the decision, until deployment inputs exist (BI-07 sender domain, real Owner, delivery areas and fee).
+5. **Next step: `/step 83`** (first step of M8, order operations). Find the row with `rg -n "^| 83 " docs/roadmap.md` and the M8 dependency line.
+6. **Rules that carry forward:**
    - Confirmation page (ADR 0050): `/order-confirmation` reads the order in the browser with the cookie; nothing from the URL, nothing stored on the device, no third-party script; only contract fields are shown and amounts are the API's. After a 201: end key, empty cart, remember the acknowledgement in memory, `router.replace`.
    - Checkout form (ADR 0049): typed details live in React state only; the device keeps `ih_checkout_attempt_v1` = `{key, createdAt}` (local storage, else session storage) and nothing else. The key ends only on an acknowledged 201 or on "Place a second order"; every other answer keeps it (`orderOutcome` in `lib/checkout/order.ts`). `GET /v1/store/info` carries `checkoutOpen`; the storefront has no switch of its own. Browser pass: `scripts/browser-qa/checkout.mjs` with `node scripts/check-gate-e2e.cjs --serve --checkout-open`.
    - Confirmation (ADR 0048): API-only `ORDER_CONFIRMATION_KEYS`; AES-GCM bound to the scoped attempt hash. SQL copies expiry (do not round-trip through JS Date); normalize BYTEA before decryption. `__Host-ih_order` grants only 30-minute private confirmation; same success replays without cookie after expiry/key retirement, never another order. `confirmation.cleanup` clears ciphertext every minute in bounded batches. GET accepts no query fields; UI must be no-store/no-referrer and excluded from analytics/session replay.
@@ -46,9 +47,9 @@
    - Local storefront dev needs age keys in `.env`: run `pnpm age:keygen` and paste the three lines (Claude cannot read or edit `.env`). Without them every page redirects to the age check and accepting answers 503.
    - If `http://localhost:8080/api/age/*` answers 404, the gateway container is running an old config: `docker compose restart gateway`.
    - Every later stock writer (orders, steps 75–76, 85–86) must call `publishLowStockCrossing` in its transaction (ADR 0023).
-6. **Publishing works without a tax reference** (ADR 0036): a complete product can be published from the admin. The dev database has all migrations applied (2026-10-12) but no products yet; tests still seed their own.
-7. **Local invalidation call:** to exercise the worker → API call in dev, set `INTERNAL_SERVICE_KEYS` and the worker's `INTERNAL_SERVICE_*` in `.env` (see `.env.example`). Without them the effect completes as `skipped:not_configured`.
-8. **Browser QA for later admin steps:** use `scripts/browser-qa/` (README). `/tmp/ih-qa` does not survive; reinstall `playwright-core` there (or any directory) and set `QA_PLAYWRIGHT_DIR`.
+7. **Publishing works without a tax reference** (ADR 0036): a complete product can be published from the admin. The dev database has all migrations applied (2026-10-12) but no products yet; tests still seed their own.
+8. **Local invalidation call:** to exercise the worker → API call in dev, set `INTERNAL_SERVICE_KEYS` and the worker's `INTERNAL_SERVICE_*` in `.env` (see `.env.example`). Without them the effect completes as `skipped:not_configured`.
+9. **Browser QA for later admin steps:** use `scripts/browser-qa/` (README). `/tmp/ih-qa` does not survive; reinstall `playwright-core` there (or any directory) and set `QA_PLAYWRIGHT_DIR`.
 
 ## Blockers
 
@@ -58,7 +59,7 @@ BI-07: a verified sending domain and sender address are still needed before real
 
 - **M2 — PASSED 2026-10-09** (closed on Marina's approval). Gate: a synthetic event is written and processed by the worker; duplicate delivery and Redis job loss are recovered; tests send no real email. Evidence: `apps/worker/src/recovery.int.test.ts` "M2 gate" (queue obliterated → reconciler re-enqueue + duplicate original job → effect completed exactly once), `effects.int.test.ts` (5 concurrent duplicates apply once), real dev orphan recovered by the built worker (step 24 notes in docs/verification.md); email only to Mailpit/stubs. CI green on `main` at a2429f7 (run 37894960188) with all steps 18–26 merged. Not part of this gate: production queue Redis failover/restore drills (M11, after BI-06).
 - **M5 — PASSED 2026-10-11** (closed on Marina's decision). Gate: after age acceptance real products can be browsed, selected and added to the cart; before it no restricted product data is available. Evidence: `pnpm test:gate` (real API + storefront + gateway, 1803 checks) and the real-browser pass (14 checks) in docs/verification.md "Step 64". Accepted caveat: the products were seeded, because publishing through the admin waits for BI-02.
-- M0, M1, M3, M4 and M6–M11: not passed. M6: all steps (65–72) done; gate awaits Marina's decision. M4: all steps (41–54) done; publishing is unblocked (ADR 0036), the gate awaits Marina's decision.
+- M0, M1, M3, M4 and M6–M11: not passed. M7: all steps (73–82) done; gate awaits Marina's decision. M6: all steps (65–72) done; gate awaits Marina's decision. M4: all steps (41–54) done; publishing is unblocked (ADR 0036), the gate awaits Marina's decision.
 
 ## Steps done
 
@@ -88,7 +89,8 @@ BI-07: a verified sending domain and sender address are still needed before real
 - 63 — device lists `ih_lists_v1` (saved, compare, recently viewed; slugs only), `GET /v1/store/product-cards`, heart on cards and product page, `/wishlist`, `/compare`, recently-viewed rail (ADR 0032) — 42da99d
 - 64 — store shell and home shell, `GET /v1/store/info` + WhatsApp links only when configured, `pnpm test:gate` real-stack age-boundary check (ADR 0033; BI-01/BI-09 pending) — 82ce9b9
 - 65 — `customers` + `customer_addresses` (phone-keyed, no credentials, immutable phone and address rows, no runtime delete), `normalizePhone`, transaction-only customer primitives (ADR 0034) — 209e62f
-- 81 — `/order-confirmation` page (cookie-read snapshot, expired and failed states, WhatsApp order message), checkout success navigates there after ending the key and emptying the cart (ADR 0050) — `step(81)` commit on `step/81-order-confirmation-page`
+- 82 — checkout correctness gate: worker gate test (order transaction → relay → queue → inbox and Mailpit, queue outage, cleanup jobs), HTTP gate cases (repeated lines, last unit, code burst), full browser journey with the worker's consumers running — `step(82)` commit on `step/82-checkout-gate`
+- 81 — `/order-confirmation` page (cookie-read snapshot, expired and failed states, WhatsApp order message), checkout success navigates there after ending the key and emptying the cart (ADR 0050) — b04d2a9
 - 80 — `/checkout` form (memory-only details, required 18+ tick, server total), durable attempt key, one outcome per API answer, cart emptied only after acknowledgement, `checkoutOpen` in store info (ADR 0049) — 678cf64
 - 79 — cookie-only private confirmation API, 30-minute hashed capabilities, separately encrypted/non-extending replay and bounded ciphertext cleanup (ADR 0048) — commit `step(79): private order confirmation and encrypted replay`
 - 78 — `notifications` + `notification_receipts`, `order.created` → inbox notification with per-user receipts and the `order.new` email to the Settings recipients, no customer data in either (ADR 0047) — f4da894
@@ -111,27 +113,26 @@ BI-07: a verified sending domain and sender address are still needed before real
 - Event `consumers` lists only implemented consumers (now `system_probe`, `email`, `media_processor`, `storefront_revalidate`); planned ones are documented with roadmap steps and move in with a backfill decision (architecture §8: adding a consumer must not redefine old completions).
 - `audit_log` migration revokes UPDATE/DELETE/TRUNCATE only from a role named `ih_app`; other runtime role names must be revoked at provisioning (trigger blocks mutations regardless).
 
-## Last session handoff (2026-10-13, step 81)
+## Last session handoff (2026-10-13, step 82)
 
 Done:
 
-- **Step 81 (ADR 0050):** `/order-confirmation` page and `OrderConfirmation` component; `lib/checkout/confirmation.ts`; checkout success ends the key, empties the cart and replaces the page with the confirmation; "already placed" links to it; WhatsApp order message.
-- **Browser pass** (`scripts/browser-qa/checkout.mjs`, real stack, 360px): 28 checks, twice, including the confirmation content, no name/phone/note on it, reload, Back, and the expired state.
-- **`invariant-reviewer`:** no blockers; done: the placed state keeps the order number and a link if the page cannot open; "View your latest order" is the primary action on "already placed".
+- **Step 82:** `apps/worker/src/checkout-gate.int.test.ts` (3 tests); four "gate:" tests in `store-orders.int.test.ts`; `scripts/browser-qa/checkout.mjs` now runs the whole journey (49 checks) and `check-gate-e2e.cjs --serve` runs the worker's relay, queue and consumers on its schema; one misleading hint fixed in `checkout-view.tsx`.
+- **`invariant-reviewer`** judged the evidence: every gate item has a strong test; done: duplicate deliveries are now waited for, the "no queue" API test is named for what it shows, the outage test checks both effects stay untouched, the browser journey joins HTTP orders to the worker.
 
-Files: `apps/storefront/{app/(shop)/order-confirmation/page.tsx,components/{order-confirmation,checkout-view}.tsx,lib/checkout/{confirmation.ts,checkout.test.ts},lib/whatsapp.ts}`, `scripts/{check-age-preview.mjs,check-gate-e2e.cjs,browser-qa/checkout.mjs}`, `docs/decisions/0050-order-confirmation-page.md`, `docs/{implementation-status,task-backlog,verification}.md`, `PROGRESS.md`.
+Files: `apps/worker/src/checkout-gate.int.test.ts`, `apps/api/src/orders/store-orders.int.test.ts`, `apps/storefront/components/checkout-view.tsx`, `scripts/{check-gate-e2e.cjs,browser-qa/checkout.mjs,browser-qa/README.md}`, `docs/{verification,task-backlog,implementation-status}.md`, `PROGRESS.md`.
 
-Tests: `pnpm verify -- --integration` PASS, before and after the review fixes (unit 577, integration 482, gateway 29, age-preview 2008, gate 2175).
+Tests: `pnpm verify -- --integration` PASS (unit 577, integration 489, gateway 29, age-preview 2008, gate 2175). Browser journey 49/49 on the final code.
 
 Unfinished:
 
-- Steps 79, 80 and 81 are local commits; nothing was pushed. PRs #59/#60 wait for Marina's merge; M4 and M6 gates await her decision.
-- For the step-82 list, not yet covered: a burst of simultaneous wrong coupon codes; the `idempotency.cleanup` and `confirmation.cleanup` job wrappers; a changed total and a sold-out line at submit in a browser; the "already placed" screen in a browser; `CartQuote`'s accepted-total callback; the worker process completing `order.created` effects from the queue; the new-order email through Mailpit; real mobile devices.
+- M7 gate decision is Marina's. Steps 79–82 are local commits; nothing was pushed. PRs #59/#60 wait for her merge; M4 and M6 gates await her decision.
+- Not covered (also in docs/verification.md): the browser journey is a local script, not part of `pnpm verify` or CI; the age answer in it is posted, not clicked; email in the browser run goes to a stub adapter (Mailpit delivery is in the worker test); real mobile devices; a last-coupon race over HTTP (service level only); log capture for PII on the checkout path.
 - Two `ih_test_*` schemas of unknown origin are in the test database (`…170e73fb…`, `…9acfd98f…`); left alone.
-- Checkout stays off by default; page copy is placeholder wording (BI-01, BI-09).
 
 ## History (summary)
 
+- 2026-10-13 step 81: confirmation page, ADR 0050 (b04d2a9, not pushed); verify unit 577/integration 482/gateway 29/age-preview 2008/gate 2175; browser 28 checks.
 - 2026-10-13 step 80: checkout form and attempt key, ADR 0049 (678cf64, not pushed); verify unit 573/integration 482/gateway 29/age-preview 1855/gate 2079; browser 21 checks.
 - 2026-10-13 step 79: cookie-only confirmation API and encrypted replay, ADR 0048 (dd7dc27, not pushed); verify unit 562/integration 482/gateway 29/age-preview 1847/gate 1978.
 - 2026-10-13 step 78: immutable inbox/receipts and new-order email consumers, ADR 0047 (f4da894, PR #60); verify unit 554/integration 476/gateway 29/age-preview 1847/gate 1978. Provider email/queued worker journey and inbox UI remain open; checkout off.
@@ -139,4 +140,3 @@ Unfinished:
 - 2026-10-13 step 76: atomic order creation (116c94a, PR #58, merged); verify unit 550/integration 458/gateway 29/age-preview 1847/gate 1928.
 - 2026-10-12 step 75: canonical lock order (2c5aa72, PR #57); verify unit 550/integration 445/gateway 29/age-preview 1847/gate 1928.
 - 2026-10-12 step 74: idempotent commands (2c55878, PR #56, merged); verify unit 550/integration 439/gateway 29/age-preview 1847/gate 1928.
-- 2026-10-12 step 73: order schema (f86a7ba, PR #55); verify unit 550/integration 426/gateway 29/age-preview 1847/gate 1928.

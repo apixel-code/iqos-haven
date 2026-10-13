@@ -30,16 +30,21 @@ Notes: ports 3001, 4000 and 4099 (loopback QA status probe: counts only) must be
 the production admin start (the admin client only calls the same-origin `/api`). Real mobile
 touch/keyboard and reset/invite submissions are not covered.
 
-## Storefront checkout (step 80)
+## Storefront shopper journey (steps 80–82, M7 gate)
 
-`checkout.mjs` drives the checkout form at 360px against the stack served by the gate script:
+`checkout.mjs` drives the whole journey at 360px against the stack served by the gate script:
 
 ```sh
-pnpm build && node scripts/check-gate-e2e.cjs --serve --checkout-open &   # prints SERVING, COOKIE, VARIANT, SCHEMA
-QA_PLAYWRIGHT_DIR=/tmp/ih-qa node scripts/browser-qa/checkout.mjs <SERVING> <COOKIE> /tmp/ih-qa/shots <VARIANT>
+pnpm build && node scripts/check-gate-e2e.cjs --serve --checkout-open &   # prints SERVING, VARIANT, SCHEMA
+QA_PLAYWRIGHT_DIR=/tmp/ih-qa node scripts/browser-qa/checkout.mjs <SERVING> /tmp/ih-qa/shots <VARIANT> <SCHEMA>
 ```
 
-It checks the empty-form messages, that nothing typed reaches device storage, a lost answer, the
-attempt key surviving a reload, the retry returning the same order, and the cart and key being
-cleared only after the acknowledgement. Stop the stack afterwards and drop the printed schema:
-SIGINT does not always get to drop it.
+Age check, product, variant, cart, quote, checkout form, a lost answer, a reload, an attempt that
+was already placed, the confirmation page and its expired state, then a second order through a
+changed total and a sold-out line. It changes the price and stock mid-journey with `psql` through
+`docker exec` (override with `QA_PSQL`). The age answer is posted with the storefront's https
+Origin, because the served storefront refuses the local http one; the button is not clicked.
+The served stack also runs the worker's relay, queue and consumers on that schema (a private
+queue prefix), and the journey checks that both orders reach the inbox. Stop the stack with
+SIGTERM (`kill <pid>`): a process started in the background of a script ignores SIGINT, and then
+its schema and queue keys are left behind and must be dropped by hand.

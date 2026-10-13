@@ -11,6 +11,7 @@ import {
 import {
   AGE_VERIFICATION_REQUIRED,
   errorEnvelopeSchema,
+  ORDER_LIMITS,
   storeOrderResponseSchema,
   orderConfirmationResponseSchema,
 } from "@ih/contracts";
@@ -706,6 +707,121 @@ describe("POST /v1/store/orders through the real API (PostgreSQL, Ed25519 ticket
       } finally {
         await other.close();
       }
+    }
+  });
+
+  // --- Checkout correctness gate (roadmap step 82): the remaining cases, over HTTP. ---
+  it("gate: repeated lines for one variant are one line, one sale and one request", async () => {
+    const item2 = await variant(3000n, 10);
+    const whole = [{ variantId: item2.id, quantity: 5 }];
+    const split = [
+      { variantId: item2.id, quantity: 2 },
+      { variantId: item2.id, quantity: 3 },
+    ];
+    const body = await order({ lines: whole }, { lines: split });
+    const sent = { key: attemptKey() };
+    const first = await post(body, sent);
+    expect(first.status).toBe(201);
+    const placed = storeOrderResponseSchema.parse(await first.json());
+    // 5 × 30.00 + 15.00 delivery: the split lines were priced as one line of five.
+    expect(placed.totalFils).toBe(16500);
+    const stored = await db.order.findFirstOrThrow({
+      orderBy: { createdAt: "desc" },
+      include: { items: true },
+    });
+    expect(stored.items.map((line) => [line.variantId, line.quantity])).toEqual([[item2.id, 5]]);
+    expect(await stockOf(item2.id)).toBe(5);
+    expect(
+      await db.stockMovement.count({ where: { orderId: stored.id, variantId: item2.id } }),
+    ).toBe(1);
+    // The same order written as one line is the same request, not a conflict.
+    const again = await post({ ...body, lines: whole }, sent);
+    expect(again.status).toBe(201);
+    expect(await again.json()).toEqual(placed);
+    expect(await stockOf(item2.id)).toBe(5);
+    // Repeats cannot be used to get past the per-item limit.
+    const over = [
+      { variantId: item2.id, quantity: ORDER_LIMITS.maxLineQuantity },
+      { variantId: item2.id, quantity: 1 },
+    ];
+    expect((await post({ ...body, lines: over })).status).toBe(400);
+    expect(await stockOf(item2.id)).toBe(5);
+  });
+
+  it("gate: shoppers racing over HTTP for the last unit get one order between them", async () => {
+    const last = await variant(9000n, 1);
+    const bodies = [];
+    for (let i = 0; i < 6; i++)
+      bodies.push(await order({ lines: [{ variantId: last.id, quantity: 1 }] }));
+    const before = await footprint();
+    const answers = await Promise.all(
+      bodies.map(async (body) => {
+        const response = await post(body);
+        return [response.status, (await response.json()) as { error?: { code: string } }] as const;
+      }),
+    );
+    expect(answers.filter(([status]) => status === 201)).toHaveLength(1);
+    for (const [status, answer] of answers)
+      if (status !== 201) expect([status, answer.error?.code]).toEqual([409, "INSUFFICIENT_STOCK"]);
+    expect(await stockOf(last.id)).toBe(0);
+    const after = await footprint();
+    // The five who lost left nothing behind: no order, sale, customer or stored answer.
+    expect(after).toMatchObject({
+      orders: before.orders + 1,
+      sales: before.sales + 1,
+      customers: before.customers + 1,
+      idempotency: before.idempotency + 1,
+    });
+  });
+
+  it("gate: a burst of wrong codes sent at once is bounded and then shut out", async () => {
+    const ip = address();
+    const priced = { lines: cart.lines, areaId };
+    const burst = await Promise.all(
+      Array.from({ length: 25 }, (_, n) => quote({ ...priced, couponCode: "BURST" + n }, ip)),
+    );
+    const statuses = burst.map((response) => response.status);
+    // Sent together, more than ten can be answered (ADR 0046); never more than were sent,
+    // and never anything but "invalid" or "too many".
+    expect(statuses.every((status) => status === 409 || status === 429)).toBe(true);
+    expect(statuses.filter((status) => status === 409).length).toBeGreaterThanOrEqual(10);
+    // Once the answers are in, the budget is spent: no code is looked at, right or wrong.
+    await refusal(await quote({ ...priced, couponCode: "ROUTE10" }, ip), 429, "RATE_LIMITED");
+    await refusal(await quote({ ...priced, couponCode: "BURSTX" }, ip), 429, "RATE_LIMITED");
+    // The per-minute quote budget of thirty caps the whole minute for this address: at most
+    // five of these can still be answered after the twenty-five of the burst.
+    const more = await Promise.all(
+      Array.from({ length: 10 }, () => quote({ ...priced, couponCode: null }, ip)),
+    );
+    expect(more.filter((response) => response.status === 200).length).toBeLessThanOrEqual(5);
+    expect(more.some((response) => response.status === 429)).toBe(true);
+  });
+
+  // The order route never talks to queue Redis, so this cannot fail on a queue outage; what it
+  // shows is where the work waits: an event and two pending effects, in PostgreSQL. That the
+  // worker picks them up after an outage is shown in apps/worker/src/checkout-gate.int.test.ts.
+  it("gate: an order leaves its event and both effects pending in PostgreSQL, with no queue reachable", async () => {
+    const offline = await createApp(
+      { ...env, QUEUE_REDIS_URL: "redis://127.0.0.1:1" },
+      { pool, database: db },
+    );
+    await offline.listen(0, "127.0.0.1");
+    try {
+      const response = await post(await order(cart), { to: await offline.getUrl() });
+      expect(response.status).toBe(201);
+      const stored = await db.order.findFirstOrThrow({ orderBy: { createdAt: "desc" } });
+      const event = await db.outboxEvent.findFirstOrThrow({
+        where: { aggregateId: stored.id, eventType: "order.created" },
+        include: { effects: true },
+      });
+      expect(stored.status).toBe("pending");
+      expect(event.completedAt).toBeNull();
+      expect(event.effects.map((effect) => [effect.consumer, effect.status]).sort()).toEqual([
+        ["email", "pending"],
+        ["notification", "pending"],
+      ]);
+    } finally {
+      await offline.close();
     }
   });
 });

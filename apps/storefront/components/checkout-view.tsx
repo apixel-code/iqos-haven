@@ -548,7 +548,7 @@ export function CheckoutView() {
           <p role="status" aria-live="polite" className="text-center text-xs text-ink-3">
             {busy
               ? "Please wait. Do not close this page."
-              : quoteReady
+              : quoteReady || choice.areaId
                 ? ""
                 : "Choose your delivery area to see your total."}
           </p>

@@ -1097,3 +1097,34 @@ Not covered: a changed total, a sold-out line and the "already placed" screen in
 **`invariant-reviewer`:** no blockers; the subtotal identity is guaranteed by the `order_total` database check.
 
 Not covered: the expired state with the order remembered from this visit (needs the cookie to lapse without a reload); status lines other than "received"; real mobile devices.
+
+## Step 82 — checkout correctness gate (2026-10-13, local)
+
+`pnpm verify -- --integration`: exit 0. Unit 577, integration 489, gateway 29, age-preview 2008, gate 2175. Browser journey (`scripts/browser-qa/checkout.mjs`): 49 checks, all passed on the final code. **The M7 gate is not marked passed here; that is Marina's decision.**
+
+**Gate items (roadmap row 82) and what proves each.** A = `apps/api/src/orders/create-order.int.test.ts` (order service, real PostgreSQL), H = `apps/api/src/orders/store-orders.int.test.ts` (real API over HTTP), W = `apps/worker/src/checkout-gate.int.test.ts`, B = browser journey.
+
+| Item                  | Proof                                                                                                                                                                                                                                                                                                                                        |
+| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Last unit             | A: eight shoppers race, one order, seven `INSUFFICIENT_STOCK`, stock 0, losers leave no row. H "gate: shoppers racing over HTTP": six requests, one 201, five 409, stock 0, exactly one order, sale, customer and stored answer. B: a line that sold out before the button was pressed is not ordered.                                       |
+| Last coupon use       | A: five orders race for one use, one wins, four `COUPON_LIMIT_REACHED`, counts exact. Service level only.                                                                                                                                                                                                                                    |
+| Duplicate lines       | H "gate: repeated lines": 2 + 3 of one variant is one line of five, one sale, AED 165.00; the same order written as one line replays the same answer; repeats cannot pass the per-item limit.                                                                                                                                                |
+| Simultaneous same key | A: six copies at once, one order. H: two at once, one order, the loser gets the answer or `IDEMPOTENCY_IN_PROGRESS`.                                                                                                                                                                                                                         |
+| Changed payload       | A and H: another quantity, name, address or coupon on a used key is `IDEMPOTENCY_CONFLICT`, no second order. B: a changed name after a lost answer shows "already placed" and places nothing.                                                                                                                                                |
+| Lost response         | B: the answer is dropped after the shop placed the order; the key is kept, survives a reload, and the retry returns that order (three submissions, one order). H: the cookie is restored on replay; an expired key answers `CHECKOUT_RECOVERY_REQUIRED`. W: after the cleanup jobs ran, the same request is refused and stock is unchanged.  |
+| Rollback              | A: the last write is made to fail and nothing remains, then the same attempt succeeds; every refusal test checks unchanged row counts and stock.                                                                                                                                                                                             |
+| Limiter outage        | H: with the shared limiter unreachable an order and its retry are placed, the third attempt for that phone is 429, code guessing stops after five. H "gate: a burst of wrong codes": 25 at once are answered only "invalid" or "too many", then no code is looked at.                                                                        |
+| Queue outage          | W "an unavailable queue costs no order": with nothing enqueueable the order is complete and both effects are untouched; when the queue returns, one notification and one email. `recovery.int.test.ts`: jobs lost in Redis are found again. H: the order route itself reaches no queue; its event and two pending effects are in PostgreSQL. |
+
+**M7 gate line** (age → product → variant → cart → quote → COD order → private confirmation, with real PostgreSQL and worker effects):
+
+- B, one run on the real API, storefront and gateway, with the worker's relay, queue Redis and consumers running on the same schema: the age check refuses the product address and shows nothing of the product; after accepting, the product page; a variant is chosen and added; the cart quotes a total; checkout places the order; the confirmation page shows it from the cookie; **the worker completes the inbox and email effects of both orders, one notification each, naming its own order.** Two journeys, two orders, stored at AED 64.00 and AED 66.00 (the totals their shoppers accepted), stock down by exactly what was sold, and the device holding only the cart and saved lists afterwards.
+- W "M7 gate": an order placed by the real order transaction goes through the real relay, BullMQ and consumers; one notification with the Owner's receipt, exactly one message in Mailpit with the order number and AED 255.00 and nothing about the customer; duplicate deliveries of both jobs are run and change nothing.
+
+**Not covered.**
+
+- The browser journey is a local script: it is not part of `pnpm verify` or CI.
+- In it the age answer is posted with the storefront's https Origin instead of clicking the button (the served storefront refuses the local http origin); the button is covered by the gate script and step 56.
+- In the browser run the email goes to a stub adapter; delivery to Mailpit is shown in W, where the order is placed through the database function, not HTTP.
+- A last-coupon race over HTTP; logs on the checkout path are not captured and searched for personal data; real mobile devices; staging.
+- The cleanup-job test moves an answer's dates with the table's guard switched off; it shows the jobs remove what is past its expiry, not the passing of real time.

@@ -467,6 +467,50 @@ async function main() {
     const verified = { cookie: setCookie.split(";")[0] };
 
     if (process.argv.includes("--serve")) {
+      // The worker's own relay, queue and consumers on this schema, so an order placed in the
+      // browser is carried to the inbox the way production carries it (queue Redis, a private
+      // prefix). Email is planned by the real planner and handed to an adapter that sends
+      // nothing.
+      const worker = createRequire(root + "/apps/worker/package.json");
+      const dist = (name) => worker(`${root}/apps/worker/dist/${name}.js`);
+      const { createEmailConsumer } = worker("@ih/application");
+      const log = worker("@ih/logger").createLogger({ service: "gate-worker", level: "warn" });
+      const queue = dist("queue");
+      const redis = queue.createQueueConnection(env.QUEUE_REDIS_URL);
+      const prefix = queue.testQueuePrefix();
+      const enqueuer = new queue.BullEffectEnqueuer(redis, prefix);
+      const notifications = dist("order-notifications");
+      const effects = dist("effects");
+      const runner = new effects.EffectRunner({
+        db,
+        owner: "gate-worker",
+        log,
+        handlers: [
+          notifications.createNotificationConsumer({ log }),
+          createEmailConsumer({
+            from: "no-reply@iqoshaven.local",
+            planners: { "order.created": notifications.newOrderEmailPlanner(db) },
+            adapter: {
+              send: async (message) => ({
+                receipt: "gate:" + message.deliveryKey,
+                accepted: message.bcc.length,
+                rejected: 0,
+              }),
+            },
+          }),
+        ],
+      });
+      const workers = effects.startEffectWorkers(runner, redis, 2, log, prefix);
+      const relay = new (dist("relay").OutboxRelay)({ db, enqueuer, owner: "gate-relay", log });
+      const ticking = setInterval(() => void relay.tick().catch(() => undefined), 1000);
+      cleanup.push(async () => {
+        clearInterval(ticking);
+        await workers.stop();
+        await enqueuer.close();
+        const keys = await redis.keys(`${prefix}:*`);
+        if (keys.length) await redis.del(...keys);
+        redis.disconnect();
+      });
       console.log(
         `SERVING ${base}\nCOOKIE ${verified.cookie}\nVARIANT ${visible.variants[0].id}\nSCHEMA ${namespace}\nCOUPON ${COUPON}`,
       );
