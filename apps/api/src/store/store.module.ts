@@ -9,5 +9,6 @@ import { CartQuoteService } from "./cart-quote.service";
 @Module({
   controllers: [StoreSearchController, StoreCatalogController, CartQuoteController],
   providers: [StoreCatalogService, CartQuoteService],
+  exports: [CartQuoteService],
 })
 export class StoreModule {}

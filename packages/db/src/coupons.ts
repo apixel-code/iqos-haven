@@ -5,7 +5,7 @@ import {
   type CouponRejection,
 } from "@ih/domain";
 import { Prisma, type Database, type Tx } from "./client";
-import { isUnitOfWork } from "./transaction";
+import { enterLockGroup, hasReachedLockGroup, isUnitOfWork } from "./transaction";
 
 /**
  * The coupon cannot be used. Carries no code and no customer data. A store route answers with
@@ -98,6 +98,7 @@ export async function lockCouponForOrder(
   merchandiseSubtotalFils: number,
 ): Promise<AppliedCoupon> {
   if (!isUnitOfWork(tx)) throw new Error("Locking a coupon requires a unit of work");
+  enterLockGroup(tx, "coupon");
   const applied = await evaluate(tx, code, merchandiseSubtotalFils, true);
   const held = lockedCoupons.get(tx) ?? new WeakSet<AppliedCoupon>();
   lockedCoupons.set(tx, held);
@@ -133,10 +134,14 @@ export async function redeemCoupon(tx: Tx, orderId: string, coupon: AppliedCoupo
  */
 export async function releaseCouponRedemption(tx: Tx, orderId: string): Promise<boolean> {
   if (!isUnitOfWork(tx)) throw new Error("Releasing a coupon requires a unit of work");
+  // A release belongs to a command on that order: the order row is locked first (`lockOrder`).
+  if (!hasReachedLockGroup(tx, "order"))
+    throw new Error("Release a coupon only after locking its order in this unit of work");
   const [redemption] = await tx.$queryRaw<Array<{ couponId: string }>>(
     Prisma.sql`SELECT coupon_id AS "couponId" FROM coupon_redemptions WHERE order_id=${orderId}::uuid`,
   );
   if (!redemption) return false;
+  enterLockGroup(tx, "coupon");
   await tx.$queryRaw(
     Prisma.sql`SELECT id FROM coupons WHERE id=${redemption.couponId}::uuid FOR UPDATE`,
   );

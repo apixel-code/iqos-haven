@@ -18,6 +18,7 @@ import {
   couponCountMismatches,
   createDatabase,
   createPool,
+  lockOrder,
   lockQuoteForOrder,
   redeemCoupon,
   releaseCouponRedemption,
@@ -487,7 +488,12 @@ describe("pricing and promotion acceptance through the real API and PostgreSQL",
     // A cancellation gives the use back once; the next shopper can then be quoted with it.
     const winner = (won[0] as PromiseFulfilledResult<string>).value;
     const released = await Promise.all(
-      [1, 2, 3].map(() => withTransaction(db, (tx) => releaseCouponRedemption(tx, winner))),
+      [1, 2, 3].map(() =>
+        withTransaction(db, async (tx) => {
+          await lockOrder(tx, winner);
+          return releaseCouponRedemption(tx, winner);
+        }),
+      ),
     );
     expect(released.filter(Boolean)).toHaveLength(1);
     expect(await quoted(input)).toMatchObject({ discountFils: 1200 });

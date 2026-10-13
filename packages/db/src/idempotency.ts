@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { Prisma, type Database, type Tx } from "./client";
-import { isUnitOfWork, withTransaction } from "./transaction";
+import { enterLockGroup, isUnitOfWork, withTransaction } from "./transaction";
 
 /**
  * Idempotent commands (roadmap step 74, ADR 0043). A command that must happen at most once
@@ -117,6 +117,7 @@ export async function claimIdempotency(
   request: IdempotencyRequest,
 ): Promise<IdempotencyClaim> {
   if (!isUnitOfWork(tx)) throw new Error("An idempotency claim requires a unit of work");
+  enterLockGroup(tx, "idempotency");
   const keyHash = idempotencyKeyHash(request.scope, request.key);
   if (request.payloadHash.length !== 32) throw new IdempotencyKeyError("Invalid payload hash");
   const bounded = (value: number | undefined, fallback: number, min: number, max: number) =>

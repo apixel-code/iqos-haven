@@ -51,4 +51,5 @@ export const reasonLabel: Record<string, string> = {
   RESTOCK: "Restock",
   MANUAL: "Manual correction",
   DAMAGE: "Damaged",
+  SALE: "Sold in an order",
 };

@@ -458,6 +458,9 @@ model StockMovement {
   effect       String     @default("adjust") @db.VarChar(32)
   actorId      String?    @map("actor_id") @db.Uuid
   actor        StaffUser? @relation(fields: [actorId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  /// Set for a sale: the order that took the stock (step 76).
+  orderId      String?    @map("order_id") @db.Uuid
+  order        Order?     @relation(fields: [orderId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   createdAt    DateTime   @default(dbgenerated("statement_timestamp()")) @map("created_at") @db.Timestamptz(6)
 
   @@unique([commandId, variantId, effect])
@@ -613,6 +616,7 @@ model Order {
   items                        OrderItem[]
   history                      OrderStatusHistory[]
   couponRedemption             CouponRedemption?
+  stockMovements               StockMovement[]
 
   @@unique([creationScope, creationKeyHash], map: "orders_creation_key")
   @@index([customerId, createdAt(sort: Desc), id(sort: Desc)], map: "orders_customer")

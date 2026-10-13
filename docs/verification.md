@@ -973,3 +973,46 @@ Not covered: these rules exercised by a real order command (step 76 onward); the
 Found by this step's own run: a check that put its assertion inside a callback whose error was swallowed; it was rewritten so a failure fails the test.
 
 Not covered: a real command using the claim (step 76); the HTTP mapping (step 77); the scheduled cleanup. The dev database has the migration applied.
+
+## Step 75 — canonical lock order (2026-10-12, local)
+
+`pnpm verify -- --integration`: exit 0 on four of five runs. Unit 550, integration 445 (db 143), gateway 29, age-preview 1847, gate 1928. One run stopped at `test:int` with `settings.int.test.ts` failing on "Connection terminated due to connection timeout"; that test passes alone and passed in the other runs. This is the second connection-timeout failure of an API integration test under the parallel suites (the first was in step 65). Not fixed: the integration suites of four packages run at the same time against one PostgreSQL with 100 connections.
+
+**Integration (`order-locks.int.test.ts`, real PostgreSQL, 6 tests):**
+
+- An order creation walks idempotency → order → customer → delivery → catalogue → coupon → variants and returns the customer, the quote (hand-checked total) and the variants with their stock.
+- All 21 pairs "earlier group after later group" throw `LockOrderError` naming both; the same group twice and skipped groups are fine; inside the refused transaction the customer the refused step would have created does not exist; outside a unit of work the primitives refuse.
+- An address is saved after the area lock for a customer the transaction holds; on its own it takes the customer lock itself; for an unlocked customer after the area lock it is refused; after an address was saved first, the delivery selection is refused; the first-order stamp needs the customer lock.
+- Variants are locked in ID order whatever order they are asked in: while one transaction holds the larger ID, another asking for [larger, smaller] already holds the smaller (a NOWAIT probe is refused) and waits for the larger. Unknown variants are named; an empty request locks nothing.
+- Two commands on one order run one after the other (the second is seen waiting); an unknown order is a typed error.
+- Thirty order walks, half listing the variants in each direction and all sharing a coupon, race seven admin lock sequences written as the admin code locks them (parents → product → variants, a brand, the fee, the area, the coupon, a stock adjustment), each in one unretried transaction: no error of any kind, and every order walk ran exactly once, so none was ever a deadlock victim.
+
+**Existing tests** updated for the stricter rules: a coupon release now locks its order first, and is refused without it.
+
+**`invariant-reviewer`:** no blockers and no deadlock cycle found across the order walk, the planned order inserts (foreign keys and triggers) and every admin writer. Done: the three unenforced rules above (address before delivery selection, first-order stamp, coupon release) are now checked; malformed IDs are typed errors; the check that "a refused step ran no statement" now looks inside the transaction; the stress test, which could not have detected a deadlock, was replaced by the one described above.
+
+Not covered: these locks under a real order creation (step 76); the staff row for staff-entered orders.
+
+## Step 76 — atomic order creation (2026-10-13, local)
+
+`pnpm verify -- --integration`: exit 0, twice (before and after the review fixes). Unit 550, integration 458 (api 271), gateway 29, age-preview 1847, gate 1928. Docker Desktop stopped twice during this step and was restarted (the machine had about 5.5 GB of free disk); runs that failed only because PostgreSQL was unreachable are not counted.
+
+**Integration (`create-order.int.test.ts`, real API services and PostgreSQL, 13 tests):**
+
+- **One order writes everything together:** a two-variant order with a 10 % code (AED 219.99 − 22.00 + 15.00 = AED 212.99): the order row with every snapshot field, two merged lines with their discount shares, one history row, two `SALE` movements and the new balances, the coupon use and its count, the customer, the saved address and first-order time, one audit entry, `order.created` and `inventory.low` for the line that crossed its threshold, one idempotency record. Counted before and after: exactly those rows. The answer is order number, total and time only; the audit entry and the order row contain no phone, name, address, key or token.
+- **Replay and conflict:** the same attempt again (once, and five at once) returns the same answer and writes nothing; a changed quantity, name, address or coupon on the same key is a conflict; six simultaneous copies of one attempt make one order.
+- **Last unit:** eight shoppers race for one unit: one order, seven `INSUFFICIENT_STOCK` naming the variant, stock 0, and the seven left no customer, address or record; a loser's key works again after a restock.
+- **Last coupon use:** five orders race for a single use: one gets it, four get `COUPON_LIMIT_REACHED`, and only the winner took stock.
+- **Changed total:** after a price rise or drop the order is `QUOTE_CHANGED`; a forged token, an altered one, one for another cart and one with a changed expiry are refused; a hidden product, a closed area and a quantity above stock are refused; each time the row counts and stock are unchanged; the same key then succeeds once the total is right.
+- **Tokens:** an expired genuine token and a token signed with an unknown key cannot place a new order; a retry of a placed order with an expired token still gets its answer.
+- **Stock rules:** only the short line is named when one of two is short; a variant switched off after the quote is not sold even with stock; in the database a sale without an order, a restock pointing at an order, a sale that adds stock, a sale with a foreign command ID and a second sale of one variant for one order are refused; staff see the sale in the variant's ledger.
+- **No deadlock:** sixteen orders listing two shared variants in opposite orders, all with one coupon, race six stock adjustments made through the admin function: no failure, and stock and coupon counts are exact.
+- **Rollback:** with the last write of the transaction (the outbox event) made to fail, nothing remains (no order, stock movement or coupon use) and the same attempt then succeeds.
+- **Old keys:** after the stored answer expires, and after it is deleted, the same key is refused with `CHECKOUT_RECOVERY_REQUIRED` naming the order, and no second order is made.
+- **One customer per phone:** three orders from one phone share a customer; the display name follows the latest order while each order keeps the name it was placed with; the same address is saved once.
+
+**`invariant-reviewer`:** no blockers; atomicity, money, lock order, the stock rules and personal data confirmed. Done: forged tokens are refused before any database work; the variant version is re-checked under the lock; the order takes the customer snapshot from the locked row; seven named test cases added.
+
+Found by this step's own run: the service threw one refusal synchronously instead of returning a rejected promise; it is now `async`.
+
+Not covered: placing an order over HTTP (step 77); the second 18+ confirmation as an input (required by the step-77 contract); notifications and the confirmation cookie (steps 78–79). The dev database has the migration applied.
