@@ -1199,3 +1199,9 @@ Not covered: the admin cancel panel in a browser; a low-stock re-arm event after
 **Unit (`apps/admin/lib/orders.test.ts`, 3 tests):** typed AED amounts become exact integer fils; malformed amounts are refused; date-time input round trip.
 
 Not covered: the admin collection panel in a browser; reports reading the latest record (step 106).
+
+## Age-gate Origin amendment (commit a307657, recorded 2026-10-14)
+
+Unit tests in `apps/storefront/lib/age/age-gate.test.ts`: our Origin is accepted with `Sec-Fetch-Site` `same-origin`, `same-site` or `cross-site`; `Origin: null` is accepted only with `Sec-Fetch-Site: same-origin` and a forwarded host equal to a configured origin's host, and refused with a foreign forwarded host or `cross-site`; a missing, foreign or look-alike Origin is refused and no cookie is set. Included in every `pnpm verify` since (unit 582 on 2026-10-14). The gateway removes client-sent `X-Forwarded-Host`; ADR 0025 has the amendment and the reasoning.
+
+Not covered: a real privacy-mode browser sending `Origin: null` end to end.
