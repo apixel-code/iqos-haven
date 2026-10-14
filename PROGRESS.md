@@ -5,7 +5,7 @@
 - Date: 2026-10-13
 - Milestone: M7 — transactional checkout and first complete order: all steps (73–82) done; gate evidence ready, awaiting Marina's decision. M6: all steps (65–72) done; gate evidence ready, awaiting Marina's decision. M5: PASSED 2026-10-11. M4 steps done, gate awaits Marina's decision (publishing unblocked); M3 gate not closed; M0 review and M1 staging/fixtures still open
 - Step: 87 (COD collection and Owner correction) — done; next is 88
-- Branch: `step/87-cod-collection` (stacked on steps 79–86 and `fix/age-gate-origin`; `main` holds everything through step 76; PRs #59/#60 open; nothing after step 78 is pushed: the push needs Marina's explicit go-ahead)
+- Branch: `step/87-cod-collection` (pushed; PR #61 against `main` carries steps 77–87 and the age-gate fix; `main` holds everything through step 76)
 - See docs/verification.md for actual checks.
 
 ## Next action
@@ -16,8 +16,8 @@
 - Toolchain: prefix commands with `export PATH="/opt/homebrew/opt/node@24/bin:$HOME/.docker/bin:$PATH"`. If Docker is down, run `open -a Docker` and then `pnpm infra:up`.
 - Marina's answers (2026-10-12, ADR 0036, docs/business-inputs.md): prices are final as entered, no tax calculation (BI-02); delivery covers the seven emirates at one flat fee (BI-03); minimum age 18 as built (BI-04); Hostinger VPS (BI-06); catalogue, Owner and staff are entered through the admin (BI-10/11); retention defaults chosen by Apixel (BI-08). Still open: BI-01, BI-09 (demo values for now), BI-05 (indexing stays off).
 
-1. **Step-79 push/PR approval:** automatic approval review rejected `git push -u origin step/79-order-confirmation` because exporting source to the external remote was not explicitly authorized. User approval for the `apixel-code/iqos-haven` GitHub destination is required; no retry/bypass. PR description prepared at `/tmp/ih-step79-pr-body.md` (temporary).
-2. **Marina merges** from her terminal (`gh pr merge <number> --merge`) or on GitHub ("Create a merge commit"). PR #59 (step 77), #60 (step 78) and step 79 are stacked: merge the highest verified branch to include its dependencies. Then `git checkout main && git pull --ff-only`, and check that the CI run on `main` finished (a cancelled run is rerun with `gh run rerun <id>`).
+1. **Marina merges PR #61** (GitHub, "Create a merge commit"): it contains steps 77–87 and the age-gate fix, so #59 and #60 can then be closed unmerged. Afterwards `git checkout main && git pull --ff-only` and check the CI run on `main`. New migrations to apply on deployment: `20261013000100` through `20261014000200`.
+2. **From now on** branch each step from the latest pushed step branch (or `main` once #61 is merged), push it and open its PR after `/verify` and the commit.
 3. **Marina: decide the M6 gate (and M4).** Evidence and caveats: docs/verification.md "Step 72".
 4. **Marina: decide the M7 gate.** Evidence, item by item, and what is not covered: docs/verification.md "Step 82". Checkout stays switched off (`CHECKOUT_SUBMISSION_ENABLED=false`) whatever the decision, until deployment inputs exist (BI-07 sender domain, real Owner, delivery areas and fee).
 5. **Next step: `/step 88`** (manual order wizard). Find the row with `rg -n "^| 88 " docs/roadmap.md`. It must reuse the same quote, inventory and idempotency services as the store order (ADR 0045, `createStoreOrder`/`lockForOrderCreation`); a manual order may start Confirmed only with recorded confirmation evidence (the orders guard already allows `source='manual'` + `confirmed`).
@@ -137,8 +137,8 @@ Tests: `pnpm verify -- --integration` PASS (unit 582, integration 515, gateway 2
 
 Unfinished:
 
-- Nothing after step 78 is pushed (steps 79–87 and the age-gate fix). PRs #59/#60 wait for Marina's merge; M4, M6 and M7 gates await her decision.
-- The age-gate fix (`a307657`) changes ADR 0025's origin rule without an ADR/verification update and trusts `X-Forwarded-Host`: confirm the production gateway overwrites it.
+- Everything is pushed; PR #61 (steps 77–87 + age-gate fix) waits for Marina's merge; M4, M6 and M7 gates await her decision.
+- The age-gate fix is now recorded in ADR 0025 (amendment) and docs/verification.md; the gateway strips client-sent `X-Forwarded-Host`.
 - Admin order screens (steps 83–87) have had no browser pass; `scripts/browser-qa/qa.mjs` has no order checks.
 - Four `ih_test_*` schemas of unknown origin are in the test database; left alone.
 
