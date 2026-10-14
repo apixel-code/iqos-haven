@@ -80,6 +80,43 @@ export const orderEditResponseSchema = orderEditRecordSchema.extend({
   replayed: z.boolean(),
 });
 
+// --- Cancellation (roadmap step 86, ADR 0054) ---
+const returnItemSchema = z.strictObject({
+  variantId: z.uuid(),
+  resellableQuantity: z.number().int().min(0).max(10_000),
+  damagedQuantity: z.number().int().min(0).max(10_000),
+});
+/**
+ * Cancels an order. Before handoff (Pending, Confirmed, Processing) a reason is enough and every
+ * unit goes back to stock. Out for Delivery is a return: Owner only, after the goods came back,
+ * with every line classified as resellable or damaged; only resellable units are restocked.
+ */
+export const orderCancelRequestSchema = z.strictObject({
+  expectedVersion: z.number().int().min(1),
+  commandId: z.uuid(),
+  reason: z.string().trim().min(1).max(500),
+  returnItems: z.array(returnItemSchema).min(1).max(100).optional(),
+});
+const cancelLineSchema = z.strictObject({
+  sku: z.string().min(1).max(64),
+  quantity: z.number().int().min(1),
+});
+export const orderCancelResponseSchema = z.strictObject({
+  orderId: z.uuid(),
+  kind: z.enum(["before_handoff", "returned"]),
+  fromStatus: adminOrderStatusSchema,
+  orderVersion: z.number().int().min(2),
+  reason: z.string().min(1).max(500),
+  cancelledAt: z.iso.datetime(),
+  actor: z.strictObject({ id: z.uuid(), name: z.string().min(1).max(100) }),
+  /** Units put back in stock, per SKU. */
+  restocked: z.array(cancelLineSchema),
+  /** Returned units recorded as damaged and not restocked, per SKU. */
+  damaged: z.array(cancelLineSchema),
+  couponReleased: z.boolean(),
+  replayed: z.boolean(),
+});
+
 const boundedInstant = z.iso.datetime({ offset: true });
 export const adminOrdersQuerySchema = z
   .strictObject({
@@ -201,6 +238,15 @@ export const adminOrderResponseSchema = z.strictObject({
   items: z.array(adminOrderItemSchema).min(1),
   history: z.array(adminOrderHistorySchema).min(1),
   edits: z.array(orderEditRecordSchema),
+  /** How each line came back, for an order cancelled after a return; otherwise empty. */
+  returnItems: z.array(
+    z.strictObject({
+      sku: z.string().min(1).max(64),
+      quantity: z.number().int().min(1),
+      resellableQuantity: z.number().int().min(0),
+      damagedQuantity: z.number().int().min(0),
+    }),
+  ),
 });
 
 export type AdminOrdersQuery = z.infer<typeof adminOrdersQuerySchema>;
@@ -212,3 +258,5 @@ export type OrderTransitionResponse = z.infer<typeof orderTransitionResponseSche
 export type OrderEditRequest = z.infer<typeof orderEditRequestSchema>;
 export type OrderEditResponse = z.infer<typeof orderEditResponseSchema>;
 export type OrderEditDiff = z.infer<typeof orderEditDiffSchema>;
+export type OrderCancelRequest = z.infer<typeof orderCancelRequestSchema>;
+export type OrderCancelResponse = z.infer<typeof orderCancelResponseSchema>;

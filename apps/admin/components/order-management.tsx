@@ -3,11 +3,14 @@ import { useState } from "react";
 import {
   adminOrderResponseSchema,
   adminOrdersResponseSchema,
+  orderCancelRequestSchema,
+  orderCancelResponseSchema,
   orderEditRequestSchema,
   orderEditResponseSchema,
   orderTransitionResponseSchema,
   type AdminOrderResponse,
   type AdminOrderSummary,
+  type OrderCancelRequest,
   type OrderEditDiff,
   type OrderEditRequest,
 } from "@ih/contracts";
@@ -30,10 +33,14 @@ export function OrderManagement({
   canReadContact,
   canTransition,
   canEdit,
+  canCancel,
+  canReturn,
 }: {
   canReadContact: boolean;
   canTransition: boolean;
   canEdit: boolean;
+  canCancel: boolean;
+  canReturn: boolean;
 }) {
   const [status, setStatus] = useState<(typeof STATUSES)[number]>("all");
   const [search, setSearch] = useState("");
@@ -57,6 +64,8 @@ export function OrderManagement({
         canReadContact={canReadContact}
         canTransition={canTransition}
         canEdit={canEdit}
+        canCancel={canCancel}
+        canReturn={canReturn}
         onBack={() => setSelected(null)}
       />
     );
@@ -229,12 +238,16 @@ function OrderDetail({
   canReadContact,
   canTransition,
   canEdit,
+  canCancel,
+  canReturn,
   onBack,
 }: {
   id: string;
   canReadContact: boolean;
   canTransition: boolean;
   canEdit: boolean;
+  canCancel: boolean;
+  canReturn: boolean;
   onBack: () => void;
 }) {
   const order = useManagementResource(`/orders/${id}`, adminOrderResponseSchema);
@@ -314,6 +327,26 @@ function OrderDetail({
               done={order.reload}
             />
           )}
+          {((canCancel && ["pending", "confirmed", "processing"].includes(order.data.status)) ||
+            (canCancel && canReturn && order.data.status === "out_for_delivery")) && (
+            <OrderCancelPanel
+              key={`cancel:${order.data.id}:${order.data.version}`}
+              order={order.data}
+              disabled={order.disabled}
+              save={(request) =>
+                order.run((signal) =>
+                  managementRequest(
+                    `/orders/${id}/cancel`,
+                    orderCancelResponseSchema,
+                    "POST",
+                    request,
+                    signal,
+                  ),
+                )
+              }
+              done={order.reload}
+            />
+          )}
           <OrderDetailBody order={order.data} />
         </>
       )}
@@ -376,6 +409,139 @@ function editCommand(order: AdminOrderResponse, data: FormData): OrderEditReques
   const note = String(data.get("operationalNote") ?? "").trim() || null;
   if (note !== order.operationalNote) command.operationalNote = note;
   return validate(orderEditRequestSchema, command);
+}
+
+/**
+ * Cancellation (step 86). Before handoff a reason is enough and every unit goes back to stock.
+ * Out for Delivery is the Owner's return: each line is split into resellable and damaged units,
+ * and only resellable units go back. The command ID is kept while the order version is
+ * unchanged, so pressing again after an unclear answer is safe.
+ */
+function OrderCancelPanel({
+  order,
+  disabled,
+  save,
+  done,
+}: {
+  order: AdminOrderResponse;
+  disabled: boolean;
+  save: (request: OrderCancelRequest) => Promise<{ ok: boolean }>;
+  done: () => void;
+}) {
+  const returned = order.status === "out_for_delivery";
+  const [commandId] = useState(() => crypto.randomUUID());
+  const [message, setMessage] = useState("");
+  const missingIds = returned && order.items.some((item) => !item.variantId);
+  return (
+    <article className="record-card">
+      <h3>{returned ? "Cancel after return" : "Cancel order"}</h3>
+      <p className="muted">
+        {returned
+          ? "Only after the goods have come back. Split every item into resellable and damaged units: resellable units go back to stock, damaged units are recorded."
+          : "Every unit goes back to stock and any coupon use is released. This cannot be undone."}
+      </p>
+      {missingIds ? (
+        <p className="muted">Item details for a return need the order edit permission.</p>
+      ) : (
+        <form
+          className="form-grid"
+          onSubmit={(event) => {
+            event.preventDefault();
+            const data = new FormData(event.currentTarget);
+            const count = (name: string) => Number(data.get(name) ?? "");
+            let request: OrderCancelRequest;
+            try {
+              request = validate(orderCancelRequestSchema, {
+                expectedVersion: order.version,
+                commandId,
+                reason: String(data.get("reason") ?? ""),
+                ...(returned
+                  ? {
+                      returnItems: order.items.map((item) => ({
+                        variantId: item.variantId,
+                        resellableQuantity: count(`resellable.${item.id}`),
+                        damagedQuantity: count(`damaged.${item.id}`),
+                      })),
+                    }
+                  : {}),
+              });
+            } catch {
+              setMessage("Enter a reason and whole numbers for every item.");
+              return;
+            }
+            const split = request.returnItems ?? [];
+            if (
+              order.items.some((item) => {
+                const line = split.find((entry) => entry.variantId === item.variantId);
+                return (
+                  returned &&
+                  (!line || line.resellableQuantity + line.damagedQuantity !== item.quantity)
+                );
+              })
+            ) {
+              setMessage(
+                "For every item, resellable and damaged units must add up to the quantity sent.",
+              );
+              return;
+            }
+            if (!window.confirm(`Cancel ${order.orderNumber}? This cannot be undone.`)) return;
+            setMessage("");
+            void save(request).then((result) => result.ok && done());
+          }}
+        >
+          {returned &&
+            order.items.map((item) => (
+              <fieldset key={item.id} className="wide-field">
+                <legend>
+                  {item.productName} · {item.sku} · {item.quantity} sent
+                </legend>
+                <label>
+                  <span>Resellable</span>
+                  <input
+                    name={`resellable.${item.id}`}
+                    type="number"
+                    min={0}
+                    max={item.quantity}
+                    step={1}
+                    defaultValue={item.quantity}
+                    required
+                  />
+                </label>
+                <label>
+                  <span>Damaged</span>
+                  <input
+                    name={`damaged.${item.id}`}
+                    type="number"
+                    min={0}
+                    max={item.quantity}
+                    step={1}
+                    defaultValue={0}
+                    required
+                  />
+                </label>
+              </fieldset>
+            ))}
+          <label className="wide-field">
+            <span>Reason</span>
+            <textarea name="reason" maxLength={500} required rows={2} />
+          </label>
+          {message && (
+            <p role="alert" className="wide-field">
+              {message}
+            </p>
+          )}
+          <div className="form-actions wide-field">
+            <button type="submit" className="danger-button" disabled={disabled}>
+              {returned ? "Cancel and record return" : "Cancel order"}
+            </button>
+            <small className="muted">
+              Uses version {order.version}; the same command is retried safely.
+            </small>
+          </div>
+        </form>
+      )}
+    </article>
+  );
 }
 
 function OrderEditPanel({
@@ -632,6 +798,19 @@ function OrderDetailBody({ order }: { order: AdminOrderResponse }) {
           ))}
         </div>
       </article>
+      {order.returnItems.length > 0 && (
+        <article className="record-card">
+          <h3>Return</h3>
+          <ul className="record-list">
+            {order.returnItems.map((item) => (
+              <li key={item.sku}>
+                {item.sku}: {item.quantity} sent · {item.resellableQuantity} back in stock ·{" "}
+                {item.damagedQuantity} damaged
+              </li>
+            ))}
+          </ul>
+        </article>
+      )}
       {order.edits.length > 0 && (
         <article className="record-card">
           <h3>Edit history</h3>

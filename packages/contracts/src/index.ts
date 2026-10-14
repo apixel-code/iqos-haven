@@ -19,6 +19,10 @@ export const CONFLICT_CODES = [
   "INVALID_TRANSITION",
   "ORDER_NOT_EDITABLE",
   "NO_CHANGES",
+  /** Delivered or already cancelled: the cancel command does not apply (step 86). */
+  "ORDER_NOT_CANCELLABLE",
+  /** A return must classify every line of the order, and only those, completely. */
+  "RETURN_INCOMPLETE",
   "DUPLICATE",
   "IN_USE",
   "TRASHED",

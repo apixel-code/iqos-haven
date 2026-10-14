@@ -1164,3 +1164,21 @@ A Confirmed order moves to Processing. A stale note is `VERSION_CONFLICT`, a mer
 **Admin UI:** staff with `orders.edit` can change quantities (zero removes), add a variant, replace/remove a coupon, edit permitted address fields and set/clear the operational note while Pending/Confirmed. Processing shows only the note. It submits the displayed version, reloads after a committed response and renders each immutable edit diff. Customer address fields remain hidden without `customers.read`; variant and area identifiers are returned only with `orders.edit`.
 
 Not covered: interactive browser/visual QA of the order edit form; a searchable catalogue picker (the current add control accepts a variant identifier); representative production-volume query plans/contention; live migration or staging.
+
+## Step 86 — order cancellation and returns (2026-10-14, local)
+
+`pnpm verify -- --integration`: exit 0, before and after the review fixes. Unit 577, integration 509, gateway 29, age-preview 2008, gate 2175.
+
+**Integration (`apps/api/src/orders/order-cancellation.int.test.ts`, real API and PostgreSQL, 10 tests):**
+
+- **Refusals:** without `orders.cancel_before_dispatch` 403; another Origin 403; blank, missing or over-long reason, a bad command ID or an unknown field 400; a return list on a Pending order 400; an unknown order 404; nothing changes.
+- **Before handoff:** a Pending order with a coupon (added by an edit) is cancelled: 2 units back, coupon use released, `cancelled`, cash `not_collected`, reason on the order and its history row, one audit entry without the reason text, one `order.cancelled` event; coupon counts and the stock ledger reconcile. The same command replays the same receipt; the same ID with another reason or another actor is `COMMAND_REUSED`; a new command is `ORDER_NOT_CANCELLABLE`; one `ORDER_CANCEL` movement.
+- **Concurrency:** six different commands race on one order: one 200, five 409, stock back once. The same command sent twice at once: two 200s, one of them a replay, stock back once.
+- **After an edit:** an order edited from 2 to 3 units returns 3, and stock ends where it began.
+- **States:** Staff cancels a Processing order; a Delivered order is refused for Staff and Owner with stock and cash untouched; a stale version is `VERSION_CONFLICT`.
+- **Return after handoff:** Staff is refused (403); missing, partial, over-counted, extra and duplicated classifications are `RETURN_INCOMPLETE`; the Owner's return of 2 resellable + 1 damaged puts 2 back, records the split, sets `returned_at`, shows it in the admin detail and replays. An all-damaged return puts nothing back but records the damage; upper- and lower-case IDs are the same command.
+- **Rollback and immutability:** a failing audit write leaves the order, stock and records unchanged, and the same command then succeeds; the cancellation record, the reason and the order's ledger rows cannot be changed or added to by hand.
+
+**Also:** `docs/api.openapi.json` regenerated (admin detail `returnItems`).
+
+Not covered: the admin cancel panel in a browser; a low-stock re-arm event after a restock from a cancellation (the publisher is called; its own rules are tested in step 53).

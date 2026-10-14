@@ -6,8 +6,14 @@ import { catalogueText } from "./catalogue";
  * adjustment carries a client-generated command ID (replay-safe) and a reason.
  */
 export const STOCK_REASONS = ["INITIAL_STOCK", "RESTOCK", "MANUAL", "DAMAGE"] as const;
-/** Every reason a movement can have in the ledger: what staff may enter, plus order sales. */
-export const STOCK_MOVEMENT_REASONS = [...STOCK_REASONS, "SALE"] as const;
+/** Every reason a movement can have in the ledger: what staff may enter, plus order effects. */
+export const STOCK_MOVEMENT_REASONS = [
+  ...STOCK_REASONS,
+  "SALE",
+  "ORDER_EDIT",
+  "ORDER_CANCEL",
+  "ORDER_RETURN",
+] as const;
 export const stockAdjustmentRequestSchema = z
   .strictObject({
     /** One per user action; a retry with the same payload returns the original result. */

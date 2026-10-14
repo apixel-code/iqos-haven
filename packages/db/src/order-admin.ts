@@ -145,6 +145,7 @@ export async function readAdminOrder(
           items: { orderBy: { id: "asc" } },
           history: { orderBy: { seq: "asc" }, include: { actor: { select: { name: true } } } },
           edits: { orderBy: { seq: "asc" }, include: { actor: { select: { name: true } } } },
+          cancellation: { include: { returnItems: { orderBy: { sku: "asc" } } } },
         },
       });
       if (!order) throw new AdminOrderNotFoundError();
@@ -233,6 +234,12 @@ export async function readAdminOrder(
           actor: { id: entry.actorId, name: entry.actor.name },
           editedAt: entry.createdAt.toISOString(),
           diff: entry.diff,
+        })),
+        returnItems: (order.cancellation?.returnItems ?? []).map((item) => ({
+          sku: item.sku,
+          quantity: item.quantity,
+          resellableQuantity: item.resellableQuantity,
+          damagedQuantity: item.damagedQuantity,
         })),
       });
     },

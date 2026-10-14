@@ -31,6 +31,8 @@ export function WorkspaceSection({ sectionKey }: { sectionKey: string }) {
           canReadContact={session.permissions.includes("customers.read")}
           canTransition={session.permissions.includes("orders.transition")}
           canEdit={session.permissions.includes("orders.edit")}
+          canCancel={session.permissions.includes("orders.cancel_before_dispatch")}
+          canReturn={session.permissions.includes("orders.cancel_after_dispatch")}
         />
       ) : sectionKey === "settings" ? (
         <SettingsManagement />

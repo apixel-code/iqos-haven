@@ -168,6 +168,10 @@ export function managementError(error: unknown, mutation = false) {
       return "Someone changed this meanwhile. Reload current values and try again.";
     if (error.status === 409 && error.code === "ORDER_NOT_EDITABLE")
       return "This order can no longer accept those changes. Reload its current status.";
+    if (error.status === 409 && error.code === "ORDER_NOT_CANCELLABLE")
+      return "This order can no longer be cancelled: it is delivered or already cancelled. Reload it.";
+    if (error.status === 409 && error.code === "RETURN_INCOMPLETE")
+      return "Classify every item: resellable and damaged units must add up to the quantity sent.";
     if (error.status === 409 && error.code === "NO_CHANGES")
       return "Change at least one value before saving.";
     if (error.status === 409 && error.code === "INSUFFICIENT_STOCK")

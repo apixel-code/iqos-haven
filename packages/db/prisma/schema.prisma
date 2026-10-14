@@ -139,6 +139,7 @@ model RolePermission {
 
 /// Admin users. Never deleted (deactivate). Email stored normalized (trimmed, lower case).
 model StaffUser {
+  orderCancellations   OrderCancellation[]
   settingsUpdates     Setting[]
   deliveryAreaUpdates DeliveryArea[]
   couponUpdates       Coupon[]
@@ -422,6 +423,7 @@ model ProductOption {
 }
 
 model Variant {
+  returnItems  OrderReturnItem[]
   id                String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
   productId         String   @map("product_id") @db.Uuid
   product           Product  @relation(fields: [productId], references: [id], onDelete: Restrict, onUpdate: Restrict)
@@ -563,6 +565,7 @@ model MediaAsset {
 /// An order with its own copy of customer, address, area, coupon and totals (step 73).
 /// Never deleted; contents are fixed once processing starts.
 model Order {
+  cancellation                 OrderCancellation?
   id                           String               @id @default(dbgenerated("uuidv7()")) @db.Uuid
   /// Sequential display number assigned by the database; gaps are normal.
   orderNumber                  BigInt               @unique @default(autoincrement()) @map("order_number")
@@ -745,4 +748,37 @@ model NotificationReceipt {
   @@id([notificationId, userId])
   @@index([userId, readAt, notificationId], map: "notification_receipts_inbox")
   @@map("notification_receipts")
+}
+
+/// The command that cancelled an order (step 86). One per order; immutable.
+model OrderCancellation {
+  orderId        String            @id @map("order_id") @db.Uuid
+  order          Order             @relation(fields: [orderId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  commandId      String            @unique @map("command_id") @db.Uuid
+  actorId        String            @map("actor_id") @db.Uuid
+  actor          StaffUser         @relation(fields: [actorId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  kind           String            @db.VarChar(16)
+  fromStatus     String            @map("from_status") @db.VarChar(20)
+  requestHash    Bytes             @map("request_hash")
+  orderVersion   Int               @map("order_version")
+  couponReleased Boolean           @map("coupon_released")
+  createdAt      DateTime          @default(dbgenerated("statement_timestamp()")) @map("created_at") @db.Timestamptz(6)
+  returnItems    OrderReturnItem[]
+
+  @@map("order_cancellations")
+}
+
+/// How one line of a returned order came back: resellable units restocked, damaged recorded.
+model OrderReturnItem {
+  orderId            String            @map("order_id") @db.Uuid
+  cancellation       OrderCancellation @relation(fields: [orderId], references: [orderId], onDelete: Restrict, onUpdate: Restrict)
+  variantId          String            @map("variant_id") @db.Uuid
+  variant            Variant           @relation(fields: [variantId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  sku                String            @db.VarChar(64)
+  quantity           Int
+  resellableQuantity Int               @map("resellable_quantity")
+  damagedQuantity    Int               @map("damaged_quantity")
+
+  @@id([orderId, variantId])
+  @@map("order_return_items")
 }

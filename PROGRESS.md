@@ -4,8 +4,8 @@
 
 - Date: 2026-10-13
 - Milestone: M7 — transactional checkout and first complete order: all steps (73–82) done; gate evidence ready, awaiting Marina's decision. M6: all steps (65–72) done; gate evidence ready, awaiting Marina's decision. M5: PASSED 2026-10-11. M4 steps done, gate awaits Marina's decision (publishing unblocked); M3 gate not closed; M0 review and M1 staging/fixtures still open
-- Step: 85 (Pending/Confirmed order edits and diff display) — done; next is 86 (controlled cancellation and stock release)
-- Branch: `step/85-order-edits` (stacked on steps 79–84; `main` holds everything through step 76; PRs #59/#60 open; steps 79–85 are local commits, not pushed: the push needs Marina's explicit go-ahead)
+- Step: 86 (order cancellation and Owner returns) — done; next is 87
+- Branch: `step/86-order-cancellation` (stacked on `fix/age-gate-origin` and steps 79–85; `main` holds everything through step 76; PRs #59/#60 open; steps 79–86 and the age-gate fix are local commits, not pushed: the push needs Marina's explicit go-ahead)
 - See docs/verification.md for actual checks.
 
 ## Next action
@@ -20,10 +20,11 @@
 2. **Marina merges** from her terminal (`gh pr merge <number> --merge`) or on GitHub ("Create a merge commit"). PR #59 (step 77), #60 (step 78) and step 79 are stacked: merge the highest verified branch to include its dependencies. Then `git checkout main && git pull --ff-only`, and check that the CI run on `main` finished (a cancelled run is rerun with `gh run rerun <id>`).
 3. **Marina: decide the M6 gate (and M4).** Evidence and caveats: docs/verification.md "Step 72".
 4. **Marina: decide the M7 gate.** Evidence, item by item, and what is not covered: docs/verification.md "Step 82". Checkout stays switched off (`CHECKOUT_SUBMISSION_ENABLED=false`) whatever the decision, until deployment inputs exist (BI-07 sender domain, real Owner, delivery areas and fee).
-5. **Next step: `/step 86`** (pre-handoff cancellation and controlled Owner return cancellation). Reuse Step 85's net stock/coupon release rules, permanent command replay and order-first lock sequence; never release an edited line twice.
+5. **Next step: `/step 87`.** Find the row with `rg -n "^| 87 " docs/roadmap.md` and read only that row. Order commands so far: transitions (ADR 0052), edits (ADR 0053), cancellation (ADR 0054); reuse their command-record, order-first lock and replay patterns.
 6. **Rules that carry forward:**
    - Admin order reads (ADR 0051): both routes require `orders.read`; the whole optional `customer` object and contact search additionally require `customers.read`. List keyset is the exact DB `(created_at,id)`; detail uses one repeatable-read snapshot. Never expose creation/idempotency hashes, confirmation data or history command IDs. Step 84 adds commands separately with expected versions.
    - Order transitions (ADR 0052): normal fulfilment uses `POST /v1/admin/orders/:id/transitions` with `orders.transition`, `expectedVersion` and a UUID command ID. Lock the current actor, then the order; write order/history/audit/`order.status_changed` in one transaction. A partial unique index makes staff transition command IDs global and exact retries return the original receipt. Delivered leaves COD pending.
+   - Order cancellation (ADR 0054): `POST /v1/admin/orders/:id/cancel`; before handoff `orders.cancel_before_dispatch`, Out for Delivery also `orders.cancel_after_dispatch` with every line classified (resellable + damaged = sent); Delivered/Cancelled refused. Stock returns through `ORDER_CANCEL`/`ORDER_RETURN` with fixed per-order command IDs, so each variant goes back once (DB-enforced). `order_cancellations` is the permanent command record; replays need the actor's current permission.
    - Order edits (ADR 0053): `PATCH /v1/admin/orders/:id` accepts item/coupon/address/note changes only for Pending/Confirmed and note-only for Processing. Apply net quantities through `ORDER_EDIT` movements and `publishLowStockCrossing`; preserve unchanged line snapshots, reprice changed/new lines, keep released coupon uses as history and append one display-safe diff. Item removal is allowed while at least one line remains. Exact command retries replay permanently; a no-op rolls everything back.
    - Confirmation page (ADR 0050): `/order-confirmation` reads the order in the browser with the cookie; nothing from the URL, nothing stored on the device, no third-party script; only contract fields are shown and amounts are the API's. After a 201: end key, empty cart, remember the acknowledgement in memory, `router.replace`.
    - Checkout form (ADR 0049): typed details live in React state only; the device keeps `ih_checkout_attempt_v1` = `{key, createdAt}` (local storage, else session storage) and nothing else. The key ends only on an acknowledged 201 or on "Place a second order"; every other answer keeps it (`orderOutcome` in `lib/checkout/order.ts`). `GET /v1/store/info` carries `checkoutOpen`; the storefront has no switch of its own. Browser pass: `scripts/browser-qa/checkout.mjs` with `node scripts/check-gate-e2e.cjs --serve --checkout-open`.
@@ -95,6 +96,7 @@ BI-07: a verified sending domain and sender address are still needed before real
 - 82 — checkout correctness gate: worker gate test (order transaction → relay → queue → inbox and Mailpit, queue outage, cleanup jobs), HTTP gate cases (repeated lines, last unit, code burst), full browser journey with the worker's consumers running — `step(82)` commit on `step/82-checkout-gate`
 - 83 — admin order list/status-date-contact search/keyset paging and repeatable-read snapshot detail/history; contact fields and search require `customers.read`; responsive read-only Orders workspace (ADR 0051) — `step(83)` commit on `step/83-admin-orders`
 - 84 — versioned and replay-safe normal fulfilment transitions with committed status history, audit/event writes, next-action admin controls and timeline reloads (ADR 0052) — b11959b
+- 86 — order cancellation before handoff and the Owner's classified return after it: one transaction, coupon released, stock back once through the ledger (resellable only on a return), permanent replay-safe command record, admin cancel panel (ADR 0054) — `step(86)` commit on `step/86-order-cancellation`
 - 85 — versioned Pending/Confirmed merchandise, coupon and address edits plus Processing operational notes; net stock movements, immutable diffs and admin edit UI (ADR 0053) — `step(85)` commit on `step/85-order-edits`
 - 81 — `/order-confirmation` page (cookie-read snapshot, expired and failed states, WhatsApp order message), checkout success navigates there after ending the key and emptying the cart (ADR 0050) — b04d2a9
 - 80 — `/checkout` form (memory-only details, required 18+ tick, server total), durable attempt key, one outcome per API answer, cart emptied only after acknowledgement, `checkoutOpen` in store info (ADR 0049) — 678cf64
@@ -119,26 +121,29 @@ BI-07: a verified sending domain and sender address are still needed before real
 - Event `consumers` lists only implemented consumers (now `system_probe`, `email`, `media_processor`, `storefront_revalidate`); planned ones are documented with roadmap steps and move in with a backfill decision (architecture §8: adding a consumer must not redefine old completions).
 - `audit_log` migration revokes UPDATE/DELETE/TRUNCATE only from a role named `ih_app`; other runtime role names must be revoked at provisioning (trigger blocks mutations regardless).
 
-## Last session handoff (2026-10-13, step 85)
+## Last session handoff (2026-10-14, step 86)
 
 Done:
 
-- **Step 84:** replay-safe, expected-version normal order transitions, append-only status history, audit/event writes and next-action admin controls; ADR 0052.
-- **Step 85:** replay-safe, expected-version Pending/Confirmed line, coupon and address edits plus Processing notes; net `ORDER_EDIT` stock movements, coupon release/replacement history, immutable display-safe diffs and admin edit controls; ADR 0053.
-- Ten real API/PostgreSQL order tests cover reads, exact edit replay, concurrent commands, current permission revocation, stock/total changes, coupon release, line removal, Processing restrictions and stale versions.
+- **Step 86 (ADR 0054):** migration `20261014000100_order_cancellation` (`ORDER_CANCEL`/`ORDER_RETURN` ledger reasons, `order_cancellations`, `order_return_items`); `packages/db/src/order-cancellation.ts` (`cancelOrder`); `POST /v1/admin/orders/:id/cancel`; return lines in the admin detail; admin cancel panel; `docs/api.openapi.json` regenerated.
+- Also fixed: the inventory movement contract lacked `ORDER_EDIT` (step 85), so an edited variant's stock history could not be read; it now lists `ORDER_EDIT`, `ORDER_CANCEL`, `ORDER_RETURN`.
+- **`invariant-reviewer`:** no blockers; done: return-list IDs are normalized before hashing, tests for the same command twice at once and an all-damaged return, ADR notes on replay after losing the permission.
+- Cleaned up leftovers of a 2026-10-13 browser-pass run (storefront process, gateway container, queue keys). Dev database migrated through `20261014000100`.
 
-Files: `packages/contracts/src/orders.ts`, `packages/db/src/order-edits.ts`, migrations `20261013000400_order_transitions` and `20261013000500_order_edits`, `apps/api/src/orders/admin-orders.*`, `apps/admin/components/order-management.tsx`, ADRs 0052–0053, generated OpenAPI and status/verification docs.
+Files: `packages/db/prisma/{schema.prisma,migrations/20261014000100_order_cancellation/migration.sql}`, `packages/db/src/{order-cancellation.ts,order-admin.ts,index.ts}`, `packages/contracts/src/{orders.ts,index.ts,inventory.ts}`, `apps/api/src/orders/{order-cancellation.controller.ts,order-cancellation.int.test.ts,admin-orders.service.ts,orders.module.ts}`, `apps/api/src/security/limit-policies.ts`, `apps/admin/{components/order-management.tsx,components/workspace-section.tsx,lib/management.ts,lib/inventory.ts}`, `docs/api.openapi.json`, `docs/decisions/0054-order-cancellation.md`, `docs/{implementation-status,task-backlog,verification}.md`, `PROGRESS.md`.
 
-Tests: unit 577, integration 499, gateway 29, age-preview 2008 and gate 2175 PASS. Targeted admin-order integration 10/10. The sandbox blocks Turbopack's internal local bind during the aggregate build; both Next apps pass `next build --webpack`, and the other ten Turbo builds pass.
+Tests: `pnpm verify -- --integration` PASS (unit 577, integration 509, gateway 29, age-preview 2008, gate 2175). Cancellation integration 10/10.
 
 Unfinished:
 
-- M7 gate decision is Marina's. Steps 79–85 are local commits; nothing was pushed. PRs #59/#60 wait for her merge; M4 and M6 gates await her decision.
-- Step 85 admin browser interaction/visual QA, representative-data query plans and production migration remain open. Step 86 adds pre-handoff cancellation and controlled Owner return cancellation.
-- Two `ih_test_*` schemas of unknown origin are in the test database (`…170e73fb…`, `…9acfd98f…`); left alone.
+- Nothing pushed: steps 79–86 and the age-gate fix are local. PRs #59/#60 wait for Marina's merge; M4, M6 and M7 gates await her decision.
+- The age-gate fix (`a307657`) changes ADR 0025's origin rule without an ADR/verification update, and trusts `X-Forwarded-Host`: confirm the production gateway overwrites it.
+- Admin order screens (steps 83–86) have not had a browser pass; `scripts/browser-qa/qa.mjs` has no order checks.
+- Four `ih_test_*` schemas of unknown origin are in the test database; left alone.
 
 ## History (summary)
 
+- 2026-10-13 steps 83–85: admin order reads, transitions, edits, ADR 0051–0053 (eb2775c, b11959b, 9ae9987, not pushed); verify unit 577/integration 499. Age-gate origin fix a307657 (2026-10-14).
 - 2026-10-13 step 85: versioned order edits and immutable diffs, ADR 0053 (local branch, not pushed); unit 577/integration 499/gateway 29/age-preview 2008/gate 2175.
 - 2026-10-13 step 84: versioned fulfilment transitions and admin controls, ADR 0052 (b11959b, not pushed).
 - 2026-10-13 step 81: confirmation page, ADR 0050 (b04d2a9, not pushed); verify unit 577/integration 482/gateway 29/age-preview 2008/gate 2175; browser 28 checks.
@@ -146,6 +151,3 @@ Unfinished:
 - 2026-10-13 step 79: cookie-only confirmation API and encrypted replay, ADR 0048 (dd7dc27, not pushed); verify unit 562/integration 482/gateway 29/age-preview 1847/gate 1978.
 - 2026-10-13 step 78: immutable inbox/receipts and new-order email consumers, ADR 0047 (f4da894, PR #60); verify unit 554/integration 476/gateway 29/age-preview 1847/gate 1978. Provider email/queued worker journey and inbox UI remain open; checkout off.
 - 2026-10-13 step 77: store order route, limits and outage fallback (c0af04e, PR #59); verify unit 554/integration 469/gateway 29/age-preview 1847/gate 1978.
-- 2026-10-13 step 76: atomic order creation (116c94a, PR #58, merged); verify unit 550/integration 458/gateway 29/age-preview 1847/gate 1928.
-- 2026-10-12 step 75: canonical lock order (2c5aa72, PR #57); verify unit 550/integration 445/gateway 29/age-preview 1847/gate 1928.
-- 2026-10-12 step 74: idempotent commands (2c55878, PR #56, merged); verify unit 550/integration 439/gateway 29/age-preview 1847/gate 1928.

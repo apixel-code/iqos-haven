@@ -6,7 +6,12 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import type { AdminOrdersQuery, OrderEditRequest, OrderTransitionRequest } from "@ih/contracts";
+import type {
+  AdminOrdersQuery,
+  OrderCancelRequest,
+  OrderEditRequest,
+  OrderTransitionRequest,
+} from "@ih/contracts";
 import type { CommandContext } from "@ih/application";
 import { DeliveryUnavailableError, DeliveryUnconfiguredError } from "@ih/domain";
 import {
@@ -25,6 +30,11 @@ import {
   OrderEditNotFoundError,
   CouponRejectedError,
   VariantUnavailableError,
+  cancelOrder,
+  OrderCancelConflictError,
+  OrderCancelForbiddenError,
+  OrderCancelInvalidError,
+  OrderCancelNotFoundError,
   type Database,
 } from "@ih/db";
 import { DATABASE } from "../infra/tokens";
@@ -47,6 +57,15 @@ export class AdminOrdersService {
       if (error instanceof OrderEditForbiddenError) throw new ForbiddenException();
       if (error instanceof OrderEditNotFoundError) throw new NotFoundException();
       if (error instanceof OrderEditConflictError)
+        throw new ConflictException({ code: error.reason });
+      if (error instanceof OrderCancelForbiddenError) throw new ForbiddenException();
+      if (error instanceof OrderCancelNotFoundError) throw new NotFoundException();
+      if (error instanceof OrderCancelInvalidError)
+        throw new BadRequestException({
+          code: "VALIDATION_ERROR",
+          details: [{ path: "returnItems", message: "Invalid field" }],
+        });
+      if (error instanceof OrderCancelConflictError)
         throw new ConflictException({ code: error.reason });
       if (error instanceof CouponRejectedError) throw new ConflictException({ code: error.code });
       if (error instanceof VariantUnavailableError)
@@ -71,5 +90,9 @@ export class AdminOrdersService {
 
   edit(context: CommandContext, orderId: string, input: OrderEditRequest) {
     return this.execute(() => editOrder(this.db, context, orderId, input));
+  }
+
+  cancel(context: CommandContext, orderId: string, input: OrderCancelRequest) {
+    return this.execute(() => cancelOrder(this.db, context, orderId, input));
   }
 }
