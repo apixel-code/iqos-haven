@@ -23,6 +23,10 @@ export const CONFLICT_CODES = [
   "ORDER_NOT_CANCELLABLE",
   /** A return must classify every line of the order, and only those, completely. */
   "RETURN_INCOMPLETE",
+  /** Cash can be recorded only for a Delivered order whose cash is still pending (step 87). */
+  "COLLECTION_NOT_ALLOWED",
+  /** A correction needs a recorded collection to correct. */
+  "NOT_COLLECTED",
   "DUPLICATE",
   "IN_USE",
   "TRASHED",

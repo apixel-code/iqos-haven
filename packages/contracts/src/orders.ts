@@ -117,6 +117,43 @@ export const orderCancelResponseSchema = z.strictObject({
   replayed: z.boolean(),
 });
 
+// --- Cash-on-delivery collection (roadmap step 87, ADR 0055) ---
+const collectionAmountSchema = z.number().int().min(0).max(1_000_000_000_000);
+const collectionReferenceSchema = z.string().trim().min(1).max(100).nullable();
+/** Records the cash for a Delivered order: what was received, when, and a reference. */
+export const orderCollectionRequestSchema = z.strictObject({
+  expectedVersion: z.number().int().min(1),
+  commandId: z.uuid(),
+  amountFils: collectionAmountSchema,
+  reference: collectionReferenceSchema.optional(),
+  /** When the cash was received; now if absent. Not before delivery, not in the future. */
+  collectedAt: z.iso.datetime({ offset: true }).optional(),
+});
+/** The Owner's correction: the full corrected record and why. The original stays recorded. */
+export const orderCollectionCorrectionRequestSchema = z.strictObject({
+  expectedVersion: z.number().int().min(1),
+  commandId: z.uuid(),
+  reason: z.string().trim().min(1).max(500),
+  amountFils: collectionAmountSchema,
+  reference: collectionReferenceSchema,
+  collectedAt: z.iso.datetime({ offset: true }),
+});
+export const orderCollectionRecordSchema = z.strictObject({
+  id: z.uuid(),
+  kind: z.enum(["recorded", "corrected"]),
+  orderVersion: z.number().int().min(2),
+  amountFils: filsSchema,
+  collectedAt: z.iso.datetime(),
+  reference: z.string().max(100).nullable(),
+  reason: z.string().max(500).nullable(),
+  actor: z.strictObject({ id: z.uuid(), name: z.string().min(1).max(100) }),
+  recordedAt: z.iso.datetime(),
+});
+export const orderCollectionResponseSchema = orderCollectionRecordSchema.extend({
+  orderId: z.uuid(),
+  replayed: z.boolean(),
+});
+
 const boundedInstant = z.iso.datetime({ offset: true });
 export const adminOrdersQuerySchema = z
   .strictObject({
@@ -223,6 +260,10 @@ export const adminOrderResponseSchema = z.strictObject({
     .nullable(),
   deliveryEtaText: z.string().min(1).max(500),
   codStatus: z.enum(COD_STATUSES),
+  /**
+   * The first cash record, kept as original evidence and never changed. After an Owner
+   * correction the amount in effect is the last entry of `collectionRecords`.
+   */
   collectedAmountFils: filsSchema.nullable(),
   collectedAt: z.iso.datetime().nullable(),
   collectionReference: z.string().max(100).nullable(),
@@ -238,6 +279,8 @@ export const adminOrderResponseSchema = z.strictObject({
   items: z.array(adminOrderItemSchema).min(1),
   history: z.array(adminOrderHistorySchema).min(1),
   edits: z.array(orderEditRecordSchema),
+  /** The cash record and every correction, oldest first; the last one is in effect. */
+  collectionRecords: z.array(orderCollectionRecordSchema),
   /** How each line came back, for an order cancelled after a return; otherwise empty. */
   returnItems: z.array(
     z.strictObject({
@@ -260,3 +303,8 @@ export type OrderEditResponse = z.infer<typeof orderEditResponseSchema>;
 export type OrderEditDiff = z.infer<typeof orderEditDiffSchema>;
 export type OrderCancelRequest = z.infer<typeof orderCancelRequestSchema>;
 export type OrderCancelResponse = z.infer<typeof orderCancelResponseSchema>;
+export type OrderCollectionRequest = z.infer<typeof orderCollectionRequestSchema>;
+export type OrderCollectionCorrectionRequest = z.infer<
+  typeof orderCollectionCorrectionRequestSchema
+>;
+export type OrderCollectionResponse = z.infer<typeof orderCollectionResponseSchema>;

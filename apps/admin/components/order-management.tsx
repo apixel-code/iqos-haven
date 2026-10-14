@@ -5,17 +5,31 @@ import {
   adminOrdersResponseSchema,
   orderCancelRequestSchema,
   orderCancelResponseSchema,
+  orderCollectionCorrectionRequestSchema,
+  orderCollectionRequestSchema,
+  orderCollectionResponseSchema,
   orderEditRequestSchema,
   orderEditResponseSchema,
   orderTransitionResponseSchema,
   type AdminOrderResponse,
   type AdminOrderSummary,
   type OrderCancelRequest,
+  type OrderCollectionCorrectionRequest,
+  type OrderCollectionRequest,
   type OrderEditDiff,
   type OrderEditRequest,
 } from "@ih/contracts";
 import { managementRequest, validate } from "../lib/management";
-import { addressLine, COD_STATUS_LABELS, money, ORDER_STATUS_LABELS, when } from "../lib/orders";
+import {
+  addressLine,
+  aedToFils,
+  COD_STATUS_LABELS,
+  inputInstant,
+  localInstant,
+  money,
+  ORDER_STATUS_LABELS,
+  when,
+} from "../lib/orders";
 import { ResourceNotice, useManagementResource } from "./management-resource";
 
 const STATUSES = [
@@ -35,12 +49,16 @@ export function OrderManagement({
   canEdit,
   canCancel,
   canReturn,
+  canCollect,
+  canCorrect,
 }: {
   canReadContact: boolean;
   canTransition: boolean;
   canEdit: boolean;
   canCancel: boolean;
   canReturn: boolean;
+  canCollect: boolean;
+  canCorrect: boolean;
 }) {
   const [status, setStatus] = useState<(typeof STATUSES)[number]>("all");
   const [search, setSearch] = useState("");
@@ -66,6 +84,8 @@ export function OrderManagement({
         canEdit={canEdit}
         canCancel={canCancel}
         canReturn={canReturn}
+        canCollect={canCollect}
+        canCorrect={canCorrect}
         onBack={() => setSelected(null)}
       />
     );
@@ -240,6 +260,8 @@ function OrderDetail({
   canEdit,
   canCancel,
   canReturn,
+  canCollect,
+  canCorrect,
   onBack,
 }: {
   id: string;
@@ -248,6 +270,8 @@ function OrderDetail({
   canEdit: boolean;
   canCancel: boolean;
   canReturn: boolean;
+  canCollect: boolean;
+  canCorrect: boolean;
   onBack: () => void;
 }) {
   const order = useManagementResource(`/orders/${id}`, adminOrderResponseSchema);
@@ -347,6 +371,39 @@ function OrderDetail({
               done={order.reload}
             />
           )}
+          {((canCollect &&
+            order.data.status === "delivered" &&
+            order.data.codStatus === "pending") ||
+            (canCorrect && order.data.codStatus === "collected")) && (
+            <OrderCollectionPanel
+              key={`collection:${order.data.id}:${order.data.version}`}
+              order={order.data}
+              disabled={order.disabled}
+              record={(request) =>
+                order.run((signal) =>
+                  managementRequest(
+                    `/orders/${id}/collection`,
+                    orderCollectionResponseSchema,
+                    "POST",
+                    request,
+                    signal,
+                  ),
+                )
+              }
+              correct={(request) =>
+                order.run((signal) =>
+                  managementRequest(
+                    `/orders/${id}/collection/corrections`,
+                    orderCollectionResponseSchema,
+                    "POST",
+                    request,
+                    signal,
+                  ),
+                )
+              }
+              done={order.reload}
+            />
+          )}
           <OrderDetailBody order={order.data} />
         </>
       )}
@@ -409,6 +466,142 @@ function editCommand(order: AdminOrderResponse, data: FormData): OrderEditReques
   const note = String(data.get("operationalNote") ?? "").trim() || null;
   if (note !== order.operationalNote) command.operationalNote = note;
   return validate(orderEditRequestSchema, command);
+}
+
+/**
+ * Cash on delivery (step 87). Delivered never records cash: staff record what was received.
+ * Once recorded, only the Owner corrects it, with a reason; the original record stays. The
+ * command ID is kept while the order version is unchanged, so pressing again is safe.
+ */
+function OrderCollectionPanel({
+  order,
+  disabled,
+  record,
+  correct,
+  done,
+}: {
+  order: AdminOrderResponse;
+  disabled: boolean;
+  record: (request: OrderCollectionRequest) => Promise<{ ok: boolean }>;
+  correct: (request: OrderCollectionCorrectionRequest) => Promise<{ ok: boolean }>;
+  done: () => void;
+}) {
+  const correcting = order.codStatus === "collected";
+  const current = order.collectionRecords.at(-1);
+  const [commandId] = useState(() => crypto.randomUUID());
+  const [message, setMessage] = useState("");
+  return (
+    <article className="record-card">
+      <h3>{correcting ? "Correct cash record" : "Record cash collected"}</h3>
+      <p className="muted">
+        {correcting
+          ? "Owner only. The original record stays; the correction is added with its reason."
+          : `Record the cash actually received for this delivered order (order total ${money(order.totalFils)}).`}
+      </p>
+      <form
+        className="form-grid"
+        onSubmit={(event) => {
+          event.preventDefault();
+          const data = new FormData(event.currentTarget);
+          const amountFils = aedToFils(String(data.get("amount") ?? ""));
+          const reference = String(data.get("reference") ?? "").trim() || null;
+          const typed = String(data.get("collectedAt") ?? "");
+          // The input shows minutes only: an untouched field keeps the exact recorded time.
+          const at =
+            current && typed === inputInstant(current.collectedAt)
+              ? current.collectedAt
+              : localInstant(typed);
+          if (amountFils === null) {
+            setMessage("Enter the amount in AED, for example 65 or 65.50.");
+            return;
+          }
+          try {
+            if (correcting) {
+              const request = validate(orderCollectionCorrectionRequestSchema, {
+                expectedVersion: order.version,
+                commandId,
+                reason: String(data.get("reason") ?? ""),
+                amountFils,
+                reference,
+                collectedAt: at,
+              });
+              if (!window.confirm(`Correct the cash record of ${order.orderNumber}?`)) return;
+              setMessage("");
+              void correct(request).then((result) => result.ok && done());
+            } else {
+              const request = validate(orderCollectionRequestSchema, {
+                expectedVersion: order.version,
+                commandId,
+                amountFils,
+                ...(reference ? { reference } : {}),
+                ...(at ? { collectedAt: at } : {}),
+              });
+              const differs =
+                amountFils !== order.totalFils
+                  ? ` This differs from the order total of ${money(order.totalFils)}.`
+                  : "";
+              if (
+                !window.confirm(
+                  `Record ${money(amountFils)} collected for ${order.orderNumber}?${differs}`,
+                )
+              )
+                return;
+              setMessage("");
+              void record(request).then((result) => result.ok && done());
+            }
+          } catch {
+            setMessage(
+              correcting
+                ? "Enter a reason, the amount and the time the cash was received."
+                : "Check the amount, reference and time.",
+            );
+          }
+        }}
+      >
+        <label>
+          <span>Amount received (AED)</span>
+          <input
+            name="amount"
+            inputMode="decimal"
+            required
+            defaultValue={((current?.amountFils ?? order.totalFils) / 100).toFixed(2)}
+          />
+        </label>
+        <label>
+          <span>Reference (optional)</span>
+          <input name="reference" maxLength={100} defaultValue={current?.reference ?? ""} />
+        </label>
+        <label>
+          <span>{correcting ? "Received at" : "Received at (leave empty for now)"}</span>
+          <input
+            name="collectedAt"
+            type="datetime-local"
+            required={correcting}
+            defaultValue={current ? inputInstant(current.collectedAt) : ""}
+          />
+        </label>
+        {correcting && (
+          <label className="wide-field">
+            <span>Reason for the correction</span>
+            <textarea name="reason" maxLength={500} required rows={2} />
+          </label>
+        )}
+        {message && (
+          <p role="alert" className="wide-field">
+            {message}
+          </p>
+        )}
+        <div className="form-actions wide-field">
+          <button type="submit" className="primary-button" disabled={disabled}>
+            {correcting ? "Save correction" : "Record cash collected"}
+          </button>
+          <small className="muted">
+            Uses version {order.version}; the same command is retried safely.
+          </small>
+        </div>
+      </form>
+    </article>
+  );
 }
 
 /**
@@ -775,6 +968,28 @@ function OrderDetailBody({ order }: { order: AdminOrderResponse }) {
             <p className="muted">
               Coupon {order.coupon.code} · {order.coupon.percentBps / 100}%
             </p>
+          )}
+          {order.collectionRecords.length > 0 && (
+            <ol className="order-history">
+              {order.collectionRecords.map((entry, index) => (
+                <li key={entry.id}>
+                  <span className="badge">
+                    {entry.kind === "recorded" ? "Recorded" : "Corrected"}
+                    {index === order.collectionRecords.length - 1 ? " · in effect" : ""}
+                  </span>
+                  <div>
+                    <strong>
+                      {money(entry.amountFils)} · received {when(entry.collectedAt)}
+                    </strong>
+                    <small>
+                      {entry.actor.name} · {when(entry.recordedAt)}
+                      {entry.reference ? ` · ${entry.reference}` : ""}
+                    </small>
+                    {entry.reason && <p>{entry.reason}</p>}
+                  </div>
+                </li>
+              ))}
+            </ol>
           )}
         </article>
       </div>

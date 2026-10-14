@@ -28,6 +28,7 @@ describe("event catalogue", () => {
         "media.uploaded",
         "order.cancelled",
         "order.collection_recorded",
+        "order.collection_corrected",
         "order.created",
         "order.status_changed",
         "order.updated",

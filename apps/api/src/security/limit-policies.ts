@@ -114,6 +114,10 @@ export const ORDER_EDIT_POLICY = {
   ...CATALOG_MANAGE_POLICY,
   endpoint: "order.edit",
 } as const;
+export const ORDER_COLLECTION_POLICY = {
+  ...CATALOG_MANAGE_POLICY,
+  endpoint: "order.collection",
+} as const;
 export const ORDER_CANCEL_POLICY = {
   ...CATALOG_MANAGE_POLICY,
   endpoint: "order.cancel",

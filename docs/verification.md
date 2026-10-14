@@ -1182,3 +1182,20 @@ Not covered: interactive browser/visual QA of the order edit form; a searchable 
 **Also:** `docs/api.openapi.json` regenerated (admin detail `returnItems`).
 
 Not covered: the admin cancel panel in a browser; a low-stock re-arm event after a restock from a cancellation (the publisher is called; its own rules are tested in step 53).
+
+## Step 87 — COD collection and Owner correction (2026-10-14, local)
+
+`pnpm verify -- --integration`: exit 0, before and after the review fixes. Unit 582, integration 515, gateway 29, age-preview 2008, gate 2175.
+
+**Integration (`apps/api/src/orders/order-collection.int.test.ts`, real API and PostgreSQL, 6 tests):**
+
+- **No automatic collection:** a Delivered order's cash stays pending until recorded. Recording AED 65.00 with a reference sets the order's cash fields once (version 5), writes one record, one audit entry and one `order.collection_recorded` event; the same command replays; the same ID with another amount is `COMMAND_REUSED`; a second record is `COLLECTION_NOT_ALLOWED`.
+- **Refusals:** Pending, Out for Delivery and Cancelled orders cannot be collected; a stale version, a future time and a time before delivery, a negative or fractional amount, an empty reference, an unknown field, another Origin and a missing `orders.collect` right are refused with nothing written; a collected order cannot be cancelled.
+- **Concurrency and time:** a time in the minute of delivery is accepted and stored exactly; two different collections sent at once give one 200 and one 409 and one record.
+- **Correction:** Staff is refused; an order without cash is `NOT_COLLECTED`; a blank reason is refused; a correction equal to the record in effect is `NO_CHANGES`; the Owner's correction from AED 60.00 to 65.00 is recorded with its reason while the order keeps the original amount, time, reference and actor; it replays; the admin detail lists both records; the audit entry holds the reason and both amounts.
+- **Later corrections:** changing only the reference keeps the exact original time; a reused ID is refused; a second correction becomes the record in effect; two `order.collection_corrected` events.
+- **Evidence:** record rows cannot be changed or deleted, and the order's cash fields cannot be rewritten or reset to pending.
+
+**Unit (`apps/admin/lib/orders.test.ts`, 3 tests):** typed AED amounts become exact integer fils; malformed amounts are refused; date-time input round trip.
+
+Not covered: the admin collection panel in a browser; reports reading the latest record (step 106).

@@ -151,6 +151,7 @@ model StaffUser {
   stockMovements      StockMovement[]
   mediaUploads        MediaAsset[]
   id                  String                 @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  collectionRecords   OrderCollectionRecord[]
   email               String                 @unique @db.VarChar(254)
   passwordHash        String                 @map("password_hash") @db.VarChar(255)
   name                String                 @db.VarChar(100)
@@ -567,6 +568,7 @@ model MediaAsset {
 model Order {
   cancellation                 OrderCancellation?
   id                           String               @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  collectionRecords            OrderCollectionRecord[]
   /// Sequential display number assigned by the database; gaps are normal.
   orderNumber                  BigInt               @unique @default(autoincrement()) @map("order_number")
   customerId                   String               @map("customer_id") @db.Uuid
@@ -781,4 +783,27 @@ model OrderReturnItem {
 
   @@id([orderId, variantId])
   @@map("order_return_items")
+}
+
+/// One collection command: the first record or an Owner correction (step 87). Immutable; the
+/// latest row is in effect, the order keeps the original evidence.
+model OrderCollectionRecord {
+  id           String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  seq          BigInt    @unique @default(autoincrement())
+  orderId      String    @map("order_id") @db.Uuid
+  order        Order     @relation(fields: [orderId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  kind         String    @db.VarChar(16)
+  commandId    String    @unique @map("command_id") @db.Uuid
+  actorId      String    @map("actor_id") @db.Uuid
+  actor        StaffUser @relation(fields: [actorId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  requestHash  Bytes     @map("request_hash")
+  orderVersion Int       @map("order_version")
+  amountFils   BigInt    @map("amount_fils")
+  collectedAt  DateTime  @map("collected_at") @db.Timestamptz(6)
+  reference    String?   @db.VarChar(100)
+  reason       String?   @db.VarChar(500)
+  createdAt    DateTime  @default(dbgenerated("statement_timestamp()")) @map("created_at") @db.Timestamptz(6)
+
+  @@index([orderId, seq], map: "order_collection_records_order")
+  @@map("order_collection_records")
 }

@@ -188,6 +188,14 @@ export const EVENT_CATALOGUE = {
     consumers: [],
     plannedConsumers: { analytics_rollup: 106 },
   }),
+  // Step 87: the Owner corrected a recorded collection. New type, nothing to backfill.
+  "order.collection_corrected": define({
+    schemaVersion: 1,
+    aggregateType: "order",
+    payload: z.strictObject({ orderId: id }),
+    consumers: [],
+    plannedConsumers: { analytics_rollup: 106 },
+  }),
   "inventory.low": define({
     schemaVersion: 1,
     aggregateType: "variant",

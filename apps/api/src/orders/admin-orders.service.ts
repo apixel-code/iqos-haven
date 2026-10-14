@@ -9,6 +9,8 @@ import {
 import type {
   AdminOrdersQuery,
   OrderCancelRequest,
+  OrderCollectionCorrectionRequest,
+  OrderCollectionRequest,
   OrderEditRequest,
   OrderTransitionRequest,
 } from "@ih/contracts";
@@ -35,6 +37,12 @@ import {
   OrderCancelForbiddenError,
   OrderCancelInvalidError,
   OrderCancelNotFoundError,
+  correctCollection,
+  OrderCollectionConflictError,
+  OrderCollectionForbiddenError,
+  OrderCollectionNotFoundError,
+  OrderCollectionTimeError,
+  recordCollection,
   type Database,
 } from "@ih/db";
 import { DATABASE } from "../infra/tokens";
@@ -67,6 +75,15 @@ export class AdminOrdersService {
         });
       if (error instanceof OrderCancelConflictError)
         throw new ConflictException({ code: error.reason });
+      if (error instanceof OrderCollectionForbiddenError) throw new ForbiddenException();
+      if (error instanceof OrderCollectionNotFoundError) throw new NotFoundException();
+      if (error instanceof OrderCollectionTimeError)
+        throw new BadRequestException({
+          code: "VALIDATION_ERROR",
+          details: [{ path: "collectedAt", message: "Invalid field" }],
+        });
+      if (error instanceof OrderCollectionConflictError)
+        throw new ConflictException({ code: error.reason });
       if (error instanceof CouponRejectedError) throw new ConflictException({ code: error.code });
       if (error instanceof VariantUnavailableError)
         throw new ConflictException({ code: error.code });
@@ -90,6 +107,18 @@ export class AdminOrdersService {
 
   edit(context: CommandContext, orderId: string, input: OrderEditRequest) {
     return this.execute(() => editOrder(this.db, context, orderId, input));
+  }
+
+  collect(context: CommandContext, orderId: string, input: OrderCollectionRequest) {
+    return this.execute(() => recordCollection(this.db, context, orderId, input));
+  }
+
+  correctCollection(
+    context: CommandContext,
+    orderId: string,
+    input: OrderCollectionCorrectionRequest,
+  ) {
+    return this.execute(() => correctCollection(this.db, context, orderId, input));
   }
 
   cancel(context: CommandContext, orderId: string, input: OrderCancelRequest) {
