@@ -18,6 +18,8 @@ export async function managementRequest<T>(
   method: "GET" | "POST" | "PATCH" | "PUT" = "GET",
   body?: unknown,
   signal?: AbortSignal,
+  /** Extra request headers, e.g. `Idempotency-Key` for a create command. */
+  extraHeaders: Record<string, string> = {},
 ): Promise<T> {
   if (
     !/^\/(settings|staff|delivery-areas|coupons|brands|categories|products|inventory|media|orders)(?:[/?]|$)/.test(
@@ -34,7 +36,10 @@ export async function managementRequest<T>(
     signal: signal
       ? AbortSignal.any([signal, AbortSignal.timeout(10_000)])
       : AbortSignal.timeout(10_000),
-    headers: body === undefined ? {} : { "Content-Type": "application/json" },
+    headers: {
+      ...(body === undefined ? {} : { "Content-Type": "application/json" }),
+      ...extraHeaders,
+    },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
   if (!response.ok) {
@@ -176,6 +181,16 @@ export function managementError(error: unknown, mutation = false) {
       return "Cash can be recorded only once, for a delivered order. Reload it.";
     if (error.status === 409 && error.code === "NOT_COLLECTED")
       return "There is no cash record to correct yet. Reload the order.";
+    if (error.status === 409 && error.code === "QUOTE_CHANGED")
+      return "The total changed since it was shown. Get the total again and check it.";
+    if (error.status === 409 && error.code === "QUOTE_EXPIRED")
+      return "The total was shown too long ago. Get the total again.";
+    if (error.status === 409 && error.code === "IDEMPOTENCY_CONFLICT")
+      return "An order was already created from this form with other details. Check the order list; leave and reopen New order to create another.";
+    if (error.status === 409 && error.code === "IDEMPOTENCY_IN_PROGRESS")
+      return "The order is still being created. Press Create again in a moment.";
+    if (error.status === 409 && error.code === "CHECKOUT_RECOVERY_REQUIRED")
+      return "This order was already created earlier. Check the order list before creating another.";
     if (error.status === 409 && error.code === "NO_CHANGES")
       return "Change at least one value before saving.";
     if (error.status === 409 && error.code === "INSUFFICIENT_STOCK")

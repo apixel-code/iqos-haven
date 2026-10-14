@@ -1,7 +1,8 @@
 import { z } from "zod";
 import { COD_STATUSES, ORDER_SOURCES, ORDER_STATUSES } from "@ih/domain";
 import { customerAddressTypeSchema } from "./customers";
-import { checkoutAddressSchema, orderLinesSchema } from "./checkout";
+import { checkoutAddressSchema, checkoutContactSchema, orderLinesSchema } from "./checkout";
+import { couponCodeInputSchema } from "./coupons";
 import { filsSchema } from "./index";
 
 export const adminOrderStatusSchema = z.enum(ORDER_STATUSES);
@@ -77,6 +78,43 @@ const orderEditRecordSchema = z.strictObject({
 });
 export const orderEditResponseSchema = orderEditRecordSchema.extend({
   orderId: z.uuid(),
+  replayed: z.boolean(),
+});
+
+// --- Manual orders (roadmap step 88, ADR 0056) ---
+export const MANUAL_CONFIRMATION_CHANNELS = ["phone", "whatsapp", "in_person"] as const;
+/**
+ * An order a staff member enters for a customer. Priced by the same server quote (its token is
+ * sent back), stock and coupon rules as a store order. It starts Pending, or Confirmed when the
+ * staff member records how the customer confirmed it. The staff member attests the customer
+ * said they are 18 or older. The attempt key travels in the `Idempotency-Key` header.
+ */
+export const manualOrderRequestSchema = z
+  .strictObject({
+    contact: checkoutContactSchema,
+    address: checkoutAddressSchema,
+    lines: orderLinesSchema,
+    couponCode: couponCodeInputSchema,
+    quoteToken: z.string().min(1).max(256),
+    ageConfirmed: z.literal(true),
+    start: z.enum(["pending", "confirmed"]),
+    evidence: z
+      .strictObject({
+        channel: z.enum(MANUAL_CONFIRMATION_CHANNELS),
+        note: z.string().trim().min(1).max(300),
+      })
+      .optional(),
+  })
+  .refine((value) => (value.start === "confirmed") === (value.evidence !== undefined), {
+    path: ["evidence"],
+    message: "Confirmed needs evidence; Pending takes none",
+  });
+export const manualOrderResponseSchema = z.strictObject({
+  orderId: z.uuid(),
+  orderNumber: z.string().regex(/^IH-\d{6,}$/),
+  status: z.enum(["pending", "confirmed"]),
+  totalFils: filsSchema,
+  placedAt: z.iso.datetime(),
   replayed: z.boolean(),
 });
 
@@ -301,6 +339,8 @@ export type OrderTransitionResponse = z.infer<typeof orderTransitionResponseSche
 export type OrderEditRequest = z.infer<typeof orderEditRequestSchema>;
 export type OrderEditResponse = z.infer<typeof orderEditResponseSchema>;
 export type OrderEditDiff = z.infer<typeof orderEditDiffSchema>;
+export type ManualOrderRequest = z.input<typeof manualOrderRequestSchema>;
+export type ManualOrderResponse = z.infer<typeof manualOrderResponseSchema>;
 export type OrderCancelRequest = z.infer<typeof orderCancelRequestSchema>;
 export type OrderCancelResponse = z.infer<typeof orderCancelResponseSchema>;
 export type OrderCollectionRequest = z.infer<typeof orderCollectionRequestSchema>;

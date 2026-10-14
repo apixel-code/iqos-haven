@@ -30,6 +30,7 @@ import {
   ORDER_STATUS_LABELS,
   when,
 } from "../lib/orders";
+import { ManualOrderPanel } from "./manual-order";
 import { ResourceNotice, useManagementResource } from "./management-resource";
 
 const STATUSES = [
@@ -51,7 +52,9 @@ export function OrderManagement({
   canReturn,
   canCollect,
   canCorrect,
+  canCreate,
 }: {
+  canCreate: boolean;
   canReadContact: boolean;
   canTransition: boolean;
   canEdit: boolean;
@@ -66,6 +69,7 @@ export function OrderManagement({
   const [to, setTo] = useState("");
   const [cursors, setCursors] = useState<string[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
   const params = new URLSearchParams({ limit: "25" });
   if (status !== "all") params.set("status", status);
   if (search) params.set("q", search);
@@ -75,6 +79,17 @@ export function OrderManagement({
   if (cursor) params.set("after", cursor);
   const orders = useManagementResource(`/orders?${params}`, adminOrdersResponseSchema);
   const resetPage = () => setCursors([]);
+  if (creating)
+    return (
+      <ManualOrderPanel
+        canConfirm={canTransition}
+        onCancel={() => setCreating(false)}
+        onCreated={(orderId) => {
+          setCreating(false);
+          setSelected(orderId);
+        }}
+      />
+    );
   if (selected)
     return (
       <OrderDetail
@@ -96,7 +111,13 @@ export function OrderManagement({
           <h2>Orders</h2>
           <p className="muted">Newest first · immutable order snapshots</p>
         </div>
-        <span className="badge">Live order operations</span>
+        {canCreate ? (
+          <button type="button" className="primary-button" onClick={() => setCreating(true)}>
+            New order
+          </button>
+        ) : (
+          <span className="badge">Live order operations</span>
+        )}
       </header>
       <div className="tab-list" role="tablist" aria-label="Order status">
         {STATUSES.map((value) => (

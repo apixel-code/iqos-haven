@@ -22,16 +22,10 @@ import {
 } from "@ih/contracts";
 import {
   CouponRejectedError,
-  IdempotencyConflictError,
-  IdempotencyExpiredError,
   IdempotencyInProgressError,
-  InsufficientStockError,
   isIdempotencyKey,
-  QuoteNotAcceptedError,
   TransactionContentionError,
-  VariantUnavailableError,
 } from "@ih/db";
-import { DeliveryUnavailableError, DeliveryUnconfiguredError } from "@ih/domain";
 import type { EndpointLimitPolicy } from "@ih/platform";
 import type { FastifyReply, FastifyRequest } from "fastify";
 import { isIP } from "node:net";
@@ -43,6 +37,7 @@ import { API_ENV } from "../infra/tokens";
 import { checkoutPolicy, couponFailurePolicy } from "../security/limit-policies";
 import { RateLimitService } from "../security/rate-limit.service";
 import { CreateOrderService } from "./create-order.service";
+import { refusalCode } from "./order-refusals";
 
 class OrderDto extends createZodDto(storeOrderRequestSchema) {
   declare contact: CheckoutContact;
@@ -51,25 +46,6 @@ class OrderDto extends createZodDto(storeOrderRequestSchema) {
   declare couponCode: string | null;
   declare quoteToken: string;
   declare ageConfirmed: true;
-}
-/**
- * One stable code per refusal the shopper can act on (architecture §7). Never the detailed
- * reason, a variant, a coupon, or the order an old key belongs to.
- */
-function refusalCode(error: unknown): string | undefined {
-  if (error instanceof QuoteNotAcceptedError) return error.code;
-  if (error instanceof InsufficientStockError) return error.code;
-  if (error instanceof VariantUnavailableError) return "VARIANT_UNAVAILABLE";
-  if (error instanceof DeliveryUnavailableError || error instanceof DeliveryUnconfiguredError)
-    return "AREA_UNAVAILABLE";
-  if (error instanceof CouponRejectedError) return error.code;
-  if (
-    error instanceof IdempotencyConflictError ||
-    error instanceof IdempotencyInProgressError ||
-    error instanceof IdempotencyExpiredError
-  )
-    return error.code;
-  return undefined;
 }
 /**
  * `POST /v1/store/orders` (roadmap step 77, ADR 0046): the only way a shopper places an order.

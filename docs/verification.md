@@ -1205,3 +1205,19 @@ Not covered: the admin collection panel in a browser; reports reading the latest
 Unit tests in `apps/storefront/lib/age/age-gate.test.ts`: our Origin is accepted with `Sec-Fetch-Site` `same-origin`, `same-site` or `cross-site`; `Origin: null` is accepted only with `Sec-Fetch-Site: same-origin` and a forwarded host equal to a configured origin's host, and refused with a foreign forwarded host or `cross-site`; a missing, foreign or look-alike Origin is refused and no cookie is set. Included in every `pnpm verify` since (unit 582 on 2026-10-14). The gateway removes client-sent `X-Forwarded-Host`; ADR 0025 has the amendment and the reasoning.
 
 Not covered: a real privacy-mode browser sending `Origin: null` end to end.
+
+## Step 88 — manual orders (2026-10-14, local)
+
+`pnpm verify -- --integration`: exit 0 after the review fixes. Unit 582, integration 522, gateway 29, age-preview 2008, gate 2175. Two earlier runs failed in unrelated suites (`settings.int.test.ts` connection timeout, `brands.int.test.ts` concurrency assertion) under load; `test:int` now runs two packages at a time and passed.
+
+**Integration (`apps/api/src/orders/manual-orders.int.test.ts`, real API and PostgreSQL, 7 tests):**
+
+- Staff see the active areas, fee and ETA, and get the same total as the storefront (2 × AED 40.00 + 15.00).
+- A Pending manual order: `source='manual'`, `created_by` and a first history row by that staff member, stock taken, `order.created`; the same key replays; a changed request with that key is `IDEMPOTENCY_CONFLICT`; the same key from the Owner is the Owner's own attempt; the stock ledger reconciles.
+- Confirmed start: without evidence, with evidence on Pending, or with an unknown channel 400; without `orders.transition` 403 and nothing written; with evidence the order is Confirmed and its first history row says "Confirmed by phone call: …"; it then moves to Processing normally.
+- Refusals: without `orders.create` (create and quote) 403; missing or malformed key, no 18+ attestation, a client total, another Origin 400/403; nothing written.
+- A total that moved is `QUOTE_CHANGED`, more than stock `INSUFFICIENT_STOCK`, a closed area `AREA_UNAVAILABLE`; stock unchanged.
+- The same attempt sent twice at once makes one order; changed evidence or start on that key is a conflict; the staff member is on the order, its history and its audit entry.
+- A coupon applies through the same rules (AED 60.00); the database refuses a Confirmed first history row without a reason.
+
+Not covered: the admin New order form in a browser.

@@ -17,6 +17,8 @@ export interface PlaceOrderCommand {
   /** The token returned with the total the shopper accepted. */
   quoteToken: string;
   requestId: string;
+  /** A staff-entered order (step 88): who, and how it starts. No confirmation cookie. */
+  manual?: { actorId: string; start: "pending" | "confirmed"; evidence: string | null };
 }
 const FINGERPRINT = /^[A-Za-z0-9_-]{43}$/;
 /**
@@ -48,7 +50,9 @@ export class CreateOrderService {
     const issued = verifyQuote(command.quoteToken, this.quotes.keys, now);
     if (!issued.ok && issued.reason !== "expired") throw new QuoteNotAcceptedError("QUOTE_CHANGED");
     return createStoreOrder(this.db, {
-      confirmation: this.confirmations.mint(command.idempotencyKey),
+      ...(command.manual
+        ? { manual: command.manual }
+        : { confirmation: this.confirmations.mint(command.idempotencyKey) }),
       idempotencyKey: command.idempotencyKey,
       contact: command.contact,
       address: command.address,

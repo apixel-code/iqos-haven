@@ -2,6 +2,7 @@ import { defineEvent, type CheckoutAddress, type CheckoutContact } from "@ih/con
 import { formatOrderNumber, mergeOrderLines, type OrderLine } from "@ih/domain";
 import { toAuditEntry } from "@ih/application";
 import { PrismaAuditWriter } from "./audit";
+import { CatalogueForbiddenError, lockCatalogueActor } from "./catalogue-parents";
 import { Prisma, type Database } from "./client";
 import { redeemCoupon } from "./coupons";
 import { markCustomerFirstOrder, saveCustomerAddress } from "./customers";
@@ -58,12 +59,25 @@ export interface CreateStoreOrderInput {
   age: { policyVersion: string };
   requestId: string;
   confirmation?: { hash: Buffer; material: Buffer };
+  /**
+   * A staff-entered order (step 88, ADR 0056) instead of a storefront checkout. The attempt
+   * key is scoped to that staff user; the order starts Pending, or Confirmed with the
+   * confirmation evidence recorded on its first history row.
+   */
+  manual?: { actorId: string; start: "pending" | "confirmed"; evidence: string | null };
 }
+/** The staff user may not create orders, or may not start one Confirmed. */
+export class OrderCreateForbiddenError extends Error {}
+/** A manual order starts Confirmed exactly when it carries confirmation evidence. */
+export class ManualOrderEvidenceError extends Error {}
 /** The answer given for a placed order, and given again on a retry. Nothing personal. */
 export interface OrderPlacedResponse extends Record<string, unknown> {
   orderNumber: string;
   totalFils: number;
   placedAt: string;
+  /** Manual orders only. */
+  orderId?: string;
+  status?: "pending" | "confirmed";
 }
 interface Snapshot {
   variantId: string;
@@ -80,8 +94,16 @@ export async function createStoreOrder(
   input: CreateStoreOrderInput,
 ): Promise<{ replayed: boolean; orderId: string | null; response: OrderPlacedResponse }> {
   const lines = mergeOrderLines(input.lines);
+  const manual = input.manual ?? null;
+  if (manual && (manual.start === "confirmed") !== (manual.evidence !== null))
+    throw new ManualOrderEvidenceError(
+      "A manual order starts Confirmed exactly when it has evidence",
+    );
+  const scope = manual ? `admin.order.create:${manual.actorId}` : STORE_CHECKOUT_SCOPE;
+  const status = manual?.start ?? "pending";
   // Two requests are the same order when all of this is the same.
   const payloadHash = canonicalPayloadHash({
+    ...(manual ? { manual: { start: manual.start, evidence: manual.evidence } } : {}),
     contact: { name: input.contact.name, phone: input.contact.phone },
     address: { ...input.address },
     lines: lines.map(({ variantId, quantity }) => ({ variantId, quantity })),
@@ -89,11 +111,11 @@ export async function createStoreOrder(
     quoteFingerprint: input.quote.fingerprint,
     agePolicyVersion: input.age.policyVersion,
   });
-  const keyHash = idempotencyKeyHash(STORE_CHECKOUT_SCOPE, input.idempotencyKey);
+  const keyHash = idempotencyKeyHash(scope, input.idempotencyKey);
   const result = await runIdempotent<OrderPlacedResponse>(
     db,
     {
-      scope: STORE_CHECKOUT_SCOPE,
+      scope,
       key: input.idempotencyKey,
       payloadHash,
       ttlSeconds: 24 * 60 * 60,
@@ -103,8 +125,24 @@ export async function createStoreOrder(
       // The ledger forgets a key once its answer is cleaned up; the order never does.
       const [existing] = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
         SELECT id FROM orders
-        WHERE creation_scope=${STORE_CHECKOUT_SCOPE} AND creation_key_hash=${keyHash}`);
+        WHERE creation_scope=${scope} AND creation_key_hash=${keyHash}`);
       if (existing) throw new IdempotencyExpiredError("order", existing.id);
+      // A staff user's rights are checked under the claim, with their row share-locked until
+      // commit; starting Confirmed is also a status decision.
+      if (manual)
+        try {
+          await lockCatalogueActor(
+            tx,
+            manual.actorId,
+            manual.start === "confirmed"
+              ? ["orders.create", "orders.transition"]
+              : ["orders.create"],
+            true,
+          );
+        } catch (error) {
+          if (error instanceof CatalogueForbiddenError) throw new OrderCreateForbiddenError();
+          throw error;
+        }
 
       const { customer, quote, variants } = await lockForOrderCreation(tx, {
         customer: { phone: input.contact.phone, displayName: input.contact.name },
@@ -148,14 +186,15 @@ export async function createStoreOrder(
           createdAt: Date;
         }>
       >(Prisma.sql`
-        INSERT INTO orders (customer_id, status, source, customer_name, customer_phone_e164,
+        INSERT INTO orders (customer_id, status, source, created_by, customer_name, customer_phone_e164,
           area_id, area_code, area_name, area_emirate, address_type, address_building,
           address_unit, address_street, address_makani, address_notes,
           merchandise_subtotal_fils, discount_fils, delivery_fee_fils, total_fils,
           coupon_code, coupon_percent_bps, delivery_eta_text, area_version,
           delivery_configuration_version, quote_fingerprint, age_confirmed_at,
           age_policy_version, creation_scope, creation_key_hash, creation_payload_hash, confirmation_hash, confirmation_expires_at)
-        VALUES (${customer.id}::uuid, 'pending', 'storefront', ${customer.displayName},
+        VALUES (${customer.id}::uuid, ${status}, ${manual ? "manual" : "storefront"},
+          ${manual?.actorId ?? null}::uuid, ${customer.displayName},
           ${customer.phoneE164},
           ${quote.delivery.areaId}::uuid, ${quote.delivery.areaCode}, ${quote.delivery.areaName},
           ${quote.delivery.emirate}, ${address.type}, ${address.building},
@@ -165,7 +204,7 @@ export async function createStoreOrder(
           ${quote.coupon?.percentBps ?? null}::int, ${quote.delivery.etaText},
           ${quote.delivery.areaVersion}, ${quote.delivery.configurationVersion},
           ${input.quote.fingerprint}, statement_timestamp(), ${input.age.policyVersion},
-          ${STORE_CHECKOUT_SCOPE}, ${keyHash}, ${payloadHash}, ${input.confirmation?.hash ?? null},
+          ${scope}, ${keyHash}, ${payloadHash}, ${input.confirmation?.hash ?? null},
           CASE WHEN ${!!input.confirmation} THEN statement_timestamp()+interval '30 minutes' ELSE NULL END)
         RETURNING id, order_number::text AS "orderNumber", created_at AS "createdAt"`);
       const orderId = order!.id;
@@ -183,9 +222,10 @@ export async function createStoreOrder(
             ${line.quantity}, ${line.subtotalFils}, ${line.discountFils}, ${line.totalFils})`);
       }
       await tx.$executeRaw(Prisma.sql`
-        INSERT INTO order_status_history (order_id, from_status, to_status, actor_kind,
-          command_id, order_version)
-        VALUES (${orderId}::uuid, NULL, 'pending', 'customer', 'order.create', 1)`);
+        INSERT INTO order_status_history (order_id, from_status, to_status, reason, actor_kind,
+          actor_id, command_id, order_version)
+        VALUES (${orderId}::uuid, NULL, ${status}, ${manual?.evidence ?? null},
+          ${manual ? "staff" : "customer"}, ${manual?.actorId ?? null}::uuid, 'order.create', 1)`);
 
       // One sale movement per line; the ledger trigger applies it and checks the balance.
       for (const line of lines) {
@@ -213,11 +253,13 @@ export async function createStoreOrder(
         orderNumber: formatOrderNumber(order!.orderNumber),
         totalFils: quote.totalFils,
         placedAt: order!.createdAt.toISOString(),
+        // Staff open the order they created; a shopper's answer never names it.
+        ...(manual ? { orderId, status } : {}),
       };
       await new PrismaAuditWriter().append(
         tx,
         toAuditEntry(
-          { requestId: input.requestId, actorId: null },
+          { requestId: input.requestId, actorId: manual?.actorId ?? null },
           {
             action: "order.created",
             entity: { type: "order", id: orderId },
@@ -225,8 +267,8 @@ export async function createStoreOrder(
             // What was ordered and charged; never who ordered or where it goes.
             after: {
               orderNumber: response.orderNumber,
-              status: "pending",
-              source: "storefront",
+              status,
+              source: manual ? "manual" : "storefront",
               lineCount: lines.length,
               merchandiseSubtotalFils: quote.merchandiseSubtotalFils,
               discountFils: quote.discountFils,
@@ -234,7 +276,7 @@ export async function createStoreOrder(
               totalFils: quote.totalFils,
               couponCode: quote.coupon?.code ?? null,
             },
-            reason: "storefront checkout",
+            reason: manual ? "manual order" : "storefront checkout",
           },
         ),
       );

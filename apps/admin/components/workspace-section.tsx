@@ -35,6 +35,7 @@ export function WorkspaceSection({ sectionKey }: { sectionKey: string }) {
           canReturn={session.permissions.includes("orders.cancel_after_dispatch")}
           canCollect={session.permissions.includes("orders.collect")}
           canCorrect={session.permissions.includes("orders.collection_correct")}
+          canCreate={session.permissions.includes("orders.create")}
         />
       ) : sectionKey === "settings" ? (
         <SettingsManagement />

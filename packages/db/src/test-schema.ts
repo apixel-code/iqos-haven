@@ -136,8 +136,10 @@ export async function seedOrder(
       ],
     );
     await client.query(
-      `INSERT INTO order_status_history (order_id, from_status, to_status, actor_kind, actor_id,
-         command_id, order_version) VALUES ($1, NULL, $2, $3, $4, $5, 1)`,
+      `INSERT INTO order_status_history (order_id, from_status, to_status, reason, actor_kind,
+         actor_id, command_id, order_version)
+       VALUES ($1, NULL, $2::text, CASE WHEN $2::text = 'confirmed' THEN 'Seed confirmation evidence' END,
+         $3, $4, $5, 1)`,
       [
         order.id,
         status,

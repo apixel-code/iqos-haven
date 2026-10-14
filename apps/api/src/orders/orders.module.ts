@@ -9,6 +9,7 @@ import { AdminOrdersService } from "./admin-orders.service";
 import { OrderTransitionsController } from "./order-transitions.controller";
 import { OrderCancellationController } from "./order-cancellation.controller";
 import { OrderCollectionController } from "./order-collection.controller";
+import { ManualOrdersController } from "./manual-orders.controller";
 
 /** Order commands and the store route that places an order (step 77). */
 @Module({
@@ -20,6 +21,7 @@ import { OrderCollectionController } from "./order-collection.controller";
     OrderTransitionsController,
     OrderCancellationController,
     OrderCollectionController,
+    ManualOrdersController,
   ],
   providers: [CreateOrderService, OrderConfirmationService, AdminOrdersService],
   exports: [CreateOrderService],
