@@ -56,3 +56,10 @@ Anything else is left out. A button whose target is no longer visible is dropped
 
 - Step 99 renders this response on the home page. It needs no other content call.
 - A hidden product disappears from the home page within the cache TTL even if no event reaches the cache.
+
+## Addendum — step 99 (home page)
+
+- **Promotional bar:** shown above the header on every shop page, including the cart and checkout, as in the prototype. The layout and the home page share one read per request (`storeHome`, React `cache`). The bar pauses on hover or focus and has a real pause button. With reduced motion it does not move, and the looping copy is hidden.
+- **When content is missing:** if there is no published content, or the read fails, the shell shows no bar and the home page falls back to the catalogue sections (generic hero, New in, brands with products). Nothing redirects, and the page does not fail.
+- **Order:** hero, Shop by category, Popular right now (Best sellers, Featured and New in, behind a toggle when there is more than one), Shop by brand (the published list, otherwise the catalogue's), campaign banners, offers, Recently viewed.
+- **Rendering:** all content is plain text with API-resolved links. Images are signed derivative links, and the hero image is fetched with high priority. A banner without an image has no art column.

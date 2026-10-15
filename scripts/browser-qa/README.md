@@ -91,3 +91,16 @@ Featured products: a product hidden after being picked blocks publishing and is 
 button and an uploaded image, processed by the qa-server worker, then previewed and published.
 It also checks unsaved and discard states, the stored typed data, one `content.published` per
 publish, 390px layout, and that Staff cannot open the editor.
+
+## Home page with published content (step 99)
+
+```sh
+pnpm build && node scripts/check-gate-e2e.cjs --serve &          # prints SERVING and SCHEMA
+QA_PLAYWRIGHT_DIR=/tmp/ih-qa node scripts/browser-qa/home.mjs <SERVING> /tmp/ih-qa/shots <SCHEMA>
+```
+
+It publishes every section with the real storage commands on the served schema, waits out the
+API cache (up to 60 s), then checks the hero, promotional bar, banner and offers at 360px,
+1280px and 360px with reduced motion: the ticker moves only without reduced motion, the pause
+button stops it, no horizontal scroll and no page errors. Stop the stack with SIGTERM and drop
+the schema.

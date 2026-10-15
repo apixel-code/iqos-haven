@@ -1520,3 +1520,34 @@ Not covered:
 
 - The home page itself (step 99).
 - Content images in the public answer: they are covered by the same signing code as product images, but not tested here.
+
+## Step 99 — home hero, ticker and curated sections (2026-10-15, local)
+
+`pnpm verify -- --integration`: exit 0. Unit 597, integration 575, age preview 2030, gate 2242.
+
+The first run failed in `apps/api/src/auth/age.int.test.ts`. The test searched the whole refusal body for the price "4900", and a random request ID contained it. It now leaves out the request ID before checking, and the rerun passed.
+
+`invariant-reviewer` found no blocking, high or medium findings.
+
+- **Fixed:** the banner text uses a token colour, the hero image is fetched with high priority, and the age-preview checks clean up in `finally`.
+- **Kept on purpose:** the promotional bar on every shop page, recorded in the ADR 0066 addendum.
+
+**Age preview (stub API):** with no content (the stub answers 404), the home page shows the catalogue fallbacks. With published content it shows the ticker, hero title, eyebrow and subtitle, "Popular right now", the best seller, the banner, the offers title and product, and "Pause offers ticker". The hero button links to `/brands/orbe`. The looping copy carries `aria-hidden`, and the bar also shows on `/shop`.
+
+**Browser (`scripts/browser-qa/home.mjs`, real served stack, Chromium; content published with the real storage commands): all passed at 360px, at 1280px, and at 360px with reduced motion.**
+
+- The hero, promotional bar, banner and offers are shown.
+- The ticker animates only without reduced motion, and the pause button pauses it.
+- No horizontal scroll and no page errors.
+
+Fixed after looking at the screenshots:
+
+- On phones the hero circle sat behind the headline (low contrast); it now sits in the bottom corner.
+- The three-way toggle wrapped onto two rows; it is now equal columns.
+- A banner without an image showed an empty saffron block; it now has no art column.
+
+Not covered:
+
+- A content image on the home page in a browser: the hero and banners were published without images.
+- Real phones.
+- BI-09 wording.

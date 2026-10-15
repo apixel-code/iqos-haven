@@ -95,9 +95,13 @@ async function refused(response: Response) {
   const text = await response.text();
   expect(response.status).toBe(403);
   expect(JSON.parse(text).error.code).toBe(AGE_VERIFICATION_REQUIRED);
-  // Nothing about the product leaves the API without a valid ticket.
-  expect(text).not.toContain("Restricted product");
-  expect(text).not.toContain("4900");
+  // Nothing about the product leaves the API without a valid ticket. The random request ID is
+  // left out of the check: it can contain "4900" by chance.
+  const { requestId: _id, ...error } = JSON.parse(text).error as Record<string, unknown>;
+  const shown = JSON.stringify(error);
+  expect(shown).not.toContain("Restricted product");
+  expect(shown).not.toContain("4900");
+  expect(Object.keys(JSON.parse(text))).toEqual(["error"]);
   expect(response.headers.get("cache-control")).toBe("no-store");
 }
 

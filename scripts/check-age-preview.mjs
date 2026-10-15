@@ -693,6 +693,61 @@ try {
     ),
     "product page WhatsApp link names the product and its price",
   );
+  // Published home content (step 99): the promotional bar on every shop page, the hero, the
+  // curated rows, banners and offers. Without it (above) the catalogue sections fill in.
+  CATALOGUE["/v1/store/content/home"] = {
+    ticker: { messages: ["Synthetic ticker one", "Synthetic ticker two"] },
+    hero: {
+      eyebrow: "Synthetic eyebrow",
+      title: "Synthetic hero title",
+      subtitle: "Synthetic hero subtitle",
+      cta: { label: "Synthetic hero button", href: "/brands/orbe" },
+      image: null,
+    },
+    featured: [card("Synthetic Featured Pick")],
+    bestSellers: [card("Synthetic Best Seller")],
+    brands: [{ name: "Orbe", slug: "orbe", productCount: 2 }],
+    banners: [
+      {
+        title: "Synthetic banner title",
+        subtitle: null,
+        cta: { label: "Synthetic banner button", href: "/shop" },
+        image: null,
+      },
+    ],
+    offers: { title: "Synthetic offers title", products: [card("Synthetic Offer Pick")] },
+  };
+  try {
+    const curated = await page("/");
+    for (const text of [
+      "Synthetic ticker one",
+      "Synthetic hero title",
+      "Synthetic hero subtitle",
+      "Synthetic eyebrow",
+      "Popular right now",
+      "Synthetic Best Seller",
+      "Synthetic banner title",
+      "Synthetic offers title",
+      "Synthetic Offer Pick",
+      "Pause offers ticker",
+    ])
+      check(curated.includes(text), `home shows published content "${text}"`);
+    check(
+      /href="\/brands\/orbe"[^>]*>Synthetic hero button/.test(curated),
+      "hero button links to the resolved store page",
+    );
+    check(
+      /<ul class="promo-list"><li>Synthetic ticker one/.test(curated) &&
+        /<ul class="promo-list" aria-hidden="true"><li>Synthetic ticker one/.test(curated),
+      "the ticker's looping copy is hidden from screen readers",
+    );
+    check(
+      (await page("/shop")).includes("Synthetic ticker two"),
+      "the promotional bar shows on other shop pages",
+    );
+  } finally {
+    delete CATALOGUE["/v1/store/content/home"];
+  }
   CATALOGUE["/v1/store/info"] = { whatsappNumber: null, checkoutOpen: false };
   const noNumber = await page("/");
   check(!noNumber.includes("wa.me"), "no WhatsApp link without a configured number");

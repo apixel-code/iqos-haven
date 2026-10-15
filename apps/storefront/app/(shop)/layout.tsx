@@ -6,19 +6,19 @@ import { SearchBox } from "@/components/search-box";
 import { WhatsAppLink } from "@/components/whatsapp-link";
 import { AGE_COPY } from "@/lib/age/copy";
 import { POLICY_PAGES, PRIMARY_NAV, SITE } from "@/lib/site";
-import { storeInfo } from "@/lib/store/server";
+import { PromoTicker } from "@/components/promo-ticker";
+import { storeHome, storeInfo } from "@/lib/store/server";
 import { WHATSAPP_MESSAGES } from "@/lib/whatsapp";
 
 const footerLink = "text-ink-2 hover:text-ink hover:underline";
 
 /**
- * Store shell (roadmap step 64): header with navigation, search, saved items and cart, and the
- * footer. Every route under it is restricted by the routing gate. Marketing content sections
- * (hero, promotions, editorial) come later from the content module; the footer copy marked below
- * awaits the client's approved wording (BI-01, BI-04).
+ * Store shell (roadmap step 64): the published promotional bar (step 99), header with navigation,
+ * search, saved items and cart, and the footer. Every route under it is restricted by the
+ * routing gate. The footer copy marked below awaits the client's approved wording (BI-01, BI-04).
  */
 export default async function ShopLayout({ children }: { children: ReactNode }) {
-  const { whatsappNumber } = await storeInfo();
+  const [{ whatsappNumber }, { ticker }] = await Promise.all([storeInfo(), storeHome()]);
   return (
     <div className="flex min-h-dvh flex-col">
       <a
@@ -27,6 +27,7 @@ export default async function ShopLayout({ children }: { children: ReactNode }) 
       >
         Skip to content
       </a>
+      {ticker && <PromoTicker messages={ticker.messages} />}
       <header className="border-b border-line bg-surface">
         <div className="mx-auto flex w-full max-w-7xl flex-wrap items-center justify-between gap-x-6 gap-y-2 px-4 py-3 sm:px-8">
           <Link href="/" prefetch={false} className="text-lg font-semibold tracking-tight">
