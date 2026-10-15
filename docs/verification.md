@@ -1248,3 +1248,16 @@ Not covered: an unexpected server error part-way through a batch followed by a r
 **Unit (`packages/domain/src/whatsapp-templates.test.ts`, 3 tests):** placeholders filled and unknown ones left; values kept on one line; links only for an E.164 phone, text URL-encoded.
 
 Not covered: the Customers screen and the WhatsApp panel in a browser; real wording (BI-09).
+
+## Step 91 — inbox, read receipts and event stream (2026-10-15, local)
+
+`pnpm verify -- --integration`: exit 0 before and after the review fixes. Unit 585, integration 534, gateway 29, age-preview 2008, gate 2175.
+
+**Integration (`apps/api/src/notifications/inbox.int.test.ts`, real API and PostgreSQL, 5 tests, stream timings shortened):**
+
+- **Own read flags:** the staff inbox lists its two notifications newest first, unread 2, `private, no-store`; reading one keeps the first time on a second read; the Owner's receipt of the same notification stays unread (Owner unread 3); someone else's or an unknown notification is 404; paging and the unread filter; read-all up to the newest seen marks the rest; a malformed `upTo` is 400.
+- **Current permission:** without `orders.read` the `order.new` notifications disappear from the list and cannot be marked, while a low-stock one stays; without `notifications.read_own` the inbox and the stream are 403.
+- **Stream:** `text/event-stream`, `no-store`, `X-Accel-Buffering: no`, `event: ready`; a notification written after connecting arrives as `id: <notification id>` with only its ID and type, never its content; heartbeats; two notifications written while disconnected arrive after reconnecting with `Last-Event-ID`; a fourth stream beyond the per-user bound is 429.
+- **Ending:** revoking the session sends `event: signed-out` and ends the stream; removing `notifications.read_own` ends it with `event: reconnect`; its slot is free again.
+
+Not covered: the bell in a real browser through the gateway (`scripts/check-gateway.mjs` already checks that the stream route is not buffered); shutdown ending open streams; the per-process bound.

@@ -91,3 +91,4 @@ export * from "./customers";
 export * from "./checkout";
 export * from "./coupons";
 export * from "./orders";
+export * from "./notifications";
