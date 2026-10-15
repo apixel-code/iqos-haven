@@ -4,8 +4,8 @@
 
 - Date: 2026-10-15
 - Milestone: M7 — transactional checkout and first complete order: all steps (73–82) done; gate evidence ready, awaiting Marina's decision. M6: all steps (65–72) done; gate evidence ready, awaiting Marina's decision. M5: PASSED 2026-10-11. M4 steps done, gate awaits Marina's decision (publishing unblocked); M3 gate not closed; M0 review and M1 staging/fixtures still open
-- Step: 100 (offers, help, free-delivery rule) — done; next is 101 (publish, SEO-field permission and slug-redirect correctness). M9 in progress (93–100 done). All M8 steps (83–92) done, gate awaiting Marina's decision.
-- Branch: `step/100-offers-copy` (pushed; PR #74 based on #73)
+- Step: 101 (slug changes, former slugs, canonical) — done; next is 102 (review/content acceptance pass, M9 gate evidence). M9 steps 93–101 done. All M8 steps (83–92) done, gate awaiting Marina's decision.
+- Branch: `step/101-slug-seo-rules` (from `step/100-offers-copy`; its PR is based on #74)
 - See docs/verification.md for actual checks.
 
 ## Next action
@@ -21,8 +21,9 @@
 3. **Marina: decide the M6 gate (and M4).** Evidence and caveats: docs/verification.md "Step 72".
 4. **Marina: decide the M7 gate.** Evidence, item by item, and what is not covered: docs/verification.md "Step 82". Checkout stays switched off (`CHECKOUT_SUBMISSION_ENABLED=false`) whatever the decision, until deployment inputs exist (BI-07 sender domain, real Owner, delivery areas and fee).
 5. **Marina: decide the M8 gate.** Evidence: docs/verification.md "Step 92" (service-level journey from store order to collected cash, plus the HTTP suites for each route). Do not mark M8 passed without her decision.
-6. **Next step: `/step 101`** (publish, SEO-field permission and slug-redirect correctness: catalogue/content application rules). Find the row with `rg -n "^| 101 " docs/roadmap.md`. Done condition: slug cycles/chains prevented, canonical resolves the current slug, Staff cannot mutate SEO fields. Start from the existing slug-redirect code (`slug_redirects`, `catalogue_slug_claim` trigger, `canWriteSeo`) and test what is already guaranteed before changing anything.
+6. **Next step: `/step 102`** (review/content acceptance pass: E2E/integration). Find the row with `rg -n "^| 102 " docs/roadmap.md` and the M9 gate. Done condition: invalid refs rejected; multiple-editor conflict; publish retry/TTL; order-proof abuse; cache… (read the full row). Collect evidence across steps 93–101 into docs/verification.md "Step 102" and add only the missing tests. Do not mark M9 passed: it needs Marina's decision.
 7. **Rules that carry forward:**
+   - Slugs (ADR 0068): changing an existing slug needs `seo.write` (DB-enforced); creating with a slug does not. Brand/category store lists carry `formerSlugs` (newest 20); pages permanently redirect them; product/brand/category pages declare canonical. Bump `CATALOGUE_CACHE_VERSION` on shape changes (now 3).
    - Offers/help (ADR 0067): store products accept `sale=1` (compare-at above price; part of the cache key). No coupon codes or free-delivery claims in app code: `check-reference-set.mjs` fails on demo codes/phrases. Free-delivery progress renders only for a numeric threshold, which the contract keeps `null`.
    - Home page (ADR 0066 addendum): `storeHome()` (React `cache`) feeds the layout's promotional bar and the home page; any failure means no content, never a redirect. Browser pass: `scripts/browser-qa/home.mjs` on `check-gate-e2e.cjs --serve`.
    - Home content (ADR 0066): `GET /v1/store/content/home` (age ticket) reads published copies only and re-checks every reference at read time (hidden targets are left out; a button to one is dropped). Links are hrefs `/shop`, `/categories/<slug>`, `/brands/<slug>`, `/p/<slug>`. Auto best sellers: last 30 days, uncancelled, in stock, top 8. Cached as `store:content:home`.
@@ -122,6 +123,7 @@ BI-07: a verified sending domain and sender address are still needed before real
 - 98 — `GET /v1/store/content/home`: one assembled answer from published copies only, references re-checked at read time, links resolved to current slugs, auto best sellers from recent orders, catalogue-cached, gate script covers it (ADR 0066) — `step(98)` commit on `step/98-store-content`
 - 99 — storefront home from published content: promotional bar on every shop page (pause button, reduced motion), hero with fallback, Popular right now toggle, curated brands, campaign banners, offers; age-preview and browser checks — `step(99)` commit on `step/99-home-sections`
 - 100 — `/offers` (sale filter), `/help` (delivery facts from settings, FAQ without invented policy), Offers nav/footer/home links, dormant free-delivery progress, demo-copy guard in verify (ADR 0067) — `step(100)` commit on `step/100-offers-copy`
+- 101 — slug changes require `seo.write`, former brand/category slugs redirect to the current one, canonical on product/brand/category pages, admin slug read-only without SEO right (ADR 0068) — `step(101)` commit on `step/101-slug-seo-rules`
 - 90 — admin customers (phone-grouped list and detail, Owner-only spend in two bases) and order WhatsApp messages from templates, opened by staff and never recorded as sent (ADR 0058) — 0f8ecaf
 - 89 — bulk confirm: up to 50 Pending orders, each its own versioned transition with its own command, per-order results, same-batch retry replays; admin selection and results (ADR 0057) — e183d74
 - 88 — manual orders: the storefront's quote, order transaction, stock and idempotency for staff-entered orders, scoped per staff member; Pending, or Confirmed with recorded evidence (database-enforced); admin New order form (ADR 0056) — 4fbad75
@@ -151,24 +153,24 @@ BI-07: a verified sending domain and sender address are still needed before real
 - Event `consumers` lists only implemented consumers (now `system_probe`, `email`, `notification`, `media_processor`, `storefront_revalidate`); planned ones are documented with roadmap steps and move in with a backfill decision (architecture §8: adding a consumer must not redefine old completions).
 - `audit_log` migration revokes UPDATE/DELETE/TRUNCATE only from a role named `ih_app`; other runtime role names must be revoked at provisioning (trigger blocks mutations regardless).
 
-## Last session handoff (2026-10-15, step 100)
+## Last session handoff (2026-10-15, step 101)
 
 Done:
 
-- **Step 100 (ADR 0067):** `sale` products filter (contract, DB, API cache key, storefront client), `/offers` and `/help` pages, Offers in navigation and footer Help link, home "View all offers", `lib/cart/free-delivery.ts` + cart component (dormant), demo-copy guard, age-preview and gate additions.
-- **`invariant-reviewer`:** no blockers; zero fee wording fixed.
+- **Step 101 (ADR 0068):** slug-change permission in `packages/db/src/{products.ts,catalogue-parents.ts}`, `formerSlugs` in store brand/category lists (DB, contract, API, cache v3), storefront redirects + canonical metadata, admin read-only slug, tests (API catalogue, DB catalogue, age preview, storefront fixture).
+- **`invariant-reviewer`:** no blockers; limits recorded in the ADR.
 
-Files: `packages/contracts/src/store.ts`, `packages/db/src/store-catalogue.ts`, `apps/api/src/store/store-catalog.service.ts`, `apps/storefront/app/(shop)/{offers,help}/page.tsx`, `apps/storefront/app/(shop)/{layout.tsx,listing-page.tsx}`, `apps/storefront/components/{cart-quote.tsx,home-sections.tsx}`, `apps/storefront/lib/{site.ts,store/api.ts,cart/free-delivery.ts,cart/free-delivery.test.ts}`, `scripts/{check-reference-set.mjs,check-age-preview.mjs,check-gate-e2e.cjs}`, `docs/decisions/0067-offers-help-and-free-delivery.md`, `docs/verification.md`
+Files: `packages/db/src/{products.ts,catalogue-parents.ts,store-catalogue.ts,catalogue.int.test.ts}`, `packages/contracts/src/store.ts`, `apps/api/src/{store/store-catalog.service.ts,cache/catalogue-cache.service.ts,catalogue/*.int.test.ts}`, `apps/storefront/app/(shop)/{p,brands,categories}/[slug]/page.tsx`, `apps/storefront/lib/store/store.test.ts`, `apps/admin/components/{management-resource.tsx,catalogue-parent-management.tsx,product-management.tsx}`, `scripts/check-age-preview.mjs`, `docs/decisions/0068-slug-changes-and-canonical-urls.md`, `docs/verification.md`
 
-Tests: `pnpm verify -- --integration` PASS (unit 599, integration 575, age preview 2189, gate 2434).
+Tests: `pnpm verify -- --integration` PASS (unit 599, integration 576, age preview 2194, gate 2434).
 
 Unfinished:
 
-- PRs #61 → … → #73 → #74 are stacked and wait for Marina's merge. M4, M6, M7 and M8 gates await her decision.
-- Help wording (hours, email, returns) waits for BI-01/BI-09; `SITE.description` still says Dubai.
+- PRs #61 → … → #74 → step 101 PR are stacked and wait for Marina's merge. M4, M6, M7 and M8 gates await her decision.
 
 ## History (summary)
 
+- 2026-10-15 step 100: offers and help pages, free-delivery rule, demo-copy guard, ADR 0067 (PR #74); unit 599/integration 575.
 - 2026-10-15 step 99: storefront home from published content, promotional bar (PR #73); unit 597/integration 575.
 - 2026-10-15 step 98: published home content read API, ADR 0066 (PR #72); unit 597/integration 575.
 - 2026-10-15 step 97: content editor API and admin editor, content images, ADR 0065 (PR #71); unit 597/integration 571.

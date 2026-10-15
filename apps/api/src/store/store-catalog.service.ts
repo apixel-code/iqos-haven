@@ -148,6 +148,7 @@ export class StoreCatalogService {
         slug: row.slug,
         description: row.description ?? "",
         productCount: row.productCount,
+        formerSlugs: row.formerSlugs,
       })),
     }));
   }
@@ -158,6 +159,7 @@ export class StoreCatalogService {
         name: row.name,
         slug: row.slug,
         productCount: row.productCount,
+        formerSlugs: row.formerSlugs,
       })),
     }));
   }

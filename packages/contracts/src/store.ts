@@ -37,6 +37,8 @@ export const storeBrandsResponseSchema = z.strictObject({
         description: z.string(),
         /** Products a shopper can see under this brand. */
         productCount: z.number().int().min(0),
+        /** Earlier slugs that now redirect here (step 101): the page sends them to `slug`. */
+        formerSlugs: z.array(z.string()).max(20),
       }),
     )
     .max(500),
@@ -50,6 +52,8 @@ export const storeCategoriesResponseSchema = z.strictObject({
         name: z.string(),
         slug: z.string(),
         productCount: z.number().int().min(0),
+        /** Earlier slugs that now redirect here (step 101). */
+        formerSlugs: z.array(z.string()).max(20),
       }),
     )
     .max(500),

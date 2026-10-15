@@ -141,6 +141,8 @@ export type Field = {
   required?: boolean;
   max?: number;
   help?: string;
+  /** Shown but not editable (the server would refuse the change). */
+  readOnly?: boolean;
 };
 export function Fields({ fields, value }: { fields: readonly Field[]; value: unknown }) {
   function current(path: string): unknown {
@@ -180,6 +182,7 @@ export function Fields({ fields, value }: { fields: readonly Field[]; value: unk
               type={field.kind ?? "text"}
               maxLength={field.max ?? 500}
               required={field.required}
+              readOnly={field.readOnly}
               defaultValue={String(current(field.name) ?? "")}
             />
           )}{" "}

@@ -106,12 +106,31 @@ const CATALOGUE = {
   "/v1/store/info": { whatsappNumber: "+971501234567", checkoutOpen: false },
   "/v1/store/brands": {
     items: [
-      { name: "Orbe", slug: "orbe", description: "Synthetic brand story.", productCount: 2 },
-      { name: "Empty Brand", slug: "empty-brand", description: "", productCount: 0 },
+      {
+        name: "Orbe",
+        slug: "orbe",
+        description: "Synthetic brand story.",
+        productCount: 2,
+        formerSlugs: ["orbe-old"],
+      },
+      {
+        name: "Empty Brand",
+        slug: "empty-brand",
+        description: "",
+        productCount: 0,
+        formerSlugs: [],
+      },
     ],
   },
   "/v1/store/categories": {
-    items: [{ name: "Disposables", slug: "disposables", productCount: 2 }],
+    items: [
+      {
+        name: "Disposables",
+        slug: "disposables",
+        productCount: 2,
+        formerSlugs: ["disposables-old"],
+      },
+    ],
   },
   "/v1/store/delivery": {
     feeFils: 1500,
@@ -708,6 +727,26 @@ try {
       "https://wa.me/971501234567?text=Hi%20Iqos%20Haven%2C%20I%20have%20a%20question%20about%20Orbe%20Halo%207K%20(AED%2045).",
     ),
     "product page WhatsApp link names the product and its price",
+  );
+  // Former slugs (step 101): a renamed brand or category sends its old link to the current
+  // one, and every page names the current slug as canonical.
+  for (const [old, current] of [
+    ["/brands/orbe-old", "/brands/orbe"],
+    ["/categories/disposables-old", "/categories/disposables"],
+  ]) {
+    const moved = await get(old, verified);
+    check(
+      [301, 307, 308].includes(moved.status) &&
+        new URL(moved.headers.get("location") ?? "", ORIGIN).pathname === current,
+      `${old} redirects to ${current}`,
+      `${moved.status} ${moved.headers.get("location")}`,
+    );
+  }
+  check(
+    (await page("/brands/orbe")).includes(
+      '<link rel="canonical" href="https://shop.preview-check.test/brands/orbe"/>',
+    ),
+    "brand page names its current slug as canonical",
   );
   // Offers and Help (step 100): offers ask the API for reduced prices only; Help shows the
   // Owner's delivery settings, and no free delivery or coupon code while none is set up.

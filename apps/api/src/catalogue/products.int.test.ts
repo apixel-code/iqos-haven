@@ -221,12 +221,48 @@ describe("product administration through the real API and PostgreSQL", () => {
     expect(await code(await call("", "POST", disposable({ slug: product.slug })))).toBe(
       "DUPLICATE",
     );
-    const renamed = await json(
-      await call("/" + product.id, "PATCH", { ...editable(product), slug: slug() }, cookies.staff),
+    // A new slug makes the old one a redirect: Staff may edit the product, not its link (step 101).
+    expect(
+      (await call("/" + product.id, "PATCH", { ...editable(product), slug: slug() }, cookies.staff))
+        .status,
+    ).toBe(403);
+    const staffEdit = await json(
+      await call("/" + product.id, "PATCH", { ...editable(product), isNew: false }, cookies.staff),
     );
-    expect(renamed.seo).toBeUndefined(); // Staff view
-    const redirects = await db.slugRedirect.findMany({ where: { productId: product.id } });
-    expect(redirects.map((row) => row.oldSlug)).toEqual([product.slug]);
+    expect(staffEdit.seo).toBeUndefined(); // Staff view
+    expect(await db.slugRedirect.count({ where: { productId: product.id } })).toBe(0);
+    // The Owner renames twice: each old slug points straight at the product (no chain), and
+    // the first slug can be taken back, which drops its own redirect.
+    const first = product.slug;
+    const second = slug();
+    const third = slug();
+    let current = await json(await call("/" + product.id));
+    for (const next of [second, third]) {
+      const response = await call("/" + product.id, "PATCH", { ...editable(current), slug: next });
+      expect(response.status).toBe(200);
+      current = await json(response);
+    }
+    const aliases = await db.slugRedirect.findMany({
+      where: { productId: product.id },
+      orderBy: { createdAt: "asc" },
+    });
+    expect(aliases.map((row) => row.oldSlug)).toEqual([first, second]);
+    expect(aliases.every((row) => row.productId === product.id)).toBe(true);
+    current = await json(
+      await call("/" + product.id, "PATCH", { ...editable(current), slug: first }),
+    );
+    expect(current.slug).toBe(first);
+    expect(
+      (await db.slugRedirect.findMany({ where: { productId: product.id } }))
+        .map((row) => row.oldSlug)
+        .sort(),
+    ).toEqual([second, third].sort());
+    // Another product cannot take a slug that redirects here, nor its current slug.
+    const other = await create();
+    for (const taken of [second, first])
+      expect(
+        await code(await call("/" + other.id, "PATCH", { ...editable(other), slug: taken })),
+      ).toBe("DUPLICATE");
     expect((await json(await call("/" + product.id))).seo).toEqual(seo);
   });
 

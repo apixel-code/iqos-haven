@@ -420,6 +420,8 @@ function ProductForm({
                 name="slug"
                 required
                 maxLength={150}
+                // Changing an existing link makes a redirect: the Owner's (step 101).
+                readOnly={Boolean(row) && !canSeo}
                 value={slug}
                 onChange={(e) => {
                   setTouched(true);

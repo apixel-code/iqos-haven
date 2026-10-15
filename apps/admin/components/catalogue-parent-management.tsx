@@ -258,7 +258,7 @@ export function CatalogueParentManagement({
                     </span>
                   </header>
                   <fieldset disabled={resource.disabled || !canWrite}>
-                    <Fields fields={parentFields(config, canSeo)} value={row} />
+                    <Fields fields={parentFields(config, canSeo, true, true)} value={row} />
                     <div className="form-actions">
                       {canWrite && (
                         <button className="secondary-button" type="submit">
@@ -304,7 +304,12 @@ export function CatalogueParentManagement({
   );
 }
 
-function parentFields(config: KindConfig, canSeo: boolean, withIdentity = true): Field[] {
+function parentFields(
+  config: KindConfig,
+  canSeo: boolean,
+  withIdentity = true,
+  editing = false,
+): Field[] {
   const label = config.noun[0]!.toUpperCase() + config.noun.slice(1);
   return [
     ...(withIdentity
@@ -315,7 +320,11 @@ function parentFields(config: KindConfig, canSeo: boolean, withIdentity = true):
             label: `Slug (${config.urlPrefix}…)`,
             required: true,
             max: 150,
-            help: "Lower-case letters, numbers and single hyphens. Renaming keeps the old link working.",
+            help:
+              editing && !canSeo
+                ? "Only the Owner can change a link once it exists (the old link becomes a redirect)."
+                : "Lower-case letters, numbers and single hyphens. Renaming keeps the old link working.",
+            readOnly: editing && !canSeo,
           },
         ]
       : []),

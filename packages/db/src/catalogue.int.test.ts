@@ -8,6 +8,7 @@ import {
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createDatabase, createPool } from "./client";
 import { applyMigrations } from "./test-schema";
+import { listStoreBrands, listStoreCategories } from "./store-catalogue";
 loadLocalEnvFile();
 const env = loadEnv(integrationTestEnvSchema);
 assertTestDatabase(env.DATABASE_TEST_URL, process.env.DATABASE_URL);
@@ -386,6 +387,26 @@ describe("catalogue constraints (real PostgreSQL, isolated schema)", () => {
     expect(redirect.product?.slug).toBe(newSlug);
     await rejected("DELETE FROM products WHERE id=$1", [row.id], "23001");
   });
+  it("lists former slugs for visible brands and categories, newest first (step 101)", async () => {
+    const { brand } = await product();
+    await db.brand.update({ where: { id: brand.id }, data: { active: true } });
+    const older = key();
+    const newer = key();
+    await db.slugRedirect.create({
+      data: { entityType: "brand", oldSlug: older, brandId: brand.id },
+    });
+    await db.slugRedirect.create({
+      data: { entityType: "brand", oldSlug: newer, brandId: brand.id },
+    });
+    const listed = (await listStoreBrands(db)).find((row) => row.slug === brand.slug);
+    expect(listed?.formerSlugs).toEqual([newer, older]);
+    // A hidden brand is not listed, so its former slugs lead nowhere either.
+    await db.brand.update({ where: { id: brand.id }, data: { active: false } });
+    expect((await listStoreBrands(db)).some((row) => row.slug === brand.slug)).toBe(false);
+    for (const row of await listStoreCategories(db))
+      expect(Array.isArray(row.formerSlugs)).toBe(true);
+  });
+
   it("serializes a concurrent live slug and redirect claim across tables", async () => {
     const { row } = await product();
     const alias = key();

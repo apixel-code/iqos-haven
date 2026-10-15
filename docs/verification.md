@@ -1581,3 +1581,28 @@ Not covered:
 
 - A free-delivery threshold in a browser: it cannot be enabled by contract.
 - BI-01/BI-09 wording.
+
+## Step 101 — slug changes, former slugs and canonical URLs (2026-10-15, local)
+
+`pnpm verify -- --integration`: exit 0. Unit 599, integration 576, age preview 2194, gate 2434.
+
+The first run failed in a storefront unit test: its brands fixture lacked `formerSlugs`. That was fixed.
+
+`invariant-reviewer` found no blockers. Accepted and recorded in ADR 0068: the 20-former-slug limit, and the different error order (409 before 403) for brands and categories.
+
+**Integration:**
+
+- **Products (`apps/api/src/catalogue/products.int.test.ts`):**
+  - A Staff slug change is refused with 403, while a Staff edit without one succeeds and writes no redirect.
+  - The Owner renames twice, and both old slugs point straight at the product.
+  - Taking back the first slug removes its own alias.
+  - Another product cannot take a former slug or the current one (`DUPLICATE`).
+- **Brands and categories:** a Staff slug change is refused with 403. The existing rename, reclaim and alias tests still pass.
+- **Database (`packages/db/src/catalogue.int.test.ts`):** `listStoreBrands` returns former slugs newest first. A hidden brand is not listed, so its former slugs lead nowhere.
+
+**Age preview (stub API):** `/brands/orbe-old` redirects to `/brands/orbe`, and `/categories/disposables-old` redirects to `/categories/disposables`. The brand page declares `<link rel="canonical" href="…/brands/orbe">`.
+
+Not covered:
+
+- The admin's read-only slug field in a browser.
+- Listing filters with former slugs (ADR 0068).
