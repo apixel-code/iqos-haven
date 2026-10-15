@@ -5,7 +5,7 @@
 - Date: 2026-10-15
 - Milestone: M7 — transactional checkout and first complete order: all steps (73–82) done; gate evidence ready, awaiting Marina's decision. M6: all steps (65–72) done; gate evidence ready, awaiting Marina's decision. M5: PASSED 2026-10-11. M4 steps done, gate awaits Marina's decision (publishing unblocked); M3 gate not closed; M0 review and M1 staging/fixtures still open
 - Step: 97 (content APIs and editor) — done; next is 98 (published home/content read API). M9 in progress (93–97 done). All M8 steps (83–92) done, gate awaiting Marina's decision.
-- Branch: `step/97-content-editor` (from `step/96-content-sections`; its PR is based on #70)
+- Branch: `step/97-content-editor` (pushed; PR #71 based on #70)
 - See docs/verification.md for actual checks.
 
 ## Next action
@@ -158,7 +158,7 @@ Tests: `pnpm verify -- --integration` PASS (unit 597, integration 571, age previ
 
 Unfinished:
 
-- PRs #61 → … → #70 → step 97 PR are stacked and wait for Marina's merge. M4, M6, M7 and M8 gates await her decision.
+- PRs #61 → … → #70 → #71 are stacked and wait for Marina's merge. M4, M6, M7 and M8 gates await her decision.
 - No public read or home page yet (steps 98–99). Content images are never pruned.
 
 ## History (summary)
