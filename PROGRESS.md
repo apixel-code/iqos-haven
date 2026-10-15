@@ -5,7 +5,7 @@
 - Date: 2026-10-15
 - Milestone: M7 — transactional checkout and first complete order: all steps (73–82) done; gate evidence ready, awaiting Marina's decision. M6: all steps (65–72) done; gate evidence ready, awaiting Marina's decision. M5: PASSED 2026-10-11. M4 steps done, gate awaits Marina's decision (publishing unblocked); M3 gate not closed; M0 review and M1 staging/fixtures still open
 - Step: 99 (home hero, ticker, curated sections) — done; next is 100 (offers/campaign/banner and published storefront copy). M9 in progress (93–99 done). All M8 steps (83–92) done, gate awaiting Marina's decision.
-- Branch: `step/99-home-sections` (from `step/98-store-content`; its PR is based on #72)
+- Branch: `step/99-home-sections` (pushed; PR #73 based on #72)
 - See docs/verification.md for actual checks.
 
 ## Next action
@@ -163,7 +163,7 @@ Tests: `pnpm verify -- --integration` PASS (unit 597, integration 575, age previ
 
 Unfinished:
 
-- PRs #61 → … → #72 → step 99 PR are stacked and wait for Marina's merge. M4, M6, M7 and M8 gates await her decision.
+- PRs #61 → … → #72 → #73 are stacked and wait for Marina's merge. M4, M6, M7 and M8 gates await her decision.
 - Content images on the home page not tried in a browser.
 
 ## History (summary)
