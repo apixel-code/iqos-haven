@@ -1551,3 +1551,33 @@ Not covered:
 - A content image on the home page in a browser: the hero and banners were published without images.
 - Real phones.
 - BI-09 wording.
+
+## Step 100 — offers, help and free-delivery rule (2026-10-15, local)
+
+`pnpm verify -- --integration`: exit 0. Unit 599, integration 575, age preview 2189, gate 2434. The reference check now includes the demo-copy guard.
+
+`invariant-reviewer` found no blockers.
+
+- **Fixed:** a zero fee reads "Included in your total".
+- **Recorded:** once free delivery is enabled, the API should send the remaining amount with the quote.
+- **Accepted:** the guard regex is a tripwire, not proof.
+
+**Unit:** `lib/cart/free-delivery.test.ts` checks that nothing shows for a null or zero threshold, and that with a threshold it gives the remaining amount and percentage, or "reached".
+
+**Guard:** `scripts/check-reference-set.mjs` was run with a temporary probe file containing HAVEN10. It failed, naming the file. With the probe removed, it passed.
+
+**Age preview (stub API):**
+
+- `/offers` and `/help` are restricted without a ticket.
+- Offers lists only the reduced product, and the API was asked for `sale=1`.
+- Help shows "AED 15 per order", the delivery time, "Dubai, Sharjah" (from the areas) and cash on delivery.
+- Home, Offers and Help carry no "free delivery" text and no demo code.
+
+**Gate:** both pages are refused through the gateway without a ticket.
+
+**Browser:** both pages, on the real served stack at 360px, answered 200 with no horizontal scroll and no page errors. The FAQ got a visible +/− mark afterwards.
+
+Not covered:
+
+- A free-delivery threshold in a browser: it cannot be enabled by contract.
+- BI-01/BI-09 wording.

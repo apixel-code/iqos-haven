@@ -20,7 +20,7 @@ export async function ListingPage({
 }: {
   path: string;
   searchParams: SearchParams;
-  fixed?: { type?: ProductType; brand?: string; category?: string };
+  fixed?: { type?: ProductType; brand?: string; category?: string; sale?: true };
   trail: readonly Crumb[];
   head: ReactNode | { title: string; lead?: string };
   emptyBody: string;
@@ -40,6 +40,7 @@ export async function ListingPage({
             brand: state.brand,
             type: state.type,
             category: fixed.category,
+            ...(fixed.sale ? { sale: "1" as const } : {}),
             sort: state.sort,
             cursor: state.cursor,
           }),

@@ -31,4 +31,5 @@ export const PRIMARY_NAV = [
   { href: "/disposable-vapes", label: "Disposables" },
   { href: "/vape-kits", label: "Vape kits" },
   { href: "/brands", label: "Brands" },
+  { href: "/offers", label: "Offers" },
 ] as const;

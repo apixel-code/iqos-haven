@@ -3,6 +3,7 @@ import {
   AGE_VERIFICATION_REQUIRED,
   storeBrandsResponseSchema,
   storeCategoriesResponseSchema,
+  storeDeliveryResponseSchema,
   storeHomeResponseSchema,
   storeInfoResponseSchema,
   storeProductResponseSchema,
@@ -10,6 +11,7 @@ import {
   storeSearchResponseSchema,
   type StoreBrandsResponse,
   type StoreCategoriesResponse,
+  type StoreDeliveryResponse,
   type StoreHomeResponse,
   type StoreInfoResponse,
   type StoreProductResponse,
@@ -42,6 +44,7 @@ export interface StoreProductsParams {
   brand?: string;
   category?: string;
   type?: "disposable" | "kit";
+  sale?: "1";
   sort?: string;
   cursor?: string;
   limit?: number;
@@ -106,6 +109,9 @@ export function createStoreApi(options: { baseUrl: string; fetch?: typeof fetch 
       required(call(shopper, "/info", storeInfoResponseSchema)),
     brands: (shopper: ShopperContext): Promise<StoreBrandsResponse> =>
       required(call(shopper, "/brands", storeBrandsResponseSchema)),
+    /** Delivery fee, ETA and areas as the Owner set them (step 100: the Help page). */
+    delivery: (shopper: ShopperContext): Promise<StoreDeliveryResponse> =>
+      required(call(shopper, "/delivery", storeDeliveryResponseSchema)),
     /** The published home sections (step 98): already checked and assembled by the API. */
     home: (shopper: ShopperContext): Promise<StoreHomeResponse> =>
       required(call(shopper, "/content/home", storeHomeResponseSchema)),
@@ -114,7 +120,7 @@ export function createStoreApi(options: { baseUrl: string; fetch?: typeof fetch 
     products(shopper: ShopperContext, params: StoreProductsParams): Promise<StoreProductsResponse> {
       const query = new URLSearchParams();
       // Only the parameters the API contract knows, in a fixed order.
-      for (const key of ["brand", "category", "type", "sort", "limit", "cursor"] as const) {
+      for (const key of ["brand", "category", "type", "sale", "sort", "limit", "cursor"] as const) {
         const value = params[key];
         if (value !== undefined) query.set(key, String(value));
       }
