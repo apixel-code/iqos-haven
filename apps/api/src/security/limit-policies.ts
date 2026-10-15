@@ -212,3 +212,20 @@ export const ORDER_CONFIRMATION_POLICY: EndpointLimitPolicy<"ip"> = {
   rules: { ip: perMinute(60) },
   outage: { fallback: { ip: perMinute(30) }, processCeiling: perMinute(1500) },
 };
+
+/**
+ * Review links (step 94, ADR 0062), per client address. Opening a link reads products only;
+ * submitting writes a pending review. A token is 256 random bits, so these budgets slow
+ * abuse of a real link rather than guessing. IP only: rotating tokens must not create an
+ * unbounded second limiter partition.
+ */
+export const STORE_REVIEW_PROOF_POLICY: EndpointLimitPolicy<"ip"> = {
+  endpoint: "store_review_proof",
+  rules: { ip: perMinute(30) },
+  outage: { fallback: { ip: perMinute(15) }, processCeiling: perMinute(600) },
+};
+export const STORE_REVIEW_SUBMIT_POLICY: EndpointLimitPolicy<"ip"> = {
+  endpoint: "store_review_submit",
+  rules: { ip: perMinute(10) },
+  outage: { fallback: { ip: perMinute(5) }, processCeiling: perMinute(300) },
+};

@@ -10,6 +10,7 @@ import { loadNewOrderEmail, writeNewOrderNotification, type Database, type Tx } 
 import { fils, formatAed } from "@ih/domain";
 import type { Logger } from "@ih/logger";
 import { applyLowStockNotification } from "./low-stock-notifications";
+import { applyReviewNotification } from "./review-notifications";
 
 /** The order an `order.created` event is about, or a permanent failure for anything else. */
 function createdOrderId(context: EffectContext): string {
@@ -21,8 +22,9 @@ function createdOrderId(context: EffectContext): string {
   return payload.data.orderId;
 }
 /**
- * Inbox consumer (roadmap step 78, ADR 0047; low stock: step 92, ADR 0060). The notification, its receipts and the effect's
- * completion commit together, so a redelivered event writes nothing twice.
+ * Inbox consumer (roadmap step 78, ADR 0047; low stock: step 92, ADR 0060; reviews: step 94,
+ * ADR 0062). The notification, its receipts and the effect's completion commit together, so a
+ * redelivered event writes nothing twice.
  */
 export function createNotificationConsumer(options: { log: Logger }): EffectHandler<Tx> {
   return {
@@ -31,6 +33,8 @@ export function createNotificationConsumer(options: { log: Logger }): EffectHand
     async apply(tx, context) {
       if (context.eventType === "inventory.low")
         return applyLowStockNotification(tx, context, options.log);
+      if (context.eventType === "review.submitted")
+        return applyReviewNotification(tx, context, options.log);
       if (context.eventType !== "order.created")
         throw new PermanentEffectError("UNEXPECTED_EVENT_TYPE");
       const orderId = createdOrderId(context);

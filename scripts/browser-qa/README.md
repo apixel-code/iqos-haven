@@ -48,3 +48,19 @@ The served stack also runs the worker's relay, queue and consumers on that schem
 queue prefix), and the journey checks that both orders reach the inbox. Stop the stack with
 SIGTERM (`kill <pid>`): a process started in the background of a script ignores SIGINT, and then
 its schema and queue keys are left behind and must be dropped by hand.
+
+## Review link page (step 94)
+
+`review.mjs` runs after `checkout.mjs` on the same served stack (it needs a placed order):
+
+```sh
+QA_PLAYWRIGHT_DIR=/tmp/ih-qa node scripts/browser-qa/review.mjs <SERVING> /tmp/ih-qa/shots <SCHEMA>
+```
+
+It takes the newest order to Delivered and creates a review link with the real `@ih/db` commands
+(built packages, the served schema of the test database), then opens `/review#<token>` at 360px:
+the page HTML holds no product, the token leaves the address bar and never reaches an API URL,
+a Referer or device storage, an empty form sends nothing, a review is stored pending, the worker
+writes the moderators' inbox notification, and a reload or the used-up link says it can't be used.
+The age question's fragment hand-over is not covered here (the served gate redirects to the
+https origin); it was checked once in Chromium with a stand-in server (docs/verification.md).

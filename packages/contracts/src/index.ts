@@ -67,6 +67,8 @@ export const CONFLICT_CODES = [
   "NOTHING_TO_REVIEW",
   /** The review link needs the store's domain in Settings. */
   "STORE_DOMAIN_REQUIRED",
+  /** A review link that is unknown, replaced, expired, or no longer covers the product (step 94). */
+  "REVIEW_PROOF_INVALID",
 ] as const;
 export type ConflictCode = (typeof CONFLICT_CODES)[number];
 /** 403 code of a store route reached without a valid age ticket (step 55). */

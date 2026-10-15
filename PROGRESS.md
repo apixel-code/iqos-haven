@@ -4,8 +4,8 @@
 
 - Date: 2026-10-15
 - Milestone: M7 — transactional checkout and first complete order: all steps (73–82) done; gate evidence ready, awaiting Marina's decision. M6: all steps (65–72) done; gate evidence ready, awaiting Marina's decision. M5: PASSED 2026-10-11. M4 steps done, gate awaits Marina's decision (publishing unblocked); M3 gate not closed; M0 review and M1 staging/fixtures still open
-- Step: 93 (review schema and verified-purchase proof) — done; next is 94 (store review submit). All M8 steps (83–92) done, gate awaiting Marina's decision.
-- Branch: `step/93-review-proof` (pushed; PR #67 based on #66)
+- Step: 94 (store review submit and pending moderation) — done; next is 95 (Owner approve/reject, public rating aggregates). M9 in progress (93–94 done). All M8 steps (83–92) done, gate awaiting Marina's decision.
+- Branch: `step/94-review-submit` (from `step/93-review-proof`; its PR is based on #67)
 - See docs/verification.md for actual checks.
 
 ## Next action
@@ -21,8 +21,9 @@
 3. **Marina: decide the M6 gate (and M4).** Evidence and caveats: docs/verification.md "Step 72".
 4. **Marina: decide the M7 gate.** Evidence, item by item, and what is not covered: docs/verification.md "Step 82". Checkout stays switched off (`CHECKOUT_SUBMISSION_ENABLED=false`) whatever the decision, until deployment inputs exist (BI-07 sender domain, real Owner, delivery areas and fee).
 5. **Marina: decide the M8 gate.** Evidence: docs/verification.md "Step 92" (service-level journey from store order to collected cash, plus the HTTP suites for each route). Do not mark M8 passed without her decision.
-6. **Next step: `/step 94`** (store review submit and pending moderation). Find the row with `rg -n "^| 94 " docs/roadmap.md`. Build the public `/review` page: it reads the token from the fragment and POSTs it in the body. The store route submits through `lockReviewProof` (ADR 0061), with the token added to log redaction and its own rate limit.
+6. **Next step: `/step 95`** (Owner approve/reject and public rating aggregates: `AdminReviewsController`, Review UI). Find the row with `rg -n "^| 95 " docs/roadmap.md`; admin prototype `VIEWS.reviews` (docs/prototype-map.md). Moderation uses `reviews.moderate` with expected versions (the `reviews_guard` trigger allows only status, moderator, time and version+1). Public pages show approved reviews only, with the verified flag derived. Add `/reviews` to the admin notification bell's link prefixes (`apps/admin/components/notification-bell.tsx`); step 94 notifications already link there.
 7. **Rules that carry forward:**
+   - Review submission (ADR 0062): `POST /v1/store/reviews/proof` and `POST /v1/store/reviews` (age ticket, IP-only limits 30/10 per minute); the token comes in the body only; one 409 `REVIEW_PROOF_INVALID` for every unusable link. `submitReview` writes the pending review, a system audit entry without the text, and `review.submitted` (consumer `notification`, `reviews.moderate` holders) in one transaction. `/review` reads the fragment once, removes it, keeps the token in memory; the age-check page carries the fragment onto its accept form (`app/age-check/keep-fragment.tsx`). Browser pass: `scripts/browser-qa/review.mjs` after `checkout.mjs`.
    - Reviews (ADR 0061, BI-12): verified only. `POST /v1/admin/orders/:id/review-link` (`orders.read` + `customers.read`, Delivered, store domain set) stores only the SHA-256 of the token, revokes the previous link and expires after 30 days. `readReviewProof` exposes products only. `lockReviewProof(tx, token, productId)` locks the order, then the proof; every failure is `REVIEW_PROOF_INVALID`. The `reviews` content is immutable, it starts pending, and there is one review per order and product.
    - Low stock (ADR 0060): `inventory.low` requires `notification` + `email`. Both decide when delivered (still low, active, published product) and claim a 24 h quiet window per variant and channel in `low_stock_alerts`. Email goes to the shared Settings recipients only while `notifications.lowStockEmail` is true. Daily summary job `reports.daily_summary` (09:00 Dubai, `catchUp: 1`) sends nothing until step 106 wires the metrics, the preference and the recipients.
    - Admin order reads (ADR 0051): both routes require `orders.read`; the whole optional `customer` object and contact search additionally require `customers.read`. List keyset is the exact DB `(created_at,id)`; detail uses one repeatable-read snapshot. Never expose creation/idempotency hashes, confirmation data or history command IDs. Step 84 adds commands separately with expected versions.
@@ -108,6 +109,7 @@ BI-07: a verified sending domain and sender address are still needed before real
 - 91 — per-user inbox with own read flags and current-permission filtering, admin event stream (database-polled, ID-only events, Last-Event-ID gap fill, revocation and shutdown close it), header notifications (ADR 0059) — `step(91)` commit on `step/91-inbox-sse`
 - 92 — `inventory.low` → inbox and email, decided when delivered, 24 h quiet window per variant and channel (`low_stock_alerts`), low-stock email switch in Settings, bell link to Inventory, `reports.daily_summary` slot registered, M8 operations gate test (ADR 0060) — `step(92)` commit on `step/92-low-stock-ops`
 - 93 — `reviews` + `review_proofs` (hash-only 30-day token, one live per order, DB-enforced coverage and immutability), staff review-link command with WhatsApp message, proof read/lock for step 94, admin Review link panel (ADR 0061, BI-12) — `step(93)` commit on `step/93-review-proof`
+- 94 — store review proof/submit routes (age ticket, IP limits, one invalid-link code), pending review + audit + `review.submitted` → moderators' inbox, `/review` page with fragment-only token kept through the age question, `author` log redaction, browser QA script (ADR 0062) — `step(94)` commit on `step/94-review-submit`
 - 90 — admin customers (phone-grouped list and detail, Owner-only spend in two bases) and order WhatsApp messages from templates, opened by staff and never recorded as sent (ADR 0058) — 0f8ecaf
 - 89 — bulk confirm: up to 50 Pending orders, each its own versioned transition with its own command, per-order results, same-batch retry replays; admin selection and results (ADR 0057) — e183d74
 - 88 — manual orders: the storefront's quote, order transaction, stock and idempotency for staff-entered orders, scoped per staff member; Pending, or Confirmed with recorded evidence (database-enforced); admin New order form (ADR 0056) — 4fbad75
@@ -137,26 +139,26 @@ BI-07: a verified sending domain and sender address are still needed before real
 - Event `consumers` lists only implemented consumers (now `system_probe`, `email`, `notification`, `media_processor`, `storefront_revalidate`); planned ones are documented with roadmap steps and move in with a backfill decision (architecture §8: adding a consumer must not redefine old completions).
 - `audit_log` migration revokes UPDATE/DELETE/TRUNCATE only from a role named `ih_app`; other runtime role names must be revoked at provisioning (trigger blocks mutations regardless).
 
-## Last session handoff (2026-10-15, step 93)
+## Last session handoff (2026-10-15, step 94)
 
 Done:
 
-- **Step 93 (ADR 0061):** a review-proof migration and models, a contract with conflict codes, `packages/db/src/reviews.ts` (issue, read, lock), `ReviewLinkController` with a rate-limit policy, and an admin Review link panel with error copy.
-- **BI-12** recorded: verified-only reviews, sent as a staff WhatsApp link.
-- **`invariant-reviewer`:** no blockers. Fixed: submission locks the order before the proof, and the message text uses a replacer function.
-- `PROGRESS.md` formatting from step 92 fixed (`format:check`).
+- **Step 94 (ADR 0062):** contracts (proof/submit, text normalisation, `REVIEW_PROOF_INVALID`), `submitReview` and `writeReviewNotification` in `@ih/db`, `review.submitted` → `notification` consumer (worker), `StoreReviewsController` with two IP limit policies, logger redacts `author`, storefront `/review` page and `lib/reviews.ts`, age-check fragment carry, `scripts/browser-qa/review.mjs`.
+- **`invariant-reviewer`:** no High/Medium. Fixed: ZWNJ/ZWJ allowed (only controls and invisible/bidi marks refused); a unique violation maps to `REVIEW_PROOF_INVALID`. Confirmed: gateway overwrites `X-IH-Client-IP`.
+- ADR 0061 correction recorded in 0062: Delivered orders cannot be cancelled.
 
-Files: `packages/db/prisma/migrations/20261015000300_reviews/`, `packages/db/prisma/schema.prisma`, `packages/db/src/{reviews.ts,index.ts}`, `packages/contracts/src/{reviews.ts,index.ts}`, `apps/api/src/orders/{review-link.controller.ts,review-link.int.test.ts,orders.module.ts}`, `apps/api/src/security/limit-policies.ts`, `apps/admin/components/order-management.tsx`, `apps/admin/lib/management.ts`, `docs/api.openapi.json`, `docs/business-inputs.md`, `docs/decisions/0061-review-proofs.md`, `docs/verification.md`
+Files: `packages/contracts/src/{reviews.ts,events.ts,index.ts}`, `packages/db/src/{reviews.ts,notifications.ts}`, `packages/logger/src/{index.ts,index.test.ts}`, `apps/api/src/store/{store-reviews.controller.ts,store-reviews.int.test.ts,store.module.ts}`, `apps/api/src/security/limit-policies.ts`, `apps/worker/src/{review-notifications.ts,review-notifications.int.test.ts,order-notifications.ts}`, `apps/storefront/app/(shop)/review/page.tsx`, `apps/storefront/app/age-check/{page.tsx,keep-fragment.tsx}`, `apps/storefront/components/review-view.tsx`, `apps/storefront/lib/{reviews.ts,reviews.test.ts}`, `scripts/browser-qa/{review.mjs,README.md}`, `docs/decisions/0062-review-submission.md`, `docs/verification.md`
 
-Tests: `pnpm verify -- --integration` PASS (unit 587, integration 546, gate 2175). Review link 6/6.
+Tests: `pnpm verify -- --integration` PASS (unit 592, integration 556, gate 2175). Store reviews 8/8, worker review notification 2/2, browser `review.mjs` 15/15 after `checkout.mjs` 49/49 (served schema dropped afterwards).
 
 Unfinished:
 
-- PRs #61 → … → #66 → #67 are stacked and wait for Marina's merge. M4, M6, M7 and M8 gates await her decision.
-- The admin Review link panel has not been checked in a real browser.
+- PRs #61 → … → #67 → step 94 PR are stacked and wait for Marina's merge. M4, M6, M7 and M8 gates await her decision.
+- Not tested: a real phone or WhatsApp's in-app browser opening the link; the admin Review link panel (step 93) in a real browser.
 
 ## History (summary)
 
+- 2026-10-15 step 93: review schema, hash-only proof, staff review link, ADR 0061 (aafb619, PR #67); unit 587/integration 546.
 - 2026-10-15 step 92: low-stock alerts, daily-summary slot, M8 operations gate, ADR 0060 (dd385bd, PR #66); unit 587/integration 540.
 - 2026-10-15 steps 89–91: bulk confirm, customers and WhatsApp, inbox and stream, ADR 0057–0059 (e183d74, 0f8ecaf, 7256c15; PRs #63, #64, step-91); last verify unit 585/integration 534.
 - 2026-10-13/14 steps 83–88: admin order reads, transitions, edits, cancellation, COD collection, manual orders, ADR 0051–0056 (through 4fbad75; PRs #61, #62); age-gate origin fix a307657.

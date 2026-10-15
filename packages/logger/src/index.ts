@@ -1,7 +1,7 @@
 import pino, { type Logger, type LoggerOptions, type DestinationStream } from "pino";
 const CENSOR = "[redacted]";
 const PRIVATE_KEY =
-  /password|secret|token|cookie|authorization|phone|mobile|email|address|makani|notes|customer|recipient|idempotency|capability|replay|sql|stack|ticket|signing|private|key|credential|hash|session/i;
+  /password|secret|token|cookie|authorization|phone|mobile|email|address|makani|notes|customer|recipient|idempotency|capability|replay|sql|stack|ticket|signing|private|key|credential|hash|session|author/i;
 const PRIVATE_FIELDS = new Set([
   "name",
   "fullname",

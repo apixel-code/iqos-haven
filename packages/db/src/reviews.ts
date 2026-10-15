@@ -1,10 +1,13 @@
 import { createHash, randomBytes } from "node:crypto";
 import {
+  defineEvent,
   REVIEW_PROOF_TTL_DAYS,
   reviewLinkResponseSchema,
   reviewProofTokenSchema,
   type ConflictCode,
   type ReviewLinkResponse,
+  type StoreReviewRequest,
+  type StoreReviewResponse,
 } from "@ih/contracts";
 import { toAuditEntry, type CommandContext } from "@ih/application";
 import { formatOrderNumber, whatsappMessageHref } from "@ih/domain";
@@ -12,6 +15,7 @@ import { Prisma, type Database, type Tx } from "./client";
 import { PrismaAuditWriter } from "./audit";
 import { CatalogueForbiddenError, lockCatalogueActor } from "./catalogue-parents";
 import { lockOrder, OrderNotFoundError } from "./order-locks";
+import { PrismaOutboxWriter } from "./outbox";
 import { withTransaction } from "./transaction";
 
 /**
@@ -182,4 +186,57 @@ export async function lockReviewProof(
   if (!products.some((product) => product.productId === productId))
     throw new ReviewProofInvalidError();
   return { proofId: proof.id, orderId: proof.orderId };
+}
+
+/**
+ * A shopper's review through a review link (roadmap step 94, ADR 0062). One transaction: the
+ * proof is locked and checked, the review is written pending with its audit entry and its
+ * `review.submitted` event. Nothing is published here; only moderation (step 95) does that.
+ * The answer says how many products the link still covers, never anything about the order.
+ */
+export async function submitReview(
+  db: Database,
+  input: StoreReviewRequest & { requestId: string },
+): Promise<StoreReviewResponse> {
+  return withTransaction(db, async (tx) => {
+    const { orderId, proofId } = await lockReviewProof(tx, input.token, input.productId);
+    const [review] = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+      INSERT INTO reviews (product_id, order_id, proof_id, rating, title, body, author_name)
+      VALUES (${input.productId}::uuid, ${orderId}::uuid, ${proofId}::uuid, ${input.rating},
+        ${input.title}, ${input.body}, ${input.authorName})
+      RETURNING id`);
+    const reviewId = review!.id;
+    await new PrismaAuditWriter().append(
+      tx,
+      toAuditEntry(
+        { requestId: input.requestId, actorId: null },
+        {
+          action: "review.submitted",
+          entity: { type: "review", id: reviewId },
+          // The customer's words and name stay in the review row, not in the audit trail.
+          after: { productId: input.productId, orderId, proofId, rating: input.rating },
+          reason: "review link",
+        },
+      ),
+    );
+    await new PrismaOutboxWriter().publish(
+      tx,
+      defineEvent("review.submitted", reviewId, { reviewId }, 1),
+    );
+    const remaining = await reviewableProducts(tx, orderId);
+    return { status: "pending" as const, remaining: remaining.length };
+  }).catch((error: unknown) => {
+    // The order lock makes this unreachable; should a second review slip past it, the one
+    // review per purchase constraint refuses it and the shopper gets the same answer.
+    if (pgCode(error) === "23505") throw new ReviewProofInvalidError();
+    throw error;
+  });
+}
+function pgCode(error: unknown): string | undefined {
+  if (!(error instanceof Prisma.PrismaClientKnownRequestError)) return undefined;
+  if (error.code === "P2002") return "23505";
+  const meta = error.meta as
+    { code?: unknown; driverAdapterError?: { cause?: { originalCode?: unknown } } } | undefined;
+  const code = meta?.code ?? meta?.driverAdapterError?.cause?.originalCode;
+  return typeof code === "string" ? code : undefined;
 }

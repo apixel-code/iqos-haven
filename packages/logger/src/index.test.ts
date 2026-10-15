@@ -18,6 +18,7 @@ describe("log privacy", () => {
         customer: { name: "PERSON_SECRET" },
         nested: { contact: { email: "MAIL_SECRET", address: "ADDRESS_SECRET" } },
         list: [{ mobile: "MOBILE_SECRET" }],
+        proof: { token: "REVIEW_TOKEN_SECRET", authorName: "AUTHOR_SECRET" },
         req: {
           id: "request-1234",
           method: "GET",
@@ -39,6 +40,8 @@ describe("log privacy", () => {
       "QUERY_SECRET",
       "COOKIE_SECRET",
       "PASSWORD_SECRET",
+      "REVIEW_TOKEN_SECRET",
+      "AUTHOR_SECRET",
     ])
       expect(output).not.toContain(marker);
     expect(output).toContain("request-1234");

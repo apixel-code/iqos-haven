@@ -248,6 +248,43 @@ export async function loadLowStockEmail(
   };
 }
 
+// --- Reviews (roadmap step 94, ADR 0062) ---
+/**
+ * A shopper submitted a review (`review.submitted`). The inbox says which product and the
+ * rating; never the author's name or words, which moderators read in the review itself.
+ * Written whatever the review's status is by then: the notification records the submission.
+ */
+export const REVIEW_NOTIFICATION = "review.submitted";
+const REVIEW_PERMISSIONS = ["notifications.read_own", "reviews.moderate"] as const;
+
+export type ReviewNotificationResult =
+  | { outcome: "review_missing" | "disabled" }
+  | { outcome: "written"; notificationId: string; created: boolean; receipts: number };
+export async function writeReviewNotification(
+  tx: Tx,
+  input: { eventId: string; reviewId: string },
+): Promise<ReviewNotificationResult> {
+  const [review] = await tx.$queryRaw<Array<{ productName: string; rating: number }>>(Prisma.sql`
+    SELECT p.name AS "productName", r.rating::int AS rating
+    FROM reviews r JOIN products p ON p.id=r.product_id WHERE r.id=${input.reviewId}::uuid`);
+  if (!review) return { outcome: "review_missing" };
+  if (!(await notificationSettings(tx)).inApp) return { outcome: "disabled" };
+  const notification = await insertNotification(tx, {
+    eventId: input.eventId,
+    type: REVIEW_NOTIFICATION,
+    title: "New review: " + review.productName,
+    body: `${review.rating} of 5 stars · waiting for moderation`,
+    link: "/reviews",
+  });
+  const receipts = await writeReceipts(tx, notification.id, REVIEW_PERMISSIONS);
+  return {
+    outcome: "written",
+    notificationId: notification.id,
+    created: notification.created,
+    receipts,
+  };
+}
+
 // --- Inbox (roadmap step 91, ADR 0059) ---
 /**
  * What a user must hold now to see a notification type. A receipt is a snapshot of who was
@@ -257,6 +294,7 @@ export async function loadLowStockEmail(
 export const NOTIFICATION_TYPE_PERMISSIONS: Readonly<Record<string, string>> = {
   [NEW_ORDER_NOTIFICATION]: "orders.read",
   [LOW_STOCK_NOTIFICATION]: "inventory.read",
+  [REVIEW_NOTIFICATION]: "reviews.moderate",
 };
 export class InboxForbiddenError extends Error {}
 export class InboxNotFoundError extends Error {}

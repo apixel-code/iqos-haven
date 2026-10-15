@@ -230,8 +230,9 @@ export const EVENT_CATALOGUE = {
     schemaVersion: 1,
     aggregateType: "review",
     payload: z.strictObject({ reviewId: id }),
-    consumers: [],
-    plannedConsumers: { notification: 94 },
+    // Step 94 (ADR 0062). No backfill: reviews could not be submitted before this step.
+    consumers: ["notification"],
+    plannedConsumers: {},
   }),
   "media.uploaded": define({
     schemaVersion: 1,

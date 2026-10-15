@@ -1330,3 +1330,44 @@ Not covered:
 - The admin panel has not been tried in a real browser.
 - The `/review` page and the submission route come in step 94.
 - The link wording is placeholder until BI-09.
+
+## Step 94 — store review submission and pending moderation (2026-10-15, local)
+
+`pnpm verify -- --integration`: exit 0, run again after the review fixes: unit 592, integration 556, gate 2175. `invariant-reviewer` found no High or Medium findings. It raised four low ones:
+
+- **Fixed:** ZWNJ and ZWJ are now allowed in names. Only control characters and invisible or direction-changing marks are refused.
+- **Fixed:** a unique violation now maps to `REVIEW_PROOF_INVALID`.
+- **Confirmed, no change:** the gateway overwrites `X-IH-Client-IP` (`header_up`).
+- **Accepted:** the 10-per-minute submission limit could catch customers behind a shared mobile NAT.
+
+**Integration (`apps/api/src/store/store-reviews.int.test.ts`, real API and PostgreSQL, 8 tests):**
+
+- **Refused with 403:** no ticket, a forged ticket, a crawler user agent, a foreign Origin, `Sec-Fetch-Site: cross-site`. A form post gets 415. None of them writes anything.
+- **Proof read:** only `expiresAt` and `[{ productId, name }]`, with `private, no-store` and `no-referrer`. No order ID, order number, customer name, phone or amount.
+- **One code (409 `REVIEW_PROOF_INVALID`) for:** a well-formed guess, a token one character off, a replaced link, another order's product. An order ID sent as the token is refused as 400.
+- **Contract refuses:** rating 0, 6, 4.5 or "5"; an empty or too-long title; a title with NUL or U+200B; a body that is too short, too long or holds a bell character; an empty or too-long name; the fields `status`, `verified` and `orderId`; broken JSON.
+- **Submission:** 201 `{ pending, remaining: 0 }`. The stored text is normalised and the review is pending with no moderator. The audit row has actor system and none of the words. One `review.submitted` event carries the `notification` effect. A second submission for the same product, and the proof read afterwards, both answer `REVIEW_PROOF_INVALID`.
+- **Concurrency:** of six parallel submissions for one purchase, one returns 201 and five return 409. One row is stored.
+- **Limit:** the 11th submission from one address in a minute gets 429, refused ones included. Another address still works.
+- **Notification:** the title names the product and the body gives the stars, never the author or the text. Writing it again creates nothing new. Receipts go to Owners only.
+
+**Worker (`apps/worker/src/review-notifications.int.test.ts`, 2 tests):** the real `EffectRunner` completes the effect once, and a rerun writes no second notification. Staff (no `reviews.moderate`) get no receipt. With the inbox switched off, the effect completes and writes nothing.
+
+**Unit:** `apps/storefront/lib/reviews.test.ts` covers fragment parsing, the recheck link (token only in the fragment, return `/review`), how answers are read (a proof answer with extra fields is refused), and the form rules (ZWNJ kept, U+202E refused). The logger test checks that `token` and `authorName` are redacted.
+
+**Browser (`scripts/browser-qa/review.mjs`, Chromium at 360px, real served stack after `checkout.mjs` with 49 passed): 15 passed.**
+
+- The order went through the real commands to Delivered and got a link.
+- The page HTML holds no product name. The token leaves the address bar and appears in no API URL, Referer or device storage. No order number or amount is shown, and there is no horizontal scroll.
+- An empty send shows four messages and sends nothing. A review is stored as `pending|4|Smooth draw|Q. A.`.
+- The served worker wrote "New review: Gatecheck Halo".
+- A reload, and the used-up link, both say the link can't be used. Still exactly one review.
+
+The fragment hand-over through the age question was checked separately in Chromium with a stand-in server (307 to the question, form post, 303 back). The URL came back as `/review#<token>`, and the server saw only `return=/review`.
+
+Not covered:
+
+- A real phone, and WhatsApp's in-app browser opening the link.
+- The served gate's own redirect, which goes to the https origin that this local pass cannot open.
+- Moderation and public display (step 95).
+- Placeholder wording until BI-09.
