@@ -130,6 +130,10 @@ export const ORDER_CANCEL_POLICY = {
   ...CATALOG_MANAGE_POLICY,
   endpoint: "order.cancel",
 } as const;
+export const REVIEW_LINK_POLICY = {
+  ...CATALOG_MANAGE_POLICY,
+  endpoint: "order.review_link",
+} as const;
 
 /**
  * Shopper catalogue reads (step 58), per client address. Browsing must keep working when the

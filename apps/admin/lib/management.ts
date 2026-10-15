@@ -156,6 +156,12 @@ export function deliveryCommand(version: number, data: FormData) {
 export function managementError(error: unknown, mutation = false) {
   if (error instanceof FormValidationError) return error.message;
   if (error instanceof ApiError) {
+    if (error.status === 409 && error.code === "REVIEW_NOT_ALLOWED")
+      return "A review link is only for a delivered order.";
+    if (error.status === 409 && error.code === "NOTHING_TO_REVIEW")
+      return "Every product of this order has been reviewed already.";
+    if (error.status === 409 && error.code === "STORE_DOMAIN_REQUIRED")
+      return "Set the store's domain in Settings first: the link points to the store.";
     if (error.status === 409 && error.code === "IN_USE")
       return "Other records still depend on this (published products or stock history), so it is kept.";
     if (error.status === 409 && error.code === "DUPLICATE")

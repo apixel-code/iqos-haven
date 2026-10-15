@@ -13,6 +13,7 @@ import {
   orderEditResponseSchema,
   orderTransitionResponseSchema,
   orderWhatsappResponseSchema,
+  reviewLinkResponseSchema,
   type AdminOrderResponse,
   type AdminOrderSummary,
   type OrderBulkConfirmResponse,
@@ -21,6 +22,7 @@ import {
   type OrderCollectionRequest,
   type OrderEditDiff,
   type OrderEditRequest,
+  type ReviewLinkResponse,
 } from "@ih/contracts";
 import { ApiError } from "../lib/auth";
 import { managementError, managementRequest, validate } from "../lib/management";
@@ -596,6 +598,7 @@ function OrderDetail({
           {canReadContact && order.data.status !== "cancelled" && (
             <OrderWhatsappPanel id={id} version={order.data.version} />
           )}
+          {canReadContact && order.data.status === "delivered" && <ReviewLinkPanel id={id} />}
           <OrderDetailBody order={order.data} />
         </>
       )}
@@ -724,6 +727,68 @@ function OrderWhatsappPanel({ id, version }: { id: string; version: number }) {
           </div>
         </>
       )}
+    </article>
+  );
+}
+
+/**
+ * Verified-purchase review link (step 93). The link is shown once: the server keeps only a hash
+ * of it. Creating another replaces the previous link. Nothing is sent from here.
+ */
+function ReviewLinkPanel({ id }: { id: string }) {
+  const [link, setLink] = useState<ReviewLinkResponse | null>(null);
+  const [message, setMessage] = useState("");
+  const [busy, setBusy] = useState(false);
+  async function create() {
+    if (link && !window.confirm("Create a new link? The previous link stops working.")) return;
+    setBusy(true);
+    setMessage("");
+    try {
+      setLink(
+        await managementRequest(`/orders/${id}/review-link`, reviewLinkResponseSchema, "POST", {}),
+      );
+    } catch (error) {
+      setMessage(managementError(error, true));
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <article className="record-card">
+      <h3>Review link</h3>
+      <p className="muted">
+        Lets this customer review the products of this order. Reviews stay hidden until approved.
+      </p>
+      {message && <p role="alert">{message}</p>}
+      {link && (
+        <>
+          <label className="wide-field">
+            <span>Link (shown once, valid until {when(link.expiresAt)})</span>
+            <input readOnly value={link.link} onFocus={(event) => event.target.select()} />
+          </label>
+          {link.whatsapp && (
+            <div className="form-actions">
+              <a
+                className="primary-button"
+                target="_blank"
+                rel="noopener noreferrer"
+                href={link.whatsapp.href}
+              >
+                Open WhatsApp
+              </a>
+              <small className="muted">
+                {link.whatsapp.placeholder ? "Placeholder wording. " : ""}Nothing is sent or
+                recorded until you send it there.
+              </small>
+            </div>
+          )}
+        </>
+      )}
+      <div className="form-actions">
+        <button type="button" className="secondary-button" disabled={busy} onClick={create}>
+          {link ? "Create a new link" : "Create review link"}
+        </button>
+      </div>
     </article>
   );
 }

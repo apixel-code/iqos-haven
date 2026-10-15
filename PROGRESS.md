@@ -4,8 +4,8 @@
 
 - Date: 2026-10-15
 - Milestone: M7 — transactional checkout and first complete order: all steps (73–82) done; gate evidence ready, awaiting Marina's decision. M6: all steps (65–72) done; gate evidence ready, awaiting Marina's decision. M5: PASSED 2026-10-11. M4 steps done, gate awaits Marina's decision (publishing unblocked); M3 gate not closed; M0 review and M1 staging/fixtures still open
-- Step: 92 (low-stock alerts, daily-summary slot, operations acceptance) — done; all M8 steps (83–92) done, gate evidence ready, awaiting Marina's decision. Next is 93 (M9).
-- Branch: `step/92-low-stock-ops` (pushed; PR #66 based on step 91's PR #65)
+- Step: 93 (review schema and verified-purchase proof) — done; next is 94 (store review submit). All M8 steps (83–92) done, gate awaiting Marina's decision.
+- Branch: `step/93-review-proof` (based on `step/92-low-stock-ops`; push and open its PR after the commit)
 - See docs/verification.md for actual checks.
 
 ## Next action
@@ -21,8 +21,9 @@
 3. **Marina: decide the M6 gate (and M4).** Evidence and caveats: docs/verification.md "Step 72".
 4. **Marina: decide the M7 gate.** Evidence, item by item, and what is not covered: docs/verification.md "Step 82". Checkout stays switched off (`CHECKOUT_SUBMISSION_ENABLED=false`) whatever the decision, until deployment inputs exist (BI-07 sender domain, real Owner, delivery areas and fee).
 5. **Marina: decide the M8 gate.** Evidence: docs/verification.md "Step 92" (service-level journey from store order to collected cash, plus the HTTP suites for each route). Do not mark M8 passed without her decision.
-6. **Next step: `/step 93`** (review schema and verified-purchase proof — first step of M9). Find the row with `rg -n "^| 93 " docs/roadmap.md` and the M9 gate line.
+6. **Next step: `/step 94`** (store review submit and pending moderation). Find the row with `rg -n "^| 94 " docs/roadmap.md`. Build the public `/review` page: it reads the token from the fragment and POSTs it in the body. The store route submits through `lockReviewProof` (ADR 0061), with the token added to log redaction and its own rate limit.
 7. **Rules that carry forward:**
+   - Reviews (ADR 0061, BI-12): verified only. `POST /v1/admin/orders/:id/review-link` (`orders.read` + `customers.read`, Delivered, store domain set) stores only the SHA-256 of the token, revokes the previous link and expires after 30 days. `readReviewProof` exposes products only. `lockReviewProof(tx, token, productId)` locks the order, then the proof; every failure is `REVIEW_PROOF_INVALID`. The `reviews` content is immutable, it starts pending, and there is one review per order and product.
    - Low stock (ADR 0060): `inventory.low` requires `notification` + `email`. Both decide when delivered (still low, active, published product) and claim a 24 h quiet window per variant and channel in `low_stock_alerts`. Email goes to the shared Settings recipients only while `notifications.lowStockEmail` is true. Daily summary job `reports.daily_summary` (09:00 Dubai, `catchUp: 1`) sends nothing until step 106 wires the metrics, the preference and the recipients.
    - Admin order reads (ADR 0051): both routes require `orders.read`; the whole optional `customer` object and contact search additionally require `customers.read`. List keyset is the exact DB `(created_at,id)`; detail uses one repeatable-read snapshot. Never expose creation/idempotency hashes, confirmation data or history command IDs. Step 84 adds commands separately with expected versions.
    - Order transitions (ADR 0052): normal fulfilment uses `POST /v1/admin/orders/:id/transitions` with `orders.transition`, `expectedVersion` and a UUID command ID. Lock the current actor, then the order; write order/history/audit/`order.status_changed` in one transaction. A partial unique index makes staff transition command IDs global and exact retries return the original receipt. Delivered leaves COD pending.
@@ -59,9 +60,9 @@
    - Local storefront dev needs age keys in `.env`: run `pnpm age:keygen` and paste the three lines (Claude cannot read or edit `.env`). Without them every page redirects to the age check and accepting answers 503.
    - If `http://localhost:8080/api/age/*` answers 404, the gateway container is running an old config: `docker compose restart gateway`.
    - Every later stock writer (orders, steps 75–76, 85–86) must call `publishLowStockCrossing` in its transaction (ADR 0023).
-7. **Publishing works without a tax reference** (ADR 0036): a complete product can be published from the admin. The dev database has all migrations applied (2026-10-12) but no products yet; tests still seed their own.
-8. **Local invalidation call:** to exercise the worker → API call in dev, set `INTERNAL_SERVICE_KEYS` and the worker's `INTERNAL_SERVICE_*` in `.env` (see `.env.example`). Without them the effect completes as `skipped:not_configured`.
-9. **Browser QA for later admin steps:** use `scripts/browser-qa/` (README). `/tmp/ih-qa` does not survive; reinstall `playwright-core` there (or any directory) and set `QA_PLAYWRIGHT_DIR`.
+8. **Publishing works without a tax reference** (ADR 0036): a complete product can be published from the admin. The dev database has all migrations applied (2026-10-12) but no products yet; tests still seed their own.
+9. **Local invalidation call:** to exercise the worker → API call in dev, set `INTERNAL_SERVICE_KEYS` and the worker's `INTERNAL_SERVICE_*` in `.env` (see `.env.example`). Without them the effect completes as `skipped:not_configured`.
+10. **Browser QA for later admin steps:** use `scripts/browser-qa/` (README). `/tmp/ih-qa` does not survive; reinstall `playwright-core` there (or any directory) and set `QA_PLAYWRIGHT_DIR`.
 
 ## Blockers
 
@@ -106,6 +107,7 @@ BI-07: a verified sending domain and sender address are still needed before real
 - 84 — versioned and replay-safe normal fulfilment transitions with committed status history, audit/event writes, next-action admin controls and timeline reloads (ADR 0052) — b11959b
 - 91 — per-user inbox with own read flags and current-permission filtering, admin event stream (database-polled, ID-only events, Last-Event-ID gap fill, revocation and shutdown close it), header notifications (ADR 0059) — `step(91)` commit on `step/91-inbox-sse`
 - 92 — `inventory.low` → inbox and email, decided when delivered, 24 h quiet window per variant and channel (`low_stock_alerts`), low-stock email switch in Settings, bell link to Inventory, `reports.daily_summary` slot registered, M8 operations gate test (ADR 0060) — `step(92)` commit on `step/92-low-stock-ops`
+- 93 — `reviews` + `review_proofs` (hash-only 30-day token, one live per order, DB-enforced coverage and immutability), staff review-link command with WhatsApp message, proof read/lock for step 94, admin Review link panel (ADR 0061, BI-12) — `step(93)` commit on `step/93-review-proof`
 - 90 — admin customers (phone-grouped list and detail, Owner-only spend in two bases) and order WhatsApp messages from templates, opened by staff and never recorded as sent (ADR 0058) — 0f8ecaf
 - 89 — bulk confirm: up to 50 Pending orders, each its own versioned transition with its own command, per-order results, same-batch retry replays; admin selection and results (ADR 0057) — e183d74
 - 88 — manual orders: the storefront's quote, order transaction, stock and idempotency for staff-entered orders, scoped per staff member; Pending, or Confirmed with recorded evidence (database-enforced); admin New order form (ADR 0056) — 4fbad75
@@ -135,24 +137,26 @@ BI-07: a verified sending domain and sender address are still needed before real
 - Event `consumers` lists only implemented consumers (now `system_probe`, `email`, `notification`, `media_processor`, `storefront_revalidate`); planned ones are documented with roadmap steps and move in with a backfill decision (architecture §8: adding a consumer must not redefine old completions).
 - `audit_log` migration revokes UPDATE/DELETE/TRUNCATE only from a role named `ih_app`; other runtime role names must be revoked at provisioning (trigger blocks mutations regardless).
 
-## Last session handoff (2026-10-15, step 92)
+## Last session handoff (2026-10-15, step 93)
 
 Done:
 
-- **Step 92 (ADR 0060):** consumers for `inventory.low`: inbox (`writeLowStockNotification`) and email (`lowStockEmailPlanner`, template `inventory.low` v1). The quiet-window claim is in `packages/db/src/notifications.ts`. Daily-summary slot registered. `lowStockEmail` setting with an admin switch and a shared recipients label. Bell link "Open inventory". M8 operations gate test.
-- **`invariant-reviewer`:** no blockers. One low finding (an email lost when a send keeps failing past the window) is recorded in ADR 0060 as an accepted loss. The `/workspace/inventory` route it asked about exists.
+- **Step 93 (ADR 0061):** a review-proof migration and models, a contract with conflict codes, `packages/db/src/reviews.ts` (issue, read, lock), `ReviewLinkController` with a rate-limit policy, and an admin Review link panel with error copy.
+- **BI-12** recorded: verified-only reviews, sent as a staff WhatsApp link.
+- **`invariant-reviewer`:** no blockers. Fixed: submission locks the order before the proof, and the message text uses a replacer function.
+- `PROGRESS.md` formatting from step 92 fixed (`format:check`).
 
-Files: `packages/db/prisma/migrations/20261015000200_low_stock_alerts/`, `packages/db/prisma/schema.prisma`, `packages/db/src/notifications.ts`, `packages/contracts/src/{events.ts,events.test.ts,settings.ts}`, `packages/application/src/email/{low-stock.ts,index.ts}`, `apps/worker/src/{low-stock-notifications.ts,low-stock-notifications.int.test.ts,daily-summary.ts,daily-summary.test.ts,operations-gate.int.test.ts,order-notifications.ts,main.ts}`, `apps/admin/{components/settings-management.tsx,components/notification-bell.tsx,lib/management.ts,lib/management.test.ts}`, `apps/api/src/{notifications/inbox.int.test.ts,settings/settings.int.test.ts}`, `scripts/check-gate-e2e.cjs`, `docs/api.openapi.json`, `docs/decisions/0060-low-stock-alerts-and-daily-summary-slot.md`, `docs/verification.md`
+Files: `packages/db/prisma/migrations/20261015000300_reviews/`, `packages/db/prisma/schema.prisma`, `packages/db/src/{reviews.ts,index.ts}`, `packages/contracts/src/{reviews.ts,index.ts}`, `apps/api/src/orders/{review-link.controller.ts,review-link.int.test.ts,orders.module.ts}`, `apps/api/src/security/limit-policies.ts`, `apps/admin/components/order-management.tsx`, `apps/admin/lib/management.ts`, `docs/api.openapi.json`, `docs/business-inputs.md`, `docs/decisions/0061-review-proofs.md`, `docs/verification.md`
 
-Tests: `pnpm verify` PASS (unit 587, age-preview 2008). `pnpm test:int` PASS (integration 540). `pnpm test:gate` PASS (2175).
+Tests: `pnpm verify -- --integration` PASS (unit 587, integration 546, gate 2175). Review link 6/6.
 
 Unfinished:
 
-- PRs #61 → #62 → #63 → #64 → #65 → #66 are stacked and wait for Marina's merge (merge #61 first). M4, M6, M7 and M8 gates await her decision.
-- Not checked in a real browser: the bell's low-stock entry and the Settings switch.
-- Real email waits for BI-07. The daily summary's content arrives in step 106.
+- PRs #61 → … → #66 → step-93 PR are stacked and wait for Marina's merge. M4, M6, M7 and M8 gates await her decision.
+- The admin Review link panel has not been checked in a real browser.
 
 ## History (summary)
 
+- 2026-10-15 step 92: low-stock alerts, daily-summary slot, M8 operations gate, ADR 0060 (dd385bd, PR #66); unit 587/integration 540.
 - 2026-10-15 steps 89–91: bulk confirm, customers and WhatsApp, inbox and stream, ADR 0057–0059 (e183d74, 0f8ecaf, 7256c15; PRs #63, #64, step-91); last verify unit 585/integration 534.
 - 2026-10-13/14 steps 83–88: admin order reads, transitions, edits, cancellation, COD collection, manual orders, ADR 0051–0056 (through 4fbad75; PRs #61, #62); age-gate origin fix a307657.

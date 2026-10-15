@@ -167,6 +167,8 @@ model StaffUser {
   sessions            Session[]
   passwordResets      PasswordResetToken[]
   invitationsSent     StaffInvitationToken[] @relation("Inviter")
+  reviewProofsIssued ReviewProof[]
+  reviewsModerated   Review[]
 
   @@index([roleId])
   @@map("staff_users")
@@ -402,6 +404,7 @@ model Product {
   orderItems OrderItem[]
   redirects SlugRedirect[]
   search    ProductSearch?
+  reviews    Review[]
 
   @@index([brandId], map: "products_brand")
   @@index([categoryId], map: "products_category")
@@ -627,6 +630,8 @@ model Order {
   couponRedemptions            CouponRedemption[]
   stockMovements               StockMovement[]
   edits                        OrderEditHistory[]
+  reviewProofs ReviewProof[]
+  reviews      Review[]
 
   @@unique([creationScope, creationKeyHash], map: "orders_creation_key")
   @@index([createdAt(sort: Desc), id(sort: Desc)], map: "orders_created")
@@ -751,6 +756,48 @@ model NotificationReceipt {
   @@id([notificationId, userId])
   @@index([userId, readAt, notificationId], map: "notification_receipts_inbox")
   @@map("notification_receipts")
+}
+
+/// Verified-purchase proof (step 93): only the token's SHA-256 is stored; one live per order.
+model ReviewProof {
+  id        String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orderId   String    @map("order_id") @db.Uuid
+  order     Order     @relation(fields: [orderId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  tokenHash Bytes     @unique(map: "review_proofs_token") @map("token_hash")
+  issuedBy  String    @map("issued_by") @db.Uuid
+  issuer    StaffUser @relation(fields: [issuedBy], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  issuedAt  DateTime  @default(dbgenerated("statement_timestamp()")) @map("issued_at") @db.Timestamptz(6)
+  expiresAt DateTime  @map("expires_at") @db.Timestamptz(6)
+  revokedAt DateTime? @map("revoked_at") @db.Timestamptz(6)
+  reviews   Review[]
+
+  @@map("review_proofs")
+}
+
+/// A customer review (step 93); always verified at launch, pending until moderated.
+model Review {
+  id          String      @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  productId   String      @map("product_id") @db.Uuid
+  product     Product     @relation(fields: [productId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  orderId     String      @map("order_id") @db.Uuid
+  order       Order       @relation(fields: [orderId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  proofId     String      @map("proof_id") @db.Uuid
+  proof       ReviewProof @relation(fields: [proofId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  rating      Int         @db.SmallInt
+  title       String      @db.VarChar(120)
+  body        String      @db.VarChar(2000)
+  authorName  String      @map("author_name") @db.VarChar(60)
+  status      String      @default("pending") @db.VarChar(16)
+  moderatedBy String?     @map("moderated_by") @db.Uuid
+  moderator   StaffUser?  @relation(fields: [moderatedBy], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  moderatedAt DateTime?   @map("moderated_at") @db.Timestamptz(6)
+  version     Int         @default(1)
+  createdAt   DateTime    @default(dbgenerated("statement_timestamp()")) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([orderId, productId], map: "reviews_one_per_purchase")
+  @@index([status, createdAt, id], map: "reviews_moderation")
+  @@index([productId, status], map: "reviews_product")
+  @@map("reviews")
 }
 
 /// Low-stock quiet window (step 92): the last alert per variant and channel.

@@ -1292,3 +1292,41 @@ Not covered:
 - The bell and the settings switch have not been checked in a real browser.
 - Real email still waits for BI-07.
 - The daily summary has no figures until step 106.
+
+## Step 93 — review schema and verified-purchase proof (2026-10-15, local)
+
+`pnpm verify -- --integration`: exit 0. Unit 587, integration 546, gate 2175. `invariant-reviewer` found no blockers. It raised two low findings, both fixed:
+
+- Submission now locks the order before the proof.
+- The message text now uses replacer functions.
+
+**Integration (`apps/api/src/orders/review-link.int.test.ts`, real API and PostgreSQL, 6 tests):**
+
+- **Refusals:** a pending order gives 409 `REVIEW_NOT_ALLOWED`; an unknown order gives 404; a foreign origin gives 403; a missing `customers.read` gives 403. None of these writes a proof.
+- **Issuance:** the answer is 201 with `no-store`. The link is `https://<domain>/review#<43 characters>`, with a `wa.me` message that contains the link. The database holds the token's SHA-256 with a 30-day expiry. The token appears nowhere in `review_proofs` or `audit_log`, and the issue writes one audit row. `readReviewProof` returns only the product ID and name.
+- **Abuse:** these all give `REVIEW_PROOF_INVALID`:
+  - an order ID used as a token;
+  - a well-formed guess;
+  - the replaced (older) link;
+  - another order's product;
+  - an expired proof.
+
+  The live link works once per product, then the issue route answers `NOTHING_TO_REVIEW`.
+
+- **Concurrency:** two submissions sent at once with one link record exactly one review.
+- **Database:** these are refused:
+  - a product the order does not contain;
+  - a review that starts approved;
+  - a content edit;
+  - a delete;
+  - an expiry change.
+
+  Moderation (status, moderator, time, version) is allowed.
+
+- **Settings:** without the store domain, the route answers `STORE_DOMAIN_REQUIRED`.
+
+Not covered:
+
+- The admin panel has not been tried in a real browser.
+- The `/review` page and the submission route come in step 94.
+- The link wording is placeholder until BI-09.

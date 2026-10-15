@@ -61,6 +61,12 @@ export const CONFLICT_CODES = [
   "LIMIT_BELOW_USES",
   /** An active coupon cannot end in the past. */
   "ALREADY_EXPIRED",
+  /** A review link is only for a Delivered order (step 93). */
+  "REVIEW_NOT_ALLOWED",
+  /** Every product of the order has been reviewed already. */
+  "NOTHING_TO_REVIEW",
+  /** The review link needs the store's domain in Settings. */
+  "STORE_DOMAIN_REQUIRED",
 ] as const;
 export type ConflictCode = (typeof CONFLICT_CODES)[number];
 /** 403 code of a store route reached without a valid age ticket (step 55). */
@@ -92,3 +98,4 @@ export * from "./checkout";
 export * from "./coupons";
 export * from "./orders";
 export * from "./notifications";
+export * from "./reviews";
