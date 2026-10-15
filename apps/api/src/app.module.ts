@@ -20,6 +20,7 @@ import { MediaModule } from "./media/media.module";
 import { StoreModule } from "./store/store.module";
 import { SettingsModule } from "./settings/settings.module";
 import { ReviewsModule } from "./reviews/reviews.module";
+import { ContentModule } from "./content/content.module";
 import { requestId } from "./http/request-id";
 @Module({})
 export class AppModule {
@@ -64,6 +65,7 @@ export class AppModule {
         MediaModule,
         StoreModule,
         ReviewsModule,
+        ContentModule,
         ReliabilityModule,
         HealthModule,
         ...testModules,

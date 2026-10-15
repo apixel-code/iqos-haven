@@ -223,8 +223,9 @@ export const EVENT_CATALOGUE = {
     schemaVersion: 1,
     aggregateType: "content",
     payload: z.strictObject({ contentId: id }),
-    consumers: [],
-    plannedConsumers: { storefront_revalidate: 97 },
+    // Step 97 (ADR 0065). No backfill: nothing could be published before this step's routes.
+    consumers: ["storefront_revalidate"],
+    plannedConsumers: {},
   }),
   "review.submitted": define({
     schemaVersion: 1,

@@ -559,3 +559,61 @@ h2 {
   white-space: pre-line;
   overflow-wrap: anywhere;
 }
+/* Storefront content editor (step 97). */
+.checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.inline-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.inline-row input {
+  flex: 1;
+  min-width: 0;
+}
+.preview-block {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow-wrap: anywhere;
+}
+.preview-hero {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 16px;
+  border-radius: 8px;
+  background: var(--surface-2, var(--surface));
+}
+.preview-hero img,
+.content-thumb {
+  width: 100%;
+  max-width: 320px;
+  height: auto;
+  border-radius: 6px;
+}
+.content-images {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 8px;
+}
+.content-image-choice {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+}
+.content-image-choice img {
+  width: 100%;
+  height: 80px;
+  object-fit: cover;
+  border-radius: 4px;
+}

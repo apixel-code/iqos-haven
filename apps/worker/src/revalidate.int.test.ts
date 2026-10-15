@@ -112,6 +112,20 @@ describe("storefront_revalidate consumer (real PostgreSQL, signed HTTP)", () => 
     expect(received).toHaveLength(1);
   });
 
+  it("invalidates the cache for published content too (step 97)", async () => {
+    const contentId = randomUUID();
+    const eventId = await withTransaction(db, (tx) =>
+      writer.publish(tx, defineEvent("content.published", contentId, { contentId }, 2)),
+    );
+    const effect = await db.consumerEffect.findFirstOrThrow({ where: { eventId } });
+    expect(effect.consumer).toBe("storefront_revalidate");
+    received.length = 0;
+    expect(
+      await runner().run({ eventId, effectId: effect.id, consumer: "storefront_revalidate" }),
+    ).toBe("completed");
+    expect(received).toEqual([{ auth: "ok", body: { scope: "catalogue", eventId } }]);
+  });
+
   it("retries an unavailable API and succeeds later", async () => {
     const { data } = await publish();
     status = 503;

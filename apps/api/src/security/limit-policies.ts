@@ -134,6 +134,10 @@ export const REVIEW_LINK_POLICY = {
   ...CATALOG_MANAGE_POLICY,
   endpoint: "order.review_link",
 } as const;
+export const CONTENT_MANAGE_POLICY = {
+  ...CATALOG_MANAGE_POLICY,
+  endpoint: "content.manage",
+} as const;
 export const REVIEW_MODERATION_POLICY = {
   ...CATALOG_MANAGE_POLICY,
   endpoint: "review.moderate",

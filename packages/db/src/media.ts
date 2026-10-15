@@ -31,7 +31,7 @@ export const UPLOAD_AUTHORIZATION_SECONDS = 10 * 60;
 
 interface AssetRow {
   id: string;
-  productId: string;
+  productId: string | null;
   state: MediaAsset["state"];
   declaredType: MediaAsset["declaredType"];
   declaredBytes: number;
@@ -145,10 +145,22 @@ export interface ObservedUpload {
   readonly etag: string | undefined;
 }
 
-export async function readMediaAssetForCompletion(db: Database, actorId: string, id: string) {
-  await lockCatalogueActor(db, actorId, ["catalog.write", "media.upload"], false);
+/** Product images need the catalogue rights; content images (step 97) the content right. */
+export type MediaPurpose = "product" | "content";
+const UPLOAD_PERMISSIONS = {
+  product: ["catalog.write", "media.upload"],
+  content: ["content.manage"],
+} as const;
+
+export async function readMediaAssetForCompletion(
+  db: Database,
+  actorId: string,
+  id: string,
+  purpose: MediaPurpose = "product",
+) {
+  await lockCatalogueActor(db, actorId, UPLOAD_PERMISSIONS[purpose], false);
   const [row] = await db.$queryRaw<AssetRow[]>(
-    Prisma.sql`${SELECT} WHERE id=${id}::uuid AND purpose='product'`,
+    Prisma.sql`${SELECT} WHERE id=${id}::uuid AND purpose=${purpose}`,
   );
   if (!row) throw new CatalogueNotFoundError();
   return { key: row.quarantineKey, state: row.state };
@@ -159,18 +171,21 @@ export async function completeMediaUpload(
   context: CommandContext,
   id: string,
   observed: ObservedUpload | null,
+  purpose: MediaPurpose = "product",
 ): Promise<MediaAsset> {
   return withTransaction(db, async (tx) => {
-    await lockCatalogueActor(tx, context.actorId, ["catalog.write", "media.upload"], true);
+    await lockCatalogueActor(tx, context.actorId, UPLOAD_PERMISSIONS[purpose], true);
     const [row] = await tx.$queryRaw<AssetRow[]>(
-      Prisma.sql`${SELECT} WHERE id=${id}::uuid AND purpose='product' FOR UPDATE`,
+      Prisma.sql`${SELECT} WHERE id=${id}::uuid AND purpose=${purpose} FOR UPDATE`,
     );
     if (!row) throw new CatalogueNotFoundError();
     // Completing twice is harmless: the first call already decided the outcome.
     if (row.state !== "pending") return asset(row);
-    const [product] = await tx.$queryRaw<Array<{ trashed: boolean }>>(Prisma.sql`
-      SELECT deleted_at IS NOT NULL AS trashed FROM products WHERE id=${row.productId}::uuid`);
-    if (product?.trashed) throw new CatalogueConflictError("TRASHED");
+    if (row.productId) {
+      const [product] = await tx.$queryRaw<Array<{ trashed: boolean }>>(Prisma.sql`
+        SELECT deleted_at IS NOT NULL AS trashed FROM products WHERE id=${row.productId}::uuid`);
+      if (product?.trashed) throw new CatalogueConflictError("TRASHED");
+    }
     if (row.expired) throw new CatalogueConflictError("UPLOAD_EXPIRED");
     if (!observed) throw new CatalogueConflictError("UPLOAD_MISSING");
     // The POST policy pins type and size; a contradiction means the object is not ours to trust.
@@ -189,7 +204,7 @@ export async function completeMediaUpload(
         version=version+1, updated_at=statement_timestamp()
       WHERE id=${id}::uuid`);
     const [current] = await tx.$queryRaw<AssetRow[]>(
-      Prisma.sql`${SELECT} WHERE id=${id}::uuid AND purpose='product'`,
+      Prisma.sql`${SELECT} WHERE id=${id}::uuid AND purpose=${purpose}`,
     );
     await new PrismaAuditWriter().append(
       tx,
@@ -218,6 +233,79 @@ export async function abandonMediaUpload(db: Database, id: string, reason: "pres
     UPDATE media_assets SET state='rejected', error=${reason}, version=version+1,
       updated_at=statement_timestamp()
     WHERE id=${id}::uuid AND state='pending'`);
+}
+
+// --- Content images (roadmap step 97, ADR 0065) ---
+/** Uploads not yet processed that one may hold at once; finished images do not count. */
+export const MAX_OPEN_CONTENT_UPLOADS = 10;
+
+/**
+ * Authorizes a content image upload (hero, campaign banners): the same quarantine, policy,
+ * processing and derivatives as product images, but no product. `content.manage` only. A
+ * transaction-scoped advisory lock serializes the open-upload limit.
+ */
+export async function authorizeContentImageUpload(
+  db: Database,
+  context: CommandContext,
+  input: MediaUploadRequest,
+): Promise<{ asset: MediaAsset; key: string }> {
+  const command = mediaUploadRequestSchema.parse(input);
+  return withTransaction(db, async (tx) => {
+    const actor = await lockCatalogueActor(tx, context.actorId, UPLOAD_PERMISSIONS.content, true);
+    await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext('ih.content_images'))`);
+    const [count] = await tx.$queryRaw<Array<{ n: number }>>(Prisma.sql`
+      SELECT count(*)::int AS n FROM media_assets
+      WHERE purpose='content' AND (state IN ('uploaded','processing')
+        OR (state='pending' AND upload_expires_at > statement_timestamp()))`);
+    if ((count?.n ?? 0) >= MAX_OPEN_CONTENT_UPLOADS)
+      throw new CatalogueConflictError("IMAGE_LIMIT");
+    const [{ id }] = (await tx.$queryRaw<Array<{ id: string }>>(
+      Prisma.sql`SELECT uuidv7()::text AS id`,
+    )) as [{ id: string }];
+    await tx.$executeRaw(Prisma.sql`
+      INSERT INTO media_assets (id, purpose, uploaded_by, quarantine_key, declared_type,
+        declared_bytes, upload_expires_at)
+      VALUES (${id}::uuid, 'content', ${actor}::uuid, ${"uploads/" + id},
+        ${command.contentType}, ${command.bytes},
+        statement_timestamp() + make_interval(secs => ${UPLOAD_AUTHORIZATION_SECONDS}))`);
+    const [row] = await tx.$queryRaw<AssetRow[]>(
+      Prisma.sql`${SELECT} WHERE id=${id}::uuid AND purpose='content'`,
+    );
+    await new PrismaAuditWriter().append(
+      tx,
+      toAuditEntry(context, {
+        action: "media.upload_authorized",
+        entity: { type: "media_asset", id },
+        after: {
+          purpose: "content",
+          declaredType: command.contentType,
+          declaredBytes: command.bytes,
+          state: "pending",
+        },
+      }),
+    );
+    return { asset: asset(row!), key: row!.quarantineKey };
+  });
+}
+
+export interface ContentImageRow {
+  id: string;
+  state: MediaAsset["state"];
+  width: number | null;
+  height: number | null;
+  error: string | null;
+  derivativeKeys: Record<string, string>;
+  createdAt: Date;
+}
+/** The newest content images, for the editor's picker; any state, so progress shows. */
+export async function listContentImages(db: Database, actorId: string): Promise<ContentImageRow[]> {
+  await lockCatalogueActor(db, actorId, UPLOAD_PERMISSIONS.content, false);
+  return db.$queryRaw<ContentImageRow[]>(Prisma.sql`
+    SELECT id, CASE WHEN state='pending' AND upload_expires_at <= statement_timestamp()
+        THEN 'expired' ELSE state END AS state,
+      width, height, error, derivative_keys AS "derivativeKeys", created_at AS "createdAt"
+    FROM media_assets WHERE purpose='content' AND state <> 'removed'
+    ORDER BY created_at DESC, id DESC LIMIT 60`);
 }
 
 // --- Processing and cleanup (step 49, ADR 0019) ---

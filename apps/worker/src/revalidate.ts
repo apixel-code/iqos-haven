@@ -40,9 +40,13 @@ export function createRevalidateConsumer(options: {
     kind: "external",
     consumer: "storefront_revalidate",
     async perform(context, signal) {
-      const payload = EVENT_CATALOGUE["catalog.changed"].payload.safeParse(context.payload);
-      if (context.eventType !== "catalog.changed" || !payload.success)
-        throw new PermanentEffectError("INVALID_REVALIDATE_EVENT");
+      // Published content (step 97) lives in the same catalogue cache as the products it shows.
+      const valid =
+        context.eventType === "catalog.changed"
+          ? EVENT_CATALOGUE["catalog.changed"].payload.safeParse(context.payload).success
+          : context.eventType === "content.published" &&
+            EVENT_CATALOGUE["content.published"].payload.safeParse(context.payload).success;
+      if (!valid) throw new PermanentEffectError("INVALID_REVALIDATE_EVENT");
       if (!target) return { receipt: "skipped:not_configured" };
       const body = JSON.stringify({
         scope: "catalogue",
