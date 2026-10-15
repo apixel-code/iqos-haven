@@ -22,6 +22,12 @@ export const sections = [
   { key: "staff", label: "Staff & roles", permission: "staff.manage", group: "Management" },
   { key: "discounts", label: "Discounts", permission: "coupons.manage", group: "Management" },
   { key: "delivery", label: "Delivery", permission: "delivery.manage", group: "Management" },
+  {
+    key: "content",
+    label: "Storefront content",
+    permission: "content.manage",
+    group: "Management",
+  },
   { key: "settings", label: "Settings", permission: "settings.manage", group: "Management" },
   { key: "seo", label: "SEO", permission: "seo.write", group: "Management" },
 ] as const;

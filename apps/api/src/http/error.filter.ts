@@ -80,6 +80,27 @@ export class ApiErrorFilter implements ExceptionFilter {
         response && typeof response === "object" && "code" in response ? response.code : undefined;
       if ((CONFLICT_CODES as readonly unknown[]).includes(reason))
         body.error.code = reason as string;
+      // Unshowable content references (step 97): `<kind>:<uuid>` and one of three reasons.
+      if (
+        reason === "CONTENT_REFERENCES" &&
+        typeof response === "object" &&
+        "details" in response &&
+        Array.isArray((response as { details: unknown }).details)
+      )
+        body.error.fields = (response as { details: unknown[] }).details
+          .slice(0, 30)
+          .filter(
+            (item): item is { path: string; message: string } =>
+              !!item &&
+              typeof (item as { path?: unknown }).path === "string" &&
+              /^(product|brand|category|image):[0-9a-f-]{36}$/.test(
+                (item as { path: string }).path,
+              ) &&
+              ["missing", "not_visible", "not_ready"].includes(
+                (item as { message?: unknown }).message as string,
+              ),
+          )
+          .map((item) => ({ path: item.path, message: item.message }));
     }
     // A 403 from the age gate is distinguishable so the storefront can route to the gate.
     if (error instanceof HttpException && status === 403) {

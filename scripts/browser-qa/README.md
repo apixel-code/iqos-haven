@@ -77,3 +77,17 @@ It creates two pending reviews with the real database commands (delivered order,
 submission), then the Owner approves one and rejects the other in the browser. It checks the
 tabs and counts, the published average, the empty states, the filters, the stored statuses and
 the 390px layout. Staff see no Reviews link and get "Access unavailable".
+
+## Storefront content editor (step 97)
+
+With `qa-server.cjs` and the admin running as above (fresh schema: it expects unsaved sections):
+
+```sh
+QA_PLAYWRIGHT_DIR=/tmp/ih-qa node scripts/browser-qa/content-editor.mjs <SCHEMA>
+```
+
+The Owner edits the promotional bar (markup refused in the form), saves, previews and publishes.
+Featured products: a product hidden after being picked blocks publishing and is named. Hero: a
+button and an uploaded image, processed by the qa-server worker, then previewed and published.
+It also checks unsaved and discard states, the stored typed data, one `content.published` per
+publish, 390px layout, and that Staff cannot open the editor.

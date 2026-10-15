@@ -270,3 +270,86 @@ export async function publishContentSection(
     return toRecord(row!);
   });
 }
+
+/**
+ * The editor's preview of a draft (step 97): what each reference is now, and what would stop
+ * it from being published. Admin only; nothing here is public and nothing is written.
+ */
+export async function readContentPreview(
+  db: Database,
+  actorId: string,
+  key: ContentSectionKey,
+): Promise<{
+  key: ContentSectionKey;
+  version: number;
+  problems: ContentProblem[];
+  products: Array<{
+    id: string;
+    name: string;
+    visible: boolean;
+    soldOut: boolean;
+    priceFromFils: number | null;
+  }>;
+  brands: Array<{ id: string; name: string; visible: boolean }>;
+  categories: Array<{ id: string; name: string; visible: boolean }>;
+  images: Array<{ id: string; ready: boolean; derivativeKeys: Record<string, string> }>;
+}> {
+  await editor(db, actorId, false);
+  const [row] = await db.$queryRaw<Row[]>(Prisma.sql`${SELECT} WHERE key=${key}`);
+  if (!row) throw new ContentNotFoundError();
+  const parsed = contentSchema(key, row.schemaVersion).safeParse(row.draft);
+  if (!parsed.success) throw new ContentInvalidError();
+  const refs = contentReferences(parsed.data);
+  const problems = await checkContentReferences(db, refs);
+  const hidden = (kind: ContentProblem["kind"], id: string) =>
+    problems.some((problem) => problem.kind === kind && problem.id === id);
+  const products = refs.productIds.length
+    ? await db.$queryRaw<
+        Array<{ id: string; name: string; soldOut: boolean; priceFromFils: number | null }>
+      >(Prisma.sql`
+        SELECT p.id, p.name,
+          NOT coalesce(bool_or(v.active AND v.stock_on_hand > 0), false) AS "soldOut",
+          min(coalesce(v.price_override_fils, p.base_price_fils)) FILTER (WHERE v.active)::int
+            AS "priceFromFils"
+        FROM products p LEFT JOIN variants v ON v.product_id=p.id
+        WHERE p.id = ANY(${refs.productIds}::uuid[]) GROUP BY p.id, p.name`)
+    : [];
+  const named = async (table: "brands" | "categories", list: string[]) =>
+    list.length
+      ? db.$queryRaw<Array<{ id: string; name: string }>>(
+          Prisma.sql`SELECT id, name FROM ${Prisma.raw(table)} WHERE id = ANY(${list}::uuid[])`,
+        )
+      : [];
+  const brands = await named("brands", refs.brandIds);
+  const categories = await named("categories", refs.categoryIds);
+  const images = refs.assetIds.length
+    ? await db.$queryRaw<
+        Array<{ id: string; ready: boolean; derivativeKeys: Record<string, string> }>
+      >(
+        Prisma.sql`
+          SELECT id, (state='ready') AS ready, derivative_keys AS "derivativeKeys"
+          FROM media_assets WHERE id = ANY(${refs.assetIds}::uuid[]) AND purpose='content'`,
+      )
+    : [];
+  // In the draft's order.
+  const ordered = <T extends { id: string }>(list: string[], rows: T[]) =>
+    list.flatMap((id) => rows.filter((row) => row.id === id));
+  return {
+    key,
+    version: row.version,
+    problems,
+    products: ordered(refs.productIds, products).map((product) => ({
+      ...product,
+      visible: !hidden("product", product.id),
+    })),
+    brands: ordered(refs.brandIds, brands).map((brand) => ({
+      ...brand,
+      visible: !hidden("brand", brand.id),
+    })),
+    categories: ordered(refs.categoryIds, categories).map((category) => ({
+      ...category,
+      visible: !hidden("category", category.id),
+    })),
+    images: ordered(refs.assetIds, images),
+  };
+}

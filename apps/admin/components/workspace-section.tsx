@@ -10,6 +10,7 @@ import { ProductManagement } from "./product-management";
 import { InventoryManagement } from "./inventory-management";
 import { CustomerManagement } from "./customer-management";
 import { ReviewManagement } from "./review-management";
+import { ContentManagement } from "./content-management";
 import { OrderManagement } from "./order-management";
 import { sections } from "../lib/navigation";
 export function WorkspaceSection({ sectionKey }: { sectionKey: string }) {
@@ -41,6 +42,8 @@ export function WorkspaceSection({ sectionKey }: { sectionKey: string }) {
         />
       ) : sectionKey === "customers" ? (
         <CustomerManagement />
+      ) : sectionKey === "content" ? (
+        <ContentManagement />
       ) : sectionKey === "reviews" ? (
         <ReviewManagement canOpenOrders={session.permissions.includes("orders.read")} />
       ) : sectionKey === "settings" ? (

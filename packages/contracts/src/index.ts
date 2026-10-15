@@ -67,6 +67,10 @@ export const CONFLICT_CODES = [
   "NOTHING_TO_REVIEW",
   /** The review link needs the store's domain in Settings. */
   "STORE_DOMAIN_REQUIRED",
+  /** The draft is what is already published (step 97). */
+  "NOTHING_TO_PUBLISH",
+  /** The draft points at something a shopper cannot see; `fields` lists it (step 97). */
+  "CONTENT_REFERENCES",
   /** A review link that is unknown, replaced, expired, or no longer covers the product (step 94). */
   "REVIEW_PROOF_INVALID",
 ] as const;

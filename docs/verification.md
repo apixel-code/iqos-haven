@@ -1450,3 +1450,44 @@ Not covered:
 
 - No routes or editor (step 97) and no public read (step 98).
 - Content image upload is not wired: the worker key path is in place, but no route creates content assets yet.
+
+## Step 97 — content APIs and editor (2026-10-15, local)
+
+`pnpm verify -- --integration`: exit 0, run again after the review fixes. Unit 597, integration 571, age preview 2013, gate 2175.
+
+`invariant-reviewer` found no blockers.
+
+- **Fixed:** save and publish answer with the committed record, not a second read. A chosen image older than the newest 60 keeps a clear label. A test now shows a product image is unknown to the content completion route.
+- **Already recorded (ADR 0064):** publishing does not lock the catalogue; the read side re-checks.
+- **Accepted:** an invalid stored draft returns a bare 409, and the preview and image reads are not rate limited (Owner only).
+
+**Integration (`apps/api/src/content/admin-content.int.test.ts`, real API, PostgreSQL and MinIO, 4 tests):**
+
+- **Access:** Staff get 403 on all six route kinds, no session gets 401, and a foreign origin gets 403.
+- **Refused with 400, nothing stored:** an unknown key, a `<script>` title, an extra field, a URL link, a negative version, a body field outside the contract. An empty title gives `fields: [{ path: "content.title" }]`.
+- **Save and publish:** the list shows all seven sections at version 0. A save gives version 1 with `no-store`. A second "new" save is `VERSION_CONFLICT`. Publishing gives version 2 with the published copy equal to the draft, and publishing again gives `NOTHING_TO_PUBLISH`. Publishing a section never saved gives 404. The `content.published` effect is `storefront_revalidate`.
+- **Preview:** it lists the visible product first and the draft product as not visible, with the price from. Publishing then gives 409 `CONTENT_REFERENCES` with `fields: [{ path: "product:<id>", message: "not_visible" }]`. An unsaved section's preview gives 404.
+- **Content images:**
+  - Upload authorization returns no product. The real POST goes to MinIO.
+  - The product completion route gives 404; the content route completes (`purpose=content`, `uploaded`, no product, one `media.uploaded`), and the image is listed without a URL until ready.
+  - A hero using it cannot publish (`image:<id>`, `not_ready`).
+  - A product image is unknown to the content completion route.
+  - The 11th open upload is refused with 409.
+
+**Worker (`apps/worker/src/revalidate.int.test.ts`):** `content.published` snapshots `storefront_revalidate` and completes after one signed catalogue invalidation.
+
+**Browser (`scripts/browser-qa/content-editor.mjs`, Chromium through the gateway, qa-server API and worker): 18 passed.**
+
+- **States:** a new section reads "Not set up".
+- **Promotional bar:** markup is refused by the form. A save leaves it "Draft, never published", the preview shows the saved messages, and Publish makes it "Live".
+- **Featured products:** a product hidden after being picked blocks publishing, named "“Draft QA …” is not visible". After removing it, the section publishes.
+- **Hero:** the uploaded image was processed by the worker and offered. The preview showed the processed image, and the hero published with typed data (link kind `shop`, asset ID).
+- **Editing:** "Unsaved" shows, and Discard restores the saved draft.
+- **Records:** three publishes wrote three `content.published` events.
+- **Layout and access:** no horizontal scroll at 390px and no page errors. Staff see no link and get "Access unavailable".
+
+Not covered:
+
+- The public read and the home page (steps 98–99).
+- Pruning content images: none is ever removed yet.
+- Placeholder wording until BI-09.

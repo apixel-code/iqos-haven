@@ -26,7 +26,8 @@ export const mediaUploadRequestSchema = z.strictObject({
 });
 export const mediaAssetSchema = z.strictObject({
   id: z.uuid(),
-  productId: z.uuid(),
+  /** Null for a content image (home sections, step 97), which belongs to no product. */
+  productId: z.uuid().nullable(),
   state: z.enum(MEDIA_STATES),
   declaredType: z.enum(IMAGE_TYPES),
   declaredBytes: z.number().int(),

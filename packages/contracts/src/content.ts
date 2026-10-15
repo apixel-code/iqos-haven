@@ -181,3 +181,73 @@ export const contentProblemSchema = z.strictObject({
   reason: z.enum(["missing", "not_visible", "not_ready"]),
 });
 export type ContentProblem = z.infer<typeof contentProblemSchema>;
+
+// --- Editor API (step 97, ADR 0065) ---
+/** One section as the editor sees it; null fields for a section never saved. */
+export const adminContentSectionSchema = z.strictObject({
+  key: contentSectionKeySchema,
+  /** 0 until the first save. */
+  version: z.number().int().min(0),
+  schemaVersion: z.number().int().min(1),
+  draft: z.record(z.string(), z.unknown()).nullable(),
+  draftUpdatedAt: z.iso.datetime().nullable(),
+  published: z.record(z.string(), z.unknown()).nullable(),
+  publishedAt: z.iso.datetime().nullable(),
+  unpublishedChanges: z.boolean(),
+});
+export type AdminContentSection = z.infer<typeof adminContentSectionSchema>;
+export const adminContentResponseSchema = z.strictObject({
+  sections: z.array(adminContentSectionSchema).length(CONTENT_SECTION_KEYS.length),
+});
+export const contentKeyParamsSchema = z.strictObject({ key: contentSectionKeySchema });
+/** The document is checked against the section's schema by the route. */
+export const contentDraftRequestSchema = z.strictObject({
+  expectedVersion: z.number().int().min(0),
+  content: z.record(z.string(), z.unknown()),
+});
+export const contentPublishRequestSchema = z.strictObject({
+  expectedVersion: z.number().int().min(1),
+});
+
+/** What the draft points at, resolved for the editor's preview (never public). */
+export const contentPreviewResponseSchema = z.strictObject({
+  key: contentSectionKeySchema,
+  version: z.number().int().min(1),
+  problems: z.array(contentProblemSchema).max(100),
+  products: z
+    .array(
+      z.strictObject({
+        id: z.uuid(),
+        name: z.string(),
+        visible: z.boolean(),
+        soldOut: z.boolean(),
+        priceFromFils: z.number().int().min(0).nullable(),
+      }),
+    )
+    .max(100),
+  brands: z
+    .array(z.strictObject({ id: z.uuid(), name: z.string(), visible: z.boolean() }))
+    .max(100),
+  categories: z
+    .array(z.strictObject({ id: z.uuid(), name: z.string(), visible: z.boolean() }))
+    .max(100),
+  images: z
+    .array(z.strictObject({ id: z.uuid(), ready: z.boolean(), url: z.url().nullable() }))
+    .max(10),
+});
+export type ContentPreviewResponse = z.infer<typeof contentPreviewResponseSchema>;
+
+/** A content image for the editor's picker; `url` is a short-lived signed preview. */
+export const contentImageItemSchema = z.strictObject({
+  id: z.uuid(),
+  state: z.enum(["pending", "uploaded", "processing", "ready", "rejected", "expired"]),
+  width: z.number().int().nullable(),
+  height: z.number().int().nullable(),
+  error: z.string().nullable(),
+  url: z.url().nullable(),
+  createdAt: z.iso.datetime(),
+});
+export const contentImagesResponseSchema = z.strictObject({
+  items: z.array(contentImageItemSchema).max(60),
+});
+export type ContentImageItem = z.infer<typeof contentImageItemSchema>;
