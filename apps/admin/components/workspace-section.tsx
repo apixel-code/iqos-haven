@@ -8,6 +8,7 @@ import { StaffManagement } from "./staff-management";
 import { CatalogueParentManagement } from "./catalogue-parent-management";
 import { ProductManagement } from "./product-management";
 import { InventoryManagement } from "./inventory-management";
+import { CustomerManagement } from "./customer-management";
 import { OrderManagement } from "./order-management";
 import { sections } from "../lib/navigation";
 export function WorkspaceSection({ sectionKey }: { sectionKey: string }) {
@@ -37,6 +38,8 @@ export function WorkspaceSection({ sectionKey }: { sectionKey: string }) {
           canCorrect={session.permissions.includes("orders.collection_correct")}
           canCreate={session.permissions.includes("orders.create")}
         />
+      ) : sectionKey === "customers" ? (
+        <CustomerManagement />
       ) : sectionKey === "settings" ? (
         <SettingsManagement />
       ) : sectionKey === "delivery" ? (

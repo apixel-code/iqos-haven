@@ -43,3 +43,4 @@ export * from "./order-transitions";
 export * from "./order-edits";
 export * from "./order-cancellation";
 export * from "./order-collection";
+export * from "./customer-admin";

@@ -12,6 +12,7 @@ import {
   orderEditRequestSchema,
   orderEditResponseSchema,
   orderTransitionResponseSchema,
+  orderWhatsappResponseSchema,
   type AdminOrderResponse,
   type AdminOrderSummary,
   type OrderBulkConfirmResponse,
@@ -592,6 +593,9 @@ function OrderDetail({
               done={order.reload}
             />
           )}
+          {canReadContact && order.data.status !== "cancelled" && (
+            <OrderWhatsappPanel id={id} version={order.data.version} />
+          )}
           <OrderDetailBody order={order.data} />
         </>
       )}
@@ -654,6 +658,74 @@ function editCommand(order: AdminOrderResponse, data: FormData): OrderEditReques
   const note = String(data.get("operationalNote") ?? "").trim() || null;
   if (note !== order.operationalNote) command.operationalNote = note;
   return validate(orderEditRequestSchema, command);
+}
+
+/**
+ * WhatsApp messages for the order (step 90). Opening WhatsApp sends nothing and records
+ * nothing: the staff member reviews the text and sends it in WhatsApp themselves.
+ */
+function OrderWhatsappPanel({ id, version }: { id: string; version: number }) {
+  // The version in the path re-reads the message after the order changes (status, total).
+  const links = useManagementResource(
+    `/orders/${id}/whatsapp?v=${version}`,
+    orderWhatsappResponseSchema,
+  );
+  const [kind, setKind] = useState<"orderConfirmation" | "statusUpdate">("orderConfirmation");
+  const [edited, setEdited] = useState<Record<string, string>>({});
+  const link = links.data?.links.find((entry) => entry.kind === kind);
+  const text = edited[kind] ?? link?.text ?? "";
+  return (
+    <article className="record-card">
+      <h3>WhatsApp customer</h3>
+      <ResourceNotice resource={links} />
+      {links.data && link && (
+        <>
+          <div className="tab-list" role="tablist" aria-label="Message">
+            {links.data.links.map((entry) => (
+              <button
+                key={entry.kind}
+                type="button"
+                role="tab"
+                className="secondary-button"
+                aria-selected={kind === entry.kind}
+                onClick={() => setKind(entry.kind)}
+              >
+                {entry.kind === "orderConfirmation" ? "Order confirmation" : "Status update"}
+              </button>
+            ))}
+          </div>
+          <label className="wide-field">
+            <span>Message (editable in WhatsApp too)</span>
+            <textarea
+              rows={3}
+              maxLength={2000}
+              value={text}
+              onChange={(event) =>
+                setEdited((current) => ({ ...current, [kind]: event.target.value }))
+              }
+            />
+          </label>
+          {link.placeholder && (
+            <p className="muted">Placeholder wording: the Owner can set the message in Settings.</p>
+          )}
+          <div className="form-actions">
+            <a
+              className="primary-button"
+              target="_blank"
+              rel="noopener noreferrer"
+              href={`https://wa.me/${links.data.phone.slice(1)}?text=${encodeURIComponent(text)}`}
+            >
+              Open WhatsApp
+            </a>
+            <small className="muted">
+              Opens WhatsApp with this message ready. Nothing is sent or recorded until you send it
+              there.
+            </small>
+          </div>
+        </>
+      )}
+    </article>
+  );
 }
 
 /**

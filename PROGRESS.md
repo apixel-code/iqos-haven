@@ -4,8 +4,8 @@
 
 - Date: 2026-10-13
 - Milestone: M7 — transactional checkout and first complete order: all steps (73–82) done; gate evidence ready, awaiting Marina's decision. M6: all steps (65–72) done; gate evidence ready, awaiting Marina's decision. M5: PASSED 2026-10-11. M4 steps done, gate awaits Marina's decision (publishing unblocked); M3 gate not closed; M0 review and M1 staging/fixtures still open
-- Step: 89 (bulk confirm) — done; next is 90
-- Branch: `step/89-bulk-confirm` (pushed; PR based on `step/88-manual-orders` → PR #62 → `step/87-cod-collection` → PR #61 → `main`)
+- Step: 90 (customer views and order WhatsApp messages) — done; next is 91
+- Branch: `step/90-customers-whatsapp` (pushed; PR based on `step/89-bulk-confirm`; the stack reaches `main` through PR #61)
 - See docs/verification.md for actual checks.
 
 ## Next action
@@ -20,10 +20,11 @@
 2. **From now on** branch each step from the latest pushed step branch (or `main` once #61 is merged), push it and open its PR after `/verify` and the commit.
 3. **Marina: decide the M6 gate (and M4).** Evidence and caveats: docs/verification.md "Step 72".
 4. **Marina: decide the M7 gate.** Evidence, item by item, and what is not covered: docs/verification.md "Step 82". Checkout stays switched off (`CHECKOUT_SUBMISSION_ENABLED=false`) whatever the decision, until deployment inputs exist (BI-07 sender domain, real Owner, delivery areas and fee).
-5. **Next step: `/step 90`** (customer history/spend views and order WhatsApp templates). Find the row with `rg -n "^| 90 " docs/roadmap.md`. Staff see operational fields only; spend summaries are Owner-only (`customers.financial_read`); a `wa.me` link is never recorded as a confirmed send. WhatsApp number and wording are still demo values (BI-09).
+5. **Next step: `/step 91`** (per-user inbox, read receipts and SSE). Find the row with `rg -n "^| 91 " docs/roadmap.md`; read architecture §8 "SSE" and "Notification inbox". The tables exist (ADR 0047); re-check the permission behind each notification type when listing (a receipt is a snapshot); `read_at` is the only column the runtime role may update.
 6. **Rules that carry forward:**
    - Admin order reads (ADR 0051): both routes require `orders.read`; the whole optional `customer` object and contact search additionally require `customers.read`. List keyset is the exact DB `(created_at,id)`; detail uses one repeatable-read snapshot. Never expose creation/idempotency hashes, confirmation data or history command IDs. Step 84 adds commands separately with expected versions.
    - Order transitions (ADR 0052): normal fulfilment uses `POST /v1/admin/orders/:id/transitions` with `orders.transition`, `expectedVersion` and a UUID command ID. Lock the current actor, then the order; write order/history/audit/`order.status_changed` in one transaction. A partial unique index makes staff transition command IDs global and exact retries return the original receipt. Delivered leaves COD pending.
+   - Customers and WhatsApp (ADR 0058): `GET /v1/admin/customers[/:id]` (`customers.read`; spend only with `customers.financial_read`, booked vs delivered); `GET /v1/admin/orders/:id/whatsapp` (`customers.read` + `orders.read`) gives ready texts from the Owner's templates or placeholder wording (BI-09) — nothing is ever recorded as sent.
    - Bulk confirm (ADR 0057): `POST /v1/admin/orders/bulk-confirm` runs `transitionOrder` per order (≤50, own version and command ID each, own transaction); per-order results; the same batch replays.
    - Manual orders (ADR 0056): `createStoreOrder` with `manual` (scope `admin.order.create:<staff id>`, rights under the claim, `source='manual'`, Pending or Confirmed with evidence as the first history reason — the database requires that reason). Routes `GET /v1/admin/orders/delivery-areas`, `POST /v1/admin/orders/quote`, `POST /v1/admin/orders` (`Idempotency-Key`). Shared refusal mapping in `apps/api/src/orders/order-refusals.ts`.
    - Integration tests run two packages at a time (`test:int` uses `--concurrency=2`) after unrelated suites timed out under load; if timeouts return, look at the database pool sizes rather than raising the parallelism again.
@@ -100,7 +101,8 @@ BI-07: a verified sending domain and sender address are still needed before real
 - 82 — checkout correctness gate: worker gate test (order transaction → relay → queue → inbox and Mailpit, queue outage, cleanup jobs), HTTP gate cases (repeated lines, last unit, code burst), full browser journey with the worker's consumers running — `step(82)` commit on `step/82-checkout-gate`
 - 83 — admin order list/status-date-contact search/keyset paging and repeatable-read snapshot detail/history; contact fields and search require `customers.read`; responsive read-only Orders workspace (ADR 0051) — `step(83)` commit on `step/83-admin-orders`
 - 84 — versioned and replay-safe normal fulfilment transitions with committed status history, audit/event writes, next-action admin controls and timeline reloads (ADR 0052) — b11959b
-- 89 — bulk confirm: up to 50 Pending orders, each its own versioned transition with its own command, per-order results, same-batch retry replays; admin selection and results (ADR 0057) — `step(89)` commit on `step/89-bulk-confirm`
+- 90 — admin customers (phone-grouped list and detail, Owner-only spend in two bases) and order WhatsApp messages from templates, opened by staff and never recorded as sent (ADR 0058) — `step(90)` commit on `step/90-customers-whatsapp`
+- 89 — bulk confirm: up to 50 Pending orders, each its own versioned transition with its own command, per-order results, same-batch retry replays; admin selection and results (ADR 0057) — e183d74
 - 88 — manual orders: the storefront's quote, order transaction, stock and idempotency for staff-entered orders, scoped per staff member; Pending, or Confirmed with recorded evidence (database-enforced); admin New order form (ADR 0056) — 4fbad75
 - 87 — explicit COD collection (amount, time, actor, reference) for Delivered orders and the Owner's reasoned correction kept beside the untouched original; append-only records, audit and events, admin panel (ADR 0055) — b958148
 - 86 — order cancellation before handoff and the Owner's classified return after it: one transaction, coupon released, stock back once through the ledger (resellable only on a return), permanent replay-safe command record, admin cancel panel (ADR 0054) — 696b142
@@ -128,25 +130,27 @@ BI-07: a verified sending domain and sender address are still needed before real
 - Event `consumers` lists only implemented consumers (now `system_probe`, `email`, `media_processor`, `storefront_revalidate`); planned ones are documented with roadmap steps and move in with a backfill decision (architecture §8: adding a consumer must not redefine old completions).
 - `audit_log` migration revokes UPDATE/DELETE/TRUNCATE only from a role named `ih_app`; other runtime role names must be revoked at provisioning (trigger blocks mutations regardless).
 
-## Last session handoff (2026-10-15, step 89)
+## Last session handoff (2026-10-15, step 90)
 
 Done:
 
-- **Step 89 (ADR 0057):** `orderBulkConfirmRequestSchema`/`orderBulkConfirmResponseSchema`; `bulkConfirmOrders` in `packages/db/src/order-transitions.ts`; `POST /v1/admin/orders/bulk-confirm`; admin list selection, "Confirm selected", per-order results, "Retry confirming" / "Discard and reload".
-- **`invariant-reviewer`:** no blockers; done: IDs normalized to lower case, a stuck batch can be discarded, a 429 keeps the batch, selection cleared on filter change, tests for capitals, cross-order command reuse and opposite-order batches; the rethrow of unexpected errors is kept and documented.
+- **Step 90 (ADR 0058):** contracts in `packages/contracts/src/customers.ts`; `packages/domain/src/whatsapp-templates.ts`; `packages/db/src/customer-admin.ts`; `apps/api/src/customers/*`; migration `20261015000100_customer_list_index`; admin Customers screen and the order WhatsApp panel.
+- **`invariant-reviewer`:** no blockers; done: UTC cursor, the page of customers selected before aggregating (with an index), rendered text capped and a wider href limit, both permissions on the WhatsApp route guard, a wildcard search test.
 
-Files: `packages/contracts/src/orders.ts`, `packages/db/src/order-transitions.ts`, `apps/api/src/orders/{order-transitions.controller.ts,admin-orders.service.ts,bulk-confirm.int.test.ts}`, `apps/api/src/security/limit-policies.ts`, `apps/admin/components/order-management.tsx`, `docs/api.openapi.json`, `docs/decisions/0057-bulk-confirm.md`, `docs/{implementation-status,task-backlog,verification}.md`, `PROGRESS.md`.
+Files: `packages/contracts/src/customers.ts`, `packages/domain/src/{whatsapp-templates.ts,whatsapp-templates.test.ts,index.ts}`, `packages/db/src/{customer-admin.ts,index.ts}`, `packages/db/prisma/migrations/20261015000100_customer_list_index/migration.sql`, `apps/api/src/customers/{admin-customers.controller.ts,customers.module.ts,admin-customers.int.test.ts}`, `apps/api/src/app.module.ts`, `apps/admin/{components/customer-management.tsx,components/order-management.tsx,components/workspace-section.tsx,lib/management.ts}`, `docs/api.openapi.json`, `docs/decisions/0058-customers-and-whatsapp.md`, `docs/{implementation-status,task-backlog,verification}.md`, `PROGRESS.md`.
 
-Tests: `pnpm verify -- --integration` PASS (unit 582, integration 526, gateway 29, age-preview 2008, gate 2175). Bulk confirm 4/4.
+Tests: `pnpm verify -- --integration` PASS (unit 585, integration 529, gateway 29, age-preview 2008, gate 2175). Customers 3/3, templates 3 unit.
 
 Unfinished:
 
-- PRs #61 → #62 → step-89 PR are stacked and wait for Marina's merge (merge #61 first; GitHub retargets the next). Close #59/#60 after #61. M4, M6 and M7 gates await her decision.
-- Admin order screens (steps 83–89) have had no browser pass.
+- PRs #61 → #62 → #63 → step-90 PR are stacked and wait for Marina's merge (merge #61 first). Close #59/#60 after #61. M4, M6 and M7 gates await her decision.
+- WhatsApp wording is placeholder until BI-09; the Owner can set it in Settings.
+- Admin order and customer screens (steps 83–90) have had no browser pass.
 - Four `ih_test_*` schemas of unknown origin are in the test database; left alone.
 
 ## History (summary)
 
+- 2026-10-15 step 89: bulk confirm, ADR 0057 (e183d74, PR #63); verify unit 582/integration 526.
 - 2026-10-14 step 88: manual orders, ADR 0056 (4fbad75, PR #62); verify unit 582/integration 522.
 - 2026-10-14 step 87: COD collection and Owner correction, ADR 0055 (b958148, PR #61); verify unit 582/integration 515.
 - 2026-10-14 step 86: order cancellation and Owner returns, ADR 0054 (696b142, not pushed); verify unit 577/integration 509.
@@ -154,4 +158,3 @@ Unfinished:
 - 2026-10-13 step 85: versioned order edits and immutable diffs, ADR 0053 (local branch, not pushed); unit 577/integration 499/gateway 29/age-preview 2008/gate 2175.
 - 2026-10-13 step 84: versioned fulfilment transitions and admin controls, ADR 0052 (b11959b, not pushed).
 - 2026-10-13 step 81: confirmation page, ADR 0050 (b04d2a9, not pushed); verify unit 577/integration 482/gateway 29/age-preview 2008/gate 2175; browser 28 checks.
-- 2026-10-13 step 80: checkout form and attempt key, ADR 0049 (678cf64, not pushed); verify unit 573/integration 482/gateway 29/age-preview 1855/gate 2079; browser 21 checks.

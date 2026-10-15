@@ -1234,3 +1234,17 @@ Not covered: the admin New order form in a browser.
 - Capitals are the same command (replay); a command ID reused in a later batch for another order is `COMMAND_REUSED`; two batches naming the same three orders in opposite orders at once confirm each order exactly once with no deadlock.
 
 Not covered: an unexpected server error part-way through a batch followed by a retry (the replay path is shown above); the admin selection in a browser.
+
+## Step 90 — admin customers and order WhatsApp messages (2026-10-15, local)
+
+`pnpm verify -- --integration`: exit 0 before and after the review fixes. Unit 585, integration 529, gateway 29, age-preview 2008, gate 2175.
+
+**Integration (`apps/api/src/customers/admin-customers.int.test.ts`, real API and PostgreSQL, 3 tests):**
+
+- **List:** a phone with a delivered (AED 55.00), an open (AED 95.00) and a cancelled order is one customer with 3 orders and the latest area; Staff get no spend; the Owner gets booked AED 150.00 and delivered AED 55.00. Phone search by "050 650 0002" finds that customer; two digits match no phone; a customer without orders is not listed; `%` is searched literally; keyset pages are newest first; a bad cursor and an over-limit page size are 400.
+- **Detail:** 2 orders newest first, no cancelled, the saved villa address, `private, no-store`; spend only for the Owner (booked AED 110.00, delivered 0); without `orders.read` the history is empty; without `customers.read` the list and detail are 403; an unknown customer 404.
+- **WhatsApp:** the customer's number and two placeholder messages ("We received your order IH-… for AED 55.00 … reply YES", "is now: received"), with `wa.me` links carrying the encoded text; after the Owner sets a template, that wording is used with the store name, order number, total and support number, the other stays placeholder; reading the links writes no audit entry and no event; without `customers.read` 403.
+
+**Unit (`packages/domain/src/whatsapp-templates.test.ts`, 3 tests):** placeholders filled and unknown ones left; values kept on one line; links only for an E.164 phone, text URL-encoded.
+
+Not covered: the Customers screen and the WhatsApp panel in a browser; real wording (BI-09).
