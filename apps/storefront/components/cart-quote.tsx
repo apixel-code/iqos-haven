@@ -21,6 +21,7 @@ import {
   type QuoteProblem,
 } from "@/lib/cart/quote";
 import type { QuoteChoice } from "@/lib/checkout/memory";
+import { freeDeliveryProgress } from "@/lib/cart/free-delivery";
 import { displayAed } from "@/lib/store/listing";
 
 interface Line {
@@ -324,6 +325,12 @@ export function CartQuote({
         </p>
       )}
       {current && (
+        <FreeDelivery
+          thresholdFils={current.freeDeliveryThresholdFils}
+          afterDiscountFils={current.merchandiseSubtotalFils - current.discountFils}
+        />
+      )}
+      {current && (
         <>
           <dl className="flex flex-col gap-2 text-sm">
             {current.coupon && (
@@ -380,6 +387,37 @@ export function CartQuote({
           )}
         </>
       )}
+    </div>
+  );
+}
+
+/** Hidden while free delivery is off (always at launch: the API answers `null`). */
+function FreeDelivery({
+  thresholdFils,
+  afterDiscountFils,
+}: {
+  thresholdFils: number | null;
+  afterDiscountFils: number;
+}) {
+  const progress = freeDeliveryProgress(thresholdFils, afterDiscountFils);
+  if (!progress) return null;
+  return (
+    <div className="flex flex-col gap-2 rounded-md bg-surface-2 px-4 py-3.5 text-[13.5px]">
+      <span>
+        {progress.kind === "reached" ? (
+          "Your order qualifies for free delivery."
+        ) : (
+          <>
+            Add <b>{displayAed(progress.remainingFils)}</b> more for free delivery.
+          </>
+        )}
+      </span>
+      <span aria-hidden="true" className="h-1.5 overflow-hidden rounded-pill bg-line">
+        <i
+          className="block h-full bg-success"
+          style={{ width: `${progress.kind === "reached" ? 100 : progress.percent}%` }}
+        />
+      </span>
     </div>
   );
 }

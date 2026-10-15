@@ -336,6 +336,8 @@ async function main() {
     const PAGES = [
       "/",
       "/shop",
+      "/offers",
+      "/help",
       "/disposable-vapes",
       "/brands",
       "/brands/gatebrand",

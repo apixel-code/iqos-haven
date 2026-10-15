@@ -177,6 +177,7 @@ export class StoreCatalogService {
       query.brand ?? null,
       query.category ?? null,
       query.type ?? null,
+      query.sale ?? null,
       query.sort,
       query.limit,
     ]);

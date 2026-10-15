@@ -196,7 +196,11 @@ export function HomeOffers({ offers }: { offers: StoreHomeResponse["offers"] }) 
   if (!offers || !offers.products.length) return null;
   return (
     <section aria-labelledby="home-offers" className="flex flex-col gap-5">
-      <SectionHead id="home-offers" title={offers.title} />
+      <SectionHead
+        id="home-offers"
+        title={offers.title}
+        more={{ label: "View all offers", href: "/offers" }}
+      />
       <ProductGrid products={offers.products} />
     </section>
   );

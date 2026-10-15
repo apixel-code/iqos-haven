@@ -176,6 +176,8 @@ export async function listStoreProducts(
   if (query.brand) filters.push(Prisma.sql`b.slug=${query.brand}`);
   if (query.category) filters.push(Prisma.sql`c.slug=${query.category}`);
   if (query.type) filters.push(Prisma.sql`p.type=${query.type}`);
+  // The same rule as the card's "was" price: a compare-at price above the lowest price.
+  if (query.sale) filters.push(Prisma.sql`p.compare_at_price_fils > s.price_from`);
   const rows = await db.$queryRaw<Array<StoreProductCardRow & { cursorKey: string | number }>>(
     Prisma.sql`
     WITH q AS (

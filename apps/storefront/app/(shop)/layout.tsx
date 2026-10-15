@@ -76,6 +76,11 @@ export default async function ShopLayout({ children }: { children: ReactNode }) 
           <nav aria-label="Help and legal" className="flex flex-col gap-2">
             <h2 className="font-semibold">Help &amp; legal</h2>
             <ul className="flex flex-col gap-1.5">
+              <li>
+                <Link href="/help" prefetch={false} className={footerLink}>
+                  Help &amp; delivery
+                </Link>
+              </li>
               {POLICY_PAGES.map((page) => (
                 <li key={page.path}>
                   <a href={page.path} className={footerLink}>

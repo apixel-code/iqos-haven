@@ -19,6 +19,8 @@ const ORIGIN = "https://shop.preview-check.test";
 const RESTRICTED = [
   "/",
   "/shop",
+  "/offers",
+  "/help",
   "/shop?brand=orbe&sort=price_asc",
   "/disposable-vapes",
   "/vape-kits",
@@ -111,6 +113,15 @@ const CATALOGUE = {
   "/v1/store/categories": {
     items: [{ name: "Disposables", slug: "disposables", productCount: 2 }],
   },
+  "/v1/store/delivery": {
+    feeFils: 1500,
+    etaText: "Synthetic delivery time",
+    freeThresholdFils: null,
+    areas: [
+      { id: "0199e0a0-0000-7000-8000-0000000000a1", name: "Synthetic area", emirate: "dubai" },
+      { id: "0199e0a0-0000-7000-8000-0000000000a2", name: "Other area", emirate: "sharjah" },
+    ],
+  },
 };
 const variantOf = (n, attributes, overrides = {}) => ({
   id: `00000000-0000-4000-8000-00000000000${n}`,
@@ -181,6 +192,11 @@ const stub = createHttpServer((request, response) => {
   if (apiMode === "down") return send(503, { error: { code: "SERVICE_UNAVAILABLE" } });
   if (url.searchParams.get("cursor") === "c3RhbGU")
     return send(400, { error: { code: "VALIDATION_ERROR" } });
+  if (url.pathname === "/v1/store/products" && url.searchParams.get("sale") === "1")
+    return send(200, {
+      items: [card("Orbe Reduced Pick", { priceFromFils: 4500, compareAtPriceFils: 5900 })],
+      nextCursor: null,
+    });
   if (url.pathname === "/v1/store/products")
     return send(
       200,
@@ -693,6 +709,30 @@ try {
     ),
     "product page WhatsApp link names the product and its price",
   );
+  // Offers and Help (step 100): offers ask the API for reduced prices only; Help shows the
+  // Owner's delivery settings, and no free delivery or coupon code while none is set up.
+  const offers = await page("/offers");
+  check(
+    offers.includes("Orbe Reduced Pick") && !offers.includes("Orbe Halo Mint"),
+    "offers list only reduced prices",
+  );
+  check(
+    apiCalls.some((call) => call.path === "/v1/store/products" && call.search.includes("sale=1")),
+    "offers ask the API for the sale filter",
+  );
+  const help = await page("/help");
+  for (const text of [
+    "AED 15 per order",
+    "Synthetic delivery time",
+    "Dubai, Sharjah",
+    "Cash on delivery",
+  ])
+    check(help.includes(text), `help shows "${text}"`);
+  for (const page_ of [help, offers, await page("/")])
+    check(
+      !/free delivery|HAVEN10|SAVE20|VEKTOR15|BIGBOX15/i.test(page_),
+      "no free-delivery claim or demo coupon code on the page",
+    );
   // Published home content (step 99): the promotional bar on every shop page, the hero, the
   // curated rows, banners and offers. Without it (above) the catalogue sections fill in.
   CATALOGUE["/v1/store/content/home"] = {

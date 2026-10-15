@@ -66,6 +66,8 @@ export const storeProductsQuerySchema = z.strictObject({
   brand: catalogueSlugSchema.optional(),
   category: catalogueSlugSchema.optional(),
   type: z.enum(["disposable", "kit"]).optional(),
+  /** Offers (step 100): only products shown with a reduced price (compare-at above the price). */
+  sale: z.literal("1").optional(),
   sort: z.enum(STORE_PRODUCT_SORTS).default("newest"),
   limit: z.coerce.number().int().min(1).max(STORE_PAGE_SIZES.max).default(STORE_PAGE_SIZES.default),
   cursor: cursor.optional(),
