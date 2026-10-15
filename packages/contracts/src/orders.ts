@@ -28,6 +28,48 @@ export const orderTransitionResponseSchema = z.strictObject({
   replayed: z.boolean(),
 });
 
+// --- Bulk confirm (roadmap step 89, ADR 0057) ---
+export const BULK_CONFIRM_LIMIT = 50;
+/**
+ * Confirms several Pending orders, each as its own versioned transition with its own command
+ * ID, so a retry of the same batch replays instead of confirming twice.
+ */
+export const orderBulkConfirmRequestSchema = z
+  .strictObject({
+    orders: z
+      .array(
+        z.strictObject({
+          // One spelling, so a retry written in capitals is still the same command.
+          orderId: z.uuid().transform((id) => id.toLowerCase()),
+          expectedVersion: z.number().int().min(1),
+          commandId: z.uuid().transform((id) => id.toLowerCase()),
+        }),
+      )
+      .min(1)
+      .max(BULK_CONFIRM_LIMIT),
+  })
+  .refine(
+    (value) =>
+      new Set(value.orders.map((item) => item.orderId)).size === value.orders.length &&
+      new Set(value.orders.map((item) => item.commandId)).size === value.orders.length,
+    { path: ["orders"], message: "Each order and each command once" },
+  );
+export const orderBulkConfirmResponseSchema = z.strictObject({
+  results: z
+    .array(
+      z.strictObject({
+        orderId: z.uuid(),
+        /** `confirmed`, also when this command had already confirmed it (`replayed`). */
+        outcome: z.enum(["confirmed", "refused"]),
+        /** Why it was refused: a conflict code, `NOT_FOUND` or `FORBIDDEN`. */
+        code: z.string().max(64).nullable(),
+        orderVersion: z.number().int().min(2).nullable(),
+        replayed: z.boolean(),
+      }),
+    )
+    .max(BULK_CONFIRM_LIMIT),
+});
+
 export const orderEditRequestSchema = z
   .strictObject({
     expectedVersion: z.number().int().min(1),
@@ -337,6 +379,8 @@ export type AdminOrderResponse = z.infer<typeof adminOrderResponseSchema>;
 export type OrderTransitionRequest = z.infer<typeof orderTransitionRequestSchema>;
 export type OrderTransitionResponse = z.infer<typeof orderTransitionResponseSchema>;
 export type OrderEditRequest = z.infer<typeof orderEditRequestSchema>;
+export type OrderBulkConfirmRequest = z.input<typeof orderBulkConfirmRequestSchema>;
+export type OrderBulkConfirmResponse = z.infer<typeof orderBulkConfirmResponseSchema>;
 export type OrderEditResponse = z.infer<typeof orderEditResponseSchema>;
 export type OrderEditDiff = z.infer<typeof orderEditDiffSchema>;
 export type ManualOrderRequest = z.input<typeof manualOrderRequestSchema>;

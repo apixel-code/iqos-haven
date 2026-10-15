@@ -1,5 +1,9 @@
 import {
   defineEvent,
+  orderBulkConfirmRequestSchema,
+  orderBulkConfirmResponseSchema,
+  type OrderBulkConfirmRequest,
+  type OrderBulkConfirmResponse,
   orderTransitionRequestSchema,
   orderTransitionResponseSchema,
   type ConflictCode,
@@ -13,7 +17,7 @@ import { PrismaAuditWriter } from "./audit";
 import { lockCatalogueActor, CatalogueForbiddenError } from "./catalogue-parents";
 import { lockOrder, OrderNotFoundError } from "./order-locks";
 import { PrismaOutboxWriter } from "./outbox";
-import { withTransaction } from "./transaction";
+import { TransactionContentionError, withTransaction } from "./transaction";
 
 export class OrderTransitionForbiddenError extends CatalogueForbiddenError {}
 export class OrderTransitionNotFoundError extends Error {}
@@ -171,4 +175,51 @@ export async function transitionOrder(
       throw new OrderTransitionConflictError("COMMAND_REUSED");
     return receipt(winner, true);
   }
+}
+
+/**
+ * Bulk confirm (roadmap step 89, ADR 0057). Each order is its own `transitionOrder` to
+ * Confirmed, in its own transaction, with the version and command ID the operator's screen
+ * sent; one order's refusal never undoes or blocks another. Orders are taken in the order
+ * given, one at a time. Retrying the same batch replays every command that already applied.
+ */
+export async function bulkConfirmOrders(
+  db: Database,
+  context: CommandContext,
+  request: OrderBulkConfirmRequest,
+): Promise<OrderBulkConfirmResponse> {
+  const input = orderBulkConfirmRequestSchema.parse(request);
+  const results: OrderBulkConfirmResponse["results"] = [];
+  for (const item of input.orders) {
+    const refused = (code: string) =>
+      results.push({
+        orderId: item.orderId,
+        outcome: "refused",
+        code,
+        orderVersion: null,
+        replayed: false,
+      });
+    try {
+      const receipt = await transitionOrder(
+        db,
+        { ...context, commandId: item.commandId },
+        item.orderId,
+        { to: "confirmed", expectedVersion: item.expectedVersion, commandId: item.commandId },
+      );
+      results.push({
+        orderId: item.orderId,
+        outcome: "confirmed",
+        code: null,
+        orderVersion: receipt.orderVersion,
+        replayed: receipt.replayed,
+      });
+    } catch (error) {
+      if (error instanceof OrderTransitionConflictError) refused(error.reason);
+      else if (error instanceof OrderTransitionNotFoundError) refused("NOT_FOUND");
+      else if (error instanceof OrderTransitionForbiddenError) refused("FORBIDDEN");
+      else if (error instanceof TransactionContentionError) refused(error.code);
+      else throw error;
+    }
+  }
+  return orderBulkConfirmResponseSchema.parse({ results });
 }

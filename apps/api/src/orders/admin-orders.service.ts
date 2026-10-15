@@ -8,6 +8,7 @@ import {
 } from "@nestjs/common";
 import type {
   AdminOrdersQuery,
+  OrderBulkConfirmRequest,
   OrderCancelRequest,
   OrderCollectionCorrectionRequest,
   OrderCollectionRequest,
@@ -23,6 +24,7 @@ import {
   OrderReadForbiddenError,
   readAdminOrder,
   transitionOrder,
+  bulkConfirmOrders,
   OrderTransitionConflictError,
   OrderTransitionForbiddenError,
   OrderTransitionNotFoundError,
@@ -103,6 +105,10 @@ export class AdminOrdersService {
 
   transition(context: CommandContext, orderId: string, input: OrderTransitionRequest) {
     return this.execute(() => transitionOrder(this.db, context, orderId, input));
+  }
+
+  bulkConfirm(context: CommandContext, input: OrderBulkConfirmRequest) {
+    return this.execute(() => bulkConfirmOrders(this.db, context, input));
   }
 
   edit(context: CommandContext, orderId: string, input: OrderEditRequest) {

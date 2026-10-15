@@ -3,6 +3,7 @@ import { useState } from "react";
 import {
   adminOrderResponseSchema,
   adminOrdersResponseSchema,
+  orderBulkConfirmResponseSchema,
   orderCancelRequestSchema,
   orderCancelResponseSchema,
   orderCollectionCorrectionRequestSchema,
@@ -13,13 +14,15 @@ import {
   orderTransitionResponseSchema,
   type AdminOrderResponse,
   type AdminOrderSummary,
+  type OrderBulkConfirmResponse,
   type OrderCancelRequest,
   type OrderCollectionCorrectionRequest,
   type OrderCollectionRequest,
   type OrderEditDiff,
   type OrderEditRequest,
 } from "@ih/contracts";
-import { managementRequest, validate } from "../lib/management";
+import { ApiError } from "../lib/auth";
+import { managementError, managementRequest, validate } from "../lib/management";
 import {
   addressLine,
   aedToFils,
@@ -70,6 +73,59 @@ export function OrderManagement({
   const [cursors, setCursors] = useState<string[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  // Bulk confirm (step 89): chosen Pending orders with the version seen and one command ID each.
+  // An unclear answer keeps the same batch, so "Retry" replays instead of confirming twice.
+  const [chosen, setChosen] = useState<
+    Map<string, { orderNumber: string; expectedVersion: number; commandId: string }>
+  >(new Map());
+  const [confirming, setConfirming] = useState(false);
+  const [bulkMessage, setBulkMessage] = useState("");
+  const [bulkResults, setBulkResults] = useState<
+    Array<OrderBulkConfirmResponse["results"][number] & { orderNumber: string }>
+  >([]);
+  const [unclear, setUnclear] = useState(false);
+  async function confirmChosen() {
+    const batch = [...chosen.entries()];
+    if (!unclear && !window.confirm(`Confirm ${batch.length} order(s)?`)) return;
+    setConfirming(true);
+    setBulkMessage("");
+    try {
+      const response = await managementRequest(
+        "/orders/bulk-confirm",
+        orderBulkConfirmResponseSchema,
+        "POST",
+        {
+          orders: batch.map(([orderId, item]) => ({
+            orderId,
+            expectedVersion: item.expectedVersion,
+            commandId: item.commandId,
+          })),
+        },
+      );
+      setBulkResults(
+        response.results.map((result) => ({
+          ...result,
+          orderNumber: chosen.get(result.orderId)?.orderNumber ?? result.orderId,
+        })),
+      );
+      setChosen(new Map());
+      setUnclear(false);
+      orders.reload();
+    } catch (error) {
+      // No answer or a server error: some orders may be confirmed. Keep the batch to retry.
+      // A refusal of the whole request (4xx other than "too many") applied nothing.
+      const settled =
+        error instanceof ApiError &&
+        error.status >= 400 &&
+        error.status < 500 &&
+        error.status !== 429;
+      setUnclear(!settled);
+      if (settled) setChosen(new Map());
+      setBulkMessage(managementError(error, true));
+    } finally {
+      setConfirming(false);
+    }
+  }
   const params = new URLSearchParams({ limit: "25" });
   if (status !== "all") params.set("status", status);
   if (search) params.set("q", search);
@@ -78,7 +134,11 @@ export function OrderManagement({
   const cursor = cursors.at(-1);
   if (cursor) params.set("after", cursor);
   const orders = useManagementResource(`/orders?${params}`, adminOrdersResponseSchema);
-  const resetPage = () => setCursors([]);
+  const resetPage = () => {
+    setCursors([]);
+    // A selection belongs to the list it was made in.
+    if (!unclear) setChosen(new Map());
+  };
   if (creating)
     return (
       <ManualOrderPanel
@@ -180,6 +240,54 @@ export function OrderManagement({
         </div>
       </form>
       <ResourceNotice resource={orders} />
+      {canTransition && (chosen.size > 0 || bulkResults.length > 0 || bulkMessage) && (
+        <div className="record-card">
+          {chosen.size > 0 && (
+            <div className="form-actions">
+              <button
+                type="button"
+                className="primary-button"
+                disabled={confirming}
+                onClick={() => void confirmChosen()}
+              >
+                {unclear ? `Retry confirming ${chosen.size}` : `Confirm selected (${chosen.size})`}
+              </button>
+              <button
+                type="button"
+                className="secondary-button"
+                disabled={confirming}
+                onClick={() => {
+                  // Safe after an unclear answer too: a fresh selection re-checks each order's
+                  // version, so nothing can be confirmed twice.
+                  setChosen(new Map());
+                  setUnclear(false);
+                  if (unclear) orders.reload();
+                }}
+              >
+                {unclear ? "Discard and reload" : "Clear selection"}
+              </button>
+              <small className="muted">
+                At most 50 at a time; each order is confirmed on its own.
+              </small>
+            </div>
+          )}
+          {bulkMessage && <p role="alert">{bulkMessage}</p>}
+          {bulkResults.length > 0 && (
+            <ul className="record-list" aria-label="Bulk confirm results">
+              {bulkResults.map((result) => (
+                <li key={result.orderId}>
+                  {result.orderNumber}:{" "}
+                  {result.outcome === "confirmed"
+                    ? result.replayed
+                      ? "already confirmed by this action"
+                      : "confirmed"
+                    : `not confirmed (${BULK_REASONS[result.code ?? ""] ?? "refused"})`}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
       {orders.data && (
         <>
           {orders.data.items.length === 0 ? (
@@ -189,6 +297,7 @@ export function OrderManagement({
               <table className="order-table">
                 <thead>
                   <tr>
+                    {canTransition && <th aria-label="Select" />}
                     <th>Order</th>
                     <th>Customer</th>
                     <th>Items</th>
@@ -200,7 +309,31 @@ export function OrderManagement({
                 </thead>
                 <tbody>
                   {orders.data.items.map((order) => (
-                    <OrderRow key={order.id} order={order} open={() => setSelected(order.id)} />
+                    <OrderRow
+                      key={order.id}
+                      order={order}
+                      open={() => setSelected(order.id)}
+                      selectable={canTransition}
+                      checked={chosen.has(order.id)}
+                      disabled={
+                        order.status !== "pending" ||
+                        unclear ||
+                        (!chosen.has(order.id) && chosen.size >= 50)
+                      }
+                      toggle={(on) =>
+                        setChosen((current) => {
+                          const next = new Map(current);
+                          if (on)
+                            next.set(order.id, {
+                              orderNumber: order.orderNumber,
+                              expectedVersion: order.version,
+                              commandId: crypto.randomUUID(),
+                            });
+                          else next.delete(order.id);
+                          return next;
+                        })
+                      }
+                    />
                   ))}
                 </tbody>
               </table>
@@ -230,9 +363,43 @@ export function OrderManagement({
   );
 }
 
-function OrderRow({ order, open }: { order: AdminOrderSummary; open: () => void }) {
+const BULK_REASONS: Record<string, string> = {
+  VERSION_CONFLICT: "it changed meanwhile; reload",
+  INVALID_TRANSITION: "it is no longer pending",
+  NOT_FOUND: "not found",
+  FORBIDDEN: "no permission",
+  COMMAND_REUSED: "this action was used for something else",
+  TRANSACTION_RETRY_EXHAUSTED: "busy; try again",
+};
+
+function OrderRow({
+  order,
+  open,
+  selectable,
+  checked,
+  disabled,
+  toggle,
+}: {
+  order: AdminOrderSummary;
+  open: () => void;
+  selectable: boolean;
+  checked: boolean;
+  disabled: boolean;
+  toggle: (on: boolean) => void;
+}) {
   return (
     <tr tabIndex={0} onClick={open} onKeyDown={(e) => e.key === "Enter" && open()}>
+      {selectable && (
+        <td onClick={(event) => event.stopPropagation()}>
+          <input
+            type="checkbox"
+            aria-label={`Select ${order.orderNumber}`}
+            checked={checked}
+            disabled={disabled && !checked}
+            onChange={(event) => toggle(event.target.checked)}
+          />
+        </td>
+      )}
       <td>
         <button type="button" className="order-link" onClick={open}>
           {order.orderNumber}

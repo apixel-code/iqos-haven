@@ -1221,3 +1221,16 @@ Not covered: a real privacy-mode browser sending `Origin: null` end to end.
 - A coupon applies through the same rules (AED 60.00); the database refuses a Confirmed first history row without a reason.
 
 Not covered: the admin New order form in a browser.
+
+## Step 89 — bulk confirm (2026-10-15, local)
+
+`pnpm verify -- --integration`: exit 0 before and after the review fixes. Unit 582, integration 526, gateway 29, age-preview 2008, gate 2175.
+
+**Integration (`apps/api/src/orders/bulk-confirm.int.test.ts`, real API and PostgreSQL, 4 tests):**
+
+- A mixed batch of three Pending orders, a stale version, a Delivered order and an unknown ID: three confirmed (one history row each), `VERSION_CONFLICT`, `INVALID_TRANSITION`, `NOT_FOUND`, in the order sent; `no-store`. The same batch again replays all three with the same versions and no new history rows; a new batch with new command IDs for the same orders is `VERSION_CONFLICT` for each.
+- The same batch sent twice at once: both answers say confirmed, each order has one confirmation. Another staff member reusing a command ID is `COMMAND_REUSED`.
+- Bounds: 51 orders, an empty list, a repeated order, a repeated command ID and an unknown field are 400; another Origin 403; without `orders.transition` 403; nothing changes.
+- Capitals are the same command (replay); a command ID reused in a later batch for another order is `COMMAND_REUSED`; two batches naming the same three orders in opposite orders at once confirm each order exactly once with no deadlock.
+
+Not covered: an unexpected server error part-way through a batch followed by a retry (the replay path is shown above); the admin selection in a browser.
