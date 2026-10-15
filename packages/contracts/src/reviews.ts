@@ -100,3 +100,93 @@ export const storeReviewResponseSchema = z.strictObject({
   remaining: z.number().int().min(0),
 });
 export type StoreReviewResponse = z.infer<typeof storeReviewResponseSchema>;
+
+// --- Moderation (step 95, ADR 0063) ---
+const reviewCursor = z
+  .string()
+  .min(1)
+  .max(300)
+  .regex(/^[A-Za-z0-9_-]+$/);
+/** `GET /v1/admin/reviews`: newest first; no status means every status. */
+export const adminReviewsQuerySchema = z.strictObject({
+  status: reviewStatusSchema.optional(),
+  productId: z.uuid().optional(),
+  rating: z.coerce.number().int().min(1).max(5).optional(),
+  limit: z.coerce.number().int().min(1).max(100).default(25),
+  after: reviewCursor.optional(),
+});
+export type AdminReviewsQuery = z.infer<typeof adminReviewsQuerySchema>;
+export const adminReviewSchema = z.strictObject({
+  id: z.uuid(),
+  status: reviewStatusSchema,
+  rating: reviewRatingSchema,
+  title: z.string().min(1).max(REVIEW_TITLE_MAX),
+  body: z.string().min(1).max(REVIEW_BODY_MAX),
+  authorName: z.string().min(1).max(REVIEW_AUTHOR_MAX),
+  product: z.strictObject({ id: z.uuid(), name: z.string().min(1).max(200) }),
+  /** Derived from the stored purchase proof, never supplied: every launch review has one. */
+  verified: z.boolean(),
+  /** The order behind the proof, only for a moderator who may also read orders. */
+  order: z.strictObject({ id: z.uuid(), orderNumber: z.string() }).optional(),
+  createdAt: z.iso.datetime(),
+  moderatedAt: z.iso.datetime().nullable(),
+  version: z.number().int().min(1),
+});
+export type AdminReview = z.infer<typeof adminReviewSchema>;
+export const adminReviewsResponseSchema = z.strictObject({
+  items: z.array(adminReviewSchema).max(100),
+  nextCursor: reviewCursor.nullable(),
+  /** Counts per status, for the tabs (not narrowed by product or rating). */
+  counts: z.strictObject({
+    pending: z.number().int().min(0),
+    approved: z.number().int().min(0),
+    rejected: z.number().int().min(0),
+  }),
+  /** Average of approved reviews, one decimal; null while none is approved. */
+  approvedAverage: z.number().min(1).max(5).nullable(),
+  /** Products that have reviews, for the filter. */
+  products: z.array(z.strictObject({ id: z.uuid(), name: z.string().min(1).max(200) })).max(500),
+});
+export type AdminReviewsResponse = z.infer<typeof adminReviewsResponseSchema>;
+export const adminReviewParamsSchema = z.strictObject({ id: z.uuid() });
+/** Approve shows a review on its product page; reject hides it (also after approval). */
+export const reviewModerationRequestSchema = z.strictObject({
+  decision: z.enum(["approve", "reject"]),
+  expectedVersion: z.number().int().min(1),
+});
+export type ReviewModerationRequest = z.infer<typeof reviewModerationRequestSchema>;
+export const reviewModerationResponseSchema = z.strictObject({
+  id: z.uuid(),
+  status: z.enum(["approved", "rejected"]),
+  version: z.number().int().min(2),
+  moderatedAt: z.iso.datetime(),
+});
+export type ReviewModerationResponse = z.infer<typeof reviewModerationResponseSchema>;
+
+// --- Public (step 95) ---
+/** What a product page shows: approved reviews only. */
+export const storeReviewSchema = z.strictObject({
+  rating: reviewRatingSchema,
+  title: z.string().min(1).max(REVIEW_TITLE_MAX),
+  body: z.string().min(1).max(REVIEW_BODY_MAX),
+  authorName: z.string().min(1).max(REVIEW_AUTHOR_MAX),
+  /** Calendar date (Dubai) the review was written. */
+  date: z.iso.date(),
+  verified: z.boolean(),
+});
+export const STORE_REVIEWS_SHOWN = 10;
+export const storeRatingSchema = z.strictObject({
+  /** One decimal, from approved reviews. */
+  average: z.number().min(1).max(5),
+  count: z.number().int().min(1),
+  /** Approved reviews with 5, 4, 3, 2 and 1 stars, in that order. */
+  distribution: z.tuple([
+    z.number().int().min(0),
+    z.number().int().min(0),
+    z.number().int().min(0),
+    z.number().int().min(0),
+    z.number().int().min(0),
+  ]),
+});
+export type StoreRating = z.infer<typeof storeRatingSchema>;
+export type StoreReview = z.infer<typeof storeReviewSchema>;

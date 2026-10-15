@@ -554,3 +554,8 @@ h2 {
     padding: 14px;
   }
 }
+/* Review text keeps the customer's paragraphs (step 95). */
+.review-body {
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}

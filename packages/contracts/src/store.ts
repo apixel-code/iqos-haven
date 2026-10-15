@@ -4,6 +4,7 @@ import { catalogueSlugSchema } from "./catalogue";
 import { checkoutAddressSchema, checkoutContactSchema, orderLinesSchema } from "./checkout";
 import { couponCodeInputSchema } from "./coupons";
 import { disposableSpecsSchema, kitSpecsSchema, productFilsSchema } from "./products";
+import { STORE_REVIEWS_SHOWN, storeRatingSchema, storeReviewSchema } from "./reviews";
 
 /**
  * Shopper catalogue reads (roadmap step 58, architecture §10 "Store reads"). Served only to a
@@ -130,6 +131,10 @@ export const storeProductResponseSchema = z.strictObject({
     .max(500),
   soldOut: z.boolean(),
   images: z.array(storeImageSchema).max(8),
+  /** From approved reviews only (step 95); null while none is approved. */
+  rating: storeRatingSchema.nullable(),
+  /** The newest approved reviews. */
+  reviews: z.array(storeReviewSchema).max(STORE_REVIEWS_SHOWN),
 });
 export type StoreProductResponse = z.infer<typeof storeProductResponseSchema>;
 

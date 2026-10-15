@@ -2,9 +2,12 @@ import {
   storeProductsQuerySchema,
   type StoreProductSort,
   type StoreProductsQuery,
+  type StoreRating,
+  type StoreReview,
 } from "@ih/contracts";
 import { productAvailability } from "@ih/domain";
 import { Prisma, type Database } from "./client";
+import { readProductReviews } from "./reviews";
 
 /**
  * Shopper catalogue reads (roadmap step 58). Read-only and the single definition of what a
@@ -232,6 +235,8 @@ export interface StoreProductDetail {
   }>;
   soldOut: boolean;
   images: StoreImageRow[];
+  rating: StoreRating | null;
+  reviews: StoreReview[];
 }
 
 /**
@@ -300,6 +305,7 @@ export async function readStoreProduct(
       const availability = productAvailability(
         variants.map((variant) => ({ ...variant, active: true })),
       );
+      const { rating, reviews } = await readProductReviews(tx, product.id);
       return {
         slug: product.slug,
         name: product.name,
@@ -322,6 +328,8 @@ export async function readStoreProduct(
         })),
         soldOut: availability.soldOut,
         images,
+        rating,
+        reviews,
       };
     },
     { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead },

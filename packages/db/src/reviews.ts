@@ -8,6 +8,17 @@ import {
   type ReviewLinkResponse,
   type StoreReviewRequest,
   type StoreReviewResponse,
+  adminReviewsQuerySchema,
+  adminReviewsResponseSchema,
+  reviewModerationRequestSchema,
+  reviewModerationResponseSchema,
+  STORE_REVIEWS_SHOWN,
+  type AdminReviewsQuery,
+  type AdminReviewsResponse,
+  type ReviewModerationRequest,
+  type ReviewModerationResponse,
+  type StoreRating,
+  type StoreReview,
 } from "@ih/contracts";
 import { toAuditEntry, type CommandContext } from "@ih/application";
 import { formatOrderNumber, whatsappMessageHref } from "@ih/domain";
@@ -239,4 +250,244 @@ function pgCode(error: unknown): string | undefined {
     { code?: unknown; driverAdapterError?: { cause?: { originalCode?: unknown } } } | undefined;
   const code = meta?.code ?? meta?.driverAdapterError?.cause?.originalCode;
   return typeof code === "string" ? code : undefined;
+}
+
+// --- Moderation and public reviews (roadmap step 95, ADR 0063) ---
+export class ReviewModerationForbiddenError extends Error {}
+export class ReviewNotFoundError extends Error {}
+export class ReviewCursorError extends Error {}
+export class ReviewModerationConflictError extends Error {
+  constructor(readonly reason: Extract<ConflictCode, "VERSION_CONFLICT" | "INVALID_TRANSITION">) {
+    super(reason);
+  }
+}
+
+async function moderatorRights(db: Database | Tx, actorId: string) {
+  const [row] = await db.$queryRaw<Array<{ permissions: string[] }>>(Prisma.sql`
+    SELECT coalesce(array_agg(p.key) FILTER (WHERE p.key IS NOT NULL), '{}') AS permissions
+    FROM staff_users u
+    LEFT JOIN role_permissions rp ON rp.role_id=u.role_id
+    LEFT JOIN permissions p ON p.id=rp.permission_id
+    WHERE u.id=${actorId}::uuid AND u.active GROUP BY u.id`);
+  const held = row?.permissions ?? [];
+  if (!held.includes("reviews.moderate")) throw new ReviewModerationForbiddenError();
+  return { orders: held.includes("orders.read") };
+}
+const average = (value: string | number | null) =>
+  value === null ? null : Math.round(Number(value) * 10) / 10;
+
+interface AdminReviewRow {
+  id: string;
+  status: "pending" | "approved" | "rejected";
+  rating: number;
+  title: string;
+  body: string;
+  authorName: string;
+  productId: string;
+  productName: string;
+  orderId: string;
+  orderNumber: string;
+  verified: boolean;
+  createdAt: Date;
+  moderatedAt: Date | null;
+  version: number;
+  cursor: string;
+}
+
+/**
+ * Reviews for moderation, newest first by keyset, with the counts per status and the approved
+ * average. Needs `reviews.moderate`; the order behind a review is named only to a moderator
+ * who may also read orders.
+ */
+export async function listAdminReviews(
+  db: Database,
+  actorId: string,
+  input: AdminReviewsQuery,
+): Promise<AdminReviewsResponse> {
+  const query = adminReviewsQuerySchema.parse(input);
+  const rights = await moderatorRights(db, actorId);
+  const filters: Prisma.Sql[] = [Prisma.sql`true`];
+  if (query.status) filters.push(Prisma.sql`r.status=${query.status}`);
+  if (query.productId) filters.push(Prisma.sql`r.product_id=${query.productId}::uuid`);
+  if (query.rating) filters.push(Prisma.sql`r.rating=${query.rating}`);
+  if (query.after) {
+    let after: [string, string];
+    try {
+      after = JSON.parse(Buffer.from(query.after, "base64url").toString("utf8")) as [
+        string,
+        string,
+      ];
+      if (
+        !Array.isArray(after) ||
+        !/^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d(?:\.\d{1,6})?\+00$/.test(after[0]) ||
+        !/^[0-9a-f-]{36}$/i.test(after[1])
+      )
+        throw new Error("shape");
+    } catch {
+      throw new ReviewCursorError();
+    }
+    filters.push(Prisma.sql`(r.created_at, r.id) < (${after[0]}::timestamptz, ${after[1]}::uuid)`);
+  }
+  // One snapshot, so the tab counts and the average agree with the listed reviews.
+  const { rows, summary, products } = await db.$transaction(
+    async (tx) => {
+      const rows = await tx.$queryRaw<AdminReviewRow[]>(Prisma.sql`
+      SELECT r.id, r.status, r.rating::int AS rating, r.title, r.body, r.author_name AS "authorName",
+        p.id AS "productId", p.name AS "productName", o.id AS "orderId",
+        o.order_number::text AS "orderNumber", (r.proof_id IS NOT NULL) AS verified,
+        r.created_at AS "createdAt", r.moderated_at AS "moderatedAt", r.version,
+        -- The cursor is written in UTC whatever the session's time zone.
+        to_char(r.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI:SS.US') || '+00' AS cursor
+      FROM reviews r JOIN products p ON p.id=r.product_id JOIN orders o ON o.id=r.order_id
+      WHERE ${Prisma.join(filters, " AND ")}
+      ORDER BY r.created_at DESC, r.id DESC
+      LIMIT ${query.limit + 1}`);
+      const [summary] = await tx.$queryRaw<
+        Array<{ pending: number; approved: number; rejected: number; average: string | null }>
+      >(Prisma.sql`
+      SELECT count(*) FILTER (WHERE status='pending')::int AS pending,
+        count(*) FILTER (WHERE status='approved')::int AS approved,
+        count(*) FILTER (WHERE status='rejected')::int AS rejected,
+        avg(rating) FILTER (WHERE status='approved')::text AS average
+      FROM reviews`);
+      const products = await tx.$queryRaw<Array<{ id: string; name: string }>>(Prisma.sql`
+      SELECT p.id, p.name FROM products p
+      WHERE EXISTS (SELECT 1 FROM reviews r WHERE r.product_id=p.id)
+      ORDER BY lower(p.name), p.id LIMIT 500`);
+      return { rows, summary: summary!, products };
+    },
+    { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead },
+  );
+  const page = rows.slice(0, query.limit);
+  const last = page.at(-1);
+  return adminReviewsResponseSchema.parse({
+    items: page.map((row) => ({
+      id: row.id,
+      status: row.status,
+      rating: row.rating,
+      title: row.title,
+      body: row.body,
+      authorName: row.authorName,
+      product: { id: row.productId, name: row.productName },
+      verified: row.verified,
+      ...(rights.orders
+        ? { order: { id: row.orderId, orderNumber: formatOrderNumber(row.orderNumber) } }
+        : {}),
+      createdAt: row.createdAt.toISOString(),
+      moderatedAt: row.moderatedAt?.toISOString() ?? null,
+      version: row.version,
+    })),
+    nextCursor:
+      rows.length > query.limit && last
+        ? Buffer.from(JSON.stringify([last.cursor, last.id])).toString("base64url")
+        : null,
+    counts: { pending: summary.pending, approved: summary.approved, rejected: summary.rejected },
+    approvedAverage: average(summary.average),
+    products,
+  });
+}
+
+/**
+ * Approves or rejects a review at the version the moderator saw. Approving shows it on the
+ * product page; rejecting hides it, also after approval. The content never changes and a review
+ * never goes back to pending (the database enforces both). The audit entry, and a
+ * `catalog.changed` event for the product so every cache drops its page, commit with it.
+ */
+export async function moderateReview(
+  db: Database,
+  context: CommandContext,
+  reviewId: string,
+  request: ReviewModerationRequest,
+): Promise<ReviewModerationResponse> {
+  const input = reviewModerationRequestSchema.parse(request);
+  const to = input.decision === "approve" ? "approved" : "rejected";
+  return withTransaction(db, async (tx) => {
+    try {
+      await lockCatalogueActor(tx, context.actorId, ["reviews.moderate"], true);
+    } catch (error) {
+      if (error instanceof CatalogueForbiddenError) throw new ReviewModerationForbiddenError();
+      throw error;
+    }
+    const [review] = await tx.$queryRaw<
+      Array<{ status: string; version: number; productId: string }>
+    >(Prisma.sql`
+      SELECT status, version, product_id AS "productId" FROM reviews
+      WHERE id=${reviewId}::uuid FOR UPDATE`);
+    if (!review) throw new ReviewNotFoundError();
+    if (review.version !== input.expectedVersion)
+      throw new ReviewModerationConflictError("VERSION_CONFLICT");
+    if (review.status === to) throw new ReviewModerationConflictError("INVALID_TRANSITION");
+    const [updated] = await tx.$queryRaw<Array<{ version: number; moderatedAt: Date }>>(Prisma.sql`
+      UPDATE reviews SET status=${to}, moderated_by=${context.actorId}::uuid,
+        moderated_at=statement_timestamp(), version=version+1
+      WHERE id=${reviewId}::uuid
+      RETURNING version, moderated_at AS "moderatedAt"`);
+    await new PrismaAuditWriter().append(
+      tx,
+      toAuditEntry(context, {
+        action: input.decision === "approve" ? "review.approved" : "review.rejected",
+        entity: { type: "review", id: reviewId },
+        before: { status: review.status, version: review.version },
+        after: { status: to, version: updated!.version },
+      }),
+    );
+    await new PrismaOutboxWriter().publish(
+      tx,
+      defineEvent("catalog.changed", review.productId, {
+        entityType: "product",
+        entityId: review.productId,
+      }),
+    );
+    return reviewModerationResponseSchema.parse({
+      id: reviewId,
+      status: to,
+      version: updated!.version,
+      moderatedAt: updated!.moderatedAt.toISOString(),
+    });
+  });
+}
+
+/**
+ * The public side of a product's reviews: the rating from approved reviews and the newest
+ * approved ones. Pending and rejected reviews never leave the database through this, and
+ * neither does anything about the order behind a review.
+ */
+export async function readProductReviews(
+  db: Database | Tx,
+  productId: string,
+): Promise<{ rating: StoreRating | null; reviews: StoreReview[] }> {
+  const [summary] = await db.$queryRaw<
+    Array<{ count: number; average: string | null; distribution: number[] }>
+  >(Prisma.sql`
+    SELECT count(*)::int AS count, avg(rating)::text AS average,
+      ARRAY[count(*) FILTER (WHERE rating=5), count(*) FILTER (WHERE rating=4),
+        count(*) FILTER (WHERE rating=3), count(*) FILTER (WHERE rating=2),
+        count(*) FILTER (WHERE rating=1)]::int[] AS distribution
+    FROM reviews WHERE product_id=${productId}::uuid AND status='approved'`);
+  const rows = await db.$queryRaw<
+    Array<{
+      rating: number;
+      title: string;
+      body: string;
+      authorName: string;
+      date: string;
+      verified: boolean;
+    }>
+  >(Prisma.sql`
+    SELECT rating::int AS rating, title, body, author_name AS "authorName",
+      to_char(created_at AT TIME ZONE 'Asia/Dubai', 'YYYY-MM-DD') AS date,
+      (proof_id IS NOT NULL) AS verified
+    FROM reviews WHERE product_id=${productId}::uuid AND status='approved'
+    ORDER BY created_at DESC, id DESC LIMIT ${STORE_REVIEWS_SHOWN}`);
+  return {
+    rating:
+      summary && summary.count > 0
+        ? {
+            average: average(summary.average)!,
+            count: summary.count,
+            distribution: summary.distribution as StoreRating["distribution"],
+          }
+        : null,
+    reviews: rows,
+  };
 }
