@@ -19,6 +19,7 @@ import { InventoryModule } from "./inventory/inventory.module";
 import { MediaModule } from "./media/media.module";
 import { StoreModule } from "./store/store.module";
 import { SettingsModule } from "./settings/settings.module";
+import { ReviewsModule } from "./reviews/reviews.module";
 import { requestId } from "./http/request-id";
 @Module({})
 export class AppModule {
@@ -62,6 +63,7 @@ export class AppModule {
         InventoryModule,
         MediaModule,
         StoreModule,
+        ReviewsModule,
         ReliabilityModule,
         HealthModule,
         ...testModules,

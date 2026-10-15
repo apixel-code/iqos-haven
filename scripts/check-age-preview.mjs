@@ -152,6 +152,17 @@ const DETAIL = {
   ],
   soldOut: false,
   images: [],
+  rating: { average: 4.5, count: 2, distribution: [1, 1, 0, 0, 0] },
+  reviews: [
+    {
+      rating: 5,
+      title: "Synthetic review title",
+      body: "Synthetic review body.",
+      authorName: "Synthetic R.",
+      date: "2026-10-14",
+      verified: true,
+    },
+  ],
 };
 const apiCalls = [];
 let apiMode = "ok";
@@ -539,6 +550,11 @@ try {
     "Coil",
     "Cash on delivery",
     "contains nicotine",
+    "4.5 · 2 reviews",
+    "Synthetic review title",
+    "Synthetic review body.",
+    "Synthetic R. · 14 Oct 2026",
+    "Verified purchase",
   ])
     check(pdp.includes(text), `product page shows "${text}"`);
   check(/From <\/span>AED 45/.test(pdp), "price says From the lowest option until one is chosen");

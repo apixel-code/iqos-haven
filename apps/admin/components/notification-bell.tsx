@@ -112,6 +112,11 @@ export function NotificationBell({ onSignedOut }: { onSignedOut: () => void }) {
                         <Link href="/workspace/inventory" onClick={() => setOpen(false)}>
                           Open inventory
                         </Link>
+                      )}
+                      {item.link === "/reviews" && (
+                        <Link href="/workspace/reviews" onClick={() => setOpen(false)}>
+                          Open reviews
+                        </Link>
                       )}{" "}
                       {!item.readAt && (
                         <button

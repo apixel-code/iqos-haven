@@ -1371,3 +1371,40 @@ Not covered:
 - The served gate's own redirect, which goes to the https origin that this local pass cannot open.
 - Moderation and public display (step 95).
 - Placeholder wording until BI-09.
+
+## Step 95 — review moderation and the public rating (2026-10-15, local)
+
+`pnpm verify -- --integration`: exit 0 after the review fix: unit 592, integration 561, age preview 2013, gate 2175. `invariant-reviewer` found no blocking findings and raised four low ones:
+
+- **Fixed:** the admin list now reads items, counts and the average in one repeatable-read snapshot.
+- **Checked, no change:** nothing reads the event's `aggregateVersion`.
+- **Accepted:** the list read has no rate limit (it is permission-gated), and the public list uses index keys (static per render).
+
+**Integration (`apps/api/src/reviews/admin-reviews.int.test.ts`, real API and PostgreSQL, 5 tests):**
+
+- **Access:** Staff get 403 on both routes, no session gets 401, and a foreign origin gets 403. These are refused with 400 and change nothing: a bad status, rating, product ID, cursor or limit; an unknown decision; a missing or zero version; an extra field; an ID that is not a UUID. An unknown review gives 404.
+- **Public:** a pending review is not on the product page, whose rating is null and list empty. Approving it at version 1 returns version 2. The page, which was cached, then shows `{ average: 4, count: 1, distribution: [0,1,0,0,0] }` and the review, marked verified, with no order ID, order number or review ID.
+- **Conflicts:** a stale version gets `VERSION_CONFLICT`, and a repeated decision gets `INVALID_TRANSITION`.
+- **Hiding:** rejecting the approved review takes it off the page again. The stored content is unchanged and the moderator is recorded.
+- **Records:** the audit entries are `review.submitted`, `review.approved` and `review.rejected`, and two `catalog.changed` events are written for the product.
+- **Averages:** with reviews of 5 and 2 approved and one of 1 rejected, each product page counts only its own approved reviews, and the admin average is 3.5 over 2.
+- **List:** counts and keyset pages (limit 1 plus the cursor) are correct, as are the rating and product filters. The order is shown for the Owner.
+- **Concurrency:** two simultaneous decisions on the same version give one 200 and one 409, and the review ends at version 2.
+
+**Age preview (stub API):** the verified product page shows the rating line "4.5 · 2 reviews", the review title, body, author with date ("14 Oct 2026") and "Verified purchase". Unverified requests never reach the API.
+
+**Browser (`scripts/browser-qa/admin-reviews.mjs`, Chromium through the gateway, real API on a test schema): 14 passed.**
+
+- Two pending reviews are listed newest first, with the verified label and "Pending 2".
+- Approving one removes it from Pending, and the summary changes to "5.0 average from 1 published review".
+- Rejecting the other leaves "No reviews waiting".
+- Approved shows "Hide (reject)", Rejected holds the rejected one, and an empty filter says "No reviews here".
+- The database matches the decisions.
+- No horizontal scroll at 390px and no page errors.
+- Staff see no Reviews link and get "Access unavailable".
+
+Not covered:
+
+- The storefront product page with real reviews in a browser. Its markup is checked through the stub age preview.
+- Two API replicas: cross-replica invalidation relies on the existing `catalog.changed` → `storefront_revalidate` path (step 52 evidence).
+- Placeholder wording until BI-09.

@@ -64,3 +64,16 @@ a Referer or device storage, an empty form sends nothing, a review is stored pen
 writes the moderators' inbox notification, and a reload or the used-up link says it can't be used.
 The age question's fragment hand-over is not covered here (the served gate redirects to the
 https origin); it was checked once in Chromium with a stand-in server (docs/verification.md).
+
+## Admin Reviews screen (step 95)
+
+With `qa-server.cjs` and the admin running as above:
+
+```sh
+QA_PLAYWRIGHT_DIR=/tmp/ih-qa node scripts/browser-qa/admin-reviews.mjs <SCHEMA>
+```
+
+It creates two pending reviews with the real database commands (delivered order, review link,
+submission), then the Owner approves one and rejects the other in the browser. It checks the
+tabs and counts, the published average, the empty states, the filters, the stored statuses and
+the 390px layout. Staff see no Reviews link and get "Access unavailable".

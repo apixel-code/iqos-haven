@@ -5,6 +5,7 @@ export const sections = [
   { key: "categories", label: "Categories", permission: "catalog.read", group: "Commerce" },
   { key: "inventory", label: "Inventory", permission: "inventory.read", group: "Commerce" },
   { key: "customers", label: "Customers", permission: "customers.read", group: "Commerce" },
+  { key: "reviews", label: "Reviews", permission: "reviews.moderate", group: "Commerce" },
   {
     key: "notifications",
     label: "Notifications",

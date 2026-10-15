@@ -9,6 +9,7 @@ import { CatalogueParentManagement } from "./catalogue-parent-management";
 import { ProductManagement } from "./product-management";
 import { InventoryManagement } from "./inventory-management";
 import { CustomerManagement } from "./customer-management";
+import { ReviewManagement } from "./review-management";
 import { OrderManagement } from "./order-management";
 import { sections } from "../lib/navigation";
 export function WorkspaceSection({ sectionKey }: { sectionKey: string }) {
@@ -40,6 +41,8 @@ export function WorkspaceSection({ sectionKey }: { sectionKey: string }) {
         />
       ) : sectionKey === "customers" ? (
         <CustomerManagement />
+      ) : sectionKey === "reviews" ? (
+        <ReviewManagement canOpenOrders={session.permissions.includes("orders.read")} />
       ) : sectionKey === "settings" ? (
         <SettingsManagement />
       ) : sectionKey === "delivery" ? (
