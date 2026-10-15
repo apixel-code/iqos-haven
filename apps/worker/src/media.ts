@@ -67,7 +67,9 @@ export function createMediaConsumer(options: {
       const derivativeKeys: Record<string, string> = {};
       for (const derivative of processed.derivatives) {
         signal.throwIfAborted();
-        const key = `products/${asset.productId}/${assetId}/${derivative.name}.webp`;
+        const key = asset.productId
+          ? `products/${asset.productId}/${assetId}/${derivative.name}.webp`
+          : `content/${assetId}/${derivative.name}.webp`;
         await storage.put("media", key, derivative.body, derivative.contentType);
         derivativeKeys[derivative.name] = key;
       }

@@ -1408,3 +1408,45 @@ Not covered:
 - The storefront product page with real reviews in a browser. Its markup is checked through the stub age preview.
 - Two API replicas: cross-replica invalidation relies on the existing `catalog.changed` → `storefront_revalidate` path (step 52 evidence).
 - Placeholder wording until BI-09.
+
+## Step 96 — content-section schemas and draft/published storage (2026-10-15, local)
+
+`pnpm verify -- --integration`: exit 0. Unit 597, integration 566, age preview 2013, gate 2175.
+
+The first run failed in `apps/worker/src/checkout-gate.int.test.ts`. The test checked the whole Mailpit JSON for the phone fragment "630", and a random hex message ID contained it. The test now checks only what a reader sees (subject, text, HTML and recipients), and the rerun passed.
+
+`invariant-reviewer` found no blockers.
+
+- **Medium, recorded in ADR 0064:** publishing reads the catalogue without locks, so the step 98 read side's re-check is the guarantee.
+- **Low, fixed:** product media routes now see only product assets, the worker writes content derivatives under `content/<id>/`, the image guard also covers `purpose` and `product_id`, and more invisible characters are refused.
+- **Low, accepted:** references in a disabled banner are checked anyway.
+
+**Unit (`packages/contracts/src/content.test.ts`, 5 tests):**
+
+- There are seven keys with current schemas, and an unknown version throws.
+- Text is trimmed to plain text. These are refused: `<b>`, a bell character, U+202E, a soft hyphen, a tag character, too long, blank, fewer than 2 or more than 6 messages.
+- These links are refused: a URL, a slug, an href on `shop`. An image needs alt text and an asset ID (no data URL). An empty title and extra fields are refused.
+- Lists refuse repeats and more than 8 items. Automatic best sellers refuse a list. There are at most 2 banners, and offers refuse coupon codes.
+- References are found once each, across buttons, images and lists.
+
+**Integration (`packages/db/src/content.int.test.ts`, real PostgreSQL, 5 tests):**
+
+- **Access:** Staff are refused on save, list and publish.
+- **Drafts:** a new draft starts at version 1, unpublished, with normalised text. Invalid content is refused. A stale version and a second "new" save are `VERSION_CONFLICT`.
+- **Publishing:** publishing copies the draft (version 2). Publishing again gives `NOTHING_TO_PUBLISH`, and a new draft leaves the published copy alone. One `content.published` event carries the section ID. The audit entries are draft saved, published, draft saved.
+- **References:** a draft product and a missing product block publishing, reported as `not_visible` and `missing`. A product image used as a hero image is `missing` (only content images count). A ready content image publishes, and then cannot be removed or turned into a product image.
+- **Database:** these are refused:
+  - a published copy that is not the draft;
+  - an update that does not advance the version;
+  - a key change;
+  - a delete;
+  - an insert that starts published;
+  - an unknown key;
+  - a content asset with a product;
+  - a product asset without one.
+- **Concurrency:** of two simultaneous first saves, one wins and the other gets `VERSION_CONFLICT`.
+
+Not covered:
+
+- No routes or editor (step 97) and no public read (step 98).
+- Content image upload is not wired: the worker key path is in place, but no route creates content assets yet.

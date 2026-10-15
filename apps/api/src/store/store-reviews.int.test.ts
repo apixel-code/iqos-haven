@@ -224,7 +224,7 @@ describe("store review submission through the real API and PostgreSQL", () => {
       { title: "   " },
       { title: "x".repeat(121) },
       { title: "Bad\u0000title" },
-      { title: "Zero​width" },
+      { title: "Zero\u200bwidth" },
       { body: "Too short" },
       { body: "y".repeat(2001) },
       { body: "Bell \u0007 inside the text" },

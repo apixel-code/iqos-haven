@@ -269,9 +269,17 @@ describe("checkout gate: a placed order and the worker (PostgreSQL, queue Redis,
     const messages = await mailFor(order.response.orderNumber);
     expect(messages).toHaveLength(1);
     expect(messages[0]!.Subject).toBe(`New order ${order.response.orderNumber} (AED 255.00)`);
-    const body = await (
+    const message = (await (
       await fetch(`${mail.MAILPIT_URL}/api/v1/message/${messages[0]!.ID}`)
-    ).text();
+    ).json()) as { Subject: string; Text: string; HTML: string; To: unknown; Bcc: unknown };
+    // What a reader sees, not the random message IDs (a hex ID can contain "630" by chance).
+    const body = JSON.stringify([
+      message.Subject,
+      message.Text,
+      message.HTML,
+      message.To,
+      message.Bcc,
+    ]);
     for (const personal of ["Gate Buyer", "630", "Gate Villa", "Gate note"])
       expect(body).not.toContain(personal);
     expect(await findStrandedEffects(db, 1, 100)).toEqual([]);

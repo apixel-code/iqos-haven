@@ -47,6 +47,7 @@ interface AssetRow {
   updatedAt: Date;
 }
 
+/** Product media only: a content image (step 96) is not reachable through these routes. */
 const SELECT = Prisma.sql`
   SELECT id, product_id AS "productId", state, declared_type AS "declaredType",
     declared_bytes AS "declaredBytes", observed_bytes AS "observedBytes", width, height, error,
@@ -117,7 +118,9 @@ export async function authorizeMediaUpload(
       VALUES (${id}::uuid, ${productId}::uuid, ${actor}::uuid, ${"uploads/" + id},
         ${command.contentType}, ${command.bytes},
         statement_timestamp() + make_interval(secs => ${UPLOAD_AUTHORIZATION_SECONDS}))`);
-    const [row] = await tx.$queryRaw<AssetRow[]>(Prisma.sql`${SELECT} WHERE id=${id}::uuid`);
+    const [row] = await tx.$queryRaw<AssetRow[]>(
+      Prisma.sql`${SELECT} WHERE id=${id}::uuid AND purpose='product'`,
+    );
     await new PrismaAuditWriter().append(
       tx,
       toAuditEntry(context, {
@@ -144,7 +147,9 @@ export interface ObservedUpload {
 
 export async function readMediaAssetForCompletion(db: Database, actorId: string, id: string) {
   await lockCatalogueActor(db, actorId, ["catalog.write", "media.upload"], false);
-  const [row] = await db.$queryRaw<AssetRow[]>(Prisma.sql`${SELECT} WHERE id=${id}::uuid`);
+  const [row] = await db.$queryRaw<AssetRow[]>(
+    Prisma.sql`${SELECT} WHERE id=${id}::uuid AND purpose='product'`,
+  );
   if (!row) throw new CatalogueNotFoundError();
   return { key: row.quarantineKey, state: row.state };
 }
@@ -158,7 +163,7 @@ export async function completeMediaUpload(
   return withTransaction(db, async (tx) => {
     await lockCatalogueActor(tx, context.actorId, ["catalog.write", "media.upload"], true);
     const [row] = await tx.$queryRaw<AssetRow[]>(
-      Prisma.sql`${SELECT} WHERE id=${id}::uuid FOR UPDATE`,
+      Prisma.sql`${SELECT} WHERE id=${id}::uuid AND purpose='product' FOR UPDATE`,
     );
     if (!row) throw new CatalogueNotFoundError();
     // Completing twice is harmless: the first call already decided the outcome.
@@ -183,7 +188,9 @@ export async function completeMediaUpload(
         observed_etag=${error ? null : (observed.etag ?? null)},
         version=version+1, updated_at=statement_timestamp()
       WHERE id=${id}::uuid`);
-    const [current] = await tx.$queryRaw<AssetRow[]>(Prisma.sql`${SELECT} WHERE id=${id}::uuid`);
+    const [current] = await tx.$queryRaw<AssetRow[]>(
+      Prisma.sql`${SELECT} WHERE id=${id}::uuid AND purpose='product'`,
+    );
     await new PrismaAuditWriter().append(
       tx,
       toAuditEntry(context, {
@@ -217,7 +224,8 @@ export async function abandonMediaUpload(db: Database, id: string, reason: "pres
 
 export interface MediaForProcessing {
   readonly id: string;
-  readonly productId: string;
+  /** Null for a content image (home sections, step 96), which belongs to no product. */
+  readonly productId: string | null;
   readonly state: MediaAsset["state"];
   readonly quarantineKey: string;
   readonly declaredType: MediaAsset["declaredType"];
