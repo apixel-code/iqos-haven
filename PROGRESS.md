@@ -5,7 +5,7 @@
 - Date: 2026-10-15
 - Milestone: M7 — transactional checkout and first complete order: all steps (73–82) done; gate evidence ready, awaiting Marina's decision. M6: all steps (65–72) done; gate evidence ready, awaiting Marina's decision. M5: PASSED 2026-10-11. M4 steps done, gate awaits Marina's decision (publishing unblocked); M3 gate not closed; M0 review and M1 staging/fixtures still open
 - Step: 92 (low-stock alerts, daily-summary slot, operations acceptance) — done; all M8 steps (83–92) done, gate evidence ready, awaiting Marina's decision. Next is 93 (M9).
-- Branch: `step/92-low-stock-ops` (based on `step/91-inbox-sse`; push and open its PR after the commit)
+- Branch: `step/92-low-stock-ops` (pushed; PR #66 based on step 91's PR #65)
 - See docs/verification.md for actual checks.
 
 ## Next action
@@ -148,7 +148,7 @@ Tests: `pnpm verify` PASS (unit 587, age-preview 2008). `pnpm test:int` PASS (in
 
 Unfinished:
 
-- PRs #61 → #62 → #63 → #64 → step-91 → step-92 are stacked and wait for Marina's merge (merge #61 first). M4, M6, M7 and M8 gates await her decision.
+- PRs #61 → #62 → #63 → #64 → #65 → #66 are stacked and wait for Marina's merge (merge #61 first). M4, M6, M7 and M8 gates await her decision.
 - Not checked in a real browser: the bell's low-stock entry and the Settings switch.
 - Real email waits for BI-07. The daily summary's content arrives in step 106.
 
