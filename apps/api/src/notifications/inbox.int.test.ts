@@ -235,6 +235,15 @@ describe("staff inbox and event stream through the real API and PostgreSQL", () 
     } finally {
       await setPermission("orders.read", true);
     }
+    // Low-stock alerts need the right to see stock (step 92).
+    await setPermission("inventory.read", false);
+    try {
+      const list = inboxResponseSchema.parse(await (await inbox()).json());
+      expect(list.items.map((item) => item.type)).not.toContain("inventory.low");
+      expect(list.items.map((item) => item.type)).toContain("order.new");
+    } finally {
+      await setPermission("inventory.read", true);
+    }
     await setPermission("notifications.read_own", false);
     try {
       expect((await inbox()).status).toBe(403);

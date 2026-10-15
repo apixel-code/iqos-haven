@@ -79,6 +79,8 @@ describe("event catalogue", () => {
     ]);
     // A new order must reach the inbox and the email planner (step 78).
     expect(EVENT_CATALOGUE["order.created"].consumers).toEqual(["notification", "email"]);
+    // A low-stock crossing reaches the inbox and the email planner (step 92).
+    expect(EVENT_CATALOGUE["inventory.low"].consumers).toEqual(["notification", "email"]);
   });
 });
 

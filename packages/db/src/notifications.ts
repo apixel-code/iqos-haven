@@ -45,7 +45,11 @@ async function notificationSettings(db: Database | Tx) {
   const parsed = notificationSettingsSchema.safeParse(row?.value);
   return parsed.success
     ? parsed.data
-    : { inApp: true, newOrderEmail: { enabled: false, recipients: [] as string[] } };
+    : {
+        inApp: true,
+        newOrderEmail: { enabled: false, recipients: [] as string[] },
+        lowStockEmail: false,
+      };
 }
 export type NewOrderNotificationResult =
   | { outcome: "order_missing" }
@@ -65,27 +69,43 @@ export async function writeNewOrderNotification(
   if (!order) return { outcome: "order_missing" };
   if (!(await notificationSettings(tx)).inApp) return { outcome: "disabled" };
   const body = `${order.units} ${order.units === 1 ? "item" : "items"} · ${formatAed(fils(order.totalFils))} · ${order.areaName}`;
-  const inserted = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
-    INSERT INTO notifications (source_event_id, type, title, body, link)
-    VALUES (${input.eventId}::uuid, ${NEW_ORDER_NOTIFICATION},
-      ${"New order " + order.orderNumber}, ${body.slice(0, 500)}, ${"/orders/" + order.orderId})
-    ON CONFLICT (source_event_id, type) DO NOTHING RETURNING id`);
-  const notificationId =
-    inserted[0]?.id ??
-    (
-      await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
-        SELECT id FROM notifications
-        WHERE source_event_id=${input.eventId}::uuid AND type=${NEW_ORDER_NOTIFICATION}`)
-    )[0]!.id;
-  const receipts = await tx.$executeRaw(Prisma.sql`
+  const notification = await insertNotification(tx, {
+    eventId: input.eventId,
+    type: NEW_ORDER_NOTIFICATION,
+    title: "New order " + order.orderNumber,
+    body,
+    link: "/orders/" + order.orderId,
+  });
+  const notificationId = notification.id;
+  const receipts = await writeReceipts(tx, notificationId, NEW_ORDER_PERMISSIONS);
+  return { outcome: "written", notificationId, created: notification.created, receipts };
+}
+/** One receipt per active staff user whose role holds every permission; existing ones stay. */
+function writeReceipts(tx: Tx, notificationId: string, permissions: readonly string[]) {
+  return tx.$executeRaw(Prisma.sql`
     INSERT INTO notification_receipts (notification_id, user_id)
     SELECT ${notificationId}::uuid, s.id FROM staff_users s
     WHERE s.active AND (
       SELECT count(*) FROM role_permissions rp JOIN permissions p ON p.id=rp.permission_id
-      WHERE rp.role_id=s.role_id AND p.key = ANY(${[...NEW_ORDER_PERMISSIONS]}::text[])
-    ) = ${NEW_ORDER_PERMISSIONS.length}
+      WHERE rp.role_id=s.role_id AND p.key = ANY(${[...permissions]}::text[])
+    ) = ${permissions.length}
     ON CONFLICT (notification_id, user_id) DO NOTHING`);
-  return { outcome: "written", notificationId, created: Boolean(inserted[0]), receipts };
+}
+/** Inserts a notification once per (event, type) and returns its ID either way. */
+async function insertNotification(
+  tx: Tx,
+  input: { eventId: string; type: string; title: string; body: string; link: string },
+) {
+  const inserted = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+    INSERT INTO notifications (source_event_id, type, title, body, link)
+    VALUES (${input.eventId}::uuid, ${input.type}, ${input.title.slice(0, 150)},
+      ${input.body.slice(0, 500)}, ${input.link})
+    ON CONFLICT (source_event_id, type) DO NOTHING RETURNING id`);
+  if (inserted[0]) return { id: inserted[0].id, created: true };
+  const [existing] = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+    SELECT id FROM notifications
+    WHERE source_event_id=${input.eventId}::uuid AND type=${input.type}`);
+  return { id: existing!.id, created: false };
 }
 /**
  * What the new-order email says and who gets it: the addresses the Owner entered under
@@ -101,6 +121,133 @@ export async function loadNewOrderEmail(
   return { order, recipients: newOrderEmail.enabled ? [...newOrderEmail.recipients] : [] };
 }
 
+// --- Low stock (roadmap step 92, ADR 0060) ---
+/**
+ * A variant crossed into low stock (`inventory.low`, ADR 0023). Whether to alert is decided when
+ * the effect runs, from current data: the variant must still be low, active and on a published
+ * product. A variant alerts each channel at most once per quiet window, so stock bouncing
+ * around its alert level does not repeat the alert.
+ */
+export const LOW_STOCK_NOTIFICATION = "inventory.low";
+export const LOW_STOCK_QUIET_HOURS = 24;
+const LOW_STOCK_PERMISSIONS = ["notifications.read_own", "inventory.read"] as const;
+
+export interface LowStockSummary {
+  variantId: string;
+  productId: string;
+  productName: string;
+  sku: string;
+  stock: number;
+  threshold: number;
+}
+type LowStockState =
+  | { state: "missing" }
+  | { state: "not_low" | "not_on_sale" }
+  | { state: "low"; summary: LowStockSummary };
+async function lowStockState(db: Database | Tx, variantId: string): Promise<LowStockState> {
+  const [row] = await db.$queryRaw<
+    Array<{
+      productId: string;
+      productName: string;
+      sku: string;
+      stock: number;
+      threshold: number;
+      onSale: boolean;
+    }>
+  >(Prisma.sql`
+    SELECT p.id AS "productId", p.name AS "productName", v.sku, v.stock_on_hand AS stock,
+      v.low_stock_threshold AS threshold,
+      (v.active AND p.status='published' AND p.deleted_at IS NULL) AS "onSale"
+    FROM variants v JOIN products p ON p.id=v.product_id WHERE v.id=${variantId}::uuid`);
+  if (!row) return { state: "missing" };
+  if (!row.onSale) return { state: "not_on_sale" };
+  if (row.stock > row.threshold) return { state: "not_low" };
+  const { productId, productName, sku, stock, threshold } = row;
+  return { state: "low", summary: { variantId, productId, productName, sku, stock, threshold } };
+}
+/**
+ * Claims this channel's alert for the variant: true when this event may alert (first alert, the
+ * quiet window has passed, or this same event claimed it before), false inside the window. The
+ * upsert locks the variant's row, so two crossings handled at once cannot both alert.
+ */
+async function claimLowStockAlert(
+  db: Database | Tx,
+  input: { variantId: string; channel: "inbox" | "email"; eventId: string },
+): Promise<boolean> {
+  const [row] = await db.$queryRaw<Array<{ claimed: boolean }>>(Prisma.sql`
+    INSERT INTO low_stock_alerts AS a (variant_id, channel, source_event_id)
+    VALUES (${input.variantId}::uuid, ${input.channel}, ${input.eventId}::uuid)
+    ON CONFLICT (variant_id, channel) DO UPDATE
+      SET source_event_id=EXCLUDED.source_event_id, alerted_at=EXCLUDED.alerted_at
+      WHERE a.source_event_id=EXCLUDED.source_event_id
+        OR a.alerted_at <= statement_timestamp() - make_interval(hours => ${LOW_STOCK_QUIET_HOURS}::int)
+    RETURNING true AS claimed`);
+  return row?.claimed ?? false;
+}
+const stockLevel = (summary: LowStockSummary) =>
+  summary.stock === 0 ? "Out of stock" : `${summary.stock} left`;
+
+export type LowStockNotificationResult =
+  | { outcome: "variant_missing" | "disabled" | "not_low" | "not_on_sale" | "quiet" }
+  | { outcome: "written"; notificationId: string; created: boolean; receipts: number };
+/**
+ * Writes the inbox notification for a low-stock crossing and one receipt per active staff user
+ * who holds `inventory.read`. Run inside the transaction that completes the effect; a
+ * redelivered event keeps the first content and existing receipts.
+ */
+export async function writeLowStockNotification(
+  tx: Tx,
+  input: { eventId: string; variantId: string },
+): Promise<LowStockNotificationResult> {
+  const current = await lowStockState(tx, input.variantId);
+  if (current.state === "missing") return { outcome: "variant_missing" };
+  if (current.state !== "low") return { outcome: current.state };
+  if (!(await notificationSettings(tx)).inApp) return { outcome: "disabled" };
+  const { summary } = current;
+  if (!(await claimLowStockAlert(tx, { ...input, channel: "inbox" }))) return { outcome: "quiet" };
+  const notification = await insertNotification(tx, {
+    eventId: input.eventId,
+    type: LOW_STOCK_NOTIFICATION,
+    title: "Low stock: " + summary.productName,
+    body: `${summary.sku} · ${stockLevel(summary)} (alert level ${summary.threshold})`,
+    link: "/inventory/" + summary.variantId,
+  });
+  const receipts = await writeReceipts(tx, notification.id, LOW_STOCK_PERMISSIONS);
+  return {
+    outcome: "written",
+    notificationId: notification.id,
+    created: notification.created,
+    receipts,
+  };
+}
+export type LowStockEmailResult =
+  | { outcome: "variant_missing" }
+  | { outcome: "skipped"; reason: "off" | "not_low" | "not_on_sale" | "quiet" }
+  | { outcome: "send"; summary: LowStockSummary; recipients: string[] };
+/**
+ * Whether to email a low-stock crossing and to whom: the Settings recipients, only while the
+ * low-stock email is switched on. The quiet-window claim commits on its own, before sending; a
+ * retry of the same event keeps its claim.
+ */
+export async function loadLowStockEmail(
+  db: Database,
+  input: { eventId: string; variantId: string },
+): Promise<LowStockEmailResult> {
+  const current = await lowStockState(db, input.variantId);
+  if (current.state === "missing") return { outcome: "variant_missing" };
+  if (current.state !== "low") return { outcome: "skipped", reason: current.state };
+  const settings = await notificationSettings(db);
+  if (!settings.lowStockEmail || !settings.newOrderEmail.recipients.length)
+    return { outcome: "skipped", reason: "off" };
+  if (!(await claimLowStockAlert(db, { ...input, channel: "email" })))
+    return { outcome: "skipped", reason: "quiet" };
+  return {
+    outcome: "send",
+    summary: current.summary,
+    recipients: [...settings.newOrderEmail.recipients],
+  };
+}
+
 // --- Inbox (roadmap step 91, ADR 0059) ---
 /**
  * What a user must hold now to see a notification type. A receipt is a snapshot of who was
@@ -109,6 +256,7 @@ export async function loadNewOrderEmail(
  */
 export const NOTIFICATION_TYPE_PERMISSIONS: Readonly<Record<string, string>> = {
   [NEW_ORDER_NOTIFICATION]: "orders.read",
+  [LOW_STOCK_NOTIFICATION]: "inventory.read",
 };
 export class InboxForbiddenError extends Error {}
 export class InboxNotFoundError extends Error {}

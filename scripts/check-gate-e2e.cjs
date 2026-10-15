@@ -480,6 +480,7 @@ async function main() {
       const prefix = queue.testQueuePrefix();
       const enqueuer = new queue.BullEffectEnqueuer(redis, prefix);
       const notifications = dist("order-notifications");
+      const lowStock = dist("low-stock-notifications");
       const effects = dist("effects");
       const runner = new effects.EffectRunner({
         db,
@@ -489,7 +490,10 @@ async function main() {
           notifications.createNotificationConsumer({ log }),
           createEmailConsumer({
             from: "no-reply@iqoshaven.local",
-            planners: { "order.created": notifications.newOrderEmailPlanner(db) },
+            planners: {
+              "order.created": notifications.newOrderEmailPlanner(db),
+              "inventory.low": lowStock.lowStockEmailPlanner(db, log),
+            },
             adapter: {
               send: async (message) => ({
                 receipt: "gate:" + message.deliveryKey,

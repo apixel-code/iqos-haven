@@ -36,17 +36,26 @@ export const contactSettingsSchema = z.strictObject({
   footerNote: text(500).nullable(),
   social: z.strictObject({ instagram: socialUrl, tiktok: socialUrl, facebook: socialUrl }),
 });
-export const notificationSettingsSchema = z.strictObject({
-  inApp: z.boolean(),
-  newOrderEmail: z
-    .strictObject({ enabled: z.boolean(), recipients: z.array(z.email().max(254)).max(10) })
-    .refine((value) => !value.enabled || value.recipients.length > 0)
-    .refine(
-      (value) =>
-        new Set(value.recipients.map((email) => email.toLowerCase())).size ===
-        value.recipients.length,
-    ),
-});
+export const notificationSettingsSchema = z
+  .strictObject({
+    inApp: z.boolean(),
+    newOrderEmail: z
+      .strictObject({ enabled: z.boolean(), recipients: z.array(z.email().max(254)).max(10) })
+      .refine((value) => !value.enabled || value.recipients.length > 0)
+      .refine(
+        (value) =>
+          new Set(value.recipients.map((email) => email.toLowerCase())).size ===
+          value.recipients.length,
+      ),
+    /**
+     * Low-stock email (step 92), to the same recipient list. Optional so that values saved before
+     * it read as "off".
+     */
+    lowStockEmail: z.boolean().optional(),
+  })
+  .refine((value) => !value.lowStockEmail || value.newOrderEmail.recipients.length > 0, {
+    path: ["lowStockEmail"],
+  });
 export const whatsappSettingsSchema = z.strictObject({
   number: phone,
   templates: z.strictObject({

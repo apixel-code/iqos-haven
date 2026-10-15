@@ -2364,7 +2364,8 @@
                       { "properties": { "enabled": { "enum": [false] } } },
                       { "properties": { "recipients": { "minItems": 1 } } }
                     ]
-                  }
+                  },
+                  "lowStockEmail": { "type": "boolean" }
                 },
                 "required": ["inApp", "newOrderEmail"],
                 "additionalProperties": false
@@ -2592,7 +2593,8 @@
                       { "properties": { "enabled": { "enum": [false] } } },
                       { "properties": { "recipients": { "minItems": 1 } } }
                     ]
-                  }
+                  },
+                  "lowStockEmail": { "type": "boolean" }
                 },
                 "required": ["inApp", "newOrderEmail"],
                 "additionalProperties": false
@@ -2850,7 +2852,8 @@
                             { "properties": { "enabled": { "enum": [false] } } },
                             { "properties": { "recipients": { "minItems": 1 } } }
                           ]
-                        }
+                        },
+                        "lowStockEmail": { "type": "boolean" }
                       },
                       "required": ["inApp", "newOrderEmail"],
                       "additionalProperties": false

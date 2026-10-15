@@ -19,6 +19,8 @@ import { EffectReconciler } from "./reconciler";
 import { OutboxRelay } from "./relay";
 import { createConfirmationCleanupJob, createIdempotencyCleanupJob } from "./idempotency";
 import { createNotificationConsumer, newOrderEmailPlanner } from "./order-notifications";
+import { lowStockEmailPlanner } from "./low-stock-notifications";
+import { createDailySummaryJob } from "./daily-summary";
 import { Scheduler } from "./scheduler";
 import { startWorker, type WorkerRuntime } from "./runtime";
 const SHUTDOWN_TIMEOUT_MS = 20000;
@@ -47,6 +49,7 @@ async function main(): Promise<void> {
       "staff.password_reset_requested": passwordResetEmailPlanner(database, env),
       "staff.invited": staffInvitationEmailPlanner(database, env),
       "order.created": newOrderEmailPlanner(database),
+      "inventory.low": lowStockEmailPlanner(database, log),
     },
   });
   // Image processing is CPU/memory heavy: one libvips thread per job, bounded worker concurrency.
@@ -71,7 +74,7 @@ async function main(): Promise<void> {
     retries: enqueuer,
   });
   const reconciler = new EffectReconciler({ db: database, enqueuer, log });
-  // Scheduled jobs (daily summary, rollups, cleanup) register here in their roadmap steps.
+  // Scheduled jobs register here in their roadmap steps (daily summary: step 92, metrics: 106).
   const scheduler = new Scheduler({
     db: database,
     owner,
@@ -81,6 +84,7 @@ async function main(): Promise<void> {
       createStockReconciliationJob({ db: database, log }),
       createIdempotencyCleanupJob({ db: database, log }),
       createConfirmationCleanupJob({ db: database, log }),
+      createDailySummaryJob({ log }),
     ],
   });
   let effectWorkers: { stop(): Promise<void> } | undefined;

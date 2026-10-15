@@ -1261,3 +1261,34 @@ Not covered: the Customers screen and the WhatsApp panel in a browser; real word
 - **Ending:** revoking the session sends `event: signed-out` and ends the stream; removing `notifications.read_own` ends it with `event: reconnect`; its slot is free again.
 
 Not covered: the bell in a real browser through the gateway (`scripts/check-gateway.mjs` already checks that the stream route is not buffered); shutdown ending open streams; the per-process bound.
+
+## Step 92 — low-stock alerts, daily-summary slot and operations acceptance (2026-10-15, local)
+
+`pnpm verify`: exit 0 (unit 587, age-preview 2008; the contract was regenerated for the new setting). `pnpm test:int`: exit 0 (integration 540; platform 1, db 14, worker 13, api 36 files). `pnpm test:gate`: exit 0, 2175 checks. `invariant-reviewer`: no blockers. Its one low finding, an email lost when a send keeps failing past the window, is now an accepted loss stated in ADR 0060.
+
+**Low stock (`apps/worker/src/low-stock-notifications.int.test.ts`, real PostgreSQL, 5 tests):**
+
+- Three sales take a variant through its alert level and then on to zero. That writes one `inventory.low` event with both consumers. The event produces one notification, with the stock at delivery time ("Out of stock (alert level 10)") and a link to `/inventory/<id>`. Receipts go only to users who hold `inventory.read`. One email goes out, with no link. A redelivery returns `duplicate`.
+- A variant that drops low, recovers and drops low again inside 24 hours alerts once in the inbox and once by email. Once the window has passed, the next crossing alerts again.
+- Two crossings handled at the same time write one notification.
+- A variant restocked before delivery, a draft product, and alerts that are switched off: none of them sends anything or claims the window.
+- A missing variant ends as `dead`.
+
+**M8 operations journey (`apps/worker/src/operations-gate.int.test.ts`):**
+
+1. `createStoreOrder` sells 3 of 5 units, with the alert level at 2.
+2. Staff get one inbox entry each for the new order and the low stock, and both emails go out. Neither the inbox nor the emails contain the customer's name, address or phone.
+3. Staff move the order Pending → Confirmed → Processing → Out for Delivery → Delivered, each step with its expected version.
+4. At Delivered, `codStatus` is still pending. Staff then record the cash, which sets `codStatus` to collected; sending the same command again returns the original record.
+5. A further sale while the variant is low writes no second event.
+
+**Daily summary:** `daily-summary.test.ts` checks that the slot is 09:00 Asia/Dubai (05:00Z), that `catchUp` is 1, and that a run sends nothing.
+
+**Order edit, cancel, collection and session suites:** all passed in the same `test:int` run.
+
+Not covered:
+
+- The M8 journey runs at service level. The HTTP routes and guards for transitions and collection have their own API tests.
+- The bell and the settings switch have not been checked in a real browser.
+- Real email still waits for BI-07.
+- The daily summary has no figures until step 106.

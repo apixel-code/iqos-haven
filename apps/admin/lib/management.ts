@@ -117,6 +117,7 @@ export function settingsCommand(
           .map((email) => email.trim())
           .filter(Boolean),
       },
+      lowStockEmail: checked(data, "lowStockEmail"),
     };
   if (key === "whatsapp")
     value = {

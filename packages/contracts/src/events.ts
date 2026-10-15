@@ -202,8 +202,10 @@ export const EVENT_CATALOGUE = {
     // Emitted once per crossing from above the threshold to at/below it (step 53, ADR 0023).
     // `cause` says which side moved; consumers load current stock themselves.
     payload: z.strictObject({ variantId: id, cause: z.enum(["stock", "threshold"]) }),
-    consumers: [],
-    plannedConsumers: { notification: 92, email: 92 },
+    // Step 92 (ADR 0060). No backfill: events written before it keep their empty consumer set;
+    // the inventory list already shows those variants as low.
+    consumers: ["notification", "email"],
+    plannedConsumers: {},
   }),
   "catalog.changed": define({
     schemaVersion: 1,

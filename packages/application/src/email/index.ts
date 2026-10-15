@@ -6,3 +6,5 @@ export * from "./password-reset";
 export * from "./staff-invitation";
 
 export * from "./new-order";
+
+export * from "./low-stock";

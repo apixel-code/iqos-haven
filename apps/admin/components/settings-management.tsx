@@ -63,16 +63,17 @@ const groups: Array<{
   {
     key: "notifications",
     title: "Notifications",
-    help: "Saving preferences does not activate delivery. New-order email recipients need approval and email provisioning; low-stock/daily email remains deferred.",
+    help: "Saving preferences does not activate delivery: email also needs a verified sending domain. Low-stock alerts repeat for a product at most once a day. The daily summary email arrives with reports.",
     fields: [
       { name: "inApp", label: "In-app notifications", kind: "checkbox" },
       { name: "newOrderEmail.enabled", label: "New-order email preference", kind: "checkbox" },
+      { name: "lowStockEmail", label: "Low-stock email preference", kind: "checkbox" },
       {
         name: "recipients",
-        label: "New-order recipients",
+        label: "Email recipients",
         kind: "textarea",
         max: 2550,
-        help: "Up to ten unique email addresses, separated by commas or new lines. Required when the email preference is enabled.",
+        help: "Up to ten unique email addresses, separated by commas or new lines. Required when an email preference is enabled.",
       },
     ],
   },

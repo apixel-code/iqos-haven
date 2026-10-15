@@ -2,10 +2,10 @@
 
 ## Current position
 
-- Date: 2026-10-13
+- Date: 2026-10-15
 - Milestone: M7 — transactional checkout and first complete order: all steps (73–82) done; gate evidence ready, awaiting Marina's decision. M6: all steps (65–72) done; gate evidence ready, awaiting Marina's decision. M5: PASSED 2026-10-11. M4 steps done, gate awaits Marina's decision (publishing unblocked); M3 gate not closed; M0 review and M1 staging/fixtures still open
-- Step: 91 (inbox, read receipts and event stream) — done; next is 92 (last step of M8)
-- Branch: `step/91-inbox-sse` (pushed; PR based on `step/90-customers-whatsapp`; the stack reaches `main` through PR #61)
+- Step: 92 (low-stock alerts, daily-summary slot, operations acceptance) — done; all M8 steps (83–92) done, gate evidence ready, awaiting Marina's decision. Next is 93 (M9).
+- Branch: `step/92-low-stock-ops` (based on `step/91-inbox-sse`; push and open its PR after the commit)
 - See docs/verification.md for actual checks.
 
 ## Next action
@@ -20,8 +20,10 @@
 2. **From now on** branch each step from the latest pushed step branch (or `main` once #61 is merged), push it and open its PR after `/verify` and the commit.
 3. **Marina: decide the M6 gate (and M4).** Evidence and caveats: docs/verification.md "Step 72".
 4. **Marina: decide the M7 gate.** Evidence, item by item, and what is not covered: docs/verification.md "Step 82". Checkout stays switched off (`CHECKOUT_SUBMISSION_ENABLED=false`) whatever the decision, until deployment inputs exist (BI-07 sender domain, real Owner, delivery areas and fee).
-5. **Next step: `/step 92`** (low-stock email/bell, daily-summary registration and operations acceptance — the M8 gate step). Find the row with `rg -n "^| 92 " docs/roadmap.md` and the M8 gate line. `inventory.low` events exist (step 53) with no consumers yet; notifications need a type in `NOTIFICATION_TYPE_PERMISSIONS`; the daily summary's real metrics come after analytics (step 106), so register the schedule only. Do not mark M8 passed.
-6. **Rules that carry forward:**
+5. **Marina: decide the M8 gate.** Evidence: docs/verification.md "Step 92" (service-level journey from store order to collected cash, plus the HTTP suites for each route). Do not mark M8 passed without her decision.
+6. **Next step: `/step 93`** (review schema and verified-purchase proof — first step of M9). Find the row with `rg -n "^| 93 " docs/roadmap.md` and the M9 gate line.
+7. **Rules that carry forward:**
+   - Low stock (ADR 0060): `inventory.low` requires `notification` + `email`. Both decide when delivered (still low, active, published product) and claim a 24 h quiet window per variant and channel in `low_stock_alerts`. Email goes to the shared Settings recipients only while `notifications.lowStockEmail` is true. Daily summary job `reports.daily_summary` (09:00 Dubai, `catchUp: 1`) sends nothing until step 106 wires the metrics, the preference and the recipients.
    - Admin order reads (ADR 0051): both routes require `orders.read`; the whole optional `customer` object and contact search additionally require `customers.read`. List keyset is the exact DB `(created_at,id)`; detail uses one repeatable-read snapshot. Never expose creation/idempotency hashes, confirmation data or history command IDs. Step 84 adds commands separately with expected versions.
    - Order transitions (ADR 0052): normal fulfilment uses `POST /v1/admin/orders/:id/transitions` with `orders.transition`, `expectedVersion` and a UUID command ID. Lock the current actor, then the order; write order/history/audit/`order.status_changed` in one transaction. A partial unique index makes staff transition command IDs global and exact retries return the original receipt. Delivered leaves COD pending.
    - Inbox and stream (ADR 0059): `GET /v1/admin/notifications`, `POST …/:id/read`, `POST …/read-all`; `GET /v1/admin/events/stream` polls the database every 2 s per stream and sends IDs only; bounds 5 per user, 200 per process; ends on revocation, right loss, 30 minutes and shutdown. A new notification type adds its permission to `NOTIFICATION_TYPE_PERMISSIONS` in `packages/db/src/notifications.ts`.
@@ -69,7 +71,7 @@ BI-07: a verified sending domain and sender address are still needed before real
 
 - **M2 — PASSED 2026-10-09** (closed on Marina's approval). Gate: a synthetic event is written and processed by the worker; duplicate delivery and Redis job loss are recovered; tests send no real email. Evidence: `apps/worker/src/recovery.int.test.ts` "M2 gate" (queue obliterated → reconciler re-enqueue + duplicate original job → effect completed exactly once), `effects.int.test.ts` (5 concurrent duplicates apply once), real dev orphan recovered by the built worker (step 24 notes in docs/verification.md); email only to Mailpit/stubs. CI green on `main` at a2429f7 (run 37894960188) with all steps 18–26 merged. Not part of this gate: production queue Redis failover/restore drills (M11, after BI-06).
 - **M5 — PASSED 2026-10-11** (closed on Marina's decision). Gate: after age acceptance real products can be browsed, selected and added to the cart; before it no restricted product data is available. Evidence: `pnpm test:gate` (real API + storefront + gateway, 1803 checks) and the real-browser pass (14 checks) in docs/verification.md "Step 64". Accepted caveat: the products were seeded, because publishing through the admin waits for BI-02.
-- M0, M1, M3, M4 and M6–M11: not passed. M7: all steps (73–82) done; gate awaits Marina's decision. M6: all steps (65–72) done; gate awaits Marina's decision. M4: all steps (41–54) done; publishing is unblocked (ADR 0036), the gate awaits Marina's decision.
+- M0, M1, M3, M4 and M6–M11: not passed. M7: all steps (73–82) done; gate awaits Marina's decision. M8: all steps (83–92) done; gate awaits Marina's decision. M6: all steps (65–72) done; gate awaits Marina's decision. M4: all steps (41–54) done; publishing is unblocked (ADR 0036), the gate awaits Marina's decision.
 
 ## Steps done
 
@@ -103,6 +105,7 @@ BI-07: a verified sending domain and sender address are still needed before real
 - 83 — admin order list/status-date-contact search/keyset paging and repeatable-read snapshot detail/history; contact fields and search require `customers.read`; responsive read-only Orders workspace (ADR 0051) — `step(83)` commit on `step/83-admin-orders`
 - 84 — versioned and replay-safe normal fulfilment transitions with committed status history, audit/event writes, next-action admin controls and timeline reloads (ADR 0052) — b11959b
 - 91 — per-user inbox with own read flags and current-permission filtering, admin event stream (database-polled, ID-only events, Last-Event-ID gap fill, revocation and shutdown close it), header notifications (ADR 0059) — `step(91)` commit on `step/91-inbox-sse`
+- 92 — `inventory.low` → inbox and email, decided when delivered, 24 h quiet window per variant and channel (`low_stock_alerts`), low-stock email switch in Settings, bell link to Inventory, `reports.daily_summary` slot registered, M8 operations gate test (ADR 0060) — `step(92)` commit on `step/92-low-stock-ops`
 - 90 — admin customers (phone-grouped list and detail, Owner-only spend in two bases) and order WhatsApp messages from templates, opened by staff and never recorded as sent (ADR 0058) — 0f8ecaf
 - 89 — bulk confirm: up to 50 Pending orders, each its own versioned transition with its own command, per-order results, same-batch retry replays; admin selection and results (ADR 0057) — e183d74
 - 88 — manual orders: the storefront's quote, order transaction, stock and idempotency for staff-entered orders, scoped per staff member; Pending, or Confirmed with recorded evidence (database-enforced); admin New order form (ADR 0056) — 4fbad75
@@ -129,33 +132,27 @@ BI-07: a verified sending domain and sender address are still needed before real
 ## Known deviations
 
 - Local MinIO uses Chainguard rebuilds (`cgr.dev/chainguard/minio`, `minio-client:latest-dev`) pinned by digest because official MinIO images are no longer publicly pullable. Still MinIO; production storage provider is decided under BI-06. No ADR needed unless the provider changes.
-- Event `consumers` lists only implemented consumers (now `system_probe`, `email`, `media_processor`, `storefront_revalidate`); planned ones are documented with roadmap steps and move in with a backfill decision (architecture §8: adding a consumer must not redefine old completions).
+- Event `consumers` lists only implemented consumers (now `system_probe`, `email`, `notification`, `media_processor`, `storefront_revalidate`); planned ones are documented with roadmap steps and move in with a backfill decision (architecture §8: adding a consumer must not redefine old completions).
 - `audit_log` migration revokes UPDATE/DELETE/TRUNCATE only from a role named `ih_app`; other runtime role names must be revoked at provisioning (trigger blocks mutations regardless).
 
-## Last session handoff (2026-10-15, step 91)
+## Last session handoff (2026-10-15, step 92)
 
 Done:
 
-- **Step 91 (ADR 0059):** `packages/contracts/src/notifications.ts`; inbox functions in `packages/db/src/notifications.ts`; `sessionStillValid` in `sessions.ts`; `apps/api/src/notifications/*` (inbox and event stream controllers); admin `notification-bell.tsx` in the header.
-- **`invariant-reviewer`:** no blockers; done: stream slots counted before any await and always released, close/error listeners on the response, shutdown ends streams, a stalled reader is cut off, the browser retries a refused stream, a test that losing the right ends the stream and frees its slot.
+- **Step 92 (ADR 0060):** consumers for `inventory.low`: inbox (`writeLowStockNotification`) and email (`lowStockEmailPlanner`, template `inventory.low` v1). The quiet-window claim is in `packages/db/src/notifications.ts`. Daily-summary slot registered. `lowStockEmail` setting with an admin switch and a shared recipients label. Bell link "Open inventory". M8 operations gate test.
+- **`invariant-reviewer`:** no blockers. One low finding (an email lost when a send keeps failing past the window) is recorded in ADR 0060 as an accepted loss. The `/workspace/inventory` route it asked about exists.
 
-Files: `packages/contracts/src/{notifications.ts,index.ts}`, `packages/db/src/{notifications.ts,sessions.ts}`, `apps/api/src/notifications/{notifications.controller.ts,admin-events.controller.ts,notifications.module.ts,inbox.int.test.ts}`, `apps/api/src/app.module.ts`, `apps/admin/components/{notification-bell.tsx,session-shell.tsx}`, `docs/api.openapi.json`, `docs/decisions/0059-inbox-and-event-stream.md`, `docs/{implementation-status,task-backlog,verification}.md`, `PROGRESS.md`.
+Files: `packages/db/prisma/migrations/20261015000200_low_stock_alerts/`, `packages/db/prisma/schema.prisma`, `packages/db/src/notifications.ts`, `packages/contracts/src/{events.ts,events.test.ts,settings.ts}`, `packages/application/src/email/{low-stock.ts,index.ts}`, `apps/worker/src/{low-stock-notifications.ts,low-stock-notifications.int.test.ts,daily-summary.ts,daily-summary.test.ts,operations-gate.int.test.ts,order-notifications.ts,main.ts}`, `apps/admin/{components/settings-management.tsx,components/notification-bell.tsx,lib/management.ts,lib/management.test.ts}`, `apps/api/src/{notifications/inbox.int.test.ts,settings/settings.int.test.ts}`, `scripts/check-gate-e2e.cjs`, `docs/api.openapi.json`, `docs/decisions/0060-low-stock-alerts-and-daily-summary-slot.md`, `docs/verification.md`
 
-Tests: `pnpm verify -- --integration` PASS (unit 585, integration 534, gateway 29, age-preview 2008, gate 2175). Inbox and stream 5/5.
+Tests: `pnpm verify` PASS (unit 587, age-preview 2008). `pnpm test:int` PASS (integration 540). `pnpm test:gate` PASS (2175).
 
 Unfinished:
 
-- PRs #61 → #62 → #63 → #64 → step-91 PR are stacked and wait for Marina's merge (merge #61 first). Close #59/#60 after #61. M4, M6 and M7 gates await her decision.
-- The bell and stream have not been opened in a real browser through the gateway; the stream test reads it over HTTP directly from the API.
-- Four `ih_test_*` schemas of unknown origin are in the test database; left alone.
+- PRs #61 → #62 → #63 → #64 → step-91 → step-92 are stacked and wait for Marina's merge (merge #61 first). M4, M6, M7 and M8 gates await her decision.
+- Not checked in a real browser: the bell's low-stock entry and the Settings switch.
+- Real email waits for BI-07. The daily summary's content arrives in step 106.
 
 ## History (summary)
 
-- 2026-10-15 step 90: admin customers and WhatsApp messages, ADR 0058 (0f8ecaf, PR #64); verify unit 585/integration 529.
-- 2026-10-15 step 89: bulk confirm, ADR 0057 (e183d74, PR #63); verify unit 582/integration 526.
-- 2026-10-14 step 88: manual orders, ADR 0056 (4fbad75, PR #62); verify unit 582/integration 522.
-- 2026-10-14 step 87: COD collection and Owner correction, ADR 0055 (b958148, PR #61); verify unit 582/integration 515.
-- 2026-10-14 step 86: order cancellation and Owner returns, ADR 0054 (696b142, not pushed); verify unit 577/integration 509.
-- 2026-10-13 steps 83–85: admin order reads, transitions, edits, ADR 0051–0053 (eb2775c, b11959b, 9ae9987, not pushed); verify unit 577/integration 499. Age-gate origin fix a307657 (2026-10-14).
-- 2026-10-13 step 85: versioned order edits and immutable diffs, ADR 0053 (local branch, not pushed); unit 577/integration 499/gateway 29/age-preview 2008/gate 2175.
-- 2026-10-13 step 84: versioned fulfilment transitions and admin controls, ADR 0052 (b11959b, not pushed).
+- 2026-10-15 steps 89–91: bulk confirm, customers and WhatsApp, inbox and stream, ADR 0057–0059 (e183d74, 0f8ecaf, 7256c15; PRs #63, #64, step-91); last verify unit 585/integration 534.
+- 2026-10-13/14 steps 83–88: admin order reads, transitions, edits, cancellation, COD collection, manual orders, ADR 0051–0056 (through 4fbad75; PRs #61, #62); age-gate origin fix a307657.

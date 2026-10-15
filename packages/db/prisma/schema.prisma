@@ -443,6 +443,7 @@ model Variant {
 
   stockMovements StockMovement[]
   orderItems     OrderItem[]
+  lowStockAlerts LowStockAlert[]
 
   @@unique([productId, optionSignature])
   @@index([productId, active], map: "variants_availability")
@@ -750,6 +751,18 @@ model NotificationReceipt {
   @@id([notificationId, userId])
   @@index([userId, readAt, notificationId], map: "notification_receipts_inbox")
   @@map("notification_receipts")
+}
+
+/// Low-stock quiet window (step 92): the last alert per variant and channel.
+model LowStockAlert {
+  variantId     String   @map("variant_id") @db.Uuid
+  variant       Variant  @relation(fields: [variantId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  channel       String   @db.VarChar(16)
+  sourceEventId String   @map("source_event_id") @db.Uuid
+  alertedAt     DateTime @default(dbgenerated("statement_timestamp()")) @map("alerted_at") @db.Timestamptz(6)
+
+  @@id([variantId, channel])
+  @@map("low_stock_alerts")
 }
 
 /// The command that cancelled an order (step 86). One per order; immutable.
