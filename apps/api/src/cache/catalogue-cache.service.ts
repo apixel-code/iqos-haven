@@ -13,7 +13,7 @@ import type Redis from "ioredis";
 import { API_ENV, CACHE_REDIS } from "../infra/tokens";
 
 /** Bump when the shape of any cached catalogue value changes, so releases never share entries. */
-export const CATALOGUE_CACHE_VERSION = 2;
+export const CATALOGUE_CACHE_VERSION = 3;
 /** One shared value may not take more than this share of a replica's byte budget. */
 const MAX_SHARED_VALUE_BYTES = 1024 * 1024;
 

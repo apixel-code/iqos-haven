@@ -33,6 +33,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return {
     title: `${product.seo.title ?? product.name} · ${SITE.name}`,
     ...(product.seo.description ? { description: product.seo.description } : {}),
+    // The current slug, also when reached through a former one (step 101).
+    alternates: { canonical: `/p/${product.slug}` },
   };
 }
 

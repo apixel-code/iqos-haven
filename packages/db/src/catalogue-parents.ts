@@ -313,6 +313,9 @@ async function update<K extends Kind>(
       const row = await lockParent(tx, kind, id, version);
       // A trashed parent is read-only until restored.
       if (row.deletedAt) throw new CatalogueConflictError("TRASHED");
+      // A new slug makes the old one a redirect: the Owner's (SEO and redirects, step 101).
+      if (row.slug !== command.slug && !(await canWriteSeo(tx, actor)))
+        throw new CatalogueForbiddenError();
       const description = k.description ? (command.description ?? "") : "";
       const seoChanged =
         command.seo !== undefined && !isDeepStrictEqual(storedSeo(row.seo), command.seo);

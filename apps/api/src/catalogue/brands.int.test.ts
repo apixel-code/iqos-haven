@@ -315,6 +315,11 @@ describe("brand administration through the real API and PostgreSQL", () => {
     const brand = await create();
     const first = brand.slug;
     const second = slug();
+    // Staff may create a brand with a slug, but changing it later is the Owner's (step 101).
+    expect(
+      (await call("/" + brand.id, "PATCH", { ...editable(brand), slug: second }, cookies.staff))
+        .status,
+    ).toBe(403);
     const renamed = await json(
       await call("/" + brand.id, "PATCH", { ...editable(brand), slug: second }),
     );

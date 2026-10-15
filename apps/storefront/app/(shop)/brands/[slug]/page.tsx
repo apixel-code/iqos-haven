@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { notFound, permanentRedirect } from "next/navigation";
 import { SITE } from "@/lib/site";
 import { storeRead } from "@/lib/store/server";
 import { ListingPage } from "../../listing-page";
@@ -12,19 +12,29 @@ type Props = {
 /** The brand a shopper may see under this slug, or null. Only listed brands have a page. */
 async function brandOf(slug: string) {
   const { items } = await storeRead((api, shopper) => api.brands(shopper));
-  return items.find((brand) => brand.slug === slug) ?? null;
+  // A former slug finds the brand too; the page then sends it to the current one (step 101).
+  return (
+    items.find((brand) => brand.slug === slug) ??
+    items.find((brand) => brand.formerSlugs.includes(slug)) ??
+    null
+  );
 }
 
 // Runs only for requests the routing gate let through, so the brand name is safe in the title.
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const brand = await brandOf((await params).slug);
-  return { title: brand ? `${brand.name} · ${SITE.name}` : SITE.name };
+  if (!brand) return { title: SITE.name };
+  return {
+    title: `${brand.name} · ${SITE.name}`,
+    alternates: { canonical: `/brands/${brand.slug}` },
+  };
 }
 
 export default async function BrandPage({ params, searchParams }: Props) {
   const { slug } = await params;
   const brand = await brandOf(slug);
   if (!brand) notFound();
+  if (brand.slug !== slug) permanentRedirect(`/brands/${brand.slug}`);
   return (
     <ListingPage
       path={`/brands/${brand.slug}`}
