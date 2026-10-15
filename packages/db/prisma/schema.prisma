@@ -169,6 +169,8 @@ model StaffUser {
   invitationsSent     StaffInvitationToken[] @relation("Inviter")
   reviewProofsIssued ReviewProof[]
   reviewsModerated   Review[]
+  contentDrafts      ContentSection[] @relation("ContentDraftUpdater")
+  contentPublished   ContentSection[] @relation("ContentPublisher")
 
   @@index([roleId])
   @@map("staff_users")
@@ -538,8 +540,10 @@ model SlugRedirect {
 /// asset `ready`; only ready assets may become product images.
 model MediaAsset {
   id                 String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
-  productId          String    @map("product_id") @db.Uuid
-  product            Product   @relation(fields: [productId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  productId          String?   @map("product_id") @db.Uuid
+  product            Product?  @relation(fields: [productId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  /// `product` (gallery) or `content` (home sections, no product). Step 96.
+  purpose            String    @default("product") @db.VarChar(16)
   uploadedBy         String    @map("uploaded_by") @db.Uuid
   uploader           StaffUser @relation(fields: [uploadedBy], references: [id], onDelete: Restrict, onUpdate: Restrict)
   quarantineKey      String    @unique @map("quarantine_key") @db.VarChar(512)
@@ -866,4 +870,23 @@ model OrderCollectionRecord {
 
   @@index([orderId, seq], map: "order_collection_records_order")
   @@map("order_collection_records")
+}
+
+/// Storefront content section (step 96, ADR 0064): validated draft and published copy.
+model ContentSection {
+  id                     String     @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  key                    String     @unique(map: "content_sections_key") @db.VarChar(32)
+  schemaVersion          Int        @map("schema_version")
+  draft                  Json
+  draftUpdatedBy         String     @map("draft_updated_by") @db.Uuid
+  draftUpdater           StaffUser  @relation("ContentDraftUpdater", fields: [draftUpdatedBy], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  draftUpdatedAt         DateTime   @default(dbgenerated("statement_timestamp()")) @map("draft_updated_at") @db.Timestamptz(6)
+  published              Json?
+  publishedSchemaVersion Int?       @map("published_schema_version")
+  publishedBy            String?    @map("published_by") @db.Uuid
+  publisher              StaffUser? @relation("ContentPublisher", fields: [publishedBy], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  publishedAt            DateTime?  @map("published_at") @db.Timestamptz(6)
+  version                Int        @default(1)
+
+  @@map("content_sections")
 }

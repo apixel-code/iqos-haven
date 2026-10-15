@@ -17,6 +17,7 @@ When an answer arrives, write the decision in the Answer column and, if it shape
 | BI-10 | Real catalogue: brands, categories, products, variants/SKUs, prices, images, initial stock | Client            | ANSWERED | 124             | 2026-10-12 (Marina): entered later through the admin panel; no import.                                                                                                                                                                                                                                                                     |
 | BI-11 | Owner account(s) for first bootstrap; staff list                                           | Client            | ANSWERED | 28, 124         | 2026-10-12 (Marina): staff are added later through the admin panel. The first Owner still needs `pnpm bootstrap:owner` with a real email at deployment.                                                                                                                                                                                    |
 | BI-12 | Reviews: verified-purchase only, and how customers receive the review link                 | Client            | ANSWERED | 93, 94          | 2026-10-15 (Marina): only verified reviews; staff send a per-order review link by WhatsApp from a Delivered order (ADR 0061). Client to confirm before launch; unverified reviews would need a schema change.                                                                                                                              |
+| BI-13 | Home content: show coupon codes publicly in the Offers section; one hero or a carousel     | Client            | OPEN     | 96, 99, 100     | 2026-10-15: built without coupon codes in content (a code shown publicly works for anyone) and with one hero, as in the admin prototype (ADR 0064). Adding either later is a new schema version.                                                                                                                                           |
 
 ## Questions log
 
@@ -62,3 +63,5 @@ Not implemented yet (steps 103, 111, 126). Nothing below deletes an order.
 | Database backups                                             | 30 days                                                           |
 
 - 2026-10-15 — Review proof channel and unverified reviews (step 93) — chat with Marina — staff send a per-order review link by WhatsApp after delivery; only verified reviews are accepted (BI-12). Link wording is placeholder until BI-09.
+
+- 2026-10-15 — Home content scope (step 96) — raised by Apixel — whether the Offers section may show coupon codes, and whether the hero is one banner or a carousel (BI-13). Built: no codes, one hero.

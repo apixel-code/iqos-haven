@@ -68,7 +68,7 @@ describe("review link page", () => {
     // ZWNJ belongs in Persian and Arabic names; it is kept. Direction overrides are not.
     expect(reviewRequest(TOKEN, PRODUCT, { ...good, authorName: "Mehr\u200cnaz" }).ok).toBe(true);
     expect(reviewRequest(TOKEN, PRODUCT, { ...good, title: "Right\u202eto left" }).ok).toBe(false);
-    expect(reviewRequest(TOKEN, PRODUCT, { ...good, title: "Zero​width" })).toEqual({
+    expect(reviewRequest(TOKEN, PRODUCT, { ...good, title: "Zero\u200bwidth" })).toEqual({
       ok: false,
       errors: { title: "Remove unusual characters and try again." },
     });
