@@ -5,7 +5,7 @@
 - Date: 2026-10-15
 - Milestone: M7 — transactional checkout and first complete order: all steps (73–82) done; gate evidence ready, awaiting Marina's decision. M6: all steps (65–72) done; gate evidence ready, awaiting Marina's decision. M5: PASSED 2026-10-11. M4 steps done, gate awaits Marina's decision (publishing unblocked); M3 gate not closed; M0 review and M1 staging/fixtures still open
 - Step: 101 (slug changes, former slugs, canonical) — done; next is 102 (review/content acceptance pass, M9 gate evidence). M9 steps 93–101 done. All M8 steps (83–92) done, gate awaiting Marina's decision.
-- Branch: `step/101-slug-seo-rules` (from `step/100-offers-copy`; its PR is based on #74)
+- Branch: `step/101-slug-seo-rules` (pushed; PR #75 based on #74)
 - See docs/verification.md for actual checks.
 
 ## Next action
@@ -166,7 +166,7 @@ Tests: `pnpm verify -- --integration` PASS (unit 599, integration 576, age previ
 
 Unfinished:
 
-- PRs #61 → … → #74 → step 101 PR are stacked and wait for Marina's merge. M4, M6, M7 and M8 gates await her decision.
+- PRs #61 → … → #74 → #75 are stacked and wait for Marina's merge. M4, M6, M7 and M8 gates await her decision.
 
 ## History (summary)
 
