@@ -46,3 +46,4 @@ export * from "./order-collection";
 export * from "./customer-admin";
 export * from "./reviews";
 export * from "./content";
+export * from "./store-content";

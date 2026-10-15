@@ -1491,3 +1491,32 @@ Not covered:
 - The public read and the home page (steps 98–99).
 - Pruning content images: none is ever removed yet.
 - Placeholder wording until BI-09.
+
+## Step 98 — published home content read (2026-10-15, local)
+
+`pnpm verify -- --integration`: exit 0. Unit 597, integration 575, age preview 2013, gate 2242. After the review fix, `pnpm test:gate` was run again and passed 2242 checks.
+
+`invariant-reviewer` found no blockers.
+
+- **Fixed:** the gate check now parses the JSON instead of matching key order.
+- **Confirmed:** the cache invalidation clears everything (`invalidateAll`).
+- **Accepted:** sold-out cards stay in manual lists, and image links are cached for up to 60 s (they live for 10 minutes).
+
+**Integration (`apps/api/src/store/store-content.int.test.ts`, real API, PostgreSQL and MinIO, 4 tests):**
+
+- **Age ticket:** no ticket, a forged ticket and a crawler user agent all get 403.
+- **Drafts:** before anything is published, every section is null or empty. A saved draft is not shown. Once published it is shown, and a newer draft does not replace it.
+- **Assembly:**
+  - The hero button resolves to `/brands/<slug>`. The featured order is kept, there are two brands, and only the enabled banner is shown, its button resolving to `/p/<slug>`. Offers are shown.
+  - No IDs or stock values appear in the answer.
+- **Re-checking references:**
+  - After the kit is unpublished, it leaves featured, and the banner keeps its title but loses its button.
+  - After the brand is hidden, the hero button and the featured cards go.
+- **Automatic best sellers:** they include the recent sellers that are in stock and leave out the sold-out one (at most 8).
+
+**Gate (`scripts/check-gate-e2e.cjs`):** the route is refused without a ticket through the gateway. With a ticket, it answers the empty home.
+
+Not covered:
+
+- The home page itself (step 99).
+- Content images in the public answer: they are covered by the same signing code as product images, but not tested here.

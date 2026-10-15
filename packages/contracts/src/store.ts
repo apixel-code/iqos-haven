@@ -430,3 +430,40 @@ export const orderConfirmationResponseSchema = z.strictObject({
 export type OrderConfirmationResponse = z.infer<typeof orderConfirmationResponseSchema>;
 
 export const orderConfirmationQuerySchema = z.strictObject({});
+
+// --- Published home content (step 98, ADR 0066) ---
+/** A link inside the store, resolved from the content's IDs to the current slug. */
+const homeHref = z
+  .string()
+  .regex(/^\/(shop|categories\/[a-z0-9-]{1,120}|brands\/[a-z0-9-]{1,120}|p\/[a-z0-9-]{1,120})$/);
+const homeLinkSchema = z.strictObject({ label: z.string().min(1).max(30), href: homeHref });
+const homeBannerSchema = z.strictObject({
+  title: z.string().min(1).max(60),
+  subtitle: z.string().max(160).nullable(),
+  cta: homeLinkSchema.nullable(),
+  image: storeImageSchema.nullable(),
+});
+/**
+ * `GET /v1/store/content/home`: the published home sections, assembled. Only published copies;
+ * anything a shopper cannot see is already left out. A disabled or unpublished section is
+ * null (or empty), and the page simply does not show it.
+ */
+export const storeHomeResponseSchema = z.strictObject({
+  ticker: z.strictObject({ messages: z.array(z.string().min(1).max(90)).min(1).max(6) }).nullable(),
+  hero: homeBannerSchema.extend({ eyebrow: z.string().max(40).nullable() }).nullable(),
+  featured: z.array(storeProductCardSchema).max(8),
+  bestSellers: z.array(storeProductCardSchema).max(8),
+  brands: z
+    .array(
+      z.strictObject({ name: z.string(), slug: z.string(), productCount: z.number().int().min(0) }),
+    )
+    .max(24),
+  banners: z.array(homeBannerSchema).max(2),
+  offers: z
+    .strictObject({
+      title: z.string().min(1).max(60),
+      products: z.array(storeProductCardSchema).max(6),
+    })
+    .nullable(),
+});
+export type StoreHomeResponse = z.infer<typeof storeHomeResponseSchema>;

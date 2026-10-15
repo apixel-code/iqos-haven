@@ -5,6 +5,7 @@ import { StoreSearchController } from "./store-search.controller";
 import { CartQuoteController } from "./cart-quote.controller";
 import { CartQuoteService } from "./cart-quote.service";
 import { StoreReviewsController } from "./store-reviews.controller";
+import { StoreContentController } from "./store-content.controller";
 
 /** Shopper-facing API surface (`/v1/store/*`); every route is behind the age ticket. */
 @Module({
@@ -13,6 +14,7 @@ import { StoreReviewsController } from "./store-reviews.controller";
     StoreCatalogController,
     CartQuoteController,
     StoreReviewsController,
+    StoreContentController,
   ],
   providers: [StoreCatalogService, CartQuoteService],
   exports: [CartQuoteService],

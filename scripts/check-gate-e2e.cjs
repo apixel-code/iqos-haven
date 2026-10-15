@@ -360,6 +360,7 @@ async function main() {
       "/api/v1/store/search/suggest?q=gatecheck",
       `/api/v1/store/cart/lines?variant=${visible.variants[0].id}`,
       "/api/v1/store/product-cards?slug=gatecheck-halo",
+      "/api/v1/store/content/home",
     ];
     async function refused(label, headers) {
       for (const target of PAGES)
@@ -602,6 +603,11 @@ async function main() {
       "saved-item cards through the gateway",
     );
     await apiJson("/api/v1/store/products/gatecheck-hidden", 404);
+    const homeContent = JSON.parse(await apiJson("/api/v1/store/content/home"));
+    check(
+      homeContent.ticker === null && homeContent.hero === null && homeContent.featured.length === 0,
+      "home content through the gateway (nothing published, no draft shown)",
+    );
     const deliveryText = await apiJson("/api/v1/store/delivery");
     check(
       deliveryText ===

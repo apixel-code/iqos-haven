@@ -4,8 +4,8 @@
 
 - Date: 2026-10-15
 - Milestone: M7 — transactional checkout and first complete order: all steps (73–82) done; gate evidence ready, awaiting Marina's decision. M6: all steps (65–72) done; gate evidence ready, awaiting Marina's decision. M5: PASSED 2026-10-11. M4 steps done, gate awaits Marina's decision (publishing unblocked); M3 gate not closed; M0 review and M1 staging/fixtures still open
-- Step: 97 (content APIs and editor) — done; next is 98 (published home/content read API). M9 in progress (93–97 done). All M8 steps (83–92) done, gate awaiting Marina's decision.
-- Branch: `step/97-content-editor` (pushed; PR #71 based on #70)
+- Step: 98 (published home/content read API) — done; next is 99 (home hero, ticker, curated sections). M9 in progress (93–98 done). All M8 steps (83–92) done, gate awaiting Marina's decision.
+- Branch: `step/98-store-content` (from `step/97-content-editor`; its PR is based on #71)
 - See docs/verification.md for actual checks.
 
 ## Next action
@@ -21,8 +21,9 @@
 3. **Marina: decide the M6 gate (and M4).** Evidence and caveats: docs/verification.md "Step 72".
 4. **Marina: decide the M7 gate.** Evidence, item by item, and what is not covered: docs/verification.md "Step 82". Checkout stays switched off (`CHECKOUT_SUBMISSION_ENABLED=false`) whatever the decision, until deployment inputs exist (BI-07 sender domain, real Owner, delivery areas and fee).
 5. **Marina: decide the M8 gate.** Evidence: docs/verification.md "Step 92" (service-level journey from store order to collected cash, plus the HTTP suites for each route). Do not mark M8 passed without her decision.
-6. **Next step: `/step 98`** (published home/content read API: `StoreContentController`). Find the row with `rg -n "^| 98 " docs/roadmap.md`. `GET /v1/store/content/home` behind the age ticket: published copies only (never drafts), one assembled response, every reference checked again at read time (skip anything not visible; content images as sanitized derivatives), best sellers `auto` from units sold in the last 30 days, cached in the catalogue cache (invalidated by `content.published` and `catalog.changed`).
+6. **Next step: `/step 99`** (home hero, ticker and curated product/brand sections: Home components). Find the row with `rg -n "^| 99 " docs/roadmap.md`. Render `GET /v1/store/content/home` (`storeHomeResponseSchema`, ADR 0066) on the storefront home page with prototype tokens (`home()`, `promoBar`, hero, popular/brands sections in `docs/prototype-map.md`). Avoid the traps: no HTML from content, no `{pct}` computed hero copy, no demo ticker codes, "UAE" not "Dubai", free-delivery progress hidden. Add the page to `scripts/check-age-preview.mjs` stub data.
 7. **Rules that carry forward:**
+   - Home content (ADR 0066): `GET /v1/store/content/home` (age ticket) reads published copies only and re-checks every reference at read time (hidden targets are left out; a button to one is dropped). Links are hrefs `/shop`, `/categories/<slug>`, `/brands/<slug>`, `/p/<slug>`. Auto best sellers: last 30 days, uncancelled, in stock, top 8. Cached as `store:content:home`.
    - Content editor (ADR 0065): `/v1/admin/content` routes (`content.manage`); save and publish are separate, each at an expected version; 409 `CONTENT_REFERENCES` carries `fields` `<kind>:<id>` + reason (error-filter allowlist). Content images use the product upload pipeline with `purpose='content'` (max 10 open uploads); product media routes cannot touch them. Browser pass: `scripts/browser-qa/content-editor.mjs` on a fresh qa-server schema.
    - Content (ADR 0064): seven sections, `CONTENT_SCHEMAS[key][version]` (never edit a released version; add one). Text is plain (no `<>`, controls or hidden marks), links are internal by ID, images are `{assetId, alt}` content assets. Publishing copies the draft whole (DB-enforced) after `checkContentReferences`; the read side must check references again. No coupon codes in content and one hero until BI-13 is answered.
    - Review moderation (ADR 0063): `GET /v1/admin/reviews` and `POST /v1/admin/reviews/:id/moderation` (`reviews.moderate`, `expectedVersion`; `VERSION_CONFLICT`/`INVALID_TRANSITION`; no delete, no bulk approve). A decision writes an audit entry and `catalog.changed` (product) in its transaction; the controller drops the local cache. The product response carries `rating` and `reviews` from approved reviews only; `verified` comes from the stored proof. Bump `CATALOGUE_CACHE_VERSION` whenever a cached shape changes (now 2). Browser pass: `scripts/browser-qa/admin-reviews.mjs` with `qa-server.cjs`.
@@ -116,6 +117,7 @@ BI-07: a verified sending domain and sender address are still needed before real
 - 95 — admin review list (tabs, counts, filters, keyset, one snapshot) and approve/reject/hide with expected version, audit + `catalog.changed`, public rating and newest approved reviews on the product page (verified from the proof), cache version 2, admin Reviews section and bell link, browser QA script (ADR 0063) — `step(95)` commit on `step/95-review-moderation`
 - 96 — `content_sections` (draft + published copy, DB-guarded publish, no delete), seven versioned plain-text schemas with internal links by ID and content images, `contentReferences`/`checkContentReferences`, save/publish/list with version, audit and `content.published`, `media_assets.purpose` (content images without a product), BI-13 recorded (ADR 0064) — `step(96)` commit on `step/96-content-sections`
 - 97 — content editor API (list, draft, preview, publish, content image upload/list) with 409 reference details, `content.published` → `storefront_revalidate`, admin Storefront content editor (typed fields, pickers, image upload, preview, publish), browser QA script (ADR 0065) — `step(97)` commit on `step/97-content-editor`
+- 98 — `GET /v1/store/content/home`: one assembled answer from published copies only, references re-checked at read time, links resolved to current slugs, auto best sellers from recent orders, catalogue-cached, gate script covers it (ADR 0066) — `step(98)` commit on `step/98-store-content`
 - 90 — admin customers (phone-grouped list and detail, Owner-only spend in two bases) and order WhatsApp messages from templates, opened by staff and never recorded as sent (ADR 0058) — 0f8ecaf
 - 89 — bulk confirm: up to 50 Pending orders, each its own versioned transition with its own command, per-order results, same-batch retry replays; admin selection and results (ADR 0057) — e183d74
 - 88 — manual orders: the storefront's quote, order transaction, stock and idempotency for staff-entered orders, scoped per staff member; Pending, or Confirmed with recorded evidence (database-enforced); admin New order form (ADR 0056) — 4fbad75
@@ -145,24 +147,25 @@ BI-07: a verified sending domain and sender address are still needed before real
 - Event `consumers` lists only implemented consumers (now `system_probe`, `email`, `notification`, `media_processor`, `storefront_revalidate`); planned ones are documented with roadmap steps and move in with a backfill decision (architecture §8: adding a consumer must not redefine old completions).
 - `audit_log` migration revokes UPDATE/DELETE/TRUNCATE only from a role named `ih_app`; other runtime role names must be revoked at provisioning (trigger blocks mutations regardless).
 
-## Last session handoff (2026-10-15, step 97)
+## Last session handoff (2026-10-15, step 98)
 
 Done:
 
-- **Step 97 (ADR 0065):** `AdminContentController` + `ContentService` (+ module, limit policy), error filter 409 fields for `CONTENT_REFERENCES`, `readContentPreview`, content image upload/list in `packages/db/src/media.ts` (purpose-aware completion), contracts for the editor, `content.published` consumer, revalidate worker accepts it, admin Storefront content editor (`content-management.tsx`, `lib/content.ts`, navigation, CSS), browser QA script.
-- **`invariant-reviewer`:** no blockers; fixed the post-commit re-read, the image label beyond 60, added the reverse-route test.
+- **Step 98 (ADR 0066):** `packages/db/src/store-content.ts` (`readPublishedHome`), `storeHomeResponseSchema`, `StoreCatalogService.home()` (cached), `StoreContentController`, gate script route + verified check.
+- **`invariant-reviewer`:** no blockers; the gate check now parses JSON.
 
-Files: `apps/api/src/content/`, `apps/api/src/{app.module.ts,http/error.filter.ts,security/limit-policies.ts}`, `packages/contracts/src/{content.ts,media.ts,events.ts,index.ts}`, `packages/db/src/{content.ts,media.ts}`, `apps/worker/src/{revalidate.ts,revalidate.int.test.ts}`, `apps/admin/components/{content-management.tsx,workspace-section.tsx}`, `apps/admin/lib/{content.ts,management.ts,navigation.ts,navigation.test.ts}`, `apps/admin/app/globals.css`, `scripts/browser-qa/{content-editor.mjs,README.md}`, `docs/decisions/0065-content-editor.md`, `docs/verification.md`
+Files: `packages/db/src/{store-content.ts,index.ts}`, `packages/contracts/src/store.ts`, `apps/api/src/store/{store-catalog.service.ts,store-content.controller.ts,store-content.int.test.ts,store.module.ts}`, `scripts/check-gate-e2e.cjs`, `docs/decisions/0066-published-home-content.md`, `docs/verification.md`
 
-Tests: `pnpm verify -- --integration` PASS (unit 597, integration 571, age preview 2013, gate 2175). Content API 4/4, browser `content-editor.mjs` 18/18 (QA schema dropped afterwards).
+Tests: `pnpm verify -- --integration` PASS (unit 597, integration 575, age preview 2013, gate 2242). Home content 4/4.
 
 Unfinished:
 
-- PRs #61 → … → #70 → #71 are stacked and wait for Marina's merge. M4, M6, M7 and M8 gates await her decision.
-- No public read or home page yet (steps 98–99). Content images are never pruned.
+- PRs #61 → … → #71 → step 98 PR are stacked and wait for Marina's merge. M4, M6, M7 and M8 gates await her decision.
+- The home page itself is step 99.
 
 ## History (summary)
 
+- 2026-10-15 step 97: content editor API and admin editor, content images, ADR 0065 (PR #71); unit 597/integration 571.
 - 2026-10-15 step 96: content-section schemas and storage, `media_assets.purpose`, BI-13, ADR 0064 (PR #70); unit 597/integration 566.
 - 2026-10-15 step 95: review moderation, public rating, ADR 0063 (PR #69); unit 592/integration 561.
 - 2026-10-15 step 94: store review submission, `/review` page with fragment-only token, ADR 0062 (1bdeb3f, PR #68); unit 592/integration 556.
