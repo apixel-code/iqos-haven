@@ -5,7 +5,7 @@
 - Date: 2026-10-15
 - Milestone: M7 — transactional checkout and first complete order: all steps (73–82) done; gate evidence ready, awaiting Marina's decision. M6: all steps (65–72) done; gate evidence ready, awaiting Marina's decision. M5: PASSED 2026-10-11. M4 steps done, gate awaits Marina's decision (publishing unblocked); M3 gate not closed; M0 review and M1 staging/fixtures still open
 - Step: 93 (review schema and verified-purchase proof) — done; next is 94 (store review submit). All M8 steps (83–92) done, gate awaiting Marina's decision.
-- Branch: `step/93-review-proof` (based on `step/92-low-stock-ops`; push and open its PR after the commit)
+- Branch: `step/93-review-proof` (pushed; PR #67 based on #66)
 - See docs/verification.md for actual checks.
 
 ## Next action
@@ -152,7 +152,7 @@ Tests: `pnpm verify -- --integration` PASS (unit 587, integration 546, gate 2175
 
 Unfinished:
 
-- PRs #61 → … → #66 → step-93 PR are stacked and wait for Marina's merge. M4, M6, M7 and M8 gates await her decision.
+- PRs #61 → … → #66 → #67 are stacked and wait for Marina's merge. M4, M6, M7 and M8 gates await her decision.
 - The admin Review link panel has not been checked in a real browser.
 
 ## History (summary)
