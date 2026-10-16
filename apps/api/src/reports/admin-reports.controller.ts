@@ -20,18 +20,21 @@ import {
   type ReportRequest,
 } from "@ih/contracts";
 import {
+  downloadStreamedReport,
   listReportJobs,
   readReportJob,
   ReportConflictError,
   ReportForbiddenError,
+  ReportNotAvailableError,
   ReportNotFoundError,
+  ReportTooLargeError,
   requestReport,
   type Database,
 } from "@ih/db";
 import { MetricRangeError } from "@ih/domain";
 import type { FastifyReply } from "fastify";
 import { RequirePermission, type AuthenticatedRequest } from "../auth/access";
-import { Serialize } from "../auth/serialize";
+import { NoResponseBody, Serialize } from "../auth/serialize";
 import { createZodDto } from "../http/zod-validation.pipe";
 import { DATABASE } from "../infra/tokens";
 
@@ -48,6 +51,10 @@ async function run<T>(work: () => Promise<T>): Promise<T> {
     if (error instanceof ReportNotFoundError) throw new NotFoundException();
     if (error instanceof ReportConflictError)
       throw new ConflictException({ code: "IDEMPOTENCY_CONFLICT" });
+    if (error instanceof ReportNotAvailableError)
+      throw new ConflictException({ code: "REPORT_NOT_AVAILABLE" });
+    if (error instanceof ReportTooLargeError)
+      throw new ConflictException({ code: "REPORT_TOO_LARGE" });
     if (error instanceof MetricRangeError) throw new BadRequestException();
     throw error;
   }
@@ -59,7 +66,7 @@ const privateAnswer = (reply: FastifyReply) =>
  * Report requests and their status (roadmap step 110, ADR 0076). Requesting needs
  * `reports.export` (the customers report also `customers.export`, decided by the database
  * read); listing and status need `reports.read` and only ever show the caller's own jobs.
- * Generating (step 111) and downloading (step 112) come later.
+ * A streamed report is generated on download (step 111); built files arrive in step 112.
  */
 @Controller({ path: "admin/reports", version: "1" })
 export class AdminReportsController {
@@ -106,5 +113,35 @@ export class AdminReportsController {
   ) {
     privateAnswer(reply);
     return run(() => readReportJob(this.db, request.staff!.userId, params.id));
+  }
+
+  /**
+   * `GET /v1/admin/reports/:id/download` (step 111, ADR 0077): a streamed report as CSV. The
+   * database read re-checks the requester, the job's required rights and its expiry, and
+   * audits the download before a byte is sent. Never cached.
+   */
+  @Get(":id/download")
+  @RequirePermission("reports.export")
+  @NoResponseBody()
+  async download(
+    @Param() params: ParamsDto,
+    @Req() request: AuthenticatedRequest,
+    @Res() reply: FastifyReply,
+  ) {
+    const file = await run(() =>
+      downloadStreamedReport(
+        this.db,
+        { requestId: request.id, actorId: request.staff!.userId },
+        params.id,
+      ),
+    );
+    await reply
+      .status(200)
+      .header("Content-Type", "text/csv; charset=utf-8")
+      .header("Content-Disposition", `attachment; filename="${file.fileName}"`)
+      .header("Cache-Control", "private, no-store")
+      .header("Vary", "Cookie")
+      .header("X-Content-Type-Options", "nosniff")
+      .send(file.text);
   }
 }

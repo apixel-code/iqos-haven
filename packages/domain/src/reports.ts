@@ -15,10 +15,17 @@ export const REPORT_LINK_MINUTES = 15;
 /** A built report file is kept 7 days (BI-08). */
 export const REPORT_FILE_RETENTION_DAYS = 7;
 
+/** Reports holding personal data (customer names and phones): the orders and customers ones. */
+export const PERSONAL_DATA_REPORTS: readonly ReportType[] = ["orders", "customers"];
+/** A streamed download stops beyond this many data rows (the estimate may have grown). */
+export const REPORT_STREAM_HARD_LIMIT = REPORT_STREAM_MAX_ROWS * 4;
+
 /**
  * The rights a report needs, to request it and again to download it. Every report needs
- * `reports.export`; the customers report holds personal data and also needs `customers.export`.
+ * `reports.export`; one holding personal data also needs `customers.export` (step 111).
  */
 export function reportPermissions(type: ReportType): PermissionKey[] {
-  return type === "customers" ? ["reports.export", "customers.export"] : ["reports.export"];
+  return PERSONAL_DATA_REPORTS.includes(type)
+    ? ["reports.export", "customers.export"]
+    : ["reports.export"];
 }

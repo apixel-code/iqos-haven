@@ -16,6 +16,9 @@ export type ErrorEnvelope = z.infer<typeof errorEnvelopeSchema>;
 /** Stable 409 reasons a client may act on; anything else stays the generic CONFLICT. */
 export const CONFLICT_CODES = [
   "VERSION_CONFLICT",
+  // Reports (step 111): the job cannot be downloaded now, or grew past the stream limit.
+  "REPORT_NOT_AVAILABLE",
+  "REPORT_TOO_LARGE",
   "INVALID_TRANSITION",
   "ORDER_NOT_EDITABLE",
   "NO_CHANGES",

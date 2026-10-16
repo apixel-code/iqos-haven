@@ -9,23 +9,33 @@ import {
   type ReportRequest,
 } from "@ih/contracts";
 import {
+  CSV_BOM,
+  csvLine,
   dubaiDate,
   dubaiDayRange,
   MetricRangeError,
+  PERSONAL_DATA_REPORTS,
   REPORT_LINK_MINUTES,
+  REPORT_STREAM_HARD_LIMIT,
   REPORT_STREAM_MAX_ROWS,
   reportPermissions,
+  type PermissionKey,
 } from "@ih/domain";
 import { PrismaAuditWriter } from "./audit";
 import { CatalogueForbiddenError, lockCatalogueActor } from "./catalogue-parents";
 import { Prisma, type Database, type Tx } from "./client";
 import { PrismaOutboxWriter } from "./outbox";
+import { reportFileName, reportRows } from "./report-csv";
 import { withTransaction } from "./transaction";
 
 export class ReportForbiddenError extends Error {}
 export class ReportNotFoundError extends Error {}
 /** The command ID was already used for a different report. */
 export class ReportConflictError extends Error {}
+/** The job exists but cannot be downloaded now (expired, or a file not built yet). */
+export class ReportNotAvailableError extends Error {}
+/** A streamed report grew past the hard limit since its estimate: request it again. */
+export class ReportTooLargeError extends Error {}
 
 interface JobRow {
   id: string;
@@ -218,3 +228,65 @@ export async function readReportJob(
 /** Parses stored parameters back into a typed report (for the generators of step 111). */
 export const parseStoredReport = (type: string, params: unknown): ReportParams =>
   reportParamsSchema.parse({ type, ...(params as object) });
+
+/**
+ * The download of a streamed report (roadmap step 111, ADR 0077): only the requester, only
+ * while the job is live, and only while they still hold every right the job needs. The rows
+ * come from one repeatable-read snapshot; the download is then audited (reports with personal
+ * data say so) in its own unit of work, before anything is sent. File jobs: step 112.
+ */
+export async function downloadStreamedReport(
+  db: Database,
+  context: CommandContext,
+  jobId: string,
+): Promise<{ fileName: string; rowCount: number; text: string }> {
+  if (!context.actorId) throw new ReportForbiddenError();
+  const actorId = context.actorId;
+  const built = await db.$transaction(
+    async (tx) => {
+      const [job] = await tx.$queryRaw<
+        Array<JobRow & { requiredPermissions: string[]; now: Date }>
+      >(Prisma.sql`SELECT ${JOB_COLUMNS}, required_permissions AS "requiredPermissions",
+          now() AS now
+        FROM report_jobs WHERE id=${jobId}::uuid AND requested_by=${actorId}::uuid`);
+      if (!job) throw new ReportNotFoundError();
+      try {
+        await lockCatalogueActor(tx, actorId, job.requiredPermissions as PermissionKey[], false);
+      } catch (error) {
+        if (error instanceof CatalogueForbiddenError) throw new ReportForbiddenError();
+        throw error;
+      }
+      if (job.delivery !== "stream" || job.status !== "ready" || !job.live)
+        throw new ReportNotAvailableError();
+      const report = parseStoredReport(job.type, job.params);
+      let text = CSV_BOM;
+      let rowCount = -1; // the header is not a data row
+      for await (const row of reportRows(tx, report, job.now)) {
+        if (rowCount >= REPORT_STREAM_HARD_LIMIT) throw new ReportTooLargeError();
+        text += csvLine(row);
+        rowCount++;
+      }
+      return { job, report, text, rowCount };
+    },
+    { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead, timeout: 30_000 },
+  );
+  await withTransaction(db, (tx) =>
+    new PrismaAuditWriter().append(
+      tx,
+      toAuditEntry(context, {
+        action: "report.downloaded",
+        entity: { type: "report_job", id: built.job.id },
+        after: {
+          type: built.report.type,
+          rows: built.rowCount,
+          personalData: PERSONAL_DATA_REPORTS.includes(built.report.type),
+        },
+      }),
+    ),
+  );
+  return {
+    fileName: reportFileName(built.report, built.job.now),
+    rowCount: built.rowCount,
+    text: built.text,
+  };
+}

@@ -157,7 +157,7 @@ describe("report requests and status through the real API and PostgreSQL", () =>
     expect(await db.outboxEvent.count({ where: { aggregateId: job.id } })).toBe(0);
   });
 
-  it("estimates the order report by lines and needs customers.export for customer data", async () => {
+  it("estimates the order report by lines and needs customers.export for personal data", async () => {
     const orders = reportJobSchema.parse(
       await (
         await call("", owner, {
@@ -169,6 +169,15 @@ describe("report requests and status through the real API and PostgreSQL", () =>
     expect(orders.estimatedRows).toBe(2);
     expect(
       (await call("", clerk, { commandId: randomUUID(), report: { type: "customers" } })).status,
+    ).toBe(403);
+    // The orders report holds names and phones too (step 111).
+    expect(
+      (
+        await call("", clerk, {
+          commandId: randomUUID(),
+          report: { type: "orders", from: today(), to: today() },
+        })
+      ).status,
     ).toBe(403);
     expect((await call("", clerk, { commandId: randomUUID(), report: sales() })).status).toBe(201);
     const customers = await call("", owner, {

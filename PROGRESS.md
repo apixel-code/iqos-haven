@@ -4,8 +4,8 @@
 
 - Date: 2026-10-16
 - Milestone: M7 — transactional checkout and first complete order: all steps (73–82) done; gate evidence ready, awaiting Marina's decision. M6: all steps (65–72) done; gate evidence ready, awaiting Marina's decision. M5: PASSED 2026-10-11. M4 steps done, gate awaits Marina's decision (publishing unblocked); M3 gate not closed; M0 review and M1 staging/fixtures still open
-- Step: 110 (report-job schema, report request/status service) — done; next is 111 (five CSV generators). M10 in progress (103–110 done). All M9 steps (93–102) done; gate evidence ready, awaiting Marina's decision. All M8 steps (83–92) done, gate awaiting Marina's decision.
-- Branch: `step/110-report-jobs` (pushed; PR #84 based on #83)
+- Step: 111 (five CSV generators and the streamed download) — done; next is 112 (private report storage, signed download, expiry cleanup, Reports UI). M10 in progress (103–111 done). All M9 steps (93–102) done; gate evidence ready, awaiting Marina's decision. All M8 steps (83–92) done, gate awaiting Marina's decision.
+- Branch: `step/111-csv-generators` (based on #84; PR to open after push)
 - See docs/verification.md for actual checks.
 
 ## Next action
@@ -22,8 +22,9 @@
 4. **Marina: decide the M7 gate.** Evidence, item by item, and what is not covered: docs/verification.md "Step 82". Checkout stays switched off (`CHECKOUT_SUBMISSION_ENABLED=false`) whatever the decision, until deployment inputs exist (BI-07 sender domain, real Owner, delivery areas and fee).
 5. **Marina: decide the M8 gate.** Evidence: docs/verification.md "Step 92" (service-level journey from store order to collected cash, plus the HTTP suites for each route). Do not mark M8 passed without her decision.
 6. **Marina: decide the M9 gate.** Evidence: docs/verification.md "Step 102". Do not mark M9 passed without her decision.
-7. **Next step: `/step 111`** (five CSV generators: Sales, Orders, Products, Inventory, Customers): `rg -n "^| 111 " docs/roadmap.md`. Read stored parameters with `parseStoredReport`; add the streaming download for `stream` jobs (requester + `required_permissions` re-checked, live `expires_at`); sanitize spreadsheet formula prefixes; audit customer-data downloads. New migrations on deployment: `20261016000300_daily_summary_slot`, `20261016000400_report_jobs`.
+7. **Next step: `/step 112`** (private report storage, signed download, expiry cleanup): `rg -n "^| 112 " docs/roadmap.md`. Add the `report_builder` consumer on `report.requested` (backfill: pick up `queued` jobs from `report_jobs`), build files with `reportRows` into a private bucket, signed links ≤15 min with permissions re-checked, 7-day expiry cleanup, Reports UI (request, list, download). New migrations on deployment: `20261016000300_daily_summary_slot`, `20261016000400_report_jobs`.
 8. **Rules that carry forward:**
+   - CSV reports (ADR 0077): encode only through `csvField`/`csvLine` (formula prefixes `= + - @ tab CR` get `'`; numbers only as `CsvNumber`/integers; amounts via `aedAmount` from fils; Dubai times). Generators `reportRows` page by keyset; a timestamp cursor must be microsecond text (`exactTime`), never a JS `Date`. Orders and customers reports hold names and phones → both need `customers.export`. `GET /v1/admin/reports/:id/download` streams a `ready` stream job: own only (404), rights re-checked (403), expired or file → 409 `REPORT_NOT_AVAILABLE`, >20,000 rows → 409 `REPORT_TOO_LARGE`, audit `report.downloaded` committed before sending.
    - Report jobs (ADR 0076): every export is a `report_jobs` row owned by its requester (never deleted; request fields and a finished file immutable by trigger). `POST /v1/admin/reports` `{commandId, report}` (`reports.export`; customers also `customers.export`, checked in the DB with the actor `FOR SHARE`); same command + same report → same job (200), other report → 409 `IDEMPOTENCY_CONFLICT`. ≤5000 estimated rows → `stream` (`ready`, 15 min); more → `file` (`queued` + `report.requested`, built in step 112; the table is the queue of record). List/status (`reports.read`) show only own jobs; another's ID is 404.
    - Owner analytics (ADR 0075): `GET /v1/admin/analytics?from&to` (`dashboard.financial_read`, re-checked in one repeatable-read read) → `readAnalytics` from the daily tables; missing days listed in `freshness.missing`, never zero; status mix is the only live part; rankings ≤20; the `''` search bucket is only ever counted (`notKept`). UI charts: one slot per day of the range, gray baseline mark for a day not computed, value read-out on hover/focus, tables carry every figure. Browser pass: `scripts/browser-qa/dashboard.mjs` (steps 108–109).
    - Home dashboard (ADR 0074): `GET /v1/admin/dashboard` (`@Authenticated`) → `readAdminDashboard`, one repeatable-read snapshot; each section `null` without its right (orders/topProducts `orders.read`, names `customers.read`, stock `inventory.read`, reviews `reviews.moderate`, sales and product amounts `dashboard.financial_read`). Delayed = pending > 2 h or confirmed/processing > 3 h since placement (`DELAYED_AFTER_MINUTES`, BI-14 open). Contracts must not import schemas from `./orders` in new files (circular load in CJS: take enums from `@ih/domain`).
@@ -138,6 +139,7 @@ BI-07: a verified sending domain and sender address are still needed before real
 - 104 — storefront telemetry queue (batches of 20, one retry, pause on overload, drop when full or on quiet pages), events from search/product page/cart/saved list, rotating anonymous ID, browser QA script (ADR 0070) — `step(104)` commit on `step/104-client-telemetry`
 - 105 — financial metric definitions (booked/delivered/collected, AOV, cancellation, status mix; Dubai days, AED fils, tax note) and the Owner's snapshot summary query (ADR 0071) — `step(105)` commit on `step/105-financial-metrics`
 - 106 — `sales_daily`, `product_sales_daily` (snapshot brand), `search_daily`, `wishlist_daily`; idempotent per-day rollup sharing the step 105 definitions; `analytics_rollup` consumer on order events (ADR 0072) — `step(106)` commit on `step/106-daily-rollups`
+- 111 — CSV encoding with formula defusing, five generators (sales per basis with "not computed" days, orders per line with snapshots, delivered products, inventory and customer snapshots), personal-data reports need `customers.export`, streamed download with re-checks and audit (ADR 0077) — `step(111)` commit on `step/111-csv-generators`
 - 110 — `report_jobs` (immutable request, no delete), typed report parameters, request with command-ID replay/conflict, size estimate → stream or file, audit + `report.requested`, own-only list and status (ADR 0076) — `step(110)` commit on `step/110-report-jobs`
 - 109 — Owner analytics route and Analytics screen: totals per basis with previous period, per-day series, live status mix, products/brands (snapshot brand), search (no-result terms, not-kept count), saved lists; charts from real data only; browser pass (ADR 0075) — `step(109)` commit on `step/109-owner-analytics`
 - 108 — operational home dashboard: per-permission sections (open/delayed orders, attention and recent lists, low stock, pending reviews, 7-day top products, Owner's booked sales with freshness), admin home UI, BI-14 (ADR 0074) — `step(108)` commit on `step/108-ops-dashboard`
@@ -171,22 +173,25 @@ BI-07: a verified sending domain and sender address are still needed before real
 - Event `consumers` lists only implemented consumers (now `system_probe`, `email`, `notification`, `media_processor`, `storefront_revalidate`); planned ones are documented with roadmap steps and move in with a backfill decision (architecture §8: adding a consumer must not redefine old completions).
 - `audit_log` migration revokes UPDATE/DELETE/TRUNCATE only from a role named `ih_app`; other runtime role names must be revoked at provisioning (trigger blocks mutations regardless).
 
-## Last session handoff (2026-10-16, step 110)
+## Last session handoff (2026-10-16, step 111)
 
 Done:
 
-- **Step 110 (ADR 0076):** migration `20261016000400_report_jobs` + Prisma model, domain `packages/domain/src/reports.ts`, contracts `packages/contracts/src/reports.ts` (+ `report.requested` comment), `packages/db/src/report-jobs.ts` (`requestReport`, `listReportJobs`, `readReportJob`, `parseStoredReport`), `AdminReportsController` + `ReportsModule`. No UI yet (step 112).
-- **`invariant-reviewer`:** no material findings. Both of its notes were applied: a finished file is now immutable, and the ADR states that an expired stream link needs a new command ID.
+- **Step 111 (ADR 0077):** `packages/domain/src/csv.ts` (+ tests), `packages/domain/src/reports.ts` (personal-data reports, hard stream limit), `packages/db/src/report-csv.ts` (`reportRows`, `reportFileName`), `downloadStreamedReport` in `report-jobs.ts`, download route in `AdminReportsController`, conflict codes `REPORT_NOT_AVAILABLE`/`REPORT_TOO_LARGE`.
+- **`invariant-reviewer`:** one real bug, fixed. The keyset cursors used a JS `Date`, which keeps only milliseconds, so rows would repeat at batch boundaries. The cursors now use microsecond text, and a new test pages with batches of one. Running that test against the old code makes it fail, and it passes against the fix. The phone-prefix note was recorded in the ADR.
 
-Files: `packages/db/prisma/{schema.prisma,migrations/20261016000400_report_jobs/}`, `packages/db/src/{report-jobs.ts,index.ts}`, `packages/domain/src/{reports.ts,index.ts}`, `packages/contracts/src/{reports.ts,index.ts,events.ts}`, `apps/api/src/reports/`, `apps/api/src/app.module.ts`, `docs/decisions/0076-report-jobs.md`, `docs/verification.md`
+Files: `packages/domain/src/{csv.ts,csv.test.ts,reports.ts,index.ts}`, `packages/db/src/{report-csv.ts,report-jobs.ts,index.ts}`, `packages/contracts/src/index.ts`, `apps/api/src/reports/{admin-reports.controller.ts,admin-reports.int.test.ts,report-downloads.int.test.ts}`, `docs/decisions/0077-csv-report-generators.md`, `docs/verification.md`
 
-Tests: `pnpm verify` PASS (unit 624, age preview 2194). `pnpm test:int` PASS (613). After the last trigger change, api lint, typecheck and format check were run again: PASS.
+Tests: `pnpm verify` PASS (unit 628, age preview 2194). `pnpm test:int` PASS (618). Docker had stopped during the session (disk 95% full, 11 GB free); `open -a Docker` + `pnpm infra:up` brought it back.
 
 Unfinished:
 
-- PRs #61 → … → #83 are stacked and wait for Marina's merge, step 110 is PR #84. M4, M6–M9 gates await her decision. BI-14 open (not blocking).
+- PRs #61 → … → #84 are stacked and wait for Marina's merge, and step 111's PR comes next. M4, M6–M9 gates await her decision. BI-14 open (not blocking).
+- Disk headroom is low (11 GB): Docker has stopped before at about 5.5 GB.
 
 ## History (summary)
+
+- 2026-10-16 step 110: report jobs (typed requests, own-only status, stream or file), ADR 0076 (PR #84); unit 624/integration 613.
 
 - 2026-10-16 step 109: Owner analytics route and screen, browser pass for 108–109, ADR 0075 (PR #83); unit 624/integration 608.
 

@@ -1902,3 +1902,44 @@ Not covered:
   - Without `reports.read`, both the list and the status answer 403.
 
 Not covered here: generating and downloading (steps 111–112). The UI arrives in step 112.
+
+## Step 111 — CSV generators and the streamed download (2026-10-16, local)
+
+`pnpm verify`: exit 0 (unit 628, age preview 2194). `pnpm test:int`: exit 0 (618).
+
+`invariant-reviewer` found one real bug: the keyset cursors on orders and customers carried a millisecond JS `Date`, so rows would repeat at every batch boundary of a large report. The fix uses microsecond text cursors. A new test pages the orders, inventory and customers reports with a batch size of 1 and compares them with one batch:
+
+- Fixed code: the test passes.
+- Cursor temporarily put back to `new Date(...)`: the test fails ("never repeats or skips a row across batch boundaries").
+- The fix was restored afterwards.
+
+**Unit (`packages/domain/src/csv.test.ts`):**
+
+- `=`, `+`, `-`, `@`, tab and CR at the start of text get `'`, phone numbers included. Text with `=` in the middle is left alone.
+- RFC 4180 quoting works for commas, quotes, line breaks and edge spaces.
+- Amounts come from integer fils, including negatives. Basis points become percentages. A non-integer number or exponent text is refused.
+- Times are Dubai time.
+
+**API (`apps/api/src/reports/report-downloads.int.test.ts`, real API + PostgreSQL, 5 tests).** The test reads the CSV with its own RFC 4180 parser and checks the raw bytes for the UTF-8 byte-order mark.
+
+- **Sales:**
+  - Booked: one row per day; the 2 days not computed say "not computed" and have empty figures. Today shows 2 placed, 2 booked, AED 150.00 net, 30.00 delivery, 180.00 total, 90.00 AOV and 0.00% cancelled.
+  - Delivered: today shows 1 order, 100.00, 15.00, 115.00.
+  - Collected: 0 orders.
+  - The file name names the basis and the range.
+- **Orders:**
+  - One row per line, with status now, totals 65.00 and 115.00, and no address.
+  - A customer name `=HYPERLINK(...)` comes out as `'=HYPERLINK(...)`, and phones as `'+971…`.
+- **Products, inventory and customers:**
+  - Products: delivered 2 units, 1 order, 100.00 net.
+  - Inventory: 2 variants, out of stock, with the snapshot time; the file name is `…-as-of-<day>`.
+  - Customers: 2 customers, the injected name defused, delivered spend 115.00 and 0.00.
+  - The download is audited with `personalData`.
+- **Refusals:**
+  - Another person's job or an unknown ID: 404. No session: 401.
+  - An expired stream: 409 `REPORT_NOT_AVAILABLE`. So does a file job, until step 112.
+  - A requester who lost `customers.export` after requesting customers data: 403, and no audit entry is written.
+- **Batch boundaries:** see above.
+- **`admin-reports.int.test.ts`:** the orders report now also needs `customers.export`.
+
+Not covered: built files, signed links and expiry cleanup (step 112); opening the files in a real spreadsheet program.
