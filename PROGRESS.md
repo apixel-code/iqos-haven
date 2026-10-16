@@ -5,7 +5,7 @@
 - Date: 2026-10-16
 - Milestone: M7 — transactional checkout and first complete order: all steps (73–82) done; gate evidence ready, awaiting Marina's decision. M6: all steps (65–72) done; gate evidence ready, awaiting Marina's decision. M5: PASSED 2026-10-11. M4 steps done, gate awaits Marina's decision (publishing unblocked); M3 gate not closed; M0 review and M1 staging/fixtures still open
 - Step: 116 (commerce concurrency regression) — done. M11 in progress (115–116 done). **All M10 steps (103–114) done; gate evidence ready, awaiting Marina's decision.** All M9 steps (93–102) done; gate evidence ready, awaiting Marina's decision. All M8 steps (83–92) done, gate awaiting Marina's decision.
-- Branch: `step/116-concurrency-regression` (based on #89; PR to open after push)
+- Branch: `step/116-concurrency-regression` (pushed; PR #90 based on #89)
 - See docs/verification.md for actual checks.
 
 ## Next action
@@ -201,7 +201,7 @@ Tests: `pnpm verify` PASS (unit 634, age preview 2245). `pnpm test:int` PASS (63
 Unfinished:
 
 - **Marina:** the M10 gate (and M4, M6–M9); which parity gaps to build before launch (`docs/parity-review.md`).
-- PRs #61 → … → #89 are stacked, and step 116's PR comes next.
+- PRs #61 → … → #89 are stacked, step 116 is PR #90.
 
 ## History (summary)
 
