@@ -38,7 +38,7 @@ async function newOrderSummary(db: Database | Tx, orderId: string) {
   } satisfies NewOrderSummary;
 }
 /** The Owner's notification choices; nothing configured means the inbox is on and email is off. */
-async function notificationSettings(db: Database | Tx) {
+export async function notificationSettings(db: Database | Tx) {
   const [row] = await db.$queryRaw<Array<{ value: unknown }>>(
     Prisma.sql`SELECT value FROM settings WHERE key='notifications'`,
   );

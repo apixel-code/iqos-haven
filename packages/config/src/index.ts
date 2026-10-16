@@ -721,6 +721,9 @@ export const bootstrapEnvSchema = baseEnvSchema.extend({
 });
 export type BootstrapEnv = z.infer<typeof bootstrapEnvSchema>;
 
+/** `pnpm analytics:backfill` (step 107): the runtime database only. */
+export const analyticsBackfillEnvSchema = baseEnvSchema.extend({ DATABASE_URL: postgresUrl });
+
 export const workerEnvSchema = baseEnvSchema
   .extend({
     DATABASE_URL: postgresUrl,

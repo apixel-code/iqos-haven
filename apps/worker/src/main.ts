@@ -19,10 +19,14 @@ import { EffectReconciler } from "./reconciler";
 import { OutboxRelay } from "./relay";
 import { createConfirmationCleanupJob, createIdempotencyCleanupJob } from "./idempotency";
 import { createNotificationConsumer, newOrderEmailPlanner } from "./order-notifications";
-import { createAnalyticsRollupConsumer } from "./analytics-rollup";
+import {
+  createAnalyticsRollupConsumer,
+  createLateEditRollupJob,
+  createTodayRollupJob,
+} from "./analytics-rollup";
 import { lowStockEmailPlanner } from "./low-stock-notifications";
 import { createBrowsingEventsCleanupJob } from "./browsing-events";
-import { createDailySummaryJob } from "./daily-summary";
+import { createDailySummaryJob, dailySummaryEmailPlanner } from "./daily-summary";
 import { Scheduler } from "./scheduler";
 import { startWorker, type WorkerRuntime } from "./runtime";
 const SHUTDOWN_TIMEOUT_MS = 20000;
@@ -52,6 +56,7 @@ async function main(): Promise<void> {
       "staff.invited": staffInvitationEmailPlanner(database, env),
       "order.created": newOrderEmailPlanner(database),
       "inventory.low": lowStockEmailPlanner(database, log),
+      "report.daily_summary": dailySummaryEmailPlanner(database, log),
     },
   });
   // Image processing is CPU/memory heavy: one libvips thread per job, bounded worker concurrency.
@@ -77,7 +82,7 @@ async function main(): Promise<void> {
     retries: enqueuer,
   });
   const reconciler = new EffectReconciler({ db: database, enqueuer, log });
-  // Scheduled jobs register here in their roadmap steps (daily summary: step 92, metrics: 106).
+  // Scheduled jobs register here in their roadmap steps (daily summary: 92/107, rollups: 107).
   const scheduler = new Scheduler({
     db: database,
     owner,
@@ -87,8 +92,10 @@ async function main(): Promise<void> {
       createStockReconciliationJob({ db: database, log }),
       createIdempotencyCleanupJob({ db: database, log }),
       createConfirmationCleanupJob({ db: database, log }),
-      createDailySummaryJob({ log }),
+      createDailySummaryJob({ db: database, log }),
       createBrowsingEventsCleanupJob({ db: database, log }),
+      createTodayRollupJob({ db: database, log }),
+      createLateEditRollupJob({ db: database, log }),
     ],
   });
   let effectWorkers: { stop(): Promise<void> } | undefined;

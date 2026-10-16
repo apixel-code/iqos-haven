@@ -4,8 +4,8 @@
 
 - Date: 2026-10-16
 - Milestone: M7 — transactional checkout and first complete order: all steps (73–82) done; gate evidence ready, awaiting Marina's decision. M6: all steps (65–72) done; gate evidence ready, awaiting Marina's decision. M5: PASSED 2026-10-11. M4 steps done, gate awaits Marina's decision (publishing unblocked); M3 gate not closed; M0 review and M1 staging/fixtures still open
-- Step: 106 (daily aggregate tables and rollups) — done; next is 107 (late-edit backfill, today freshness, daily email data). M10 in progress (103–106 done). All M9 steps (93–102) done; gate evidence ready, awaiting Marina's decision. All M8 steps (83–92) done, gate awaiting Marina's decision.
-- Branch: `step/106-daily-rollups` (pushed; PR #80 based on #79)
+- Step: 107 (recent-day rollups, historical backfill, freshness, daily summary email) — done; next is 108. M10 in progress (103–107 done). All M9 steps (93–102) done; gate evidence ready, awaiting Marina's decision. All M8 steps (83–92) done, gate awaiting Marina's decision.
+- Branch: `step/107-rollup-freshness` (from `step/106-daily-rollups`; commit, push and open its PR based on #80)
 - See docs/verification.md for actual checks.
 
 ## Next action
@@ -22,8 +22,9 @@
 4. **Marina: decide the M7 gate.** Evidence, item by item, and what is not covered: docs/verification.md "Step 82". Checkout stays switched off (`CHECKOUT_SUBMISSION_ENABLED=false`) whatever the decision, until deployment inputs exist (BI-07 sender domain, real Owner, delivery areas and fee).
 5. **Marina: decide the M8 gate.** Evidence: docs/verification.md "Step 92" (service-level journey from store order to collected cash, plus the HTTP suites for each route). Do not mark M8 passed without her decision.
 6. **Marina: decide the M9 gate.** Evidence: docs/verification.md "Step 102". Do not mark M9 passed without her decision.
-7. **Next step: `/step 107`** (late-edit backfill, today freshness and daily email data: rollup/backfill/summary consumers). Find the row with `rg -n "^| 107 " docs/roadmap.md`. Schedule `rollupDay` for recent days (e.g. today and the last N days, all four parts) with `scheduled_runs` slot uniqueness; add a controlled historical backfill command (respect the 90-day event retention, ADR 0072); show freshness (`computed_at`); wire `reports.daily_summary` (ADR 0060) with metrics from the daily tables and permissioned recipients.
+7. **Push `step/107-rollup-freshness` and open its PR** (base: `step/106-daily-rollups`), then **`/step 108`**: find the row with `rg -n "^| 108 " docs/roadmap.md`. New migration to apply on deployment: `20261016000300_daily_summary_slot`.
 8. **Rules that carry forward:**
+   - Recent rollups and daily summary (ADR 0073): `analytics.rollup_today` (every 10 min, yesterday + today) and `analytics.rollup_recent` (03:00 Dubai, the 7 days before today); older days only through `pnpm analytics:backfill --from --to [--parts]` (≤366 days, none after today, one transaction per day). Read figures with `readSalesDays` and show `computedAt`; a day in `missing` is "not computed". `reports.daily_summary` recomputes yesterday and calls `emitDailySummary` (one `report.daily_summary` event per day, DB-unique). Recipients = Settings addresses of active staff holding `dashboard.financial_read`, only while `dailySummaryEmail` is on.
    - Daily rollups (ADR 0072): `rollupDay`/`rollupDayIn` replace a Dubai day's rows (per-day advisory lock, Read Committed); sales figures via the shared `financialTotals`; product rows keyed by the order item's snapshot brand name; search/wishlist from `events`, never recomputed past the 90-day retention. Order events carry the `analytics_rollup` consumer (sales + products of every day the order touches). A missing row means "not computed".
    - Financial metrics (ADR 0071): definitions in `packages/domain/src/metrics.ts` (version 1): booked by `created_at` (active vs cancelled), delivered by `delivered_at`, collected by the latest collection record's `collected_at`/amount; AOV half-up integer fils over the order total; Dubai days half-open; ≤366 days; tax note on every answer. `readFinancialSummary` (Owner, one snapshot) has no route yet.
    - Storefront telemetry (ADR 0070): `track()` from `lib/telemetry/client.ts` only; never awaited, never throws; nothing recorded or sent on `/checkout`, `/order-confirmation`, `/review`. Search terms are normalized in the browser (`normalizeSearchTerm`) and sent as `null` when they may be personal. Browser pass: `scripts/browser-qa/telemetry.mjs`.
@@ -134,6 +135,7 @@ BI-07: a verified sending domain and sender address are still needed before real
 - 104 — storefront telemetry queue (batches of 20, one retry, pause on overload, drop when full or on quiet pages), events from search/product page/cart/saved list, rotating anonymous ID, browser QA script (ADR 0070) — `step(104)` commit on `step/104-client-telemetry`
 - 105 — financial metric definitions (booked/delivered/collected, AOV, cancellation, status mix; Dubai days, AED fils, tax note) and the Owner's snapshot summary query (ADR 0071) — `step(105)` commit on `step/105-financial-metrics`
 - 106 — `sales_daily`, `product_sales_daily` (snapshot brand), `search_daily`, `wishlist_daily`; idempotent per-day rollup sharing the step 105 definitions; `analytics_rollup` consumer on order events (ADR 0072) — `step(106)` commit on `step/106-daily-rollups`
+- 107 — scheduled today/recent-day rollups, `pnpm analytics:backfill`, `readSalesDays` freshness, daily summary email (one event per day, permissioned recipients, Settings switch) (ADR 0073) — `step(107)` commit on `step/107-rollup-freshness`
 - 90 — admin customers (phone-grouped list and detail, Owner-only spend in two bases) and order WhatsApp messages from templates, opened by staff and never recorded as sent (ADR 0058) — 0f8ecaf
 - 89 — bulk confirm: up to 50 Pending orders, each its own versioned transition with its own command, per-order results, same-batch retry replays; admin selection and results (ADR 0057) — e183d74
 - 88 — manual orders: the storefront's quote, order transaction, stock and idempotency for staff-entered orders, scoped per staff member; Pending, or Confirmed with recorded evidence (database-enforced); admin New order form (ADR 0056) — 4fbad75
@@ -163,36 +165,31 @@ BI-07: a verified sending domain and sender address are still needed before real
 - Event `consumers` lists only implemented consumers (now `system_probe`, `email`, `notification`, `media_processor`, `storefront_revalidate`); planned ones are documented with roadmap steps and move in with a backfill decision (architecture §8: adding a consumer must not redefine old completions).
 - `audit_log` migration revokes UPDATE/DELETE/TRUNCATE only from a role named `ih_app`; other runtime role names must be revoked at provisioning (trigger blocks mutations regardless).
 
-## Last session handoff (2026-10-16, step 106)
+## Last session handoff (2026-10-16, step 107)
 
 Done:
 
-- **Step 106 (ADR 0072):** migration `20261016000200_daily_aggregates` (+ two indexes), Prisma models, `packages/db/src/daily-rollups.ts` (+ test), `financialTotals` extracted in `financial-metrics.ts`, `analytics_rollup` consumer (`apps/worker/src/analytics-rollup.ts` + test) registered in the worker, gate tests and gate script; event catalogue updated.
-- **`invariant-reviewer`:** no blocking; retention guard and indexes added; isolation kept Read Committed (repeatable read conflicted).
+- **Step 107 (ADR 0073):** migration `20261016000300_daily_summary_slot` (partial unique index); `report.daily_summary` event (consumer `email`); `dailySummaryEmail` setting + admin checkbox; `readSalesDays`, `emitDailySummary`, `loadDailySummaryEmail`, `backfillRollups`; domain `dubaiDate`/`addDays`/`daysBetween`; worker jobs `analytics.rollup_today`/`analytics.rollup_recent`, summary job + email planner + template; backfill CLI and root script; OpenAPI regenerated.
+- **`invariant-reviewer`:** no material findings.
 
-Files: `packages/db/prisma/migrations/20261016000200_daily_aggregates/`, `packages/db/prisma/schema.prisma`, `packages/db/src/{daily-rollups.ts,daily-rollups.int.test.ts,financial-metrics.ts,index.ts,outbox-writer.int.test.ts}`, `packages/contracts/src/{events.ts,events.test.ts}`, `apps/worker/src/{analytics-rollup.ts,analytics-rollup.int.test.ts,main.ts,checkout-gate.int.test.ts,operations-gate.int.test.ts,order-notifications.int.test.ts,relay.int.test.ts}`, `apps/api/src/orders/store-orders.int.test.ts`, `scripts/check-gate-e2e.cjs`, `docs/decisions/0072-daily-aggregates-and-rollups.md`, `docs/verification.md`
+Files: `packages/db/prisma/migrations/20261016000300_daily_summary_slot/`, `packages/db/src/{daily-summary.ts,daily-rollups.ts,notifications.ts,index.ts}`, `packages/contracts/src/{events.ts,events.test.ts,settings.ts}`, `packages/domain/src/{metrics.ts,metrics.test.ts}`, `packages/config/src/index.ts`, `packages/application/src/email/{daily-summary.ts,index.ts}`, `apps/worker/src/{analytics-rollup.ts,daily-summary.ts,daily-summary.test.ts,daily-summary.int.test.ts,main.ts,cli/}`, `apps/worker/package.json`, `package.json`, `apps/admin/{components/settings-management.tsx,lib/management.ts,lib/management.test.ts}`, `docs/api.openapi.json`, `docs/decisions/0073-recent-rollups-backfill-and-daily-summary.md`, `docs/verification.md`
 
-Tests: `pnpm verify -- --integration` PASS (unit 614, integration 595, age preview 2194, gate 2434).
+Tests: `pnpm verify` PASS (unit 620, age preview 2194). `pnpm test:int` 599/600: one known flake in `apps/api/src/orders/admin-orders.int.test.ts` (order-number search also matched another seeded order); that file passed twice on rerun, and this step does not touch it.
 
 Unfinished:
 
-- PRs #61 → … → #79 → #80 are stacked and wait for Marina's merge. M4, M6, M7, M8 and M9 gates await her decision. New migration to apply on deployment: `20261016000200_daily_aggregates`.
+- PRs #61 → … → #80 are stacked and wait for Marina's merge; the step 107 PR is still to be opened. M4, M6–M9 gates await her decision. Real summary email waits for BI-07 (sending domain).
+- Flake to look at: admin order search by number can match a seeded customer's random phone digits; make the test's phones or numbers distinct.
 
 ## History (summary)
+
+- 2026-10-16 step 106: daily aggregate tables and idempotent rollups, ADR 0072 (PR #80); unit 614/integration 595.
 
 - 2026-10-16 step 105: financial metric definitions and summary query, ADR 0071 (PR #79); unit 614/integration 590.
 - 2026-10-16 step 104: storefront telemetry batching, ADR 0070 (PR #78); unit 610/integration 586.
 - 2026-10-16 step 103: anonymous browsing events, ADR 0069 (PR #77); unit 601/integration 586.
 - 2026-10-16 step 102: content acceptance suite, M9 gate evidence (PR #76); unit 599/integration 580.
-- 2026-10-15 step 101: slug changes Owner-only, former slugs redirect, canonical, ADR 0068 (PR #75); unit 599/integration 576.
-- 2026-10-15 step 100: offers and help pages, free-delivery rule, demo-copy guard, ADR 0067 (PR #74); unit 599/integration 575.
-- 2026-10-15 step 99: storefront home from published content, promotional bar (PR #73); unit 597/integration 575.
-- 2026-10-15 step 98: published home content read API, ADR 0066 (PR #72); unit 597/integration 575.
-- 2026-10-15 step 97: content editor API and admin editor, content images, ADR 0065 (PR #71); unit 597/integration 571.
-- 2026-10-15 step 96: content-section schemas and storage, `media_assets.purpose`, BI-13, ADR 0064 (PR #70); unit 597/integration 566.
-- 2026-10-15 step 95: review moderation, public rating, ADR 0063 (PR #69); unit 592/integration 561.
-- 2026-10-15 step 94: store review submission, `/review` page with fragment-only token, ADR 0062 (1bdeb3f, PR #68); unit 592/integration 556.
-- 2026-10-15 step 93: review schema, hash-only proof, staff review link, ADR 0061 (aafb619, PR #67); unit 587/integration 546.
+- 2026-10-15 steps 93–101: reviews (proof, submission, moderation), content sections/editor/home read, storefront home, offers/help, slug rules; ADR 0061–0068 (PRs #67–#75); last verify unit 599/integration 576.
 - 2026-10-15 step 92: low-stock alerts, daily-summary slot, M8 operations gate, ADR 0060 (dd385bd, PR #66); unit 587/integration 540.
 - 2026-10-15 steps 89–91: bulk confirm, customers and WhatsApp, inbox and stream, ADR 0057–0059 (e183d74, 0f8ecaf, 7256c15; PRs #63, #64, step-91); last verify unit 585/integration 534.
 - 2026-10-13/14 steps 83–88: admin order reads, transitions, edits, cancellation, COD collection, manual orders, ADR 0051–0056 (through 4fbad75; PRs #61, #62); age-gate origin fix a307657.

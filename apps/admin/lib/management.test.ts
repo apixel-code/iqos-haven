@@ -183,6 +183,7 @@ describe("versioned form payloads", () => {
         inApp: true,
         newOrderEmail: { enabled: false, recipients: ["one@example.test", "two@example.test"] },
         lowStockEmail: false,
+        dailySummaryEmail: false,
       },
     });
     // Low-stock email shares the recipient list and needs at least one address.
@@ -199,7 +200,12 @@ describe("versioned form payloads", () => {
       inApp: false,
       newOrderEmail: { enabled: false, recipients: ["stock@example.test"] },
       lowStockEmail: true,
+      dailySummaryEmail: false,
     });
+    // So does the daily summary.
+    expect(() =>
+      settingsCommand("notifications", 1, data({ inApp: "on", dailySummaryEmail: "on" })),
+    ).toThrow();
   });
   it("rejects unsafe contact URLs and unsupported WhatsApp placeholders", () => {
     expect(() =>

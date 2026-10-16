@@ -1796,3 +1796,23 @@ Not covered:
 
 - The scheduled recent-day pass, the backfill and today's freshness (step 107).
 - Load on very busy days.
+
+## Step 107 — recent-day rollups, backfill, freshness and daily summary (2026-10-16, local)
+
+`pnpm verify`: exit 0 (unit 620, age preview 2194; contracts regenerated for the new setting and event). `pnpm test:int`: 599 of 600 passed. The one failure was `admin-orders.int.test.ts` (search by order number returned a second seeded order). It passed twice on rerun, and this step does not touch it. `invariant-reviewer` found nothing material.
+
+**Integration (`apps/worker/src/daily-summary.int.test.ts`, real PostgreSQL, 5 tests):**
+
+- **One slot, one event:** two schedulers ticking the same moment complete the summary slot once. Three more concurrent runs of that slot add no event. A direct second insert is refused by `outbox_events_one_daily_summary`.
+- **Permissioned recipients:** the Settings list holds an Owner, a staff user without `dashboard.financial_read`, a deactivated Owner and an address with no account. Only the active Owner is in Bcc. The text shows booked AED 180.00 for 2 orders, labels each basis with its date meaning, and has no links, customer name or phone.
+- **Off or nobody permitted:** no setting, or a list with no permitted staff, sends nothing.
+- **Freshness:** with no rows, both days are reported missing. The today job fills yesterday and today; a second run gives the same figures with a newer `computedAt`. The nightly job fills the 7 days before today.
+- **Backfill:** 11 named days are recomputed oldest first, and a second run gives the same figures. A range ending after today, or longer than 366 days, is refused.
+
+**Unit:** daily summary slot (09:00 Dubai, `catchUp: 1`); the template escapes product names; the backfill CLI refuses a missing, impossible, reversed, over-long or future range, unknown parts and extra flags, and never prints error details; the domain day helpers handle the Dubai midnight boundary, month and year ends, and invalid input; the admin setting needs a recipient.
+
+Not covered:
+
+- A real email send (BI-07).
+- Load on very busy days.
+- The dashboard display of `computedAt` (step 109).

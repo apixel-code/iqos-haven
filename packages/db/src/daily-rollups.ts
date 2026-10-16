@@ -1,4 +1,10 @@
-import { dubaiDayRange, METRIC_DEFINITION_VERSION } from "@ih/domain";
+import {
+  daysBetween,
+  dubaiDate,
+  dubaiDayRange,
+  METRIC_DEFINITION_VERSION,
+  MetricRangeError,
+} from "@ih/domain";
 import { Prisma, type Database, type Tx } from "./client";
 import { financialTotals } from "./financial-metrics";
 import { BROWSING_EVENT_RETENTION_DAYS } from "./browsing-events";
@@ -25,6 +31,34 @@ export function rollupDay(
   parts: readonly RollupPart[] = ROLLUP_PARTS,
 ): Promise<void> {
   return withTransaction(db, (tx) => rollupDayIn(tx, day, parts));
+}
+
+/**
+ * Controlled historical backfill (step 107, ADR 0073): recomputes Dubai days `from`..`to`
+ * (≤366, none after today) oldest first, one short transaction per day, so a long run never
+ * holds locks across days and can be stopped and started again. Days past the raw-event
+ * retention keep their search and saved-list rows (see `rollupDayIn`).
+ */
+export async function backfillRollups(
+  db: Database,
+  from: string,
+  to: string,
+  options: {
+    parts?: readonly RollupPart[];
+    onDay?: (day: string) => void;
+    signal?: AbortSignal;
+  } = {},
+): Promise<{ days: number }> {
+  const days = daysBetween(from, to);
+  if (to > dubaiDate(new Date())) throw new MetricRangeError("The range ends after today");
+  let done = 0;
+  for (const day of days) {
+    if (options.signal?.aborted) break;
+    await rollupDay(db, day, options.parts ?? ROLLUP_PARTS);
+    done++;
+    options.onDay?.(day);
+  }
+  return { days: done };
 }
 
 /** The same inside a transaction the caller owns (the analytics effect's). */

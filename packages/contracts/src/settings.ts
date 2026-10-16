@@ -52,9 +52,17 @@ export const notificationSettingsSchema = z
      * it read as "off".
      */
     lowStockEmail: z.boolean().optional(),
+    /**
+     * Daily summary email (step 107), to the recipients on the same list who are also active
+     * staff allowed to see revenue. Optional so that values saved before it read as "off".
+     */
+    dailySummaryEmail: z.boolean().optional(),
   })
   .refine((value) => !value.lowStockEmail || value.newOrderEmail.recipients.length > 0, {
     path: ["lowStockEmail"],
+  })
+  .refine((value) => !value.dailySummaryEmail || value.newOrderEmail.recipients.length > 0, {
+    path: ["dailySummaryEmail"],
   });
 export const whatsappSettingsSchema = z.strictObject({
   number: phone,

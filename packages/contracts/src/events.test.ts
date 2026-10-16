@@ -32,6 +32,7 @@ describe("event catalogue", () => {
         "order.created",
         "order.status_changed",
         "order.updated",
+        "report.daily_summary",
         "report.requested",
         "review.submitted",
         "system.probe",

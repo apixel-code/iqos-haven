@@ -118,6 +118,7 @@ export function settingsCommand(
           .filter(Boolean),
       },
       lowStockEmail: checked(data, "lowStockEmail"),
+      dailySummaryEmail: checked(data, "dailySummaryEmail"),
     };
   if (key === "whatsapp")
     value = {

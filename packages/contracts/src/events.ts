@@ -262,6 +262,16 @@ export const EVENT_CATALOGUE = {
     consumers: [],
     plannedConsumers: { report_builder: 112 },
   }),
+  "report.daily_summary": define({
+    schemaVersion: 1,
+    // The aggregate ID is the Dubai day the summary covers (`YYYY-MM-DD`); a unique index allows
+    // one such event per day (step 107, ADR 0073).
+    aggregateType: "report",
+    payload: z.strictObject({ day: z.iso.date() }),
+    // Step 107: new with this step, so there is nothing to backfill.
+    consumers: ["email"],
+    plannedConsumers: {},
+  }),
 } as const;
 
 export type EventType = keyof typeof EVENT_CATALOGUE;

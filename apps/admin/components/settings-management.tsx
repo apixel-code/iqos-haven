@@ -63,11 +63,12 @@ const groups: Array<{
   {
     key: "notifications",
     title: "Notifications",
-    help: "Saving preferences does not activate delivery: email also needs a verified sending domain. Low-stock alerts repeat for a product at most once a day. The daily summary email arrives with reports.",
+    help: "Saving preferences does not activate delivery: email also needs a verified sending domain. Low-stock alerts repeat for a product at most once a day. The daily summary (09:00 Dubai, the previous day's figures) goes only to recipients who are active staff allowed to see revenue.",
     fields: [
       { name: "inApp", label: "In-app notifications", kind: "checkbox" },
       { name: "newOrderEmail.enabled", label: "New-order email preference", kind: "checkbox" },
       { name: "lowStockEmail", label: "Low-stock email preference", kind: "checkbox" },
+      { name: "dailySummaryEmail", label: "Daily summary email preference", kind: "checkbox" },
       {
         name: "recipients",
         label: "Email recipients",

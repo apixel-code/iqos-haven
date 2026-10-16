@@ -91,3 +91,23 @@ export function rateBps(part: number, whole: number): number | null {
   if (whole <= 0) return null;
   return Math.floor((part * 20_000 + whole) / (2 * whole));
 }
+
+/** The Dubai calendar day (`YYYY-MM-DD`) an instant falls on. */
+export function dubaiDate(instant: Date): string {
+  const time = instant.getTime();
+  if (!Number.isFinite(time)) throw new MetricRangeError("Invalid instant");
+  return new Date(time + DUBAI_UTC_OFFSET_MINUTES * 60_000).toISOString().slice(0, 10);
+}
+
+/** `day` moved by `count` calendar days (negative = earlier). */
+export function addDays(day: string, count: number): string {
+  dubaiDayRange(day, day); // validates the date
+  if (!Number.isSafeInteger(count)) throw new MetricRangeError("Invalid day count");
+  return new Date(Date.parse(day + "T00:00:00Z") + count * DAY_MS).toISOString().slice(0, 10);
+}
+
+/** `from`..`to` inclusive, oldest first. */
+export function daysBetween(from: string, to: string): string[] {
+  const { days } = dubaiDayRange(from, to);
+  return Array.from({ length: days }, (_, i) => addDays(from, i));
+}
