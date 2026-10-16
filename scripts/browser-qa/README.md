@@ -104,3 +104,16 @@ API cache (up to 60 s), then checks the hero, promotional bar, banner and offers
 1280px and 360px with reduced motion: the ticker moves only without reduced motion, the pause
 button stops it, no horizontal scroll and no page errors. Stop the stack with SIGTERM and drop
 the schema.
+
+## Storefront telemetry (step 104)
+
+```sh
+pnpm build && node scripts/check-gate-e2e.cjs --serve --checkout-open &   # SERVING, SCHEMA
+QA_PLAYWRIGHT_DIR=/tmp/ih-qa node scripts/browser-qa/telemetry.mjs <SERVING> <SCHEMA>
+```
+
+It searches, opens a product, saves it and adds it to the cart at 360px, then checks the events
+on the served schema (normalized term, no personal fields, device keys limited to cart, lists
+and the anonymous ID). The checkout page must send nothing. With the events route answering 503,
+adding to the cart stays immediate, checkout opens, the route is not hammered, and there are no
+page errors.

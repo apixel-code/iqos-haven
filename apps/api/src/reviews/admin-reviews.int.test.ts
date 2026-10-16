@@ -15,6 +15,7 @@ import {
 } from "@ih/contracts";
 import { createDatabase, createPool, issueReviewLink, submitReview, transitionOrder } from "@ih/db";
 import { applyMigrations, seedOrder } from "@ih/db/testing";
+import { formatOrderNumber } from "@ih/domain";
 import {
   AGE_COOKIE,
   ageTicketPublicKey,
@@ -242,7 +243,9 @@ describe("review moderation and public reviews through the real API and PostgreS
       },
     ]);
     const text = JSON.stringify(after);
-    for (const leak of [orderId, reviewId, String(orderNumber)]) expect(text).not.toContain(leak);
+    // The displayed order number ("IH-001001"), not the bare digits a UUID can contain.
+    for (const leak of [orderId, reviewId, formatOrderNumber(String(orderNumber))])
+      expect(text).not.toContain(leak);
 
     // A stale decision and a repeated one are refused; nothing changes.
     expect(await errorCode(await decide(reviewId, "reject", 1))).toBe("VERSION_CONFLICT");

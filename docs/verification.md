@@ -1675,3 +1675,47 @@ Not covered:
 - The storefront sending events (step 104).
 - Daily rollups (step 106).
 - Load behaviour beyond the in-process cap.
+
+## Step 104 — storefront telemetry batching and overload (2026-10-16, local)
+
+`pnpm verify -- --integration`: exit 0 after the review fixes. Unit 610, integration 586, age preview 2194, gate 2434.
+
+During the fixes, a run failed once. The events test searched the stored rows, random UUIDs included, for "971", and a UUID contained it. It now checks types and payloads only; three reruns passed, then the full verify.
+
+`invariant-reviewer` found no blocking or high-severity issues.
+
+- **Fixed:**
+  - Events waiting when a quiet page is reached are dropped (no idle timer loop).
+  - A search term that may be personal is normalized in the browser and sent as `null`; the contract allows `null`.
+- **Recorded in ADR 0070:** a page leave sends one batch at most, and wishlist events carry the rotating anonymous ID.
+
+**Unit (`apps/storefront/lib/telemetry/telemetry.test.ts`, 9 tests):**
+
+- **Batching:** batches of 20 then 5, unique IDs, and the last batch sent with keepalive.
+- **Full queue:** new events are dropped.
+- **Failures:** one retry with the same IDs, then dropped. A thrown send counts as a failure; a refusal is final.
+- **Overload:** a 429 or 503 drops what waits and pauses for one minute.
+- **Quiet pages:** checkout, confirmation and review pages record nothing and drop what waits. `/checkouts` is not quiet.
+- **Sampling:** works per type.
+- **Status mapping:** the answer codes map to the outcomes in ADR 0070.
+- **Anonymous ID:** kept for 24 hours, then replaced; unreadable storage gives a new one.
+
+**Integration:** `store-events.int.test.ts` also stores a search whose term the storefront already sent as `null`.
+
+**Browser (`scripts/browser-qa/telemetry.mjs`, real served stack, Chromium at 360px): 12 passed.**
+
+- A search, a product view, a save and an add to cart reached the database, with the term stored normalized.
+- Event bodies held no personal fields, and device storage held only the cart, the lists and `ih_anon_v1`.
+- The checkout page sent no telemetry.
+- With the events route answering 503:
+  - add to cart was immediate (under 2 s);
+  - checkout opened;
+  - the route was tried at most twice;
+  - no page errors.
+
+CI on the PR then failed in `pricing-acceptance.int.test.ts`. Its "no tax/vat/excise" check searched the whole quote, and the random quote token contained such letters. It now checks only the fields and text, with tokens and UUIDs left out. The same random-value risk was also removed from `admin-reviews.int.test.ts`, which now uses the displayed order number, not bare digits.
+
+Not covered:
+
+- Real phones and slow networks.
+- Rollups (step 106).

@@ -118,6 +118,8 @@ describe("anonymous browsing events through the real API and PostgreSQL", () => 
         events: [
           { id: id(), type: "search", term: "  Grape  ICE ", resultCount: 4 },
           { id: id(), type: "search", term: "+971 50 123 4567", resultCount: 0 },
+          // Already redacted by the storefront (step 104).
+          { id: id(), type: "search", term: null, resultCount: 2 },
           { id: id(), type: "product_view", productSlug: product.slug },
           { id: id(), type: "cart_add", variantId: product.variantId, quantity: 2 },
           { id: id(), type: "cart_remove", variantId: product.variantId, quantity: 1 },
@@ -126,12 +128,13 @@ describe("anonymous browsing events through the real API and PostgreSQL", () => 
         ],
       }),
     );
-    expect(result).toEqual({ stored: 7, duplicate: 0, dropped: 0 });
+    expect(result).toEqual({ stored: 8, duplicate: 0, dropped: 0 });
     const rows = await db.browsingEvent.findMany({ orderBy: { receivedAt: "asc" } });
     const payloads = rows.map((row) => [row.type, row.payload]);
     expect(payloads).toContainEqual(["search", { term: "grape ice", resultCount: 4 }]);
     // A term that looks like a phone number is counted, never kept.
     expect(payloads).toContainEqual(["search", { term: null, resultCount: 0 }]);
+    expect(payloads).toContainEqual(["search", { term: null, resultCount: 2 }]);
     expect(payloads).toContainEqual(["product_view", { productId: product.id }]);
     expect(payloads).toContainEqual([
       "cart_add",
@@ -140,7 +143,8 @@ describe("anonymous browsing events through the real API and PostgreSQL", () => 
     // Searches are never linked to the browser's other events.
     for (const row of rows)
       expect(row.anonymousId).toBe(row.type === "search" ? null : anonymousId);
-    const text = JSON.stringify(rows);
+    // What was stored besides the random IDs (a UUID can contain "971" by chance).
+    const text = JSON.stringify(rows.map((row) => [row.type, row.payload]));
     for (const personal of ["971", "4567", "198.51.100", "cookie"])
       expect(text).not.toContain(personal);
   });

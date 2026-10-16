@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { TrackSearch } from "@/components/track-search";
 import { Breadcrumbs, EmptyState, PageHead } from "@/components/listing";
 import { PendingLink } from "@/components/pending";
 import { ProductGrid } from "@/components/product-card";
@@ -30,6 +31,8 @@ export default async function SearchPage({
   const title = term ? `Results for “${term}”` : "Search";
   return (
     <>
+      {/* Counted once per search: the first page only, not when paging through results. */}
+      {term && !state.cursor && <TrackSearch term={term} total={result.total} />}
       <Breadcrumbs trail={[{ label: "Home", href: "/" }, { label: "Search" }]} />
       <PageHead
         title={title}

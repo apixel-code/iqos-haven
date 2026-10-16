@@ -2,12 +2,16 @@
 
 import { useEffect } from "react";
 import { recordProductView, useDeviceLists } from "@/lib/device/store";
+import { track } from "@/lib/telemetry/client";
 import { useProductCards } from "@/lib/device/use-cards";
 import { ProductGrid } from "./product-card";
 
 /** Remembers that this product was opened, on this device only. Renders nothing. */
 export function RecordView({ slug }: { slug: string }) {
-  useEffect(() => recordProductView(slug), [slug]);
+  useEffect(() => {
+    recordProductView(slug);
+    track({ type: "product_view", productSlug: slug });
+  }, [slug]);
   return null;
 }
 

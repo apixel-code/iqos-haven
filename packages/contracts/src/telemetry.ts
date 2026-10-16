@@ -28,8 +28,11 @@ export const browsingEventSchema = z.discriminatedUnion("type", [
   z.strictObject({
     ...base,
     type: z.literal("search"),
-    /** As typed; normalized (and redacted if it looks like a phone or email) by the API. */
-    term: z.string().min(1).max(100),
+    /**
+     * As typed, normalized (and redacted if it looks like a phone or email) by the API. The
+     * storefront already sends `null` for such a term, so it never leaves the browser.
+     */
+    term: z.string().min(1).max(100).nullable(),
     resultCount: z.number().int().min(0).max(100_000),
   }),
   z.strictObject({ ...base, type: z.literal("product_view"), productSlug: slug }),
@@ -79,7 +82,8 @@ const MAX_TERM_WORDS = 4;
  * has an "@", more than five digits of any script, more than four words or more than 40
  * characters: it may be a phone number, an email, a name or an address.
  */
-export function normalizeSearchTerm(raw: string): string | null {
+export function normalizeSearchTerm(raw: string | null): string | null {
+  if (raw === null) return null;
   const term = raw
     .normalize("NFKC")
     .replace(/[\p{Cc}\p{Cf}]/gu, "")
