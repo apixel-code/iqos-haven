@@ -691,3 +691,99 @@ ul.dashboard-list {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* Owner analytics (step 109) */
+.status-bar {
+  display: flex;
+  gap: 2px;
+  height: 12px;
+  border-radius: 6px;
+  overflow: hidden;
+}
+.status-bar i {
+  min-width: 4px;
+  background: currentColor;
+}
+.status-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  color: var(--ink-2);
+}
+.status-legend li {
+  color: var(--ink-2);
+  background: none;
+}
+.status-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-right: 6px;
+  background: currentColor;
+}
+.rank-list {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding-left: 18px;
+}
+.rank-list li {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 4px 12px;
+}
+.rank-bar {
+  grid-column: 1 / -1;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--surface-2);
+}
+.rank-bar i {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  background: var(--accent);
+}
+.column-chart {
+  margin: 0;
+  display: grid;
+  gap: 6px;
+}
+.column-chart svg {
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+.chart-axis {
+  stroke: var(--line);
+  stroke-width: 1;
+}
+.chart-bar {
+  fill: var(--accent);
+}
+.chart-bar.is-active {
+  fill: var(--accent-ink);
+}
+.column-chart g:focus {
+  outline: none;
+}
+.column-chart g:focus-visible rect {
+  stroke: var(--ink-3);
+  stroke-width: 1;
+}
+.chart-range {
+  display: flex;
+  justify-content: space-between;
+}
+.tab-list button[aria-selected="true"],
+.secondary-button[aria-pressed="true"] {
+  border-color: var(--ink);
+  font-weight: 600;
+}
+.chart-missing {
+  fill: var(--ink-4);
+}

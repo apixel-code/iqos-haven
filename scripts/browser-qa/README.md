@@ -117,3 +117,26 @@ on the served schema (normalized term, no personal fields, device keys limited t
 and the anonymous ID). The checkout page must send nothing. With the events route answering 503,
 adding to the cart stays immediate, checkout opens, the route is not hammered, and there are no
 page errors.
+
+## Home dashboard and Owner analytics (steps 108–109)
+
+With `qa-server.cjs` and the admin running as above:
+
+```sh
+QA_PLAYWRIGHT_DIR=/tmp/ih-qa node scripts/browser-qa/dashboard.mjs <SCHEMA>
+```
+
+The script seeds two orders and two searches, then rolls up today.
+
+- **Owner, home page:** open counts, the pending orders to confirm, booked sales with their freshness, and the recent orders.
+- **Owner, Analytics:**
+  - The booked-order count matches the database, and the tax basis is shown.
+  - The daily chart has a slot per day; focusing a column reads out its value.
+  - The Search tab lists the term with no results.
+  - Each tab opens.
+  - The 7-day range names the days that are not computed.
+- **Layout:** both pages fit 390px without sideways scrolling.
+- **Staff:** the operational counts, but no sales figures, no Analytics link and no access to Analytics.
+- **Both roles:** no page errors.
+
+The script can run again on the same schema.

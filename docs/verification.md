@@ -1838,3 +1838,41 @@ Not covered:
 - **Deactivated staff:** refused.
 
 Not covered: a real-browser pass of the home page; the delay limits await BI-14.
+
+## Step 109 — Owner analytics (2026-10-16, local)
+
+`pnpm verify`: exit 0 (unit 624, age preview 2194). It first stopped at lint: the screen set state synchronously inside an effect. The loading state moved to the range handlers. `pnpm test:int`: exit 0 (608). `invariant-reviewer` found nothing material.
+
+**API (`apps/api/src/dashboard/admin-analytics.int.test.ts`, real API + PostgreSQL, 3 tests):**
+
+- **Refusals:** no session 401; Staff 403; an impossible date, a range over a year, a missing `to` or an unknown field 400.
+- **Before any rollup:** the 3 days are listed as missing, with no per-day rows and zero totals. The live status mix already shows the 2 orders.
+- **After `rollupDay`:**
+  - The booked totals equal `readFinancialSummary` for the day: 2 orders, AED 180.00, AOV 9000 fils, cancellation 0.
+  - The previous period (the day before) is reported as 1 missing day with no AOV.
+  - The product with 2 units leads; its share is undefined because nothing has been delivered.
+  - Brand units total 3.
+  - Search: 4 searches, 2 with no results (50.00%), 1 term not kept; "mango ice" is the no-result term; the `''` bucket is never listed.
+  - Saved lists: 2 adds and 1 remove, with the product out of stock.
+
+**Unit (`apps/admin/lib/analytics.test.ts`):** ranges are Dubai days, today included; basis points show as one decimal, rounded half-up; the comparison never divides by zero; day lists cross month ends correctly.
+
+**Browser (`scripts/browser-qa/dashboard.mjs`, headless Chromium through the gateway, 18 checks, all PASS):**
+
+- **Owner, home:** counts, booked sales with "As of", and recent orders.
+- **Owner, Analytics:**
+  - The booked-order count equals `sales_daily`, and the tax basis is shown.
+  - The chart has one slot per day of the range, with gray marks for days not computed; focusing a column reads out its AED value.
+  - The Search tab lists the no-result term, and every tab opens.
+  - The 7-day range names the missing days.
+- **Layout:** no sideways scrolling at 390px on either page.
+- **Staff:** no sales figures and no Analytics link; Analytics shows "Access unavailable".
+- **Both roles:** no page errors.
+
+The screenshots were reviewed by eye. The first version stretched a single computed day across the whole chart, and was fixed to give one slot per day of the range.
+
+Not covered:
+
+- Dark-theme screenshots.
+- Real touch input.
+- Ranges with heavy data.

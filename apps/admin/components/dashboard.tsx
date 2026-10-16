@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { adminDashboardSchema, type AdminDashboard } from "@ih/contracts";
-import { money, ORDER_STATUS_LABELS, when } from "../lib/orders";
+import { money, ORDER_STATUS_LABELS } from "../lib/orders";
 
 type Load = { state: "loading" } | { state: "failed" } | { state: "ready"; data: AdminDashboard };
 type OrderLine = NonNullable<AdminDashboard["orders"]>["recent"][number];
@@ -269,8 +269,8 @@ function OrderList({ lines, now, empty }: { lines: OrderLine[]; now: string; emp
           </span>
           <br />
           <span className="muted small">
-            {money(line.totalFils)} · placed {ago(line.createdAt, now)} ago ({when(line.createdAt)})
-            {line.delayed ? " · " : ""}
+            {money(line.totalFils)} · placed {ago(line.createdAt, now)} ago (
+            {dubaiTime(line.createdAt)}){line.delayed ? " · " : ""}
           </span>
           {line.delayed && <span className="stock-out small">delayed</span>}
         </li>
