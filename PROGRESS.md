@@ -5,7 +5,7 @@
 - Date: 2026-10-16
 - Milestone: M7 — transactional checkout and first complete order: all steps (73–82) done; gate evidence ready, awaiting Marina's decision. M6: all steps (65–72) done; gate evidence ready, awaiting Marina's decision. M5: PASSED 2026-10-11. M4 steps done, gate awaits Marina's decision (publishing unblocked); M3 gate not closed; M0 review and M1 staging/fixtures still open
 - Step: 112 (report files, signed download, expiry, Reports screen) — done; next is 113 (Owner SEO editor, sitemap, gated product metadata). M10 in progress (103–112 done). All M9 steps (93–102) done; gate evidence ready, awaiting Marina's decision. All M8 steps (83–92) done, gate awaiting Marina's decision.
-- Branch: `step/112-report-files` (based on #85; PR to open after push)
+- Branch: `step/112-report-files` (pushed; PR #86 based on #85)
 - See docs/verification.md for actual checks.
 
 ## Next action
@@ -195,7 +195,7 @@ Tests: `pnpm verify` PASS (unit 629, age preview 2194). `pnpm test:int` PASS (62
 
 Unfinished:
 
-- PRs #61 → … → #85 are stacked and wait for Marina's merge, and step 112's PR comes next. M4, M6–M9 gates await her decision. BI-14 open (not blocking).
+- PRs #61 → … → #85 are stacked and wait for Marina's merge, step 112 is PR #86. M4, M6–M9 gates await her decision. BI-14 open (not blocking).
 - Local MinIO keeps report objects from QA runs (their schemas are dropped). Remove them from `ih-reports` by hand if they matter.
 - Disk headroom is about 11 GB; Docker stopped once this session.
 
