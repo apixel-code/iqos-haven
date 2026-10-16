@@ -4,8 +4,8 @@
 
 - Date: 2026-10-16
 - Milestone: M7 — transactional checkout and first complete order: all steps (73–82) done; gate evidence ready, awaiting Marina's decision. M6: all steps (65–72) done; gate evidence ready, awaiting Marina's decision. M5: PASSED 2026-10-11. M4 steps done, gate awaits Marina's decision (publishing unblocked); M3 gate not closed; M0 review and M1 staging/fixtures still open
-- Step: 112 (report files, signed download, expiry, Reports screen) — done; next is 113 (Owner SEO editor, sitemap, gated product metadata). M10 in progress (103–112 done). All M9 steps (93–102) done; gate evidence ready, awaiting Marina's decision. All M8 steps (83–92) done, gate awaiting Marina's decision.
-- Branch: `step/112-report-files` (pushed; PR #86 based on #85)
+- Step: 113 (SEO policy, issue report, public sitemap, SEO screen) — done; next is 114 (dashboard/report/SEO acceptance pass, M10 gate evidence). M10 in progress (103–113 done). All M9 steps (93–102) done; gate evidence ready, awaiting Marina's decision. All M8 steps (83–92) done, gate awaiting Marina's decision.
+- Branch: `step/113-seo-tools` (based on #86; PR to open after push)
 - See docs/verification.md for actual checks.
 
 ## Next action
@@ -22,8 +22,9 @@
 4. **Marina: decide the M7 gate.** Evidence, item by item, and what is not covered: docs/verification.md "Step 82". Checkout stays switched off (`CHECKOUT_SUBMISSION_ENABLED=false`) whatever the decision, until deployment inputs exist (BI-07 sender domain, real Owner, delivery areas and fee).
 5. **Marina: decide the M8 gate.** Evidence: docs/verification.md "Step 92" (service-level journey from store order to collected cash, plus the HTTP suites for each route). Do not mark M8 passed without her decision.
 6. **Marina: decide the M9 gate.** Evidence: docs/verification.md "Step 102". Do not mark M9 passed without her decision.
-7. **Next step: `/step 113`** (Owner SEO editor/issue report, public sitemap and gated product metadata): `rg -n "^| 113 " docs/roadmap.md`. Indexing stays off (BI-05 open): build the editor and handlers so the policy decides, never enable product indexing or JSON-LD by default. New migrations on deployment: `20261016000300_daily_summary_slot`, `20261016000400_report_jobs`.
+7. **Next step: `/step 114`** (dashboard/report/SEO acceptance pass, the last M10 step): `rg -n "^| 114 " docs/roadmap.md` and the M10 gate line. Gather the evidence: financial/date definitions, idempotent backfill, field denial, export security, preview tests, the SEO policy flip. New migrations on deployment: `20261016000300_daily_summary_slot`, `20261016000400_report_jobs`, `20261016000500_seo_policy`.
 8. **Rules that carry forward:**
+   - SEO policy (ADR 0079): `seo` settings row, `closed` by default or `public_pages` (only /responsible-use, /terms, /privacy). Written only by `PUT /v1/admin/seo/policy` (`seo.write`, expected version); read by the storefront through `GET /v1/public/seo` and held `SEO_POLICY_CACHE_SECONDS` (60); any failure = closed. robots.ts, sitemap.ts (public, empty when closed), the `(policy)` layout's robots meta and the proxy's header follow it; the static `X-Robots-Tag` excludes only those three paths. Product indexing, previews and JSON-LD are never switches (BI-05). Browser pass: `scripts/browser-qa/seo.mjs`; storefront side in `pnpm test:age-preview`.
    - Report files (ADR 0078): `report_builder` (external, 5 attempts) claims, re-checks the requester's rights, builds in one snapshot, uploads to `reports/<job id>.csv` outside any transaction, completes only while `running`. A failed or given-up job never keeps an object. File download = own job + rights + completed + live → audit → 5-minute signed link via 303 (`no-store`, `no-referrer`). `reports.upkeep` every 15 min. API request logs keep only the response status; the logger redacts `Location`. Browser pass: `scripts/browser-qa/reports.mjs` (qa-server now also runs `report_builder`).
    - CSV reports (ADR 0077): encode only through `csvField`/`csvLine` (formula prefixes `= + - @ tab CR` get `'`; numbers only as `CsvNumber`/integers; amounts via `aedAmount` from fils; Dubai times). Generators `reportRows` page by keyset; a timestamp cursor must be microsecond text (`exactTime`), never a JS `Date`. Orders and customers reports hold names and phones → both need `customers.export`. `GET /v1/admin/reports/:id/download` streams a `ready` stream job: own only (404), rights re-checked (403), expired or file → 409 `REPORT_NOT_AVAILABLE`, >20,000 rows → 409 `REPORT_TOO_LARGE`, audit `report.downloaded` committed before sending.
    - Report jobs (ADR 0076): every export is a `report_jobs` row owned by its requester (never deleted; request fields and a finished file immutable by trigger). `POST /v1/admin/reports` `{commandId, report}` (`reports.export`; customers also `customers.export`, checked in the DB with the actor `FOR SHARE`); same command + same report → same job (200), other report → 409 `IDEMPOTENCY_CONFLICT`. ≤5000 estimated rows → `stream` (`ready`, 15 min); more → `file` (`queued` + `report.requested`, built in step 112; the table is the queue of record). List/status (`reports.read`) show only own jobs; another's ID is 404.
@@ -140,6 +141,7 @@ BI-07: a verified sending domain and sender address are still needed before real
 - 104 — storefront telemetry queue (batches of 20, one retry, pause on overload, drop when full or on quiet pages), events from search/product page/cart/saved list, rotating anonymous ID, browser QA script (ADR 0070) — `step(104)` commit on `step/104-client-telemetry`
 - 105 — financial metric definitions (booked/delivered/collected, AOV, cancellation, status mix; Dubai days, AED fils, tax note) and the Owner's snapshot summary query (ADR 0071) — `step(105)` commit on `step/105-financial-metrics`
 - 106 — `sales_daily`, `product_sales_daily` (snapshot brand), `search_daily`, `wishlist_daily`; idempotent per-day rollup sharing the step 105 definitions; `analytics_rollup` consumer on order events (ADR 0072) — `step(106)` commit on `step/106-daily-rollups`
+- 113 — indexing policy (closed / public pages) with audited Owner write, public policy read, robots/sitemap/policy pages following it (fail closed), SEO overview and issue report, SEO screen, age-preview checks for both policies (ADR 0079) — `step(113)` commit on `step/113-seo-tools`
 - 112 — `report_builder` consumer (private bucket, fixed key, rights re-checked), signed 5-minute file links via 303 with audit first, `reports.upkeep` (expire, fail stale, delete after 7 days), Reports screen, no orphan files, signed links kept out of logs (ADR 0078) — `step(112)` commit on `step/112-report-files`
 - 111 — CSV encoding with formula defusing, five generators (sales per basis with "not computed" days, orders per line with snapshots, delivered products, inventory and customer snapshots), personal-data reports need `customers.export`, streamed download with re-checks and audit (ADR 0077) — `step(111)` commit on `step/111-csv-generators`
 - 110 — `report_jobs` (immutable request, no delete), typed report parameters, request with command-ID replay/conflict, size estimate → stream or file, audit + `report.requested`, own-only list and status (ADR 0076) — `step(110)` commit on `step/110-report-jobs`
@@ -175,31 +177,29 @@ BI-07: a verified sending domain and sender address are still needed before real
 - Event `consumers` lists only implemented consumers (now `system_probe`, `email`, `notification`, `media_processor`, `storefront_revalidate`); planned ones are documented with roadmap steps and move in with a backfill decision (architecture §8: adding a consumer must not redefine old completions).
 - `audit_log` migration revokes UPDATE/DELETE/TRUNCATE only from a role named `ih_app`; other runtime role names must be revoked at provisioning (trigger blocks mutations regardless).
 
-## Last session handoff (2026-10-16, step 112)
+## Last session handoff (2026-10-16, step 113)
 
 Done:
 
-- **Step 112 (ADR 0078):**
-  - `packages/db/src/report-files.ts`: build, complete, fail, status, issue download, maintenance and expiry.
-  - Worker: `apps/worker/src/reports.ts` (consumer + upkeep), wired in `main.ts`; `report.requested` now requires `report_builder`.
-  - API: the download route answers 303 for file jobs.
-  - Admin: the Reports screen; the `.sr-only` utility; `.dashboard` and table-wrapper layout fixes.
-  - Browser QA: `scripts/browser-qa/reports.mjs`; `qa-server.cjs` now also runs `report_builder`.
-- **`invariant-reviewer`:** two real findings, both fixed with tests.
-  1. The signed link in `Location` would have reached the API access log. The response log now keeps only the status, and the logger redacts `Location` (unit test).
-  2. A file could stay in the bucket after its job failed. Failed, given-up and raced jobs now delete their object (worker tests: an earlier attempt's file, a stale job's file, and a job failed during upload).
+- **Step 113 (ADR 0079):**
+  - Migration `20261016000500_seo_policy`, `packages/contracts/src/seo.ts` (+ `seo.policy_updated` event), `packages/db/src/seo.ts`, `apps/api/src/seo/` (`AdminSeoController`, `PublicSeoController`).
+  - Storefront: `lib/seo-policy.ts` (+ test), dynamic `robots.ts`, new `sitemap.ts` (public), `(policy)/layout.tsx`, the proxy's header for policy pages, the `next.config.ts` header exclusion, `SEO_POLICY_CACHE_SECONDS` (config + `.env.example`).
+  - Admin: the SEO screen.
+  - Checks: both policies in `scripts/check-age-preview.mjs`; browser pass `scripts/browser-qa/seo.mjs`.
+- **`invariant-reviewer`:** no material findings. Its one low note was fixed: `/Terms`-style spellings get `noindex` from the proxy, and the age-preview check covers it.
 
-Files: `packages/db/src/{report-files.ts,index.ts}`, `packages/domain/src/reports.ts`, `packages/contracts/src/{events.ts,events.test.ts}`, `packages/logger/src/{index.ts,index.test.ts}`, `apps/worker/src/{reports.ts,reports.int.test.ts,main.ts}`, `apps/api/src/{app.module.ts,reports/admin-reports.controller.ts,reports/report-files.int.test.ts}`, `apps/admin/{components/report-management.tsx,components/workspace-section.tsx,app/globals.css}`, `scripts/browser-qa/{reports.mjs,qa-server.cjs,README.md}`, `docs/decisions/0078-report-files-and-downloads.md`, `docs/verification.md`
+Files: `packages/db/prisma/migrations/20261016000500_seo_policy/`, `packages/{contracts/src/{seo.ts,events.ts,events.test.ts,index.ts},db/src/{seo.ts,index.ts},config/src/index.ts}`, `.env.example`, `apps/api/src/{seo/,app.module.ts}`, `apps/storefront/{app/robots.ts,app/sitemap.ts,app/(policy)/layout.tsx,lib/seo-policy.ts,lib/seo-policy.test.ts,lib/age/policy.ts,lib/age/age-gate.test.ts,next.config.ts,proxy.ts}`, `apps/admin/{components/seo-management.tsx,components/workspace-section.tsx,app/globals.css}`, `scripts/{check-age-preview.mjs,browser-qa/seo.mjs,browser-qa/README.md}`, `docs/decisions/0079-seo-policy-and-tools.md`, `docs/verification.md`
 
-Tests: `pnpm verify` PASS (unit 629, age preview 2194). `pnpm test:int` PASS (624). Browser: `reports.mjs` 14/14 and `dashboard.mjs` 18/18 (re-run after the CSS change), at 1366px and 390px, with the schema dropped afterwards.
+Tests: `pnpm verify` PASS (unit 634, age preview 2243; re-run after the case fix: 2245). `pnpm test:int` PASS (627). Browser: `seo.mjs` 13/13, with `dashboard.mjs` and `reports.mjs` re-run (all passed) after the CSS changes; schema dropped.
 
 Unfinished:
 
-- PRs #61 → … → #85 are stacked and wait for Marina's merge, step 112 is PR #86. M4, M6–M9 gates await her decision. BI-14 open (not blocking).
-- Local MinIO keeps report objects from QA runs (their schemas are dropped). Remove them from `ih-reports` by hand if they matter.
-- Disk headroom is about 11 GB; Docker stopped once this session.
+- PRs #61 → … → #86 are stacked and wait for Marina's merge, and step 113's PR comes next. M4, M6–M9 gates await her decision. BI-05 (product indexing) and BI-14 are open.
+- Marina may choose "Public pages" on the SEO screen; the default stays closed.
 
 ## History (summary)
+
+- 2026-10-16 step 112: report files, signed downloads, upkeep, Reports screen, no orphan files, links out of logs, ADR 0078 (PR #86); unit 629/integration 624.
 
 - 2026-10-16 step 111: CSV generators and streamed download, cursor precision fix, ADR 0077 (PR #85); unit 628/integration 618.
 

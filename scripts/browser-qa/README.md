@@ -162,3 +162,25 @@ The pass covers:
 - **Staff:** no Reports link, no access to the screen, and 403 for the Owner's file by its ID.
 
 The pass can run again on the same schema.
+
+## SEO screen (step 113)
+
+With `qa-server.cjs` and the admin running as above:
+
+```sh
+QA_PLAYWRIGHT_DIR=/tmp/ih-qa node scripts/browser-qa/seo.mjs <SCHEMA>
+```
+
+The pass covers:
+
+- **Defaults:** Closed is chosen. Product indexing is listed as inactive and is not a switch. The sitemap is inactive.
+- **Report:** a brand without SEO fields appears in the issue report.
+- **Changing the policy:**
+  - Dismissing the confirmation changes nothing.
+  - Accepting it offers the public pages: the stored policy changes, the sitemap shows as active, and the change is audited.
+  - Closing again works.
+- **Layout:** the page fits 390px without sideways scrolling.
+- **Staff:** no SEO link and no access.
+- **Errors:** no page errors.
+
+The storefront side of the policy is checked by `pnpm test:age-preview`.

@@ -34,7 +34,7 @@ const RESTRICTED = [
   "/checkout",
   "/order-confirmation",
   "/order-confirmation?order=IH-001001&phone=0501234567",
-  "/sitemap.xml",
+  "/sitemap-products.xml",
   "/_next/image",
   "/_next/image?url=%2Fmedia%2Fhalo.webp&w=640&q=75",
   "/_next/image?url=https%3A%2F%2Fmedia.example%2Forbe-halo.webp&w=640&q=75",
@@ -196,6 +196,8 @@ const DETAIL = {
 };
 const apiCalls = [];
 let apiMode = "ok";
+/** The Owner's indexing policy as the stub API answers it (step 113); null = API failure. */
+let seoPolicy = { indexing: "closed" };
 const stub = createHttpServer((request, response) => {
   const url = new URL(request.url, "http://stub");
   apiCalls.push({ path: url.pathname, search: url.search, headers: request.headers });
@@ -203,6 +205,9 @@ const stub = createHttpServer((request, response) => {
     response.writeHead(status, { "content-type": "application/json" });
     response.end(JSON.stringify(body));
   };
+  // Public: read without a ticket by robots.txt, the sitemap and the policy pages.
+  if (url.pathname === "/v1/public/seo")
+    return seoPolicy ? send(200, seoPolicy) : send(503, { error: { code: "SERVICE_UNAVAILABLE" } });
   if (
     !/^ih_age=v1\.check\.[\w-]+\.[\w-]+$/.test(request.headers.cookie ?? "") ||
     apiMode === "refuse"
@@ -292,6 +297,8 @@ const child = spawn(
       AGE_TICKET_KEY_ID: "check",
       AGE_TICKET_PRIVATE_KEY: raw(pair.privateKey, "pkcs8"),
       AGE_TICKET_PUBLIC_KEYS: `check:${raw(pair.publicKey, "spki")}`,
+      // The policy is read again on every request, so the check can change it mid-run.
+      SEO_POLICY_CACHE_SECONDS: "0",
     },
   },
 );
@@ -942,27 +949,96 @@ try {
   );
   apiMode = "ok";
 
-  // 8. Public information: crawler policy, preview image, policy pages. No sitemap while closed.
-  const robots = await get("/robots.txt");
-  const robotsText = await robots.text();
+  // 8. Public information: crawler policy, preview image, policy pages (step 113 policy).
+  const crawlerView = async (label) => {
+    const robots = await get("/robots.txt");
+    const sitemap = await get("/sitemap.xml");
+    const pages = {};
+    for (const path of ["/responsible-use", "/terms", "/privacy"]) {
+      const response = await get(path, { "user-agent": AGENTS.facebook });
+      const html = await response.text();
+      check(response.status === 200, `${label} ${path}: public`, String(response.status));
+      check(
+        !FORBIDDEN.some((pattern) => pattern.test(html)),
+        `${label} ${path}: no catalogue data`,
+      );
+      pages[path] = {
+        header: response.headers.get("x-robots-tag") ?? "",
+        meta: /<meta name="robots" content="([^"]+)"/.exec(html)?.[1] ?? "",
+      };
+    }
+    const sitemapText = await sitemap.text();
+    check(sitemap.status === 200, `${label} sitemap.xml: public`, String(sitemap.status));
+    // Every listed address must be one of the policy pages, on our own origin.
+    const listed = [...sitemapText.matchAll(/<loc>([^<]*)<\/loc>/g)].map((match) => match[1]);
+    check(
+      listed.every((loc) =>
+        ["/responsible-use", "/terms", "/privacy"].some((path) => loc === ORIGIN + path),
+      ),
+      `${label} sitemap.xml: never a catalogue URL`,
+      listed.join(" "),
+    );
+    return { robots: await robots.text(), sitemap: sitemapText, pages };
+  };
+  for (const [label, policy] of [
+    ["closed", { indexing: "closed" }],
+    ["api down", null],
+  ]) {
+    seoPolicy = policy;
+    const view = await crawlerView(label);
+    check(/^Disallow: \/$/m.test(view.robots), `${label}: robots.txt disallows everything`);
+    check(
+      !/allow: \/[a-z]/i.test(view.robots.replace(/Disallow/gi, "")),
+      `${label}: robots allows nothing`,
+    );
+    check(!/sitemap/i.test(view.robots), `${label}: robots.txt advertises no sitemap`);
+    check(!/<loc>/.test(view.sitemap), `${label}: sitemap lists nothing`);
+    for (const [path, page] of Object.entries(view.pages)) {
+      check(/noindex/.test(page.header), `${label} ${path}: noindex header`);
+      check(/noindex/.test(page.meta), `${label} ${path}: noindex meta`);
+    }
+  }
+  seoPolicy = { indexing: "public_pages" };
+  const open = await crawlerView("public pages");
+  check(/^Disallow: \/$/m.test(open.robots), "public pages: everything else stays disallowed");
+  for (const path of ["/responsible-use", "/terms", "/privacy"]) {
+    check(open.robots.includes(`Allow: ${path}`), `public pages: robots allows ${path}`);
+    check(
+      open.sitemap.includes(`<loc>${ORIGIN}${path}</loc>`),
+      `public pages: sitemap lists ${path}`,
+    );
+    check(!/noindex/.test(open.pages[path].header), `public pages ${path}: no noindex header`);
+    check(/^index/.test(open.pages[path].meta), `public pages ${path}: index meta`);
+  }
   check(
-    robots.status === 200 && /^Disallow: \/$/m.test(robotsText),
-    "robots.txt disallows everything",
+    open.robots.includes(`Sitemap: ${ORIGIN}/sitemap.xml`),
+    "public pages: robots names the sitemap",
   );
-  check(!/sitemap/i.test(robotsText), "robots.txt advertises no sitemap");
+  check(
+    (open.sitemap.match(/<loc>/g) ?? []).length === 3,
+    "public pages: sitemap has the 3 pages only",
+  );
+  // Another spelling of a policy page is never the indexable page.
+  for (const path of ["/Terms", "/PRIVACY"]) {
+    const response = await get(path);
+    check(
+      /noindex/.test(response.headers.get("x-robots-tag") ?? ""),
+      `public pages ${path}: noindex`,
+    );
+  }
+  // A catalogue page stays noindex and gated whatever the policy.
+  const catalogue = await get("/brands/orbe", { "user-agent": AGENTS.googlebot });
+  check(
+    /noindex/.test(catalogue.headers.get("x-robots-tag") ?? ""),
+    "public pages: catalogue still noindex",
+  );
+  seoPolicy = { indexing: "closed" };
   const image = await get("/opengraph-image");
   check(
     image.status === 200 && image.headers.get("content-type") === "image/png",
     "generic preview image is served",
     `${image.status} ${image.headers.get("content-type")}`,
   );
-  for (const path of ["/responsible-use", "/terms", "/privacy"]) {
-    const response = await get(path, { "user-agent": AGENTS.facebook });
-    const html = await response.text();
-    check(response.status === 200, `${path}: public`, String(response.status));
-    check(/noindex/.test(response.headers.get("x-robots-tag") ?? ""), `${path}: noindex`);
-    check(!FORBIDDEN.some((pattern) => pattern.test(html)), `${path}: no catalogue data`);
-  }
 } finally {
   stop();
 }

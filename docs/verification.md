@@ -1991,3 +1991,51 @@ Not covered:
 - Real touch input.
 - A production storage provider (BI-06).
 - Reports large enough to approach the 200,000-row limit.
+
+## Step 113 — SEO policy, issue report, public sitemap and the SEO screen (2026-10-16, local)
+
+`pnpm verify`: exit 0 (unit 634, age preview 2243). After the case fix, `pnpm test:age-preview` passed 2245, and storefront lint, typecheck and unit tests passed. `pnpm test:int`: exit 0 (627).
+
+`invariant-reviewer` found nothing material; it compiled the header pattern and tried the near-miss paths. One low note was fixed: a `/Terms`-style spelling now gets `noindex` from the proxy.
+
+**Storefront (`pnpm test:age-preview`, built storefront over HTTP with a stub API whose policy changes mid-run):**
+
+- **Closed, and with the policy API down:**
+  - robots disallows everything, allows nothing and names no sitemap.
+  - `/sitemap.xml` is public and lists nothing.
+  - The three policy pages have `noindex` in both the header and the meta tag.
+- **Public pages:**
+  - robots still disallows everything else, allows exactly the three pages and names the sitemap.
+  - The sitemap lists exactly those three, on our origin.
+  - Those pages have `index` meta and no `noindex` header.
+  - `/Terms` and `/PRIVACY` keep `noindex`.
+  - A catalogue page keeps `noindex`.
+  - No sitemap ever lists a catalogue address.
+
+**Unit:** the policy is closed on a failed fetch, a 500, an unknown value or an extra field; it is held for the configured time; only the three policy paths are ever indexable. The gate lets `/sitemap.xml` through but not `/sitemap.xml/x` or `/sitemap-products.xml`.
+
+**API (`apps/api/src/seo/admin-seo.int.test.ts`, real API + PostgreSQL, 3 tests):**
+
+- **Default:** the public answer is `closed` with `public, max-age=60`. The overview lists the features: generic previews, canonical addresses and redirects active; sitemap and the three product features inactive.
+- **Changing the policy:**
+  - Staff 403 and no session 401. An unknown value, an extra field or a missing version gets 400.
+  - The Owner opens it: version 1, the sitemap active, product indexing still inactive, and the public answer follows.
+  - A stale version gets 409 `VERSION_CONFLICT`; the same value again changes nothing.
+  - One audit entry and one event are written.
+  - The Settings screen does not list `seo`.
+- **Issue report:** Staff 403. It checks 3 published products, 1 brand and 1 category (a draft is skipped), and finds one title over 60 characters, a duplicate title across a product and a brand, and a category without SEO fields.
+
+**Browser (`scripts/browser-qa/seo.mjs`, 13 checks, all PASS):**
+
+- **Defaults:** closed by default; product indexing listed as inactive and not a switch; the issue report shows the seeded brand.
+- **Changing the policy:** dismissing changes nothing; accepting opens the public pages, shows the sitemap as active and is audited; closing again works.
+- **Layout:** fits 390px.
+- **Staff:** no link and no access.
+- **Errors:** no page errors.
+
+The first screenshots showed each radio button alone on its own line, then a 390px overflow. The fix was a dedicated choice style, a fieldset `min-width`, and an auto-width radio. `dashboard.mjs` and `reports.mjs` were re-run afterwards: all passed.
+
+Not covered:
+
+- A real crawler or search console.
+- Product indexing (BI-05; not built).

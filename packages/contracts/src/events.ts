@@ -71,6 +71,14 @@ export const EVENT_CATALOGUE = {
     consumers: [],
     plannedConsumers: {},
   }),
+  "seo.policy_updated": define({
+    schemaVersion: 1,
+    aggregateType: "setting",
+    payload: z.strictObject({ key: z.literal("seo") }),
+    // Step 113 (ADR 0079): nothing caches the policy, so no consumer is needed.
+    consumers: [],
+    plannedConsumers: {},
+  }),
   "settings.updated": define({
     schemaVersion: 1,
     aggregateType: "setting",

@@ -770,6 +770,8 @@ export const storefrontEnvSchema = baseEnvSchema
     STOREFRONT_ORIGINS: securityEnvFields.STOREFRONT_ORIGINS,
     /** How long an under-age answer keeps the device on the restricted page (BI-04). */
     AGE_RESTRICTED_MINUTES: z.coerce.number().int().min(1).max(1440).default(15),
+    /** How long the storefront holds the Owner's indexing policy (step 113). */
+    SEO_POLICY_CACHE_SECONDS: z.coerce.number().int().min(0).max(300).default(60),
   })
   .superRefine((value, ctx) => {
     ageSafety(value, ctx, "signer");

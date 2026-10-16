@@ -24,6 +24,8 @@ const PUBLIC_INFO_PATHS: readonly string[] = [
   "/terms",
   "/privacy",
   "/robots.txt",
+  // Policy pages only, and only while the Owner offers them; otherwise empty (step 113).
+  "/sitemap.xml",
   "/opengraph-image",
 ];
 const MAX_RETURN_LENGTH = 512;

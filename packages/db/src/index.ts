@@ -56,3 +56,4 @@ export * from "./analytics";
 export * from "./report-jobs";
 export * from "./report-csv";
 export * from "./report-files";
+export * from "./seo";

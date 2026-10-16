@@ -800,3 +800,45 @@ ul.dashboard-list {
   clip: rect(0 0 0 0);
   white-space: nowrap;
 }
+
+/* SEO feature states (step 113): text label plus colour, never colour alone */
+.seo-active,
+.seo-inactive {
+  display: inline-block;
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+.seo-active {
+  color: var(--ok);
+  background: var(--ok-soft);
+}
+.seo-inactive {
+  color: var(--ink-2);
+  background: var(--surface-2);
+}
+.seo-choices {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  /* A fieldset is as wide as its content by default; let the text wrap instead. */
+  min-width: 0;
+  display: grid;
+  gap: 12px;
+}
+.management-card label.seo-choice {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+.management-card label.seo-choice span {
+  flex: 1;
+  min-width: 0;
+}
+.management-card label.seo-choice input {
+  /* Form inputs are full width elsewhere; a radio is only as wide as itself. */
+  width: auto;
+  margin-top: 4px;
+  flex: none;
+}

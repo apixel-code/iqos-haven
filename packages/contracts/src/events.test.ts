@@ -19,6 +19,7 @@ describe("event catalogue", () => {
     expect(Object.keys(EVENT_CATALOGUE).sort()).toEqual(
       [
         "settings.updated",
+        "seo.policy_updated",
         "delivery.area_updated",
         "delivery.configuration_updated",
         "coupon.updated",
