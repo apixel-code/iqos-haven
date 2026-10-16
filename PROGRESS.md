@@ -5,7 +5,7 @@
 - Date: 2026-10-16
 - Milestone: M7 — transactional checkout and first complete order: all steps (73–82) done; gate evidence ready, awaiting Marina's decision. M6: all steps (65–72) done; gate evidence ready, awaiting Marina's decision. M5: PASSED 2026-10-11. M4 steps done, gate awaits Marina's decision (publishing unblocked); M3 gate not closed; M0 review and M1 staging/fixtures still open
 - Step: 117 (worker crash / Redis-loss recovery drill) — done. M11 in progress (115–117 done). **All M10 steps (103–114) done; gate evidence ready, awaiting Marina's decision.** All M9 steps (93–102) done; gate evidence ready, awaiting Marina's decision. All M8 steps (83–92) done, gate awaiting Marina's decision.
-- Branch: `step/117-recovery-drill` (based on #90; PR to open after push)
+- Branch: `step/117-recovery-drill` (pushed; PR #91 based on #90)
 - See docs/verification.md for actual checks.
 
 ## Next action
@@ -204,7 +204,7 @@ Tests: `pnpm verify` PASS (unit 634, age preview 2245). `pnpm test:int` PASS (64
 Unfinished:
 
 - **Marina:** the M10 gate (and M4, M6–M9); which parity gaps to build before launch.
-- PRs #61 → … → #90 are stacked, and step 117's PR comes next.
+- PRs #61 → … → #90 are stacked, step 117 is PR #91.
 
 ## History (summary)
 
