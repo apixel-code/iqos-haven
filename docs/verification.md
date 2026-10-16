@@ -1713,6 +1713,8 @@ During the fixes, a run failed once. The events test searched the stored rows, r
   - the route was tried at most twice;
   - no page errors.
 
+CI on the PR then failed in `pricing-acceptance.int.test.ts`. Its "no tax/vat/excise" check searched the whole quote, and the random quote token contained such letters. It now checks only the fields and text, with tokens and UUIDs left out. The same random-value risk was also removed from `admin-reviews.int.test.ts`, which now uses the displayed order number, not bare digits.
+
 Not covered:
 
 - Real phones and slow networks.

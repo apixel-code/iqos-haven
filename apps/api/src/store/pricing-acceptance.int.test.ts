@@ -378,7 +378,16 @@ describe("pricing and promotion acceptance through the real API and PostgreSQL",
     expect(again.lines).toEqual(first.lines);
     expect(again.quote.fingerprint).toBe(first.quote.fingerprint);
     // There is no tax anywhere in the answer: the entered price is the price (ADR 0036).
-    expect(JSON.stringify(first)).not.toMatch(/tax|vat|excise/i);
+    // Field names and text only: the signed quote token and IDs are random and can contain
+    // these letters by chance.
+    const fields = JSON.stringify(first, (key, value: unknown) =>
+      key === "token" ||
+      key === "fingerprint" ||
+      (typeof value === "string" && /^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(value))
+        ? undefined
+        : value,
+    );
+    expect(fields).not.toMatch(/tax|vat|excise/i);
     // Quantities over the cap are refused before any arithmetic, also when split over lines.
     for (const lines of [
       [{ variantId: grape, quantity: 11 }],
