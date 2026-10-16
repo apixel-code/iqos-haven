@@ -5,7 +5,7 @@
 - Date: 2026-10-16
 - Milestone: M7 — transactional checkout and first complete order: all steps (73–82) done; gate evidence ready, awaiting Marina's decision. M6: all steps (65–72) done; gate evidence ready, awaiting Marina's decision. M5: PASSED 2026-10-11. M4 steps done, gate awaits Marina's decision (publishing unblocked); M3 gate not closed; M0 review and M1 staging/fixtures still open
 - Step: 111 (five CSV generators and the streamed download) — done; next is 112 (private report storage, signed download, expiry cleanup, Reports UI). M10 in progress (103–111 done). All M9 steps (93–102) done; gate evidence ready, awaiting Marina's decision. All M8 steps (83–92) done, gate awaiting Marina's decision.
-- Branch: `step/111-csv-generators` (based on #84; PR to open after push)
+- Branch: `step/111-csv-generators` (pushed; PR #85 based on #84)
 - See docs/verification.md for actual checks.
 
 ## Next action
@@ -186,7 +186,7 @@ Tests: `pnpm verify` PASS (unit 628, age preview 2194). `pnpm test:int` PASS (61
 
 Unfinished:
 
-- PRs #61 → … → #84 are stacked and wait for Marina's merge, and step 111's PR comes next. M4, M6–M9 gates await her decision. BI-14 open (not blocking).
+- PRs #61 → … → #84 are stacked and wait for Marina's merge, step 111 is PR #85. M4, M6–M9 gates await her decision. BI-14 open (not blocking).
 - Disk headroom is low (11 GB): Docker has stopped before at about 5.5 GB.
 
 ## History (summary)
