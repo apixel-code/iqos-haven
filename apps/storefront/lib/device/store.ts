@@ -1,6 +1,7 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
+import { track } from "@/lib/telemetry/client";
 import {
   EMPTY_LISTS,
   LISTS_STORAGE_KEY,
@@ -60,9 +61,16 @@ export function useDeviceLists(): DeviceLists {
   return useSyncExternalStore(subscribe, read, () => EMPTY_LISTS);
 }
 
+/**
+ * The saved list itself stays on this device; only an anonymous add or remove is reported
+ * (step 104), so the shop can count interest in a product, never whose list it is.
+ */
 export function toggleSavedProduct(slug: string) {
+  const wasSaved = read().saved.includes(slug);
   const result = toggleSaved(read(), slug);
   write(result.lists);
+  if (result.saved) track({ type: "wishlist_add", productSlug: slug });
+  else if (wasSaved) track({ type: "wishlist_remove", productSlug: slug });
   return result;
 }
 export function toggleCompareProduct(slug: string) {
@@ -71,7 +79,10 @@ export function toggleCompareProduct(slug: string) {
   return result;
 }
 export const recordProductView = (slug: string) => write(recordView(read(), slug));
-export const removeFromList = (list: "saved" | "compare" | "recent", slug: string) =>
+export function removeFromList(list: "saved" | "compare" | "recent", slug: string) {
+  const wasSaved = list === "saved" && read().saved.includes(slug);
   write(removeFrom(read(), list, slug));
+  if (wasSaved) track({ type: "wishlist_remove", productSlug: slug });
+}
 export const applyRenames = (renames: ReadonlyMap<string, string>) =>
   write(renameIn(read(), renames));

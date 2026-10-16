@@ -1,6 +1,7 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
+import { track } from "@/lib/telemetry/client";
 import {
   addLine,
   CART_STORAGE_KEY,
@@ -62,15 +63,27 @@ export function useCart(): Cart {
   return useSyncExternalStore(subscribe, read, () => EMPTY_CART);
 }
 
+const quantityOf = (cart: Cart, variantId: string) =>
+  cart.lines.find((line) => line.variantId === variantId)?.quantity ?? 0;
+/** Anonymous cart events (step 104): how many units really went in or out. */
+function trackChange(variantId: string, before: number, after: number) {
+  if (after > before) track({ type: "cart_add", variantId, quantity: after - before });
+  else if (after < before) track({ type: "cart_remove", variantId, quantity: before - after });
+}
+
 export function addToCart(line: Omit<CartLine, "quantity">, quantity: number): AddResult {
+  const before = quantityOf(read(), line.variantId);
   const result = addLine(read(), line, quantity);
   if (result.cart !== cached.cart) write(result.cart);
+  trackChange(line.variantId, before, result.quantity);
   return result;
 }
 
 export function setCartQuantity(variantId: string, quantity: number): void {
+  const before = quantityOf(read(), variantId);
   const next = setLineQuantity(read(), variantId, quantity);
   if (next !== cached.cart) write(next);
+  trackChange(variantId, before, quantityOf(next, variantId));
 }
 
 /** Empties the cart. Called only after the API has acknowledged the order made from it. */
@@ -79,6 +92,8 @@ export function clearCart(): void {
 }
 
 export function removeFromCart(variantId: string): void {
+  const before = quantityOf(read(), variantId);
   const next = removeLine(read(), variantId);
   if (next !== cached.cart) write(next);
+  trackChange(variantId, before, 0);
 }
