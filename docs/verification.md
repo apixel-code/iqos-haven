@@ -2099,3 +2099,22 @@ Not covered, and decided by Marina or by business input:
 - **Not exercised here:** a production storage provider (BI-06), real crawlers and preview platforms (staging), dark-theme screenshots, real touch input, very large data volumes.
 
 Do not mark M10 passed without Marina's decision.
+
+## Step 115 — full prototype parity review (2026-10-16, local)
+
+Review: `docs/parity-review.md`. It covers the 19 areas and the shared states, with 26 gaps registered, each with evidence, a tier and a size.
+
+- **Method:** two read-only code inventories (storefront and admin) against the prototype symbols in `docs/prototype-map.md`. The main claims were then checked by hand:
+  - `ProductGridSkeleton` is unused.
+  - There are no mobile sheets (ADR 0033 "Not built here").
+  - The Notifications section had no screen.
+  - The orders list reads no URL filters.
+  - Manual order lines take a typed variant ID.
+  - The requirements said "Dubai only".
+- **Fixed in this step:**
+  - The admin Notifications inbox page. The browser pass `dashboard.mjs` (now 20 checks, all PASS) checks that it is not the placeholder and that it fits 390px.
+  - The requirements wording.
+
+`pnpm verify`: exit 0 (unit 634, age preview 2245).
+
+Not covered: the prototype's own behaviour was not run; the comparison is symbol by symbol. Real devices are step 120.

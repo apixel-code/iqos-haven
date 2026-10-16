@@ -15,6 +15,7 @@ import { OrderManagement } from "./order-management";
 import { AnalyticsManagement } from "./analytics-management";
 import { ReportManagement } from "./report-management";
 import { SeoManagement } from "./seo-management";
+import { NotificationInbox } from "./notification-inbox";
 import { sections } from "../lib/navigation";
 export function WorkspaceSection({ sectionKey }: { sectionKey: string }) {
   const session = useSession();
@@ -43,6 +44,8 @@ export function WorkspaceSection({ sectionKey }: { sectionKey: string }) {
           canCorrect={session.permissions.includes("orders.collection_correct")}
           canCreate={session.permissions.includes("orders.create")}
         />
+      ) : sectionKey === "notifications" ? (
+        <NotificationInbox />
       ) : sectionKey === "seo" ? (
         <SeoManagement canReport={session.permissions.includes("seo.reports")} />
       ) : sectionKey === "reports" ? (

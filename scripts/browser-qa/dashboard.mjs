@@ -128,6 +128,15 @@ try {
   await page.getByText("Today’s orders").waitFor();
   check("home fits 390px without sideways scrolling", await noSideScroll(page));
   await page.screenshot({ path: out + "dashboard-390.png", fullPage: true });
+  // The Notifications nav item opens the inbox, not a placeholder (step 115).
+  await page.goto(BASE + "/workspace/notifications");
+  await page
+    .getByText(/No notifications yet|Mark read|unread/)
+    .first()
+    .waitFor();
+  const inbox = await page.locator("main").innerText();
+  check("Notifications opens the inbox", !/being prepared/.test(inbox), inbox.slice(0, 200));
+  check("the inbox fits 390px without sideways scrolling", await noSideScroll(page));
   check("no page errors for the Owner", owner.errors.length === 0, owner.errors.join("; "));
 
   const staff = await session("staff.qa@iqoshaven.test");
