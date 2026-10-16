@@ -15,3 +15,4 @@ export * from "./pricing";
 export * from "./coupon";
 export * from "./whatsapp-templates";
 export * from "./metrics";
+export * from "./reports";

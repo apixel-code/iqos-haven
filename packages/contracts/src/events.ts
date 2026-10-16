@@ -259,6 +259,9 @@ export const EVENT_CATALOGUE = {
     schemaVersion: 1,
     aggregateType: "report_job",
     payload: z.strictObject({ reportJobId: id }),
+    // Written from step 110 for every `file` report job (ADR 0076). report_builder arrives in
+    // step 112; its backfill decision: jobs still queued then are picked up from `report_jobs`
+    // (the table, not these events, is the queue of record).
     consumers: [],
     plannedConsumers: { report_builder: 112 },
   }),

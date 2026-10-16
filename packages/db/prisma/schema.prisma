@@ -169,6 +169,7 @@ model StaffUser {
   invitationsSent     StaffInvitationToken[] @relation("Inviter")
   reviewProofsIssued ReviewProof[]
   reviewsModerated   Review[]
+  reportJobs         ReportJob[]
   contentDrafts      ContentSection[] @relation("ContentDraftUpdater")
   contentPublished   ContentSection[] @relation("ContentPublisher")
 
@@ -970,4 +971,32 @@ model WishlistDaily {
 
   @@id([day, productId], map: "wishlist_daily_key")
   @@map("wishlist_daily")
+}
+
+/// Report export requests (step 110, ADR 0076). Never deleted; request fields immutable (trigger).
+model ReportJob {
+  id                  String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  type                String    @db.VarChar(16)
+  params              Json
+  delivery            String    @db.VarChar(8)
+  status              String    @db.VarChar(16)
+  requestedBy         String    @map("requested_by") @db.Uuid
+  requester           StaffUser @relation(fields: [requestedBy], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  requiredPermissions String[]  @map("required_permissions")
+  commandId           String    @map("command_id") @db.Uuid
+  estimatedRows       Int       @map("estimated_rows")
+  artifactKey         String?   @map("artifact_key") @db.VarChar(300)
+  rowCount            Int?      @map("row_count")
+  byteSize            BigInt?   @map("byte_size")
+  errorCode           String?   @map("error_code") @db.VarChar(64)
+  attempts            Int       @default(0)
+  createdAt           DateTime  @default(dbgenerated("statement_timestamp()")) @map("created_at") @db.Timestamptz(6)
+  startedAt           DateTime? @map("started_at") @db.Timestamptz(6)
+  completedAt         DateTime? @map("completed_at") @db.Timestamptz(6)
+  expiresAt           DateTime? @map("expires_at") @db.Timestamptz(6)
+  version             Int       @default(1)
+
+  @@unique([requestedBy, commandId], map: "report_jobs_command")
+  @@index([requestedBy, createdAt(sort: Desc), id(sort: Desc)], map: "report_jobs_requester")
+  @@map("report_jobs")
 }

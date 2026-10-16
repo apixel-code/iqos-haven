@@ -1876,3 +1876,29 @@ Not covered:
 - Dark-theme screenshots.
 - Real touch input.
 - Ranges with heavy data.
+
+## Step 110 — report jobs: request and status (2026-10-16, local)
+
+`pnpm verify`: exit 0 (unit 624, age preview 2194). `pnpm test:int`: exit 0 (613). After the final trigger change, api lint, typecheck and format check were run again and passed. `invariant-reviewer` found nothing material; both of its notes were applied.
+
+**API (`apps/api/src/reports/admin-reports.int.test.ts`, real API + PostgreSQL, 5 tests):**
+
+- **Refusals:** no session 401; Staff 403 on request and list. Each of these is a 400, and none of them creates a job: an unknown type, an unknown basis, an impossible date, a range over a year, a range ending after today, a range on inventory, an extra field, a missing command ID.
+- **Stream and replay:**
+  - A 7-day sales report becomes a `stream` job: `ready`, available, estimate 7, expiring 15 minutes after creation, `private, no-store`.
+  - The same command again returns 200 with the same job. The command reused for another report gets 409 `IDEMPOTENCY_CONFLICT`, and still only one row exists.
+  - There is one `report.requested` audit entry by the Owner, and no event for a stream.
+- **Estimates and permissions:**
+  - The orders estimate counts order lines (2).
+  - A role with `reports.export` but no `customers.export` gets 403 for customers and 201 for sales.
+  - The Owner's customers job stores both required rights.
+- **File jobs and immutability:**
+  - With the stream limit lowered, inventory becomes a `file` job, `queued`, not available, with exactly one `report.requested` event.
+  - Changing the type or the requester is refused.
+  - Once completed, its file key cannot change and it cannot go back to queued.
+- **Own jobs only:**
+  - Each requester lists only their own jobs, newest first.
+  - Another person's job ID, or an unknown one, answers 404; a malformed ID answers 400.
+  - Without `reports.read`, both the list and the status answer 403.
+
+Not covered here: generating and downloading (steps 111–112). The UI arrives in step 112.

@@ -13,6 +13,7 @@ import { CouponsModule } from "./coupons/coupons.module";
 import { OrdersModule } from "./orders/orders.module";
 import { CustomersModule } from "./customers/customers.module";
 import { DashboardModule } from "./dashboard/dashboard.module";
+import { ReportsModule } from "./reports/reports.module";
 import { NotificationsModule } from "./notifications/notifications.module";
 import { CatalogueCacheModule } from "./cache/catalogue-cache.module";
 import { CatalogueModule } from "./catalogue/catalogue.module";
@@ -61,6 +62,7 @@ export class AppModule {
         OrdersModule,
         CustomersModule,
         DashboardModule,
+        ReportsModule,
         NotificationsModule,
         CatalogueModule,
         InventoryModule,
