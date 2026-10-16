@@ -491,6 +491,7 @@ async function main() {
         log,
         handlers: [
           notifications.createNotificationConsumer({ log }),
+          dist("analytics-rollup").createAnalyticsRollupConsumer({ log }),
           createEmailConsumer({
             from: "no-reply@iqoshaven.local",
             planners: {

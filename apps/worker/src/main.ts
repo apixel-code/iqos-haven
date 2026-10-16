@@ -19,6 +19,7 @@ import { EffectReconciler } from "./reconciler";
 import { OutboxRelay } from "./relay";
 import { createConfirmationCleanupJob, createIdempotencyCleanupJob } from "./idempotency";
 import { createNotificationConsumer, newOrderEmailPlanner } from "./order-notifications";
+import { createAnalyticsRollupConsumer } from "./analytics-rollup";
 import { lowStockEmailPlanner } from "./low-stock-notifications";
 import { createBrowsingEventsCleanupJob } from "./browsing-events";
 import { createDailySummaryJob } from "./daily-summary";
@@ -71,6 +72,7 @@ async function main(): Promise<void> {
       mediaConsumer,
       revalidateConsumer,
       createNotificationConsumer({ log }),
+      createAnalyticsRollupConsumer({ log }),
     ],
     retries: enqueuer,
   });

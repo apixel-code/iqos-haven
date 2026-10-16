@@ -130,9 +130,13 @@ describe("new-order notification and email (real PostgreSQL)", () => {
     await pool.end();
   });
 
-  it("requires both consumers for every new order event", async () => {
+  it("requires the inbox, the email and the analytics for every new order event", async () => {
     const { effects } = await placed();
-    expect(effects.map((effect) => effect.consumer).sort()).toEqual(["email", "notification"]);
+    expect(effects.map((effect) => effect.consumer).sort()).toEqual([
+      "analytics_rollup",
+      "email",
+      "notification",
+    ]);
   });
 
   it("writes one notification and one receipt per eligible user, once", async () => {
