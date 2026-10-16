@@ -5,7 +5,7 @@
 - Date: 2026-10-16
 - Milestone: M7 — transactional checkout and first complete order: all steps (73–82) done; gate evidence ready, awaiting Marina's decision. M6: all steps (65–72) done; gate evidence ready, awaiting Marina's decision. M5: PASSED 2026-10-11. M4 steps done, gate awaits Marina's decision (publishing unblocked); M3 gate not closed; M0 review and M1 staging/fixtures still open
 - Step: 109 (Owner analytics: sales, products, brands, search, saved lists) — done; next is 110 (report-job schema and request/status service). M10 in progress (103–109 done). All M9 steps (93–102) done; gate evidence ready, awaiting Marina's decision. All M8 steps (83–92) done, gate awaiting Marina's decision.
-- Branch: `step/109-owner-analytics` (based on #82; PR to open after push)
+- Branch: `step/109-owner-analytics` (pushed; PR #83 based on #82)
 - See docs/verification.md for actual checks.
 
 ## Next action
@@ -182,7 +182,7 @@ Tests: `pnpm verify` PASS (unit 624, age preview 2194). `pnpm test:int` PASS (60
 
 Unfinished:
 
-- PRs #61 → … → #82 are stacked and wait for Marina's merge, and step 109's PR comes next. M4, M6–M9 gates await her decision. BI-14 (delay limits) is open but not blocking.
+- PRs #61 → … → #82 are stacked and wait for Marina's merge, step 109 is PR #83. M4, M6–M9 gates await her decision. BI-14 (delay limits) is open but not blocking.
 
 ## History (summary)
 
