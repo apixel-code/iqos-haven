@@ -60,4 +60,26 @@ describe("log privacy", () => {
     expect(() => createLogger({ service: "test" }, sink).info(circular, "cycle")).not.toThrow();
     expect(output).toContain("[truncated]");
   });
+
+  it("never writes a redirect's signed link (report downloads, step 112)", () => {
+    let output = "";
+    const sink = new Writable({
+      write(chunk, _encoding, done) {
+        output += String(chunk);
+        done();
+      },
+    });
+    const log = createLogger({ service: "test" }, sink);
+    log.info(
+      {
+        res: {
+          statusCode: 303,
+          headers: { location: "http://storage/ih-reports/r.csv?X-Amz-Signature=SIGNED_SECRET" },
+        },
+      },
+      "request completed",
+    );
+    expect(output).toContain("303");
+    expect(output).not.toContain("SIGNED_SECRET");
+  });
 });

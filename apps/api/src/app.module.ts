@@ -45,6 +45,9 @@ export class AppModule {
             },
             serializers: {
               req: (req: { id: string; method: string }) => ({ id: req.id, method: req.method }),
+              // Status only: response headers can carry credentials (a report's signed
+              // `Location`, step 112; cookies).
+              res: (res: { statusCode: number }) => ({ statusCode: res.statusCode }),
             },
             autoLogging: {
               ignore: (req) => /^\/v1\/health\/(live|ready)(?:\?|$)/.test(req.url ?? ""),

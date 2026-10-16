@@ -21,6 +21,7 @@ import {
 } from "@ih/contracts";
 import {
   downloadStreamedReport,
+  issueReportFileDownload,
   listReportJobs,
   readReportJob,
   ReportConflictError,
@@ -31,12 +32,13 @@ import {
   requestReport,
   type Database,
 } from "@ih/db";
-import { MetricRangeError } from "@ih/domain";
+import { MetricRangeError, REPORT_FILE_LINK_SECONDS } from "@ih/domain";
+import type { ObjectStorage } from "@ih/platform";
 import type { FastifyReply } from "fastify";
 import { RequirePermission, type AuthenticatedRequest } from "../auth/access";
 import { NoResponseBody, Serialize } from "../auth/serialize";
 import { createZodDto } from "../http/zod-validation.pipe";
-import { DATABASE } from "../infra/tokens";
+import { DATABASE, OBJECT_STORAGE } from "../infra/tokens";
 
 class RequestDto extends createZodDto(reportRequestSchema) {}
 class ParamsDto extends createZodDto(reportJobParamsSchema) {
@@ -70,7 +72,10 @@ const privateAnswer = (reply: FastifyReply) =>
  */
 @Controller({ path: "admin/reports", version: "1" })
 export class AdminReportsController {
-  constructor(@Inject(DATABASE) private readonly db: Database) {}
+  constructor(
+    @Inject(DATABASE) private readonly db: Database,
+    @Inject(OBJECT_STORAGE) private readonly storage: ObjectStorage,
+  ) {}
 
   @Post()
   @RequirePermission("reports.export")
@@ -116,9 +121,10 @@ export class AdminReportsController {
   }
 
   /**
-   * `GET /v1/admin/reports/:id/download` (step 111, ADR 0077): a streamed report as CSV. The
-   * database read re-checks the requester, the job's required rights and its expiry, and
-   * audits the download before a byte is sent. Never cached.
+   * `GET /v1/admin/reports/:id/download` (steps 111–112, ADRs 0077–0078). The database read
+   * re-checks the requester, the job's required rights and its expiry, and audits the download
+   * before anything leaves. A streamed report is sent as CSV; a built file answers 303 to a
+   * signed link of the private bucket that lasts five minutes. Never cached.
    */
   @Get(":id/download")
   @RequirePermission("reports.export")
@@ -128,13 +134,23 @@ export class AdminReportsController {
     @Req() request: AuthenticatedRequest,
     @Res() reply: FastifyReply,
   ) {
-    const file = await run(() =>
-      downloadStreamedReport(
-        this.db,
-        { requestId: request.id, actorId: request.staff!.userId },
-        params.id,
-      ),
-    );
+    const context = { requestId: request.id, actorId: request.staff!.userId };
+    const job = await run(() => readReportJob(this.db, context.actorId, params.id));
+    if (job.delivery === "file") {
+      const file = await run(() => issueReportFileDownload(this.db, context, params.id));
+      const url = await this.storage.presignDownload("reports", file.key, {
+        expiresInSeconds: REPORT_FILE_LINK_SECONDS,
+        downloadName: file.fileName,
+      });
+      await reply
+        .status(303)
+        .header("Location", url)
+        .header("Cache-Control", "private, no-store")
+        .header("Referrer-Policy", "no-referrer")
+        .send();
+      return;
+    }
+    const file = await run(() => downloadStreamedReport(this.db, context, params.id));
     await reply
       .status(200)
       .header("Content-Type", "text/csv; charset=utf-8")

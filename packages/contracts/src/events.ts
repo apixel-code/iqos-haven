@@ -259,11 +259,11 @@ export const EVENT_CATALOGUE = {
     schemaVersion: 1,
     aggregateType: "report_job",
     payload: z.strictObject({ reportJobId: id }),
-    // Written from step 110 for every `file` report job (ADR 0076). report_builder arrives in
-    // step 112; its backfill decision: jobs still queued then are picked up from `report_jobs`
-    // (the table, not these events, is the queue of record).
-    consumers: [],
-    plannedConsumers: { report_builder: 112 },
+    // report_builder: step 112 (ADR 0078). Backfill: events written in step 110 kept no consumer;
+    // no deployment ran that step, and the upkeep job fails any file job left queued (the table,
+    // not these events, is the queue of record).
+    consumers: ["report_builder"],
+    plannedConsumers: {},
   }),
   "report.daily_summary": define({
     schemaVersion: 1,

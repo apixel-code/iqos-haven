@@ -13,6 +13,7 @@ import { ReviewManagement } from "./review-management";
 import { ContentManagement } from "./content-management";
 import { OrderManagement } from "./order-management";
 import { AnalyticsManagement } from "./analytics-management";
+import { ReportManagement } from "./report-management";
 import { sections } from "../lib/navigation";
 export function WorkspaceSection({ sectionKey }: { sectionKey: string }) {
   const session = useSession();
@@ -40,6 +41,11 @@ export function WorkspaceSection({ sectionKey }: { sectionKey: string }) {
           canCollect={session.permissions.includes("orders.collect")}
           canCorrect={session.permissions.includes("orders.collection_correct")}
           canCreate={session.permissions.includes("orders.create")}
+        />
+      ) : sectionKey === "reports" ? (
+        <ReportManagement
+          canExport={session.permissions.includes("reports.export")}
+          canExportCustomers={session.permissions.includes("customers.export")}
         />
       ) : sectionKey === "analytics" ? (
         <AnalyticsManagement />

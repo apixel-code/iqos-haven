@@ -1943,3 +1943,51 @@ Not covered here: generating and downloading (steps 111–112). The UI arrives i
 - **`admin-reports.int.test.ts`:** the orders report now also needs `customers.export`.
 
 Not covered: built files, signed links and expiry cleanup (step 112); opening the files in a real spreadsheet program.
+
+## Step 112 — report files, signed downloads, expiry and the Reports screen (2026-10-16, local)
+
+`pnpm verify`: exit 0 (unit 629, age preview 2194). `pnpm test:int`: exit 0 (624).
+
+`invariant-reviewer` found two real issues, both fixed and tested:
+
+- The signed `Location` would have been written to the API access log. The response log now keeps only the status code, and the logger redacts `Location`; a unit test checks that a signed link never reaches the output.
+- A file could outlive a failed job. The worker tests now cover a file from an earlier attempt, a stale job's file, and a job failed during its upload (a storage wrapper fails the job mid-upload); none leaves an object behind.
+
+**Worker (`apps/worker/src/reports.int.test.ts`, real PostgreSQL and MinIO, 4 tests):**
+
+- **Build once:** an inventory file job is built once: completed, 2 rows, attempts 1, kept 7 days. The object starts with the UTF-8 byte-order mark, has 3 lines and matches the recorded size. A redelivery is a duplicate.
+- **Lost right:** a requester who lost `customers.export` gets `failed`/`REQUESTER_FORBIDDEN`, and no object remains, including one stored earlier.
+- **Upkeep:**
+  - An expired stream becomes `expired`.
+  - A dead build becomes `failed`/`BUILD_NOT_FINISHED`, and its object is removed.
+  - A completed file past 7 days is deleted from storage and the job marked `expired`; the record and its key stay.
+  - A second run changes nothing.
+- **Race:** a job failed during its upload ends with no object.
+
+**API (`apps/api/src/reports/report-files.int.test.ts`, real API, PostgreSQL and MinIO, 2 tests):**
+
+- **Download:**
+  - The requester gets 303 with `no-store` and `no-referrer`.
+  - The `Location` is a link into the reports bucket with `X-Amz-Expires=300` and an attachment file name.
+  - The link downloads the CSV on its own; the same object without a signature is 403.
+  - One audit entry is written.
+- **Refusals:** another person's job is 404. Lost rights are 403 with no `Location`. Expired and still-queued jobs are 409. None of them writes an audit entry.
+
+**Browser (`scripts/browser-qa/reports.mjs`, headless Chromium through the gateway, 14 checks, all PASS):**
+
+- **Sales:** ready at once, and downloads with a named file and the byte-order mark.
+- **Customers:** asks first; dismissing sends nothing, and accepting downloads the file.
+- **File job:** queued in the database, built by the qa-server worker; the screen notices it by itself, and it downloads through its signed link.
+- **Audit:** the downloads are audited.
+- **Layout:** fits 390px without sideways scrolling.
+- **Staff:** no Reports link, "Access unavailable", and 403 for the Owner's file by its ID.
+- **Both roles:** no page errors.
+
+The first run caught a 390px overflow: a visually hidden table header was positioned outside the scroll box. The fix (`.order-table-wrap` `position: relative`; `.dashboard` columns `minmax(0, 1fr)`) applies to every admin table. `dashboard.mjs` was re-run afterwards: 18/18.
+
+Not covered:
+
+- Dark-theme screenshots.
+- Real touch input.
+- A production storage provider (BI-06).
+- Reports large enough to approach the 200,000-row limit.

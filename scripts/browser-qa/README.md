@@ -140,3 +140,25 @@ The script seeds two orders and two searches, then rolls up today.
 - **Both roles:** no page errors.
 
 The script can run again on the same schema.
+
+## Reports screen (steps 110–112)
+
+With `qa-server.cjs` (its worker loop also runs `report_builder`) and the admin running as above:
+
+```sh
+QA_PLAYWRIGHT_DIR=/tmp/ih-qa node scripts/browser-qa/reports.mjs <SCHEMA>
+```
+
+The pass covers:
+
+- **Streamed reports:** the Owner requests a sales report, which is ready at once and downloads with a named file and a UTF-8 marker.
+- **Customer data:** the customers report asks first; dismissing the question sends nothing, and accepting it downloads the file.
+- **Built files:**
+  - A file job, queued directly in the database, is built by the worker.
+  - The screen notices it by itself.
+  - The file downloads through its signed storage link.
+- **Audit:** every download is audited.
+- **Layout:** the page fits 390px without sideways scrolling.
+- **Staff:** no Reports link, no access to the screen, and 403 for the Owner's file by its ID.
+
+The pass can run again on the same schema.

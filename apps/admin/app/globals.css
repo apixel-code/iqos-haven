@@ -309,6 +309,8 @@ h2 {
   gap: 14px;
 }
 .order-table-wrap {
+  /* Contains absolutely positioned content (e.g. .sr-only headers) inside its scroll box. */
+  position: relative;
   overflow-x: auto;
   border: 1px solid var(--line);
   border-radius: 9px;
@@ -621,6 +623,7 @@ h2 {
 /* Operational home (step 108) */
 .dashboard {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 16px;
 }
 .attention {
@@ -786,4 +789,14 @@ ul.dashboard-list {
 }
 .chart-missing {
   fill: var(--ink-4);
+}
+
+/* Visually hidden, still read by screen readers (step 112) */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
 }

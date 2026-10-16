@@ -27,6 +27,7 @@ import {
 import { lowStockEmailPlanner } from "./low-stock-notifications";
 import { createBrowsingEventsCleanupJob } from "./browsing-events";
 import { createDailySummaryJob, dailySummaryEmailPlanner } from "./daily-summary";
+import { createReportBuilderConsumer, createReportUpkeepJob } from "./reports";
 import { Scheduler } from "./scheduler";
 import { startWorker, type WorkerRuntime } from "./runtime";
 const SHUTDOWN_TIMEOUT_MS = 20000;
@@ -78,6 +79,7 @@ async function main(): Promise<void> {
       revalidateConsumer,
       createNotificationConsumer({ log }),
       createAnalyticsRollupConsumer({ log }),
+      createReportBuilderConsumer({ db: database, storage, log }),
     ],
     retries: enqueuer,
   });
@@ -96,6 +98,7 @@ async function main(): Promise<void> {
       createBrowsingEventsCleanupJob({ db: database, log }),
       createTodayRollupJob({ db: database, log }),
       createLateEditRollupJob({ db: database, log }),
+      createReportUpkeepJob({ db: database, storage, log }),
     ],
   });
   let effectWorkers: { stop(): Promise<void> } | undefined;

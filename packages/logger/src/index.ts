@@ -33,6 +33,9 @@ export const REDACT_PATHS = [
   "req.headers.cookie",
   "req.headers.authorization",
   'res.headers["set-cookie"]',
+  // A redirect to a signed storage link (report downloads, step 112) is a bearer credential.
+  "res.headers.location",
+  'res.headers["location"]',
 ];
 
 /** Error text/stack may contain SQL, provider responses, credentials or PII. */

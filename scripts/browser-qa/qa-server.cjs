@@ -80,6 +80,7 @@ async function main() {
   sharp.concurrency(1);
   const { createMediaConsumer } = worker(root + "/apps/worker/dist/media.js");
   const { createRevalidateConsumer } = worker(root + "/apps/worker/dist/revalidate.js");
+  const { createReportBuilderConsumer } = worker(root + "/apps/worker/dist/reports.js");
   const { EffectRunner } = worker(root + "/apps/worker/dist/effects.js");
   const log = createLogger({ service: "qa-worker", level: "warn" });
   const storage = new ObjectStorage(storageConfigFromEnv(env));
@@ -93,6 +94,7 @@ async function main() {
         target: { apiUrl: "http://127.0.0.1:4000", key: workerKey },
         log,
       }),
+      createReportBuilderConsumer({ db, storage, log }),
     ],
   });
   let stopping = false;
@@ -100,7 +102,7 @@ async function main() {
     while (!stopping) {
       const effects = await db.consumerEffect.findMany({
         where: {
-          consumer: { in: ["media_processor", "storefront_revalidate"] },
+          consumer: { in: ["media_processor", "storefront_revalidate", "report_builder"] },
           status: { in: ["pending", "queued", "retry"] },
         },
         take: 20,

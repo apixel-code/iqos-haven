@@ -29,3 +29,10 @@ export function reportPermissions(type: ReportType): PermissionKey[] {
     ? ["reports.export", "customers.export"]
     : ["reports.export"];
 }
+
+/** A built file stops beyond this many data rows (memory bound for one worker job). */
+export const REPORT_FILE_MAX_ROWS = 200_000;
+/** A signed file link is good for this long (at most the 15-minute report limit). */
+export const REPORT_FILE_LINK_SECONDS = 5 * 60;
+/** A file job still queued or running after this long is marked failed. */
+export const REPORT_BUILD_STALE_HOURS = 6;
