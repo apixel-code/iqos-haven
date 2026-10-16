@@ -1719,3 +1719,45 @@ Not covered:
 
 - Real phones and slow networks.
 - Rollups (step 106).
+
+## Step 105 — financial metric definitions and summary query (2026-10-16, local)
+
+`pnpm verify -- --integration`: exit 0. Unit 614, integration 590, age preview 2194, gate 2434.
+
+The first full run failed in the new suite, though it had passed on its own. The test sent the collection correction time from the test machine's clock, and the database (Docker) refused it as before delivery or in the future. The test now uses the database's own delivery time and passed three runs in a row.
+
+`invariant-reviewer` found no blocking issues.
+
+- **Fixed:** the permission check moved inside the snapshot, and the range bounds are cast to `timestamptz`.
+- **Added:** a Dubai-midnight boundary test.
+- **Recorded:** the collected cash amount versus the order total (ADR 0071).
+
+**Unit (`packages/domain/src/metrics.test.ts`):**
+
+- **Day bounds:** one Dubai day is 20:00 UTC to 20:00 UTC, and a leap year has 366 days.
+- **Refused ranges:** an impossible date, a reversed range, a non-padded date, and a range over a year.
+- **AOV:** half-up to the fil (8166.67 → 8167, 500.5 → 501), none for no orders, and out of range refused.
+- **Rates:** basis points rounded half-up.
+
+**Integration (`packages/db/src/financial-metrics.int.test.ts`, real PostgreSQL, 4 tests).** The four orders were made with the real commands:
+
+- **A:** pending.
+- **B:** delivered.
+- **C:** delivered, collected at 6500, then corrected to 6000.
+- **D:** cancelled.
+
+Results:
+
+- **Booked:** 3 active orders, merchandise net 20,000, delivery 4,500, total 24,500, AOV 8,167. Cancelled: 1 order, total 16,500.
+- **Delivered:** 2 orders, total 18,000, AOV 9,000.
+- **Collected:** 1 order, 6,000. The correction replaced the first record; it was not added to it.
+- **Cancellation rate:** 2,500 bps.
+- **Status mix:** correct, and every basis is labelled by its Dubai date basis, with the tax note.
+- **Other days:** a range of earlier days counts nothing, and has no average or rate.
+- **Dubai midnight:** an order at 19:59:59.999Z counts on the earlier Dubai day, one at 20:00:00Z on the next.
+- **Access and ranges:** Staff are refused, and so are impossible ranges.
+
+Not covered:
+
+- A route or UI: the dashboards are step 109, the reports step 111.
+- Daily tables for long ranges (step 106).
