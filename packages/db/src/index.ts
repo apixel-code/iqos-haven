@@ -47,3 +47,4 @@ export * from "./customer-admin";
 export * from "./reviews";
 export * from "./content";
 export * from "./store-content";
+export * from "./browsing-events";

@@ -1635,3 +1635,43 @@ Not covered:
 - Two real API replicas: the cross-replica path is the worker effect, which has its own tests.
 - Real phones and WhatsApp's in-app browser.
 - BI-09 and BI-13 wording and scope.
+
+## Step 103 — anonymous browsing events (2026-10-16, local)
+
+`pnpm verify -- --integration`: exit 0 after the review fixes. Unit 601, integration 586, age preview 2194, gate 2434.
+
+The first run failed in `admin-customers.int.test.ts`: its `beforeAll` timed out after 10 s under parallel load, before any of its tests ran. This is the known parallel-load flake, not caused by this change, and the rerun passed.
+
+`invariant-reviewer` found no high-severity issues.
+
+- **Medium, fixed:**
+  - Arabic-Indic digits now count as digits (NFKC).
+  - Search terms over 40 characters or 4 words are stored as `null`.
+  - Search rows carry no anonymous ID.
+- **Low, fixed:**
+  - A slug lookup prefers the current slug over a former one.
+  - At most 2 batches are written at once, with a 2-second statement timeout.
+  - The runtime role cannot update or truncate `events`.
+  - The cleanup job warns when it leaves a backlog.
+- **Recorded in ADR 0069:** a chunked body is bounded by the global 32 KB limit; the address header comes from the gateway (existing pattern).
+
+**Unit (`packages/contracts/src/telemetry.test.ts`):**
+
+- Terms are normalized.
+- These are stored as `null`: a phone number with spaces, a "+971" number, Arabic-Indic digits, an email, a long name-and-address phrase, a term over 40 characters, a zero-width mark.
+- Batches outside the contract are refused: empty, more than 20 events, an unknown type, an extra field, a bad quantity, slug or ID, an extra top-level field.
+
+**Integration (`apps/api/src/store/store-events.int.test.ts`, real API and PostgreSQL, 6 tests):**
+
+- **Refused:** no ticket and a foreign origin get 403, and a non-JSON body gets 415. Nothing is stored.
+- **Stored:** all six types (7 events), with products resolved to IDs. The term "grape ice" is normalized, and a "+971 50 …" term is stored as `null`. The anonymous ID is kept on non-search rows only. No phone digits, IP or cookie appear in the stored rows.
+- **Duplicates and drops:** a resent event counts as `duplicate`. A draft product, a variant of one, and an unknown slug are `dropped`. A former slug counts for its product.
+- **Contract limits:** 21 events, an empty batch, extra fields and an unknown type get 400. A body over 8 KB gets 413.
+- **Rate limit:** the 61st batch from one address in a minute gets 429.
+- **Retention:** an event 91 days old is deleted, and a second pass deletes nothing.
+
+Not covered:
+
+- The storefront sending events (step 104).
+- Daily rollups (step 106).
+- Load behaviour beyond the in-process cap.

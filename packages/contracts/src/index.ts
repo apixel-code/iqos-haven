@@ -106,3 +106,4 @@ export * from "./orders";
 export * from "./notifications";
 export * from "./reviews";
 export * from "./content";
+export * from "./telemetry";

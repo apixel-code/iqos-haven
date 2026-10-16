@@ -20,6 +20,7 @@ import { OutboxRelay } from "./relay";
 import { createConfirmationCleanupJob, createIdempotencyCleanupJob } from "./idempotency";
 import { createNotificationConsumer, newOrderEmailPlanner } from "./order-notifications";
 import { lowStockEmailPlanner } from "./low-stock-notifications";
+import { createBrowsingEventsCleanupJob } from "./browsing-events";
 import { createDailySummaryJob } from "./daily-summary";
 import { Scheduler } from "./scheduler";
 import { startWorker, type WorkerRuntime } from "./runtime";
@@ -85,6 +86,7 @@ async function main(): Promise<void> {
       createIdempotencyCleanupJob({ db: database, log }),
       createConfirmationCleanupJob({ db: database, log }),
       createDailySummaryJob({ log }),
+      createBrowsingEventsCleanupJob({ db: database, log }),
     ],
   });
   let effectWorkers: { stop(): Promise<void> } | undefined;
