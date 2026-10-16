@@ -890,3 +890,16 @@ model ContentSection {
 
   @@map("content_sections")
 }
+
+/// Anonymous browsing event (step 103, ADR 0069): no customer data, 90-day raw retention.
+model BrowsingEvent {
+  id          String   @id @db.Uuid
+  type        String   @db.VarChar(24)
+  payload     Json
+  anonymousId String?  @map("anonymous_id") @db.Uuid
+  receivedAt  DateTime @default(dbgenerated("statement_timestamp()")) @map("received_at") @db.Timestamptz(6)
+
+  @@index([type, receivedAt], map: "events_type_time")
+  @@index([receivedAt], map: "events_time")
+  @@map("events")
+}

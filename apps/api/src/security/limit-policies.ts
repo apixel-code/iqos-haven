@@ -237,3 +237,13 @@ export const STORE_REVIEW_SUBMIT_POLICY: EndpointLimitPolicy<"ip"> = {
   rules: { ip: perMinute(10) },
   outage: { fallback: { ip: perMinute(5) }, processCeiling: perMinute(300) },
 };
+
+/**
+ * Browsing events (step 103, ADR 0069), per client address. Best effort: when the shared
+ * limiter is down a small local budget applies, and the route drops rather than queues.
+ */
+export const STORE_EVENTS_POLICY: EndpointLimitPolicy<"ip"> = {
+  endpoint: "store_events",
+  rules: { ip: perMinute(60) },
+  outage: { fallback: { ip: perMinute(30) }, processCeiling: perMinute(3000) },
+};

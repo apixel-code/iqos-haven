@@ -2,6 +2,7 @@ import { VersioningType, type INestApplication, type Type } from "@nestjs/common
 import { NestFactory } from "@nestjs/core";
 import { FastifyAdapter, type NestFastifyApplication } from "@nestjs/platform-fastify";
 import type { ApiEnv } from "@ih/config";
+import { MAX_EVENT_BATCH_BYTES } from "@ih/contracts";
 import { Logger } from "nestjs-pino";
 import { createLogger } from "@ih/logger";
 import { AppModule } from "./app.module";
@@ -37,6 +38,16 @@ export async function createApp(
       .code(verdict.status)
       .header("cache-control", "no-store")
       .send(errorEnvelope(verdict.status, req.id));
+  });
+  // Browsing events (step 103) are small batches: refuse a larger body before it is read.
+  adapter.getInstance().addHook("onRequest", (req, reply, done) => {
+    const path = (req.raw.url ?? "")
+      .split("?", 1)[0]!
+      .replace(/\/{2,}/g, "/")
+      .toLowerCase();
+    const length = Number(req.headers["content-length"] ?? 0);
+    if (path !== "/v1/store/events" || !(length > MAX_EVENT_BATCH_BYTES)) return done();
+    void reply.code(413).header("cache-control", "no-store").send(errorEnvelope(413, req.id));
   });
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule.register(env, overrides, testModules),
