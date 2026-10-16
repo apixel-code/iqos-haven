@@ -111,3 +111,10 @@ export function daysBetween(from: string, to: string): string[] {
   const { days } = dubaiDayRange(from, to);
   return Array.from({ length: days }, (_, i) => addDays(from, i));
 }
+
+/**
+ * When an open order counts as delayed on the dashboard (step 108, ADR 0074): pending longer
+ * than 2 hours, or confirmed/processing longer than 3 hours, since it was placed. The prototype's
+ * defaults; the client may set other limits (BI-14).
+ */
+export const DELAYED_AFTER_MINUTES = { pending: 120, inProgress: 180 } as const;

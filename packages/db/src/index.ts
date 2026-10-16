@@ -51,3 +51,4 @@ export * from "./browsing-events";
 export * from "./financial-metrics";
 export * from "./daily-rollups";
 export * from "./daily-summary";
+export * from "./dashboard";

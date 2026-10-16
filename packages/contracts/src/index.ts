@@ -108,3 +108,4 @@ export * from "./reviews";
 export * from "./content";
 export * from "./telemetry";
 export * from "./analytics";
+export * from "./dashboard";

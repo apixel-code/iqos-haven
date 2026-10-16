@@ -1816,3 +1816,25 @@ Not covered:
 - A real email send (BI-07).
 - Load on very busy days.
 - The dashboard display of `computedAt` (step 109).
+
+## Step 108 — operational home dashboard (2026-10-16, local)
+
+`pnpm verify`: exit 0 (unit 620, age preview 2194). `pnpm test:int`: exit 0 (605 tests). `invariant-reviewer` found nothing material. Its optional suggestion was applied: deleted products are left out of top products.
+
+**API (`apps/api/src/dashboard/admin-dashboard.int.test.ts`, real API + PostgreSQL, 5 tests).** Three open orders were seeded, one of them pending for 3 hours.
+
+- No session: 401.
+- **Staff:**
+  - Open counts are 2 pending and 1 confirmed; delayed is 1, and the 3-hour order leads the attention list.
+  - Recent orders carry the customer's name (Staff has `customers.read`). No phone or address appears anywhere in the answer.
+  - The out-of-stock variant is listed.
+  - Reviews and sales are `null`.
+  - Top products show 4 units with no amounts.
+- **Rights withdrawn:** without `customers.read` the names are `null`; without `orders.read` and `inventory.read`, the orders, top-product and stock sections are `null`. Restoring the rights brings them back.
+- **Owner:**
+  - Before a rollup, today and yesterday are `null` ("not computed").
+  - After `rollupDay`: 3 orders, AED 245.00, AOV 8167 fils (half-up), with a `computedAt` and the tax note.
+  - Reviews count present; top products carry amounts.
+- **Deactivated staff:** refused.
+
+Not covered: a real-browser pass of the home page; the delay limits await BI-14.
