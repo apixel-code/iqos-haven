@@ -5,7 +5,7 @@
 - Date: 2026-10-16
 - Milestone: M7 — transactional checkout and first complete order: all steps (73–82) done; gate evidence ready, awaiting Marina's decision. M6: all steps (65–72) done; gate evidence ready, awaiting Marina's decision. M5: PASSED 2026-10-11. M4 steps done, gate awaits Marina's decision (publishing unblocked); M3 gate not closed; M0 review and M1 staging/fixtures still open
 - Step: 104 (storefront telemetry batching) — done; next is 105 (financial metric queries and definitions). M10 in progress (103–104 done). All M9 steps (93–102) done; gate evidence ready, awaiting Marina's decision. All M8 steps (83–92) done, gate awaiting Marina's decision.
-- Branch: `step/104-client-telemetry` (from `step/103-browsing-events`; its PR is based on #77)
+- Branch: `step/104-client-telemetry` (pushed; PR #78 based on #77)
 - See docs/verification.md for actual checks.
 
 ## Next action
@@ -172,7 +172,7 @@ Tests: `pnpm verify -- --integration` PASS (unit 610, integration 586, age previ
 
 Unfinished:
 
-- PRs #61 → … → #77 → step 104 PR are stacked and wait for Marina's merge. M4, M6, M7, M8 and M9 gates await her decision.
+- PRs #61 → … → #77 → #78 are stacked and wait for Marina's merge. M4, M6, M7, M8 and M9 gates await her decision.
 
 ## History (summary)
 
