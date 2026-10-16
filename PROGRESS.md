@@ -5,7 +5,7 @@
 - Date: 2026-10-15
 - Milestone: M7 — transactional checkout and first complete order: all steps (73–82) done; gate evidence ready, awaiting Marina's decision. M6: all steps (65–72) done; gate evidence ready, awaiting Marina's decision. M5: PASSED 2026-10-11. M4 steps done, gate awaits Marina's decision (publishing unblocked); M3 gate not closed; M0 review and M1 staging/fixtures still open
 - Step: 102 (review/content acceptance pass) — done; next is 103 (M10: bounded anonymous browsing events). All M9 steps (93–102) done; gate evidence ready, awaiting Marina's decision. All M8 steps (83–92) done, gate awaiting Marina's decision.
-- Branch: `step/102-content-acceptance` (from `step/101-slug-seo-rules`; its PR is based on #75)
+- Branch: `step/102-content-acceptance` (pushed; PR #76 based on #75)
 - See docs/verification.md for actual checks.
 
 ## Next action
@@ -167,7 +167,7 @@ Tests: `pnpm verify -- --integration` PASS (unit 599, integration 580, age previ
 
 Unfinished:
 
-- PRs #61 → … → #75 → step 102 PR are stacked and wait for Marina's merge. M4, M6, M7, M8 and M9 gates await her decision.
+- PRs #61 → … → #75 → #76 are stacked and wait for Marina's merge. M4, M6, M7, M8 and M9 gates await her decision.
 - Open client inputs: BI-01, BI-05, BI-09, BI-13 (and `SITE.description` still says Dubai).
 
 ## History (summary)
