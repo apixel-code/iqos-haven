@@ -5,7 +5,7 @@
 - Date: 2026-10-16
 - Milestone: M7 — transactional checkout and first complete order: all steps (73–82) done; gate evidence ready, awaiting Marina's decision. M6: all steps (65–72) done; gate evidence ready, awaiting Marina's decision. M5: PASSED 2026-10-11. M4 steps done, gate awaits Marina's decision (publishing unblocked); M3 gate not closed; M0 review and M1 staging/fixtures still open
 - Step: 113 (SEO policy, issue report, public sitemap, SEO screen) — done; next is 114 (dashboard/report/SEO acceptance pass, M10 gate evidence). M10 in progress (103–113 done). All M9 steps (93–102) done; gate evidence ready, awaiting Marina's decision. All M8 steps (83–92) done, gate awaiting Marina's decision.
-- Branch: `step/113-seo-tools` (based on #86; PR to open after push)
+- Branch: `step/113-seo-tools` (pushed; PR #87 based on #86)
 - See docs/verification.md for actual checks.
 
 ## Next action
@@ -194,7 +194,7 @@ Tests: `pnpm verify` PASS (unit 634, age preview 2243; re-run after the case fix
 
 Unfinished:
 
-- PRs #61 → … → #86 are stacked and wait for Marina's merge, and step 113's PR comes next. M4, M6–M9 gates await her decision. BI-05 (product indexing) and BI-14 are open.
+- PRs #61 → … → #86 are stacked and wait for Marina's merge, step 113 is PR #87. M4, M6–M9 gates await her decision. BI-05 (product indexing) and BI-14 are open.
 - Marina may choose "Public pages" on the SEO screen; the default stays closed.
 
 ## History (summary)
