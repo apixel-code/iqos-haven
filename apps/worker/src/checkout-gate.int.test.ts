@@ -23,6 +23,7 @@ import { EffectRunner, startEffectWorkers } from "./effects";
 import { SmtpEmailAdapter } from "./email";
 import { createConfirmationCleanupJob, createIdempotencyCleanupJob } from "./idempotency";
 import { createNotificationConsumer, newOrderEmailPlanner } from "./order-notifications";
+import { createAnalyticsRollupConsumer } from "./analytics-rollup";
 import { BullEffectEnqueuer, createQueue, createQueueConnection, testQueuePrefix } from "./queue";
 import { effectQueueName, type EffectJobData } from "./queues";
 import { OutboxRelay, type EffectEnqueuer } from "./relay";
@@ -97,6 +98,7 @@ const runner = () =>
     log,
     handlers: [
       createNotificationConsumer({ log }),
+      createAnalyticsRollupConsumer({ log }),
       createEmailConsumer({
         adapter: smtp,
         from: "no-reply@iqoshaven.local",
@@ -221,6 +223,7 @@ describe("checkout gate: a placed order and the worker (PostgreSQL, queue Redis,
     expect((await db.variant.findUniqueOrThrow({ where: { id: variantId } })).stockOnHand).toBe(48);
     const pending = await db.consumerEffect.findMany({ where: { eventId: order.eventId } });
     expect(pending.map((effect) => [effect.consumer, effect.status]).sort()).toEqual([
+      ["analytics_rollup", "pending"],
       ["email", "pending"],
       ["notification", "pending"],
     ]);
@@ -298,9 +301,9 @@ describe("checkout gate: a placed order and the worker (PostgreSQL, queue Redis,
     expect(await db.notification.count({ where: { sourceEventId: order.eventId } })).toBe(0);
     const waiting = await db.outboxEvent.findUniqueOrThrow({ where: { id: order.eventId } });
     expect(waiting.completedAt).toBeNull();
-    // Neither effect ran or was lost: both are still to do.
+    // No effect ran or was lost: all three (inbox, email, analytics) are still to do.
     const during = await db.consumerEffect.findMany({ where: { eventId: order.eventId } });
-    expect(during).toHaveLength(2);
+    expect(during).toHaveLength(3);
     expect(during.every((effect) => effect.status !== "completed" && effect.attempts === 0)).toBe(
       true,
     );

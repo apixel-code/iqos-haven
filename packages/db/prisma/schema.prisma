@@ -411,6 +411,8 @@ model Product {
   @@index([brandId], map: "products_brand")
   @@index([categoryId], map: "products_category")
   @@map("products")
+  salesDaily     ProductSalesDaily[]
+  wishlistDaily  WishlistDaily[]
 }
 
 model ProductOption {
@@ -902,4 +904,70 @@ model BrowsingEvent {
   @@index([type, receivedAt], map: "events_type_time")
   @@index([receivedAt], map: "events_time")
   @@map("events")
+}
+
+/// Daily sales slice (step 106, ADR 0072): booked/delivered/collected apart, Dubai day.
+model SalesDaily {
+  day                   DateTime @id @db.Date
+  placedOrders          Int      @map("placed_orders")
+  cancelledOrders       Int      @map("cancelled_orders")
+  bookedOrders          Int      @map("booked_orders")
+  bookedNetFils         BigInt   @map("booked_net_fils")
+  bookedDeliveryFils    BigInt   @map("booked_delivery_fils")
+  bookedTotalFils       BigInt   @map("booked_total_fils")
+  cancelledTotalFils    BigInt   @map("cancelled_total_fils")
+  deliveredOrders       Int      @map("delivered_orders")
+  deliveredNetFils      BigInt   @map("delivered_net_fils")
+  deliveredDeliveryFils BigInt   @map("delivered_delivery_fils")
+  deliveredTotalFils    BigInt   @map("delivered_total_fils")
+  collectedOrders       Int      @map("collected_orders")
+  collectedFils         BigInt   @map("collected_fils")
+  definitionVersion     Int      @map("definition_version")
+  computedAt            DateTime @default(dbgenerated("statement_timestamp()")) @map("computed_at") @db.Timestamptz(6)
+
+  @@map("sales_daily")
+}
+
+/// Daily product sales with the brand as snapshotted on the order (step 106).
+model ProductSalesDaily {
+  day                   DateTime @db.Date
+  productId             String   @map("product_id") @db.Uuid
+  product               Product  @relation(fields: [productId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  brandName             String   @map("brand_name") @db.VarChar(150)
+  orderedUnits          Int      @map("ordered_units")
+  orderedNetFils        BigInt   @map("ordered_net_fils")
+  deliveredUnits        Int      @map("delivered_units")
+  deliveredNetFils      BigInt   @map("delivered_net_fils")
+  deliveredDiscountFils BigInt   @map("delivered_discount_fils")
+  computedAt            DateTime @default(dbgenerated("statement_timestamp()")) @map("computed_at") @db.Timestamptz(6)
+
+  @@id([day, productId, brandName], map: "product_sales_daily_key")
+  @@index([productId, day], map: "product_sales_daily_product")
+  @@map("product_sales_daily")
+}
+
+/// Daily searches per normalized term ('' = not kept) (step 106).
+model SearchDaily {
+  day         DateTime @db.Date
+  term        String   @db.VarChar(100)
+  searches    Int
+  zeroResults Int      @map("zero_results")
+  resultTotal BigInt   @map("result_total")
+  computedAt  DateTime @default(dbgenerated("statement_timestamp()")) @map("computed_at") @db.Timestamptz(6)
+
+  @@id([day, term], map: "search_daily_key")
+  @@map("search_daily")
+}
+
+/// Daily saved-list adds and removes per product (step 106).
+model WishlistDaily {
+  day        DateTime @db.Date
+  productId  String   @map("product_id") @db.Uuid
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  adds       Int
+  removes    Int
+  computedAt DateTime @default(dbgenerated("statement_timestamp()")) @map("computed_at") @db.Timestamptz(6)
+
+  @@id([day, productId], map: "wishlist_daily_key")
+  @@map("wishlist_daily")
 }

@@ -49,3 +49,4 @@ export * from "./content";
 export * from "./store-content";
 export * from "./browsing-events";
 export * from "./financial-metrics";
+export * from "./daily-rollups";

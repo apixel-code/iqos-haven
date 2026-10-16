@@ -268,6 +268,7 @@ describe("POST /v1/store/orders through the real API (PostgreSQL, Ed25519 ticket
     });
     expect(event.completedAt).toBeNull();
     expect(event.effects.map((effect) => [effect.consumer, effect.status]).sort()).toEqual([
+      ["analytics_rollup", "pending"],
       ["email", "pending"],
       ["notification", "pending"],
     ]);
@@ -800,7 +801,7 @@ describe("POST /v1/store/orders through the real API (PostgreSQL, Ed25519 ticket
   // The order route never talks to queue Redis, so this cannot fail on a queue outage; what it
   // shows is where the work waits: an event and two pending effects, in PostgreSQL. That the
   // worker picks them up after an outage is shown in apps/worker/src/checkout-gate.int.test.ts.
-  it("gate: an order leaves its event and both effects pending in PostgreSQL, with no queue reachable", async () => {
+  it("gate: an order leaves its event and its effects pending in PostgreSQL, with no queue reachable", async () => {
     const offline = await createApp(
       { ...env, QUEUE_REDIS_URL: "redis://127.0.0.1:1" },
       { pool, database: db },
@@ -817,6 +818,7 @@ describe("POST /v1/store/orders through the real API (PostgreSQL, Ed25519 ticket
       expect(stored.status).toBe("pending");
       expect(event.completedAt).toBeNull();
       expect(event.effects.map((effect) => [effect.consumer, effect.status]).sort()).toEqual([
+        ["analytics_rollup", "pending"],
         ["email", "pending"],
         ["notification", "pending"],
       ]);

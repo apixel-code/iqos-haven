@@ -26,6 +26,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { EffectRunner } from "./effects";
 import { lowStockEmailPlanner } from "./low-stock-notifications";
 import { createNotificationConsumer, newOrderEmailPlanner } from "./order-notifications";
+import { createAnalyticsRollupConsumer } from "./analytics-rollup";
 
 /**
  * Operations gate (roadmap step 92, M8): a store order placed by the real order transaction
@@ -77,6 +78,7 @@ const runner = new EffectRunner({
   log,
   handlers: [
     createNotificationConsumer({ log }),
+    createAnalyticsRollupConsumer({ log }),
     createEmailConsumer({
       from: "no-reply@iqoshaven.local",
       planners: {

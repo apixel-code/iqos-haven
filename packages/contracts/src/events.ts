@@ -157,44 +157,56 @@ export const EVENT_CATALOGUE = {
     payload: z.strictObject({ orderId: id }),
     // Step 78 (ADR 0047). No backfill: order submission was never switched on, so the only
     // earlier events are in development and test databases and keep their empty snapshot.
-    consumers: ["notification", "email"],
-    plannedConsumers: { analytics_rollup: 106 },
+    // analytics_rollup: step 106 (ADR 0072). No backfill: step 107 recomputes recent days
+    // and offers a controlled historical backfill.
+    consumers: ["notification", "email", "analytics_rollup"],
+    plannedConsumers: {},
   }),
   "order.updated": define({
     schemaVersion: 1,
     aggregateType: "order",
     payload: z.strictObject({ orderId: id }),
-    consumers: [],
-    plannedConsumers: { analytics_rollup: 106 },
+    // analytics_rollup: step 106 (ADR 0072). No backfill: step 107 recomputes recent days
+    // and offers a controlled historical backfill.
+    consumers: ["analytics_rollup"],
+    plannedConsumers: {},
   }),
   "order.status_changed": define({
     schemaVersion: 1,
     aggregateType: "order",
     payload: z.strictObject({ orderId: id, from: orderStatus, to: orderStatus }),
-    consumers: [],
-    plannedConsumers: { notification: 91, analytics_rollup: 106 },
+    // analytics_rollup: step 106 (ADR 0072). No backfill: step 107 recomputes recent days
+    // and offers a controlled historical backfill.
+    consumers: ["analytics_rollup"],
+    plannedConsumers: { notification: 91 },
   }),
   "order.cancelled": define({
     schemaVersion: 1,
     aggregateType: "order",
     payload: z.strictObject({ orderId: id }),
-    consumers: [],
-    plannedConsumers: { notification: 91, analytics_rollup: 106 },
+    // analytics_rollup: step 106 (ADR 0072). No backfill: step 107 recomputes recent days
+    // and offers a controlled historical backfill.
+    consumers: ["analytics_rollup"],
+    plannedConsumers: { notification: 91 },
   }),
   "order.collection_recorded": define({
     schemaVersion: 1,
     aggregateType: "order",
     payload: z.strictObject({ orderId: id }),
-    consumers: [],
-    plannedConsumers: { analytics_rollup: 106 },
+    // analytics_rollup: step 106 (ADR 0072). No backfill: step 107 recomputes recent days
+    // and offers a controlled historical backfill.
+    consumers: ["analytics_rollup"],
+    plannedConsumers: {},
   }),
   // Step 87: the Owner corrected a recorded collection. New type, nothing to backfill.
   "order.collection_corrected": define({
     schemaVersion: 1,
     aggregateType: "order",
     payload: z.strictObject({ orderId: id }),
-    consumers: [],
-    plannedConsumers: { analytics_rollup: 106 },
+    // analytics_rollup: step 106 (ADR 0072). No backfill: step 107 recomputes recent days
+    // and offers a controlled historical backfill.
+    consumers: ["analytics_rollup"],
+    plannedConsumers: {},
   }),
   "inventory.low": define({
     schemaVersion: 1,

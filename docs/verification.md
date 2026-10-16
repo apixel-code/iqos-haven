@@ -1761,3 +1761,38 @@ Not covered:
 
 - A route or UI: the dashboards are step 109, the reports step 111.
 - Daily tables for long ranges (step 106).
+
+## Step 106 — daily aggregate tables and idempotent rollups (2026-10-16, local)
+
+`pnpm verify -- --integration`: exit 0. Unit 614, integration 595, age preview 2194, gate 2434.
+
+Expected changes to older tests (a new required consumer):
+
+- The event catalogue test, the order and checkout tests and the M7 and M8 gate tests now expect `analytics_rollup` on order events.
+- Two tests that needed an event with no consumers now use `delivery.configuration_updated`.
+
+`invariant-reviewer` found no blocking issues.
+
+- **Fixed:**
+  - A day past the raw-event retention keeps its search and saved-list rows.
+  - Indexes on `orders(delivered_at)` and `order_collection_records(collected_at)`.
+  - A comment on the lock order.
+- **Tried and reverted:** a repeatable-read rollup made parallel recomputes conflict (the snapshot is taken before the lock wait). The rollup stays in Read Committed, as recorded in ADR 0072.
+- **Recorded:** no backfill until step 107.
+
+**Integration (`packages/db/src/daily-rollups.int.test.ts`, real PostgreSQL, 4 tests).** The four step 105 orders, plus browsing events:
+
+- **Sales:** the `sales_daily` row equals `readFinancialSummary` for that day, with placed 4, cancelled 1 and collected 6000 after the correction.
+- **Products:** 4 ordered units (the cancelled order left out) and 3 delivered.
+- **Search:** "grape" has 2 searches with 1 zero-result; the `''` bucket has 1.
+- **Saved list:** 2 adds and 1 remove.
+- **Idempotent:** running the day again, and three times at once, gives identical rows.
+- **Brand:** after the catalogue brand is renamed, the row keeps the order item's snapshot name.
+- **Days:** `orderRollupDays` lists the days an order touches. An impossible day is refused. An empty day gives an all-zero sales row, and a day past retention keeps its search row.
+
+**Worker (`apps/worker/src/analytics-rollup.int.test.ts`):** three real `order.status_changed` events, run by the `EffectRunner`, filled today's row (delivered 6500). A redelivery is a `duplicate`, and the figures stay the same.
+
+Not covered:
+
+- The scheduled recent-day pass, the backfill and today's freshness (step 107).
+- Load on very busy days.
