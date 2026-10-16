@@ -5,7 +5,7 @@
 - Date: 2026-10-16
 - Milestone: M7 — transactional checkout and first complete order: all steps (73–82) done; gate evidence ready, awaiting Marina's decision. M6: all steps (65–72) done; gate evidence ready, awaiting Marina's decision. M5: PASSED 2026-10-11. M4 steps done, gate awaits Marina's decision (publishing unblocked); M3 gate not closed; M0 review and M1 staging/fixtures still open
 - Step: 107 (recent-day rollups, historical backfill, freshness, daily summary email) — done; next is 108. M10 in progress (103–107 done). All M9 steps (93–102) done; gate evidence ready, awaiting Marina's decision. All M8 steps (83–92) done, gate awaiting Marina's decision.
-- Branch: `step/107-rollup-freshness` (from `step/106-daily-rollups`; commit, push and open its PR based on #80)
+- Branch: `step/107-rollup-freshness` (pushed; PR #81 based on #80)
 - See docs/verification.md for actual checks.
 
 ## Next action
@@ -22,7 +22,7 @@
 4. **Marina: decide the M7 gate.** Evidence, item by item, and what is not covered: docs/verification.md "Step 82". Checkout stays switched off (`CHECKOUT_SUBMISSION_ENABLED=false`) whatever the decision, until deployment inputs exist (BI-07 sender domain, real Owner, delivery areas and fee).
 5. **Marina: decide the M8 gate.** Evidence: docs/verification.md "Step 92" (service-level journey from store order to collected cash, plus the HTTP suites for each route). Do not mark M8 passed without her decision.
 6. **Marina: decide the M9 gate.** Evidence: docs/verification.md "Step 102". Do not mark M9 passed without her decision.
-7. **Push `step/107-rollup-freshness` and open its PR** (base: `step/106-daily-rollups`), then **`/step 108`**: find the row with `rg -n "^| 108 " docs/roadmap.md`. New migration to apply on deployment: `20261016000300_daily_summary_slot`.
+7. **Next step: `/step 108`** (PR #81 holds step 107): find the row with `rg -n "^| 108 " docs/roadmap.md`. New migration to apply on deployment: `20261016000300_daily_summary_slot`.
 8. **Rules that carry forward:**
    - Recent rollups and daily summary (ADR 0073): `analytics.rollup_today` (every 10 min, yesterday + today) and `analytics.rollup_recent` (03:00 Dubai, the 7 days before today); older days only through `pnpm analytics:backfill --from --to [--parts]` (≤366 days, none after today, one transaction per day). Read figures with `readSalesDays` and show `computedAt`; a day in `missing` is "not computed". `reports.daily_summary` recomputes yesterday and calls `emitDailySummary` (one `report.daily_summary` event per day, DB-unique). Recipients = Settings addresses of active staff holding `dashboard.financial_read`, only while `dailySummaryEmail` is on.
    - Daily rollups (ADR 0072): `rollupDay`/`rollupDayIn` replace a Dubai day's rows (per-day advisory lock, Read Committed); sales figures via the shared `financialTotals`; product rows keyed by the order item's snapshot brand name; search/wishlist from `events`, never recomputed past the 90-day retention. Order events carry the `analytics_rollup` consumer (sales + products of every day the order touches). A missing row means "not computed".
@@ -178,7 +178,7 @@ Tests: `pnpm verify` PASS (unit 620, age preview 2194). `pnpm test:int` 599/600:
 
 Unfinished:
 
-- PRs #61 → … → #80 are stacked and wait for Marina's merge; the step 107 PR is still to be opened. M4, M6–M9 gates await her decision. Real summary email waits for BI-07 (sending domain).
+- PRs #61 → … → #80 are stacked and wait for Marina's merge; step 107 is PR #81. M4, M6–M9 gates await her decision. Real summary email waits for BI-07 (sending domain).
 - Flake to look at: admin order search by number can match a seeded customer's random phone digits; make the test's phones or numbers distinct.
 
 ## History (summary)
