@@ -1606,3 +1606,32 @@ Not covered:
 
 - The admin's read-only slug field in a browser.
 - Listing filters with former slugs (ADR 0068).
+
+## Step 102 — review and content acceptance pass, M9 gate evidence (2026-10-16, local)
+
+`pnpm verify -- --integration`: exit 0. Unit 599, integration 580, age preview 2194, gate 2434. The new suite passed three runs in a row.
+
+This step adds one suite, `apps/api/src/content/content-acceptance.int.test.ts` (4 tests). It runs the real API, PostgreSQL and the cache with a 1-second TTL:
+
+- **Two editors:** two simultaneous saves on the same version give one 200 and one 409 `VERSION_CONFLICT`. The stale editor also cannot publish until it reloads. Each change is audited once.
+- **Refused publish:** a publish refused for a draft product leaves the live home content exactly as it was.
+- **Propagation:** a publish through the admin route is visible at once on that replica. A publish written without the route (as another replica would) is visible within the TTL. Every publish writes its `storefront_revalidate` effect.
+- **Cache and gate:** a cache warmed by a verified shopper still answers 403 with no content to no ticket or a forged ticket.
+
+**Done condition, item by item:**
+
+| Item                        | Evidence                                                                                                                                                                                                                                                                                                                                         |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Invalid references rejected | Step 96: `packages/db/src/content.int.test.ts` (draft or missing product, product image used as content). Step 97: `admin-content.int.test.ts` (409 `CONTENT_REFERENCES` with `<kind>:<id>`, image `not_ready`). Step 98: `store-content.int.test.ts` (references re-checked at read time). Browser `content-editor.mjs` (hidden product named). |
+| Multiple-editor conflict    | This step (saves and publish), and step 96 (two first saves, DB).                                                                                                                                                                                                                                                                                |
+| Publish retry and TTL       | Step 97: `apps/worker/src/revalidate.int.test.ts` (`content.published` invalidation, retry on an unavailable API, dead after rejected keys). This step: propagation within the TTL without an event.                                                                                                                                             |
+| Order-proof abuse           | Steps 93–94: `review-link.int.test.ts` and `store-reviews.int.test.ts`: an order ID as token, a guessed token, a replaced or expired link, another order's product, parallel submissions (one wins), rate limit, no order data in answers. Browser `review.mjs`.                                                                                 |
+| Cache and gate behaviour    | Step 98: route refused without a ticket, also through the gateway (`check-gate-e2e.cjs`). This step: a warmed cache never answers an unverified request. Age preview: home, offers, help and redirects restricted.                                                                                                                               |
+
+**M9 gate:** "Storefront and admin prototype content and review interactions work with real data." The evidence is above plus the browser passes: review link (step 94), admin Reviews (step 95), content editor (step 97), and home at 360px, 1280px and reduced motion (step 99). **Not marked passed: Marina decides.**
+
+Not covered:
+
+- Two real API replicas: the cross-replica path is the worker effect, which has its own tests.
+- Real phones and WhatsApp's in-app browser.
+- BI-09 and BI-13 wording and scope.
