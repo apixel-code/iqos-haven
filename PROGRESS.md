@@ -5,7 +5,7 @@
 - Date: 2026-10-16
 - Milestone: M7 — transactional checkout and first complete order: all steps (73–82) done; gate evidence ready, awaiting Marina's decision. M6: all steps (65–72) done; gate evidence ready, awaiting Marina's decision. M5: PASSED 2026-10-11. M4 steps done, gate awaits Marina's decision (publishing unblocked); M3 gate not closed; M0 review and M1 staging/fixtures still open
 - Step: 114 (M10 acceptance pass) — done. **All M10 steps (103–114) done; gate evidence ready, awaiting Marina's decision.** Next milestone M11 starts at step 115. All M9 steps (93–102) done; gate evidence ready, awaiting Marina's decision. All M8 steps (83–92) done, gate awaiting Marina's decision.
-- Branch: `step/114-m10-acceptance` (based on #87; PR to open after push)
+- Branch: `step/114-m10-acceptance` (pushed; PR #88 based on #87)
 - See docs/verification.md for actual checks.
 
 ## Next action
@@ -191,7 +191,7 @@ Tests: `pnpm verify -- --integration` PASS (unit 634, age preview 2245, integrat
 Unfinished:
 
 - **Marina: M10 gate decision** (also M4, M6–M9).
-- PRs #61 → … → #87 are stacked and wait for her merge, and step 114's PR comes next.
+- PRs #61 → … → #87 are stacked and wait for her merge, step 114 is PR #88.
 - BI-05 (product indexing), BI-07 (sending domain) and BI-14 (delay limits) are open.
 
 ## History (summary)
