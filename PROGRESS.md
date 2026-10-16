@@ -5,7 +5,7 @@
 - Date: 2026-10-16
 - Milestone: M7 — transactional checkout and first complete order: all steps (73–82) done; gate evidence ready, awaiting Marina's decision. M6: all steps (65–72) done; gate evidence ready, awaiting Marina's decision. M5: PASSED 2026-10-11. M4 steps done, gate awaits Marina's decision (publishing unblocked); M3 gate not closed; M0 review and M1 staging/fixtures still open
 - Step: 108 (operational home dashboard) — done; next is 109 (Owner financial/search/wishlist dashboards). M10 in progress (103–108 done). All M9 steps (93–102) done; gate evidence ready, awaiting Marina's decision. All M8 steps (83–92) done, gate awaiting Marina's decision.
-- Branch: `step/108-ops-dashboard` (based on #81; PR to open after push)
+- Branch: `step/108-ops-dashboard` (pushed; PR #82 based on #81)
 - See docs/verification.md for actual checks.
 
 ## Next action
@@ -180,7 +180,7 @@ Tests: `pnpm verify` PASS (unit 620, age preview 2194). `pnpm test:int` PASS (60
 
 Unfinished:
 
-- PRs #61 → … → #81 are stacked and wait for Marina's merge, and step 108's PR comes next. M4, M6–M9 gates await her decision.
+- PRs #61 → … → #81 are stacked and wait for Marina's merge, step 108 is PR #82. M4, M6–M9 gates await her decision.
 - No real-browser pass of the dashboard yet; the UI rendering is covered only by the build.
 - Known flake: `admin-orders.int.test.ts` order-number search can match a seeded phone (passed this run).
 
