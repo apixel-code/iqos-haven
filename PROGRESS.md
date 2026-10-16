@@ -4,8 +4,8 @@
 
 - Date: 2026-10-16
 - Milestone: M7 — transactional checkout and first complete order: all steps (73–82) done; gate evidence ready, awaiting Marina's decision. M6: all steps (65–72) done; gate evidence ready, awaiting Marina's decision. M5: PASSED 2026-10-11. M4 steps done, gate awaits Marina's decision (publishing unblocked); M3 gate not closed; M0 review and M1 staging/fixtures still open
-- Step: 113 (SEO policy, issue report, public sitemap, SEO screen) — done; next is 114 (dashboard/report/SEO acceptance pass, M10 gate evidence). M10 in progress (103–113 done). All M9 steps (93–102) done; gate evidence ready, awaiting Marina's decision. All M8 steps (83–92) done, gate awaiting Marina's decision.
-- Branch: `step/113-seo-tools` (pushed; PR #87 based on #86)
+- Step: 114 (M10 acceptance pass) — done. **All M10 steps (103–114) done; gate evidence ready, awaiting Marina's decision.** Next milestone M11 starts at step 115. All M9 steps (93–102) done; gate evidence ready, awaiting Marina's decision. All M8 steps (83–92) done, gate awaiting Marina's decision.
+- Branch: `step/114-m10-acceptance` (based on #87; PR to open after push)
 - See docs/verification.md for actual checks.
 
 ## Next action
@@ -22,7 +22,7 @@
 4. **Marina: decide the M7 gate.** Evidence, item by item, and what is not covered: docs/verification.md "Step 82". Checkout stays switched off (`CHECKOUT_SUBMISSION_ENABLED=false`) whatever the decision, until deployment inputs exist (BI-07 sender domain, real Owner, delivery areas and fee).
 5. **Marina: decide the M8 gate.** Evidence: docs/verification.md "Step 92" (service-level journey from store order to collected cash, plus the HTTP suites for each route). Do not mark M8 passed without her decision.
 6. **Marina: decide the M9 gate.** Evidence: docs/verification.md "Step 102". Do not mark M9 passed without her decision.
-7. **Next step: `/step 114`** (dashboard/report/SEO acceptance pass, the last M10 step): `rg -n "^| 114 " docs/roadmap.md` and the M10 gate line. Gather the evidence: financial/date definitions, idempotent backfill, field denial, export security, preview tests, the SEO policy flip. New migrations on deployment: `20261016000300_daily_summary_slot`, `20261016000400_report_jobs`, `20261016000500_seo_policy`.
+7. **Marina: decide the M10 gate.** Evidence, item by item, and what is not covered: docs/verification.md "Step 114". Do not mark M10 passed without her decision. Then **`/step 115`**: `rg -n "^| 115 " docs/roadmap.md` and the M11 dependency/gate lines. New migrations on deployment: `20261016000300_daily_summary_slot`, `20261016000400_report_jobs`, `20261016000500_seo_policy`.
 8. **Rules that carry forward:**
    - SEO policy (ADR 0079): `seo` settings row, `closed` by default or `public_pages` (only /responsible-use, /terms, /privacy). Written only by `PUT /v1/admin/seo/policy` (`seo.write`, expected version); read by the storefront through `GET /v1/public/seo` and held `SEO_POLICY_CACHE_SECONDS` (60); any failure = closed. robots.ts, sitemap.ts (public, empty when closed), the `(policy)` layout's robots meta and the proxy's header follow it; the static `X-Robots-Tag` excludes only those three paths. Product indexing, previews and JSON-LD are never switches (BI-05). Browser pass: `scripts/browser-qa/seo.mjs`; storefront side in `pnpm test:age-preview`.
    - Report files (ADR 0078): `report_builder` (external, 5 attempts) claims, re-checks the requester's rights, builds in one snapshot, uploads to `reports/<job id>.csv` outside any transaction, completes only while `running`. A failed or given-up job never keeps an object. File download = own job + rights + completed + live → audit → 5-minute signed link via 303 (`no-store`, `no-referrer`). `reports.upkeep` every 15 min. API request logs keep only the response status; the logger redacts `Location`. Browser pass: `scripts/browser-qa/reports.mjs` (qa-server now also runs `report_builder`).
@@ -92,7 +92,7 @@ BI-07: a verified sending domain and sender address are still needed before real
 
 - **M2 — PASSED 2026-10-09** (closed on Marina's approval). Gate: a synthetic event is written and processed by the worker; duplicate delivery and Redis job loss are recovered; tests send no real email. Evidence: `apps/worker/src/recovery.int.test.ts` "M2 gate" (queue obliterated → reconciler re-enqueue + duplicate original job → effect completed exactly once), `effects.int.test.ts` (5 concurrent duplicates apply once), real dev orphan recovered by the built worker (step 24 notes in docs/verification.md); email only to Mailpit/stubs. CI green on `main` at a2429f7 (run 37894960188) with all steps 18–26 merged. Not part of this gate: production queue Redis failover/restore drills (M11, after BI-06).
 - **M5 — PASSED 2026-10-11** (closed on Marina's decision). Gate: after age acceptance real products can be browsed, selected and added to the cart; before it no restricted product data is available. Evidence: `pnpm test:gate` (real API + storefront + gateway, 1803 checks) and the real-browser pass (14 checks) in docs/verification.md "Step 64". Accepted caveat: the products were seeded, because publishing through the admin waits for BI-02.
-- M0, M1, M3, M4 and M6–M11: not passed. M7: all steps (73–82) done; gate awaits Marina's decision. M8: all steps (83–92) done; gate awaits Marina's decision. M6: all steps (65–72) done; gate awaits Marina's decision. M4: all steps (41–54) done; publishing is unblocked (ADR 0036), the gate awaits Marina's decision.
+- M0, M1, M3, M4 and M6–M11: not passed. M10: all steps (103–114) done; gate awaits Marina's decision. M7: all steps (73–82) done; gate awaits Marina's decision. M8: all steps (83–92) done; gate awaits Marina's decision. M6: all steps (65–72) done; gate awaits Marina's decision. M4: all steps (41–54) done; publishing is unblocked (ADR 0036), the gate awaits Marina's decision.
 
 ## Steps done
 
@@ -141,6 +141,7 @@ BI-07: a verified sending domain and sender address are still needed before real
 - 104 — storefront telemetry queue (batches of 20, one retry, pause on overload, drop when full or on quiet pages), events from search/product page/cart/saved list, rotating anonymous ID, browser QA script (ADR 0070) — `step(104)` commit on `step/104-client-telemetry`
 - 105 — financial metric definitions (booked/delivered/collected, AOV, cancellation, status mix; Dubai days, AED fils, tax note) and the Owner's snapshot summary query (ADR 0071) — `step(105)` commit on `step/105-financial-metrics`
 - 106 — `sales_daily`, `product_sales_daily` (snapshot brand), `search_daily`, `wishlist_daily`; idempotent per-day rollup sharing the step 105 definitions; `analytics_rollup` consumer on order events (ADR 0072) — `step(106)` commit on `step/106-daily-rollups`
+- 114 — M10 acceptance: summary, daily rows, analytics and CSV agree per basis across a Dubai midnight; concurrent backfills leave the tables unchanged; role-by-route field matrix; M10 gate evidence table — `step(114)` commit on `step/114-m10-acceptance`
 - 113 — indexing policy (closed / public pages) with audited Owner write, public policy read, robots/sitemap/policy pages following it (fail closed), SEO overview and issue report, SEO screen, age-preview checks for both policies (ADR 0079) — `step(113)` commit on `step/113-seo-tools`
 - 112 — `report_builder` consumer (private bucket, fixed key, rights re-checked), signed 5-minute file links via 303 with audit first, `reports.upkeep` (expire, fail stale, delete after 7 days), Reports screen, no orphan files, signed links kept out of logs (ADR 0078) — `step(112)` commit on `step/112-report-files`
 - 111 — CSV encoding with formula defusing, five generators (sales per basis with "not computed" days, orders per line with snapshots, delivered products, inventory and customer snapshots), personal-data reports need `customers.export`, streamed download with re-checks and audit (ADR 0077) — `step(111)` commit on `step/111-csv-generators`
@@ -177,27 +178,25 @@ BI-07: a verified sending domain and sender address are still needed before real
 - Event `consumers` lists only implemented consumers (now `system_probe`, `email`, `notification`, `media_processor`, `storefront_revalidate`); planned ones are documented with roadmap steps and move in with a backfill decision (architecture §8: adding a consumer must not redefine old completions).
 - `audit_log` migration revokes UPDATE/DELETE/TRUNCATE only from a role named `ih_app`; other runtime role names must be revoked at provisioning (trigger blocks mutations regardless).
 
-## Last session handoff (2026-10-16, step 113)
+## Last session handoff (2026-10-16, step 114)
 
 Done:
 
-- **Step 113 (ADR 0079):**
-  - Migration `20261016000500_seo_policy`, `packages/contracts/src/seo.ts` (+ `seo.policy_updated` event), `packages/db/src/seo.ts`, `apps/api/src/seo/` (`AdminSeoController`, `PublicSeoController`).
-  - Storefront: `lib/seo-policy.ts` (+ test), dynamic `robots.ts`, new `sitemap.ts` (public), `(policy)/layout.tsx`, the proxy's header for policy pages, the `next.config.ts` header exclusion, `SEO_POLICY_CACHE_SECONDS` (config + `.env.example`).
-  - Admin: the SEO screen.
-  - Checks: both policies in `scripts/check-age-preview.mjs`; browser pass `scripts/browser-qa/seo.mjs`.
-- **`invariant-reviewer`:** no material findings. Its one low note was fixed: `/Terms`-style spellings get `noindex` from the proxy, and the age-preview check covers it.
+- **Step 114:** `apps/api/src/dashboard/m10-acceptance.int.test.ts` (3 tests: definitions across a Dubai midnight in summary, daily rows, analytics and CSV; concurrent recomputes leave the four tables unchanged; role-by-route field matrix). The M10 gate evidence table is in docs/verification.md "Step 114". No product code changed.
 
-Files: `packages/db/prisma/migrations/20261016000500_seo_policy/`, `packages/{contracts/src/{seo.ts,events.ts,events.test.ts,index.ts},db/src/{seo.ts,index.ts},config/src/index.ts}`, `.env.example`, `apps/api/src/{seo/,app.module.ts}`, `apps/storefront/{app/robots.ts,app/sitemap.ts,app/(policy)/layout.tsx,lib/seo-policy.ts,lib/seo-policy.test.ts,lib/age/policy.ts,lib/age/age-gate.test.ts,next.config.ts,proxy.ts}`, `apps/admin/{components/seo-management.tsx,components/workspace-section.tsx,app/globals.css}`, `scripts/{check-age-preview.mjs,browser-qa/seo.mjs,browser-qa/README.md}`, `docs/decisions/0079-seo-policy-and-tools.md`, `docs/verification.md`
+Files: `apps/api/src/dashboard/m10-acceptance.int.test.ts`, `docs/verification.md`, `PROGRESS.md`
 
-Tests: `pnpm verify` PASS (unit 634, age preview 2243; re-run after the case fix: 2245). `pnpm test:int` PASS (627). Browser: `seo.mjs` 13/13, with `dashboard.mjs` and `reports.mjs` re-run (all passed) after the CSS changes; schema dropped.
+Tests: `pnpm verify -- --integration` PASS (unit 634, age preview 2245, integration 630, gateway 29, gate 2434). The browser passes (`dashboard.mjs` 18, `reports.mjs` 14, `seo.mjs` 13) ran in step 113 after the last UI change.
 
 Unfinished:
 
-- PRs #61 → … → #86 are stacked and wait for Marina's merge, step 113 is PR #87. M4, M6–M9 gates await her decision. BI-05 (product indexing) and BI-14 are open.
-- Marina may choose "Public pages" on the SEO screen; the default stays closed.
+- **Marina: M10 gate decision** (also M4, M6–M9).
+- PRs #61 → … → #87 are stacked and wait for her merge, and step 114's PR comes next.
+- BI-05 (product indexing), BI-07 (sending domain) and BI-14 (delay limits) are open.
 
 ## History (summary)
+
+- 2026-10-16 step 113: SEO policy (closed / public pages), issue report, public sitemap, SEO screen, ADR 0079 (PR #87); unit 634/integration 627.
 
 - 2026-10-16 step 112: report files, signed downloads, upkeep, Reports screen, no orphan files, links out of logs, ADR 0078 (PR #86); unit 629/integration 624.
 

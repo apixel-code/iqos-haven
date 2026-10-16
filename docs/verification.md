@@ -2039,3 +2039,63 @@ Not covered:
 
 - A real crawler or search console.
 - Product indexing (BI-05; not built).
+
+## Step 114 — dashboard, report and SEO acceptance pass; M10 gate evidence (2026-10-16, local)
+
+`pnpm verify -- --integration`: exit 0.
+
+- unit 634;
+- age preview 2245;
+- integration 630 (platform 6, db 139, worker 85, api 400);
+- gateway 29;
+- real-stack gate 2434.
+
+It first stopped at lint: a literal byte-order mark in the new test, now written as an escape.
+
+**New in this step: `apps/api/src/dashboard/m10-acceptance.int.test.ts`** (real API and PostgreSQL, 3 tests). Two orders were seeded around a Dubai midnight:
+
+- one placed at 23:30 on day A, delivered at 00:30 on day B, with cash collected at 10:00 on day C;
+- one placed at 23:59 on day A, then cancelled.
+
+The test checks three things:
+
+- **One day per basis, everywhere.**
+  - The live summary puts booked AED 115.00 on A with a cancellation rate of 50.00%, delivered 115.00 (net 100.00) on B, and collected 115.00 on C. No basis leaks onto another day.
+  - Analytics over A..C equals the live summary over A..C, with no day missing. Its per-day placements and deliveries are on A and B.
+  - The sales CSV shows the figure on the same day for each basis: booked on A, delivered on B, collected on C.
+- **Recomputing never changes a figure.** The three days are backfilled again, then backfilled twice more at the same time as single-day recomputes. The four daily tables, compared without `computed_at`, are identical row for row. The test also checks that the rows exist (three sales days and products), so it is not a comparison of empty tables.
+- **Fields per role on every M10 route.**
+
+  | Route                   | Owner | Staff                       | Finance only (`dashboard.financial_read`) | Clerk (`reports.read` + `reports.export`) |
+  | ----------------------- | ----- | --------------------------- | ----------------------------------------- | ----------------------------------------- |
+  | Analytics               | 200   | 403                         | 200                                       | 403                                       |
+  | Reports list            | 200   | 403                         | 403                                       | 200                                       |
+  | Report request          | 201   | 403                         | 403                                       | 201                                       |
+  | SEO overview            | 200   | 403                         | 403                                       | 403                                       |
+  | SEO issues              | 200   | 403                         | 403                                       | 403                                       |
+  | Home dashboard sections | all   | orders, stock, top products | sales only                                | —                                         |
+
+  The Staff dashboard carries no product amounts, phone or address. The clerk is refused the customers report (403), and gets 404 for the Owner's job and its download.
+
+### M10 gate evidence
+
+Gate: _Operational dashboards/reports contain correct real data, access is permissioned and SEO UI reflects actual indexing policy._
+
+| Item                                   | Evidence                                                                                                                                                                                                                                                                                                                                                                                   |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Financial and date definitions correct | Step 105: `financial-metrics.int.test.ts` (bases, AOV half-up, Dubai days, corrections). Step 106: daily rows equal the live summary. **This step:** across a Dubai midnight, the summary, daily rows, analytics and CSV agree per basis.                                                                                                                                                  |
+| Idempotent backfill and rollups        | Step 106: a repeated or parallel recompute gives the same rows; the analytics consumer redelivered. Step 107: the scheduled today and recent-day jobs; the backfill CLI. **This step:** concurrent backfills and recomputes leave all four tables unchanged.                                                                                                                               |
+| Field denial                           | Step 108: dashboard sections by right, rights withdrawn mid-session. Steps 109–113: each route's allowed and refused roles. **This step:** the role-by-route matrix above. Browser: `dashboard.mjs`, `reports.mjs`, `seo.mjs` (Staff sees no sales and no Analytics, Reports or SEO).                                                                                                      |
+| Export security                        | Step 110: requester-only jobs, command replay and conflict. Step 111: formula defusing, personal-data reports need `customers.export`, audited downloads, the batch-boundary test. Step 112: signed 5-minute links after the checks, no link or audit on refusal, no orphan files, links kept out of logs. **This step:** the clerk cannot reach customer data or another person's report. |
+| Correct real data on screens           | Browser passes `dashboard.mjs` (18), `reports.mjs` (14) and `seo.mjs` (13) on seeded orders and events through the gateway, at 1366px and 390px. No sample values: missing days are named, never zero.                                                                                                                                                                                     |
+| SEO UI reflects the indexing policy    | Step 113: `admin-seo.int.test.ts` (features follow the policy; product indexing always inactive). `pnpm test:age-preview` checks the storefront under closed, API-down and public-pages policies. Browser `seo.mjs` (policy switch, active/inactive labels).                                                                                                                               |
+| Preview and age-boundary tests         | `pnpm test:age-preview` 2245 (generic previews, no product data for any agent, robots, sitemap, policy pages). `pnpm test:gate` 2434 (real API, storefront and gateway).                                                                                                                                                                                                                   |
+
+Not covered, and decided by Marina or by business input:
+
+- **BI-05:** product indexing, previews and JSON-LD are not built.
+- **BI-07:** real email for the daily summary waits for a verified sending domain.
+- **BI-14:** the delay limits are the prototype's values.
+- **Not exercised here:** a production storage provider (BI-06), real crawlers and preview platforms (staging), dark-theme screenshots, real touch input, very large data volumes.
+
+Do not mark M10 passed without Marina's decision.
