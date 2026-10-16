@@ -2136,3 +2136,22 @@ Not covered: the prototype's own behaviour was not run; the comparison is symbol
 | Whole database afterwards                                                                     | No ledger mismatch and no negative stock; coupon counters equal live redemptions; every cancelled order has one cancellation and one return per line; no live redemption on a cancelled order. |
 
 Not covered: load at volume (step 121); worker and queue failure (step 117).
+
+## Step 117 — worker crash and Redis-loss recovery drill (2026-10-16, local)
+
+`pnpm verify`: exit 0 (unit 634, age preview 2245). `pnpm test:int`: exit 0 (642). The drill was run 3 times in a row: 5/5 each time.
+
+**`apps/worker/src/recovery-drill.int.test.ts`** (real PostgreSQL and queue Redis; the real relay, reconciler, runners and the inbox, email and analytics consumers; a stub email provider that accepts once per delivery key, as Resend does with `Idempotency-Key`):
+
+| Injected failure                                                              | What holds                                                                                                                                                                        |
+| ----------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| The relay claims the event and dies before enqueue; its lease expires         | The event stays undispatched; a healthy relay takes it over and queues all three effects.                                                                                         |
+| Redis loses every queued job, then late copies of the original job IDs arrive | The reconciler re-enqueues all 3 from PostgreSQL. Each effect completes with 1 attempt; one notification, one email; the day's placed count matches; nothing stranded.            |
+| Crash after the provider accepted, before completion was recorded             | The effect retries. Both attempts carry the same delivery key, so the provider delivers once.                                                                                     |
+| Lease lost mid-send, then the new owner dies too                              | The stale worker gets `lease_lost` and cannot finish; after the lease expires a new worker reclaims it and the email is delivered once.                                           |
+| Permanent provider refusal                                                    | The effect goes dead with `RECIPIENT_REJECTED`, and the event is not complete. The Owner's replay is audited (`effect.replayed`); the email is sent once and the event completes. |
+| 3 copies of every effect on 3 workers, then once more                         | Exactly 3 completions, the rest duplicates. The provider is asked once; nothing changes later; ledger and stranded checks are clean.                                              |
+
+**Step 116 fix:** under full-suite load the idempotency race was won by the 2-unit payload, while the test expected the 1-unit one. The test now asserts one order and one sale, stock reduced by the winner's quantity, and conflicts or in-progress answers for the rest. The product behaviour was already right.
+
+Not covered: a real Redis failover and a production restore (steps 122–126, provider-dependent).

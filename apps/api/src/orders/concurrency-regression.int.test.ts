@@ -452,7 +452,24 @@ describe("commerce concurrency regression (real PostgreSQL)", () => {
     expect(ids.size).toBe(1);
     const sales = await db.stockMovement.count({ where: { variantId: id, reason: "SALE" } });
     expect(sales).toBe(1);
-    expect(await stockOf(id)).toBe(9);
+    // Whichever payload claims the key first wins (1 or 2 units); the other kind is refused.
+    const [orderId] = [...ids] as [string];
+    const won = await db.orderItem.findFirstOrThrow({ where: { orderId } });
+    expect(await stockOf(id)).toBe(10 - won.quantity);
+    const refused = results.filter((result) => result.status === "rejected");
+    expect(refused.length).toBeGreaterThanOrEqual(1);
+    // A different payload is a conflict; a copy arriving mid-flight may be told "in progress".
+    for (const result of refused) {
+      const reason = (result as PromiseRejectedResult).reason as unknown;
+      expect(
+        reason instanceof IdempotencyConflictError || reason instanceof IdempotencyInProgressError,
+      ).toBe(true);
+    }
+    expect(
+      refused.some(
+        (result) => (result as PromiseRejectedResult).reason instanceof IdempotencyConflictError,
+      ),
+    ).toBe(true);
   });
 
   it("leaves the whole database consistent", async () => {

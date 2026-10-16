@@ -4,8 +4,8 @@
 
 - Date: 2026-10-16
 - Milestone: M7 — transactional checkout and first complete order: all steps (73–82) done; gate evidence ready, awaiting Marina's decision. M6: all steps (65–72) done; gate evidence ready, awaiting Marina's decision. M5: PASSED 2026-10-11. M4 steps done, gate awaits Marina's decision (publishing unblocked); M3 gate not closed; M0 review and M1 staging/fixtures still open
-- Step: 116 (commerce concurrency regression) — done. M11 in progress (115–116 done). **All M10 steps (103–114) done; gate evidence ready, awaiting Marina's decision.** All M9 steps (93–102) done; gate evidence ready, awaiting Marina's decision. All M8 steps (83–92) done, gate awaiting Marina's decision.
-- Branch: `step/116-concurrency-regression` (pushed; PR #90 based on #89)
+- Step: 117 (worker crash / Redis-loss recovery drill) — done. M11 in progress (115–117 done). **All M10 steps (103–114) done; gate evidence ready, awaiting Marina's decision.** All M9 steps (93–102) done; gate evidence ready, awaiting Marina's decision. All M8 steps (83–92) done, gate awaiting Marina's decision.
+- Branch: `step/117-recovery-drill` (based on #90; PR to open after push)
 - See docs/verification.md for actual checks.
 
 ## Next action
@@ -22,7 +22,7 @@
 4. **Marina: decide the M7 gate.** Evidence, item by item, and what is not covered: docs/verification.md "Step 82". Checkout stays switched off (`CHECKOUT_SUBMISSION_ENABLED=false`) whatever the decision, until deployment inputs exist (BI-07 sender domain, real Owner, delivery areas and fee).
 5. **Marina: decide the M8 gate.** Evidence: docs/verification.md "Step 92" (service-level journey from store order to collected cash, plus the HTTP suites for each route). Do not mark M8 passed without her decision.
 6. **Marina: decide the M9 gate.** Evidence: docs/verification.md "Step 102". Do not mark M9 passed without her decision.
-7. **Marina: decide the M10 gate** (docs/verification.md "Step 114") **and which parity gaps to build before launch** (`docs/parity-review.md`: 26 gaps, Apixel recommends the four tier-L ones — G-S1 cart sheet, G-S4 mobile menu, G-A1 product picker and phone lookup in manual order/edit, G-A2 deep links and order-list URL filters). Build the chosen gaps as their own commits before or alongside M11. Otherwise next: **`/step 117`** (worker crash / Redis-loss recovery drill): `rg -n "^| 117 " docs/roadmap.md`; reuse `apps/worker/src/recovery.int.test.ts` (M2 gate) and add what it lacks. New migrations on deployment: `20261016000300_daily_summary_slot`, `20261016000400_report_jobs`, `20261016000500_seo_policy`.
+7. **Marina: decide the M10 gate** (docs/verification.md "Step 114") **and which parity gaps to build before launch** (`docs/parity-review.md`: 26 gaps, Apixel recommends the four tier-L ones — G-S1 cart sheet, G-S4 mobile menu, G-A1 product picker and phone lookup in manual order/edit, G-A2 deep links and order-list URL filters). Build the chosen gaps as their own commits before or alongside M11. Otherwise next: **`/step 118`** (auth/privacy/gate/token/key regression): `rg -n "^| 118 " docs/roadmap.md`; reuse the auth, security and age suites and add what is missing. New migrations on deployment: `20261016000300_daily_summary_slot`, `20261016000400_report_jobs`, `20261016000500_seo_policy`.
 8. **Rules that carry forward:**
    - SEO policy (ADR 0079): `seo` settings row, `closed` by default or `public_pages` (only /responsible-use, /terms, /privacy). Written only by `PUT /v1/admin/seo/policy` (`seo.write`, expected version); read by the storefront through `GET /v1/public/seo` and held `SEO_POLICY_CACHE_SECONDS` (60); any failure = closed. robots.ts, sitemap.ts (public, empty when closed), the `(policy)` layout's robots meta and the proxy's header follow it; the static `X-Robots-Tag` excludes only those three paths. Product indexing, previews and JSON-LD are never switches (BI-05). Browser pass: `scripts/browser-qa/seo.mjs`; storefront side in `pnpm test:age-preview`.
    - Report files (ADR 0078): `report_builder` (external, 5 attempts) claims, re-checks the requester's rights, builds in one snapshot, uploads to `reports/<job id>.csv` outside any transaction, completes only while `running`. A failed or given-up job never keeps an object. File download = own job + rights + completed + live → audit → 5-minute signed link via 303 (`no-store`, `no-referrer`). `reports.upkeep` every 15 min. API request logs keep only the response status; the logger redacts `Location`. Browser pass: `scripts/browser-qa/reports.mjs` (qa-server now also runs `report_builder`).
@@ -141,6 +141,7 @@ BI-07: a verified sending domain and sender address are still needed before real
 - 104 — storefront telemetry queue (batches of 20, one retry, pause on overload, drop when full or on quiet pages), events from search/product page/cart/saved list, rotating anonymous ID, browser QA script (ADR 0070) — `step(104)` commit on `step/104-client-telemetry`
 - 105 — financial metric definitions (booked/delivered/collected, AOV, cancellation, status mix; Dubai days, AED fils, tax note) and the Owner's snapshot summary query (ADR 0071) — `step(105)` commit on `step/105-financial-metrics`
 - 106 — `sales_daily`, `product_sales_daily` (snapshot brand), `search_daily`, `wishlist_daily`; idempotent per-day rollup sharing the step 105 definitions; `analytics_rollup` consumer on order events (ADR 0072) — `step(106)` commit on `step/106-daily-rollups`
+- 117 — recovery drill on a real `order.created` (inbox, email, analytics): relay dies before enqueue, Redis loses every job, crash after provider acceptance, lease lost mid-send, dead effect and audited replay, duplicate deliveries — the shop hears once — `step(117)` commit on `step/117-recovery-drill`
 - 116 — cross-command concurrency regression suite (last units vs damage and count; cancel/edit/transition at one version; double cancel; last coupon use vs an edit; collection and corrections; one checkout key) with a whole-database invariant sweep — `step(116)` commit on `step/116-concurrency-regression`
 - 115 — prototype parity review of the 19 areas with shared states and a tiered gap register (`docs/parity-review.md`); admin Notifications inbox page (the nav item opened a placeholder); requirements updated to UAE-wide delivery — `step(115)` commit on `step/115-parity-review`
 - 114 — M10 acceptance: summary, daily rows, analytics and CSV agree per basis across a Dubai midnight; concurrent backfills leave the tables unchanged; role-by-route field matrix; M10 gate evidence table — `step(114)` commit on `step/114-m10-acceptance`
@@ -180,30 +181,34 @@ BI-07: a verified sending domain and sender address are still needed before real
 - Event `consumers` lists only implemented consumers (now `system_probe`, `email`, `notification`, `media_processor`, `storefront_revalidate`); planned ones are documented with roadmap steps and move in with a backfill decision (architecture §8: adding a consumer must not redefine old completions).
 - `audit_log` migration revokes UPDATE/DELETE/TRUNCATE only from a role named `ih_app`; other runtime role names must be revoked at provisioning (trigger blocks mutations regardless).
 
-## Last session handoff (2026-10-16, step 116)
+## Last session handoff (2026-10-16, step 117)
 
 Done:
 
-- **Step 116:** `apps/api/src/orders/concurrency-regression.int.test.ts`, 7 tests on real PostgreSQL. Each command already had its own race tests; this suite races different commands on the same variant, order or coupon:
-  - checkouts of the last units together with a damage write-off and a stock count;
-  - cancel, two edits and a transition at the same order version, over four rounds;
-  - a double cancel, with the same and with different command IDs;
-  - the last coupon use contested by four checkouts and an edit adding the code;
-  - four collections and two corrections at once;
-  - one checkout key with identical and changed payloads;
-  - a final sweep of the whole database: ledger equals balance, no negative stock, coupon counters equal live redemptions, every cancelled order has one cancellation and one return per line, and no live redemption on a cancelled order.
-- Every refusal must be a known business error; anything else fails the test. Ran 5 times in a row: 7/7 each time. No product code changed.
+- **Step 117:** `apps/worker/src/recovery-drill.int.test.ts` (5 tests, real PostgreSQL and queue Redis, the real relay, reconciler, runners and consumers). On real `order.created` events, the drill injects:
+  - the relay dying after its claim and before enqueue;
+  - Redis losing every job, plus late copies of the original job IDs;
+  - a crash after the email provider accepted;
+  - a lease lost mid-send;
+  - a permanent failure, then the Owner's audited replay;
+  - duplicate deliveries of every effect.
 
-Files: `apps/api/src/orders/concurrency-regression.int.test.ts`, `docs/verification.md`, `PROGRESS.md`
+  The shop gets one inbox notification and one email per order, and the analytics day counts the order once. The email stub honours the delivery key as Resend does (`apps/worker/src/email.ts` sends it as `Idempotency-Key`). It ran 3 times in a row, 5/5 each time.
 
-Tests: `pnpm verify` PASS (unit 634, age preview 2245). `pnpm test:int` PASS (637).
+- **Step 116 test fix:** under full-suite load the idempotency race let the 2-unit payload claim the key first. The test assumed the 1-unit payload would win. It now checks that one order and one sale exist, that the stock falls by the winner's quantity, and that every refusal is a conflict or in-progress. This was a test assumption, not a product bug.
+
+Files: `apps/worker/src/recovery-drill.int.test.ts`, `apps/api/src/orders/concurrency-regression.int.test.ts`, `docs/verification.md`, `PROGRESS.md`
+
+Tests: `pnpm verify` PASS (unit 634, age preview 2245). `pnpm test:int` PASS (642). No product code changed.
 
 Unfinished:
 
-- **Marina:** the M10 gate (and M4, M6–M9); which parity gaps to build before launch (`docs/parity-review.md`).
-- PRs #61 → … → #89 are stacked, step 116 is PR #90.
+- **Marina:** the M10 gate (and M4, M6–M9); which parity gaps to build before launch.
+- PRs #61 → … → #90 are stacked, and step 117's PR comes next.
 
 ## History (summary)
+
+- 2026-10-16 step 116: cross-command concurrency regression with a whole-database invariant sweep (PR #90); integration 637.
 
 - 2026-10-16 step 115: parity review and 26-gap register, Notifications inbox page (PR #89); unit 634, browser dashboard 20/20.
 
