@@ -2118,3 +2118,21 @@ Review: `docs/parity-review.md`. It covers the 19 areas and the shared states, w
 `pnpm verify`: exit 0 (unit 634, age preview 2245).
 
 Not covered: the prototype's own behaviour was not run; the comparison is symbol by symbol. Real devices are step 120.
+
+## Step 116 — commerce concurrency regression (2026-10-16, local)
+
+`pnpm verify`: exit 0 (unit 634, age preview 2245). `pnpm test:int`: exit 0 (637). The new suite was also run 5 times in a row: 7/7 every time.
+
+**`apps/api/src/orders/concurrency-regression.int.test.ts`** (real PostgreSQL, pool of 20). Each test races different commands at the same moment. A refusal must be one of the known business errors (version or stock conflict, insufficient stock, coupon refused, idempotency conflict or in progress, quote not accepted, transaction contention); any other error fails the test.
+
+| Race                                                                                          | Holds                                                                                                                                                                                          |
+| --------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 6 checkouts of 1 unit, a damage write-off and a count at "3", against 3 units                 | At least one sale goes through, and sales plus damage never exceed 3. The final stock is exactly 3 − sold − damaged: the count applies only while nothing has left. Ledger equals balance.     |
+| Cancel, two edits (lines, coupon) and a transition at one order version, 4 rounds             | Exactly one wins each round, and the version moves once. When the cancel wins, both lines return in full. Ledger and coupon counters reconcile.                                                |
+| 4 cancels (2 sharing a command ID)                                                            | One cancellation record, one `ORDER_CANCEL` movement; the stock is back to 5.                                                                                                                  |
+| 4 checkouts with a single-use coupon, plus an edit adding it to another order                 | Exactly one live redemption, and the counters match.                                                                                                                                           |
+| 4 cash records (2 sharing a command ID, different amounts), then 2 corrections at one version | One record, then exactly one correction.                                                                                                                                                       |
+| One checkout key: 3 identical requests and 1 with changed lines                               | One order and one sale; the stock falls by 1.                                                                                                                                                  |
+| Whole database afterwards                                                                     | No ledger mismatch and no negative stock; coupon counters equal live redemptions; every cancelled order has one cancellation and one return per line; no live redemption on a cancelled order. |
+
+Not covered: load at volume (step 121); worker and queue failure (step 117).
