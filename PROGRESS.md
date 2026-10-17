@@ -5,7 +5,7 @@
 - Date: 2026-10-17
 - Milestone: M11 — full acceptance and release, in progress. Gates M0, M2–M10 PASSED (M0, M3, M4, M6–M10 on 2026-10-17, Marina); M1 open until staging/CI.
 - Step: launch parity gaps (Marina 2026-10-17): G-S2 (#101), G-S3 (#102), G-S5 (#103), G-A5 (#104) and **G-A6** (packing slip, ADR 0090) done. Next: G-A7. Steps 115–119, 121 done; 120 local part done (real devices wait for staging).
-- Branch: `parity/g-a6-packing-slip` (stacked on #104 → #103 → #102 → #101; PR to open)
+- Branch: `parity/g-a6-packing-slip` (stacked on #104 → #103 → #102 → #101; PR #105)
 - See docs/verification.md for actual checks.
 
 ## Next action
@@ -222,7 +222,7 @@ Tests: `pnpm verify` PASS (age preview 2245). Browser: `packing-slip`, `a11y-adm
 
 Unfinished:
 
-- PRs waiting for Marina's merge, in order: #101 → #102 → #103 → #104 → the G-A6 PR. Retarget each to `main` after the one below it is merged.
+- PRs waiting for Marina's merge, in order: #101 → #102 → #103 → #104 → #105 (G-A6). Retarget each to `main` after the one below it is merged.
 - Next: G-A7 (brand logo and category image upload, Owner purge for brands/categories).
 
 ## History (summary)
