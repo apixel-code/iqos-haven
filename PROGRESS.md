@@ -5,7 +5,7 @@
 - Date: 2026-10-17
 - Milestone: M7 — transactional checkout and first complete order: all steps (73–82) done; gate evidence ready, awaiting Marina's decision. M6: all steps (65–72) done; gate evidence ready, awaiting Marina's decision. M5: PASSED 2026-10-11. M4 steps done, gate awaits Marina's decision (publishing unblocked); M3 gate not closed; M0 review and M1 staging/fixtures still open
 - Step: all four tier-L parity gaps done 2026-10-17: **G-A1** (ADR 0080), **G-A2** (0081), **G-S1** (0082), **G-S4** (mobile menu sheet, 0083). Step 119 done; next roadmap step 120.
-- Branch: `parity/g-s4-menu-sheet` (from `parity/g-s1-cart-sheet`; PR to open, based on #96)
+- Branch: `parity/g-s4-menu-sheet` (from `parity/g-s1-cart-sheet`; PR #97 based on #96)
 - See docs/verification.md for actual checks.
 
 ## Next action
@@ -203,7 +203,7 @@ Done:
   - **Phone header (below `md`):** the logo, a Menu button and Cart, with search on its own row. The section links and Saved are hidden there; wide screens keep them and gain a Help link.
   - **`apps/storefront/components/menu-sheet.tsx`:** a modal dialog from the left with Home, the sections, Brands (a disclosure, loaded from `/api/v1/store/brands` on the first open, with loading, failure and retry states), Saved items and Compare kits (device counts), Help & info (help sections and policy pages) and Chat on WhatsApp (only when a number is set).
   - **Closing:** a link, a route change, Escape (focus back to Menu) or an outside click.
-- **All four tier-L parity gaps are now done** (G-A1 PR #94, G-A2 #95, G-S1 #96, G-S4 this branch).
+- **All four tier-L parity gaps are now done** (G-A1 PR #94, G-A2 #95, G-S1 #96, G-S4 #97).
 
 Files: `apps/storefront/components/menu-sheet.tsx`, `apps/storefront/app/(shop)/layout.tsx`, `scripts/browser-qa/{menu-sheet.mjs,README.md}`, `docs/decisions/0083-storefront-mobile-menu.md`, `docs/parity-review.md`, `docs/verification.md`
 
@@ -211,7 +211,7 @@ Tests: `pnpm verify` PASS (age preview 2245). `pnpm test:gate` PASS (2586). Brow
 
 Unfinished:
 
-- Push `parity/g-s4-menu-sheet` and open its PR on #96.
+- PR #97 is open (based on #96).
 - **Marina:** the M4 and M6–M10 gates; merging the stacked PRs #61 → #97; whether any S/O parity gap goes in before launch.
 - Step 120 onwards need a staging host, real devices and provider inputs.
 
