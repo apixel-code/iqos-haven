@@ -5,7 +5,7 @@
 - Date: 2026-10-17
 - Milestone: M7 — transactional checkout and first complete order: all steps (73–82) done; gate evidence ready, awaiting Marina's decision. M6: all steps (65–72) done; gate evidence ready, awaiting Marina's decision. M5: PASSED 2026-10-11. M4 steps done, gate awaits Marina's decision (publishing unblocked); M3 gate not closed; M0 review and M1 staging/fixtures still open
 - Step: parity gaps **G-A1** (ADR 0080), **G-A2** (ADR 0081) and **G-S1** (storefront cart sheet, ADR 0082) — done, after step 119 (done). Next: G-S4.
-- Branch: `parity/g-s1-cart-sheet` (from `parity/g-a2-deep-links`; PR to open, based on #95)
+- Branch: `parity/g-s1-cart-sheet` (from `parity/g-a2-deep-links`; PR #96 based on #95)
 - See docs/verification.md for actual checks.
 
 ## Next action
@@ -210,7 +210,7 @@ Tests: `pnpm verify` PASS (storefront unit 133, age preview 2245). `pnpm test:ga
 
 Unfinished:
 
-- Push `parity/g-s1-cart-sheet` and open its PR on #95; then G-S4 (storefront mobile menu sheet), then step 120.
+- PR #96 is open (based on #95). Next: G-S4 (storefront mobile menu sheet), then step 120.
 - **Marina:** the M4 and M6–M10 gates; merging the stacked PRs #61 → #95.
 
 ## History (summary)
