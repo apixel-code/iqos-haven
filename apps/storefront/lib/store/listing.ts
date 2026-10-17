@@ -1,16 +1,9 @@
-import { STORE_PRODUCT_SORTS, type StoreProductCard, type StoreProductSort } from "@ih/contracts";
+import type { StoreProductCard } from "@ih/contracts";
 
 /**
- * Pure helpers for the listing pages (roadmap step 59). Everything that comes from the address
- * bar is reduced here to the few values the API contract accepts; anything else (tracking
- * parameters, unknown values, repeated values) is dropped, never forwarded.
+ * Pure helpers for the listing pages (roadmap step 59). Their address-bar filters are read by
+ * `parseSearch` (lib/store/search.ts) since the listings share the search filters (parity G-S2).
  */
-export const SORT_LABELS: Record<StoreProductSort, string> = {
-  newest: "Newest",
-  price_asc: "Price: low to high",
-  price_desc: "Price: high to low",
-  name: "Name: A to Z",
-};
 export const TYPE_PAGES = {
   disposable: {
     path: "/disposable-vapes",
@@ -26,45 +19,6 @@ export const TYPE_PAGES = {
   },
 } as const;
 export type ProductType = keyof typeof TYPE_PAGES;
-
-const SLUG = /^[a-z0-9]+(-[a-z0-9]+)*$/;
-const CURSOR = /^[A-Za-z0-9_-]{1,400}$/;
-type RawParams = Record<string, string | string[] | undefined>;
-const single = (value: string | string[] | undefined) =>
-  typeof value === "string" ? value : undefined;
-
-export interface ListingState {
-  brand?: string;
-  type?: ProductType;
-  sort: StoreProductSort;
-  cursor?: string;
-}
-
-/** Reads the listing controls from the address bar; invalid values fall back to defaults. */
-export function parseListing(raw: RawParams): ListingState {
-  const brand = single(raw.brand);
-  const type = single(raw.type);
-  const sort = single(raw.sort);
-  const cursor = single(raw.cursor);
-  return {
-    ...(brand && brand.length <= 150 && SLUG.test(brand) ? { brand } : {}),
-    ...(type === "disposable" || type === "kit" ? { type } : {}),
-    sort: (STORE_PRODUCT_SORTS as readonly string[]).includes(sort ?? "")
-      ? (sort as StoreProductSort)
-      : "newest",
-    ...(cursor && CURSOR.test(cursor) ? { cursor } : {}),
-  };
-}
-
-/** A link to `path` with the given listing controls; defaults are left out of the URL. */
-export function listingHref(path: string, state: Partial<ListingState>): string {
-  const query = new URLSearchParams();
-  if (state.type) query.set("type", state.type);
-  if (state.brand) query.set("brand", state.brand);
-  if (state.sort && state.sort !== "newest") query.set("sort", state.sort);
-  if (state.cursor) query.set("cursor", state.cursor);
-  return query.size ? `${path}?${query}` : path;
-}
 
 /**
  * Display price from integer fils: whole dirhams without decimals, otherwise two decimals.

@@ -2299,3 +2299,13 @@ ADR 0085; full report in `docs/load-report.md`. The scenario is Apixel's proposa
 Not covered:
 
 - The production VPS (rerun on staging), browser-side LCP/CLS/JS (BI-15), client traffic figure (BI-16).
+
+## Parity G-S2 — listing-page filters (2026-10-17, local)
+
+ADR 0086.
+
+| Item          | Evidence                                                                                                                                                                                                                                                                                                 |
+| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| API           | `store-search.int.test.ts`: a category scope narrows results and counts; a malformed category is refused; 65 termless requests from one address all pass (catalogue budget); a first browse page is served from the cache while a typed term reads current data. Search and catalogue suites 30/30 PASS. |
+| Storefront    | Unit: category parsing, API params and listing-path links. `listing-filters.mjs`: all checks PASS (full filters on /shop, fixed facets hidden, own-path submit, empty state, old links, 360px).                                                                                                          |
+| No regression | `a11y-storefront.mjs` all PASS on the new listing pages.                                                                                                                                                                                                                                                 |
