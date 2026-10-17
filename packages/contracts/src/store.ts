@@ -164,6 +164,8 @@ export const storeSearchQuerySchema = z
     q: searchText.optional(),
     type: z.enum(["disposable", "kit"]).optional(),
     brand: list(catalogueSlugSchema, 10).optional(),
+    /** A category page's fixed scope (parity G-S2); not a facet. */
+    category: catalogueSlugSchema.optional(),
     minPriceFils: fils.optional(),
     maxPriceFils: fils.optional(),
     minPuffs: puffs.optional(),

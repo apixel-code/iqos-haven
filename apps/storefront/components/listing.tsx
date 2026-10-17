@@ -1,9 +1,4 @@
 import Link from "next/link";
-import type { ReactNode } from "react";
-import type { StoreProductsResponse } from "@ih/contracts";
-import { listingHref, type ListingState } from "@/lib/store/listing";
-import { PendingLink } from "./pending";
-import { ProductGrid } from "./product-card";
 
 export interface Crumb {
   label: string;
@@ -66,76 +61,5 @@ export function EmptyState({
         </Link>
       )}
     </div>
-  );
-}
-
-/**
- * The product area of every listing page: grid, forward-only paging, or the empty state.
- * Paging follows the API's cursor, so a page never repeats or skips a product.
- */
-export function ProductListing({
-  path,
-  state,
-  page,
-  controls,
-  empty,
-}: {
-  path: string;
-  state: ListingState;
-  page: StoreProductsResponse;
-  controls: ReactNode;
-  empty: { title: string; body: string; action?: { href: string; label: string } };
-}) {
-  const onLaterPage = Boolean(state.cursor);
-  const link =
-    "inline-flex h-10 items-center rounded-pill border border-line-2 bg-surface px-4 text-sm font-medium text-ink hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus";
-  return (
-    <section aria-label="Products" className="flex flex-col gap-6">
-      {controls}
-      {page.items.length === 0 ? (
-        onLaterPage ? (
-          <EmptyState
-            title="No more products"
-            body="You have reached the end of this list."
-            action={{
-              href: listingHref(path, { ...state, cursor: undefined }),
-              label: "Back to the start",
-            }}
-          />
-        ) : (
-          <EmptyState {...empty} />
-        )
-      ) : (
-        <>
-          <p aria-live="polite" className="text-sm text-ink-2">
-            <b className="font-semibold text-ink">{page.items.length}</b>{" "}
-            {page.items.length === 1 ? "product" : "products"}
-            {onLaterPage || page.nextCursor ? " on this page" : ""}
-          </p>
-          <ProductGrid products={page.items} />
-          {(onLaterPage || page.nextCursor) && (
-            <nav aria-label="Pages" className="flex flex-wrap justify-center gap-3 pt-2">
-              {onLaterPage && (
-                <PendingLink
-                  href={listingHref(path, { ...state, cursor: undefined })}
-                  className={link}
-                >
-                  Back to the start
-                </PendingLink>
-              )}
-              {page.nextCursor && (
-                <PendingLink
-                  href={listingHref(path, { ...state, cursor: page.nextCursor })}
-                  rel="next"
-                  className={link}
-                >
-                  Next page
-                </PendingLink>
-              )}
-            </nav>
-          )}
-        </>
-      )}
-    </section>
   );
 }

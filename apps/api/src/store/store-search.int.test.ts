@@ -484,7 +484,8 @@ describe("gated store search, facets and suggestions (real API and PostgreSQL)",
       "nicotine=" + Array.from({ length: 7 }, (_, index) => "n" + index).join("&nicotine="),
       "inStock=yes",
       "onSale=1",
-      "category=disposables",
+      // A category is a valid scope since parity G-S2; a malformed one is still refused.
+      "category=Not%20Slug",
       "unknown=1",
       "cursor=not*base64",
       // A relevance cursor is refused for another sort, and without a term.
@@ -574,6 +575,35 @@ describe("gated store search, facets and suggestions (real API and PostgreSQL)",
     expect(hidden.brands).toEqual([]);
     expect(hidden.products.map((item) => item.name)).not.toContain("Ghost Mint");
     expect((await suggest("secret")).products).toEqual([]);
+  });
+
+  it("browses a category without a term on the catalogue budget and cache (parity G-S2)", async () => {
+    const kits = await search("category=kits");
+    expect(kits.items.map((item) => item.type)).toEqual(["kit"]);
+    expect(kits.facets.types).toEqual([{ type: "kit", count: 1 }]);
+    const disposables = await search("category=disposables&sort=price_asc");
+    expect(disposables.items.every((item) => item.type === "disposable")).toBe(true);
+    expect((await get("?category=..%2Fx")).status).toBe(400);
+
+    // Browsing is a catalogue read: more than search's 60 a minute, from one address.
+    const headers = { cookie, "x-ih-client-ip": "203.0.113.202" };
+    const browsing = await Promise.all(
+      Array.from({ length: 65 }, () => get("?category=kits", headers)),
+    );
+    expect(browsing.every((response) => response.status === 200)).toBe(true);
+
+    // A first browse page is served from the catalogue cache; a typed term never is.
+    const target = kits.items[0]!;
+    const before = target.name;
+    await db.product.updateMany({ where: { slug: target.slug }, data: { name: "Renamed Behind" } });
+    try {
+      expect((await search("category=kits")).items[0]!.name).toBe(before);
+      expect((await search("q=renamed")).items.map((item) => item.name)).toEqual([
+        "Renamed Behind",
+      ]);
+    } finally {
+      await db.product.updateMany({ where: { slug: target.slug }, data: { name: before } });
+    }
   });
 
   it("limits searches per client address", async () => {

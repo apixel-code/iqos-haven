@@ -1,14 +1,30 @@
 import type { ReactNode } from "react";
-import { Breadcrumbs, PageHead, ProductListing, type Crumb } from "@/components/listing";
-import { ListingControls } from "@/components/sort-form";
-import { listingHref, parseListing, type ProductType } from "@/lib/store/listing";
+import { Breadcrumbs, EmptyState, PageHead, type Crumb } from "@/components/listing";
+import { PendingLink } from "@/components/pending";
+import { ProductGrid } from "@/components/product-card";
+import { SearchFilters } from "@/components/search-filters";
+import type { ProductType } from "@/lib/store/listing";
+import {
+  activeFilterCount,
+  parseSearch,
+  searchApiParams,
+  searchHref,
+  type SearchState,
+} from "@/lib/store/search";
 import { restartOnStaleCursor, storeRead } from "@/lib/store/server";
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
+type Fixed = { type?: ProductType; brand?: string; category?: string; sale?: true };
+
+const link =
+  "inline-flex h-10 items-center rounded-pill border border-line-2 bg-surface px-4 text-sm font-medium text-ink hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus";
 
 /**
- * One implementation for every product listing. A page fixes some filters (`fixed`) and lets
- * the shopper choose the rest; the fixed ones always win over the address bar.
+ * One implementation for every product listing, with the same filters as search (parity G-S2,
+ * ADR 0086): price, puff count, nicotine, stock and sale, each with its count. A page fixes some
+ * filters in its path (`fixed`); they always win over the address bar, are not offered as
+ * choices and never appear in the page's own links. Browsing has no search term, so the API
+ * answers it from the catalogue cache under the catalogue's request budget.
  */
 export async function ListingPage({
   path,
@@ -20,77 +36,120 @@ export async function ListingPage({
 }: {
   path: string;
   searchParams: SearchParams;
-  fixed?: { type?: ProductType; brand?: string; category?: string; sale?: true };
+  fixed?: Fixed;
   trail: readonly Crumb[];
   head: ReactNode | { title: string; lead?: string };
   emptyBody: string;
 }) {
-  const chosen = parseListing(await searchParams);
-  const state = {
+  const chosen = parseSearch(await searchParams);
+  // What the shopper chose: no term on a listing, no category from the address bar, and nothing
+  // the page fixes. These are the only values that go into this page's links.
+  const own: SearchState = {
     ...chosen,
-    ...(fixed.type ? { type: fixed.type } : {}),
-    ...(fixed.brand ? { brand: fixed.brand } : {}),
+    q: "",
+    category: undefined,
+    type: fixed.type ? undefined : chosen.type,
+    brands: fixed.brand ? [] : chosen.brands,
+    onSale: fixed.sale ? false : chosen.onSale,
+    sort: chosen.sort === "relevance" ? undefined : chosen.sort,
   };
-  const offerBrands = !fixed.brand;
-  const [page, brands] = await restartOnStaleCursor(
-    () =>
-      storeRead((api, shopper) =>
-        Promise.all([
-          api.products(shopper, {
-            brand: state.brand,
-            type: state.type,
-            category: fixed.category,
-            ...(fixed.sale ? { sale: "1" as const } : {}),
-            sort: state.sort,
-            cursor: state.cursor,
-          }),
-          offerBrands ? api.brands(shopper) : Promise.resolve(null),
-        ]),
-      ),
+  const state: SearchState = {
+    ...own,
+    ...(fixed.type ? { type: fixed.type } : {}),
+    ...(fixed.brand ? { brands: [fixed.brand] } : {}),
+    ...(fixed.category ? { category: fixed.category } : {}),
+    ...(fixed.sale ? { onSale: true } : {}),
+  };
+  const href = (changes: Partial<SearchState>) => searchHref({ ...own, ...changes }, path);
+  const result = await restartOnStaleCursor(
+    () => storeRead((api, shopper) => api.search(shopper, searchApiParams(state))),
     Boolean(state.cursor),
-    listingHref(path, {
-      sort: state.sort,
-      ...(fixed.type ? {} : { type: state.type }),
-      ...(fixed.brand ? {} : { brand: state.brand }),
-    }),
+    href({ cursor: undefined }),
   );
-  const filtered = Boolean((!fixed.type && state.type) || (!fixed.brand && state.brand));
+  const filters = activeFilterCount(own);
+  const panel = (
+    <SearchFilters
+      state={state}
+      result={result}
+      action={path}
+      fixed={{ type: Boolean(fixed.type), brand: Boolean(fixed.brand), sale: fixed.sale }}
+    />
+  );
   return (
     <>
       <Breadcrumbs trail={trail} />
       {head && typeof head === "object" && "title" in head ? <PageHead {...head} /> : head}
-      <ProductListing
-        path={path}
-        // Fixed filters live in the path, so they are never repeated in links.
-        state={{
-          sort: state.sort,
-          cursor: state.cursor,
-          ...(fixed.type ? {} : { type: state.type }),
-          ...(fixed.brand ? {} : { brand: state.brand }),
-        }}
-        page={page}
-        controls={
-          <ListingControls
-            action={path}
-            sort={state.sort}
-            type={state.type}
-            brand={state.brand}
-            showType={!fixed.type}
-            brands={brands?.items
-              .filter((item) => item.productCount > 0)
-              .map((item) => ({ slug: item.slug, name: item.name }))}
-          />
-        }
-        empty={
-          filtered
-            ? {
-                title: "No products match these filters",
-                body: "Try removing a filter.",
-                action: { href: path, label: "Clear all filters" },
-              }
-            : { title: "Nothing here yet", body: emptyBody }
-        }
-      />
+      <div className="grid gap-9 lg:grid-cols-[250px_1fr]">
+        <aside aria-label="Filters">
+          <details
+            className="rounded-md border border-line bg-surface p-4 lg:hidden"
+            open={filters > 0}
+          >
+            <summary className="cursor-pointer text-sm font-semibold">
+              Filters{filters > 0 ? ` (${filters})` : ""}
+            </summary>
+            <div className="pt-4">{panel}</div>
+          </details>
+          <div className="hidden flex-col gap-4 lg:flex">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold">Filters</h2>
+              {filters > 0 && (
+                <PendingLink href={path} className="text-sm underline">
+                  Clear all
+                </PendingLink>
+              )}
+            </div>
+            {panel}
+          </div>
+        </aside>
+        <section aria-label="Products" className="flex flex-col gap-6">
+          {result.total === 0 ? (
+            filters > 0 ? (
+              <EmptyState
+                title="No products match these filters"
+                body="Try removing a filter or widening the price range."
+                action={{ href: path, label: "Clear all filters" }}
+              />
+            ) : (
+              <EmptyState title="Nothing here yet" body={emptyBody} />
+            )
+          ) : (
+            <>
+              <p aria-live="polite" className="text-sm text-ink-2">
+                <b className="font-semibold text-ink">{result.total}</b>{" "}
+                {result.total === 1 ? "product" : "products"}
+              </p>
+              {result.items.length === 0 ? (
+                <EmptyState
+                  title="No more products"
+                  body="You have reached the end of this list."
+                  action={{ href: href({ cursor: undefined }), label: "Back to the start" }}
+                />
+              ) : (
+                <ProductGrid products={result.items} />
+              )}
+              {(state.cursor || result.nextCursor) && (
+                <nav aria-label="Pages" className="flex flex-wrap justify-center gap-3 pt-2">
+                  {state.cursor && (
+                    <PendingLink href={href({ cursor: undefined })} className={link}>
+                      Back to the start
+                    </PendingLink>
+                  )}
+                  {result.nextCursor && (
+                    <PendingLink
+                      href={href({ cursor: result.nextCursor })}
+                      rel="next"
+                      className={link}
+                    >
+                      Next page
+                    </PendingLink>
+                  )}
+                </nav>
+              )}
+            </>
+          )}
+        </section>
+      </div>
     </>
   );
 }

@@ -117,13 +117,16 @@ function decodeSearchCursor(cursor: string, sort: StoreSearchSort) {
   }
 }
 
-type FacetKey = "type" | "brand" | "price" | "puffs" | "nicotine" | "inStock" | "onSale";
+/** `category` is a page's scope, never a facet: it applies to every count. */
+type FacetKey =
+  "type" | "brand" | "category" | "price" | "puffs" | "nicotine" | "inStock" | "onSale";
 
 /** One predicate per active filter, over the columns of the matched set `m`. */
 function filterSql(query: StoreSearchQuery): Partial<Record<FacetKey, Prisma.Sql>> {
   const filters: Partial<Record<FacetKey, Prisma.Sql>> = {};
   if (query.type) filters.type = Prisma.sql`m.type=${query.type}`;
   if (query.brand?.length) filters.brand = Prisma.sql`m."brandSlug" = ANY(${query.brand}::text[])`;
+  if (query.category) filters.category = Prisma.sql`m."categorySlug" = ${query.category}`;
   if (query.minPriceFils !== undefined || query.maxPriceFils !== undefined)
     filters.price = Prisma.sql`m."priceFromFils" BETWEEN ${query.minPriceFils ?? 0}::int
       AND ${query.maxPriceFils ?? 1_000_000_000}::int`;

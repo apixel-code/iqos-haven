@@ -1,51 +1,26 @@
 import { describe, expect, it } from "vitest";
 import { AgeRequiredError, StoreApiError, createStoreApi } from "./api";
-import {
-  cardBadges,
-  cardMeta,
-  discountPercent,
-  displayAed,
-  listingHref,
-  parseListing,
-} from "./listing";
+import { cardBadges, cardMeta, discountPercent, displayAed } from "./listing";
 import { activeFilterCount, parseSearch, searchApiParams, searchHref } from "./search";
 
-describe("listing controls from the address bar", () => {
-  it("keeps only known, well-formed values", () => {
-    expect(
-      parseListing({ brand: "orbe", type: "kit", sort: "price_desc", cursor: "abc_DEF-123" }),
-    ).toEqual({ brand: "orbe", type: "kit", sort: "price_desc", cursor: "abc_DEF-123" });
+describe("listing pages share the search filters (parity G-S2)", () => {
+  it("reads a category slug and keeps it in API params and links to a listing path", () => {
+    const state = parseSearch({ category: "pod-kits", brand: "orbe", sort: "name", utm: "x" });
+    expect(state).toMatchObject({ category: "pod-kits", brands: ["orbe"], sort: "name" });
+    expect(searchApiParams(state)).toEqual([
+      ["brand", "orbe"],
+      ["category", "pod-kits"],
+      ["sort", "name"],
+    ]);
+    expect(searchHref({ brands: ["orbe"], minPrice: 50 }, "/vape-kits")).toBe(
+      "/vape-kits?brand=orbe&minPrice=50",
+    );
+    expect(searchHref({}, "/shop")).toBe("/shop");
   });
 
-  it("drops tracking parameters, unknown, malformed and repeated values", () => {
-    expect(
-      parseListing({
-        utm_source: "newsletter",
-        fbclid: "x",
-        brand: "Not A Slug",
-        type: "pods",
-        sort: "price; DROP TABLE",
-        cursor: "has spaces",
-        limit: "5000",
-        category: "anything",
-      }),
-    ).toEqual({ sort: "newest" });
-    expect(parseListing({ brand: ["a", "b"], sort: ["name", "newest"] })).toEqual({
-      sort: "newest",
-    });
-    expect(parseListing({ brand: "a".repeat(151), cursor: "A".repeat(401) })).toEqual({
-      sort: "newest",
-    });
-  });
-
-  it("builds links without default values", () => {
-    expect(listingHref("/shop", { sort: "newest" })).toBe("/shop");
-    expect(listingHref("/shop", { type: "kit", brand: "orbe", sort: "name", cursor: "c1" })).toBe(
-      "/shop?type=kit&brand=orbe&sort=name&cursor=c1",
-    );
-    expect(listingHref("/brands/orbe", { sort: "price_asc", cursor: undefined })).toBe(
-      "/brands/orbe?sort=price_asc",
-    );
+  it("drops a malformed category", () => {
+    expect(parseSearch({ category: "../x" }).category).toBeUndefined();
+    expect(parseSearch({ category: "a".repeat(151) }).category).toBeUndefined();
   });
 });
 

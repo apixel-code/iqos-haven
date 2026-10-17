@@ -17,6 +17,8 @@ import {
   type StoreProductsQuery,
   type StoreProductsResponse,
   type StoreHomeResponse,
+  type StoreSearchQuery,
+  type StoreSearchResponse,
 } from "@ih/contracts";
 import {
   assertStoreCursor,
@@ -29,6 +31,7 @@ import {
   readStoreInfo,
   readStoreProduct,
   readPublishedHome,
+  searchStoreProducts,
   type HomeBanner,
   type Database,
   type StoreImageRow,
@@ -184,6 +187,40 @@ export class StoreCatalogService {
       query.limit,
     ]);
     return this.cache.getOrLoad(`store:products:${key}`, () => this.loadProducts(query));
+  }
+
+  /**
+   * Filtered browsing without a search term (listing pages, parity G-S2, ADR 0086). Every value
+   * is a validated slug, number, flag or bounded option, so first pages are cached like listings;
+   * a typed term never comes here (free text would only fill the cache with other people's
+   * typos). Later pages are read directly, as for listings.
+   */
+  browse(query: StoreSearchQuery): Promise<StoreSearchResponse> {
+    if (query.cursor) return this.loadSearch(query);
+    const sorted = (values: readonly string[] | undefined) =>
+      values ? [...values].map((value) => value.toLowerCase()).sort() : null;
+    // Fixed field order: the same filters always map to the same key.
+    const key = JSON.stringify([
+      query.type ?? null,
+      sorted(query.brand),
+      query.category ?? null,
+      query.minPriceFils ?? null,
+      query.maxPriceFils ?? null,
+      query.minPuffs ?? null,
+      query.maxPuffs ?? null,
+      sorted(query.nicotine),
+      query.inStock ?? null,
+      query.onSale ?? null,
+      query.sort ?? null,
+      query.limit,
+    ]);
+    return this.cache.getOrLoad(`store:browse:${key}`, () => this.loadSearch(query));
+  }
+
+  /** Search or browse results with current card data (images signed now). */
+  async loadSearch(query: StoreSearchQuery): Promise<StoreSearchResponse> {
+    const { rows, ...result } = await searchStoreProducts(this.db, query);
+    return { ...result, items: await Promise.all(rows.map((row) => this.card(row))) };
   }
 
   private async loadProducts(query: StoreProductsQuery): Promise<StoreProductsResponse> {

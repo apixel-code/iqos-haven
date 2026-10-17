@@ -18,6 +18,8 @@ export interface SearchState {
   q: string;
   type?: ProductType;
   brands: string[];
+  /** A category page's fixed scope (parity G-S2); never typed by the shopper. */
+  category?: string;
   /** Whole dirhams, as typed. */
   minPrice?: number;
   maxPrice?: number;
@@ -54,6 +56,9 @@ export function parseSearch(raw: RawParams): SearchState {
   return {
     q: (first(raw.q) ?? "").slice(0, 200).trim(),
     ...(type === "disposable" || type === "kit" ? { type } : {}),
+    ...(first(raw.category) && SLUG.test(first(raw.category)!) && first(raw.category)!.length <= 150
+      ? { category: first(raw.category)! }
+      : {}),
     brands: [...new Set(many(raw.brand))]
       .filter((slug) => slug.length <= 150 && SLUG.test(slug))
       .slice(0, 10),
@@ -78,6 +83,7 @@ export function searchApiParams(state: SearchState, limit?: number): Array<[stri
   if (state.q) params.push(["q", state.q]);
   if (state.type) params.push(["type", state.type]);
   for (const brand of state.brands) params.push(["brand", brand]);
+  if (state.category) params.push(["category", state.category]);
   if (state.minPrice !== undefined) params.push(["minPriceFils", String(state.minPrice * 100)]);
   if (state.maxPrice !== undefined) params.push(["maxPriceFils", String(state.maxPrice * 100)]);
   if (state.minPuffs !== undefined) params.push(["minPuffs", String(state.minPuffs)]);
@@ -90,12 +96,16 @@ export function searchApiParams(state: SearchState, limit?: number): Array<[stri
   return params;
 }
 
-/** A link to the search page for a state (page-level names: prices stay in dirhams). */
-export function searchHref(state: Partial<SearchState>): string {
+/**
+ * A link to the search page, or to a listing page (`path`), for a state (page-level names:
+ * prices stay in dirhams).
+ */
+export function searchHref(state: Partial<SearchState>, path = "/search"): string {
   const query = new URLSearchParams();
   if (state.q) query.set("q", state.q);
   if (state.type) query.set("type", state.type);
   for (const brand of state.brands ?? []) query.append("brand", brand);
+  if (state.category) query.set("category", state.category);
   if (state.minPrice !== undefined) query.set("minPrice", String(state.minPrice));
   if (state.maxPrice !== undefined) query.set("maxPrice", String(state.maxPrice));
   if (state.minPuffs !== undefined) query.set("minPuffs", String(state.minPuffs));
@@ -104,7 +114,7 @@ export function searchHref(state: Partial<SearchState>): string {
   if (state.onSale) query.set("onSale", "true");
   if (state.sort) query.set("sort", state.sort);
   if (state.cursor) query.set("cursor", state.cursor);
-  return query.size ? `/search?${query}` : "/search";
+  return query.size ? `${path}?${query}` : path;
 }
 
 /** How many filters (not the term or the sort) are active. */
