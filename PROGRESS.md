@@ -5,7 +5,7 @@
 - Date: 2026-10-17
 - Milestone: M11 — full acceptance and release, in progress. Gates M0, M2–M10 PASSED (M0, M3, M4, M6–M10 on 2026-10-17, Marina); M1 open until staging/CI.
 - Step: launch parity gaps (Marina 2026-10-17): G-S2 (ADR 0086, PR #101), G-S3 (0087, #102), G-S5 (0088, #103) and **G-A5** (orders list, ADR 0089) done. Next: G-A6. Steps 115–119, 121 done; 120 local part done (real devices wait for staging).
-- Branch: `parity/g-a5-orders-list` (stacked on #103 → #102 → #101; PR to open)
+- Branch: `parity/g-a5-orders-list` (stacked on #103 → #102 → #101; PR #104)
 - See docs/verification.md for actual checks.
 
 ## Next action
@@ -222,7 +222,7 @@ Tests: `pnpm verify` PASS (age preview 2245). `pnpm test:int` PASS (653). Browse
 
 Unfinished:
 
-- PRs waiting for Marina's merge, in order: #101 (G-S2) → #102 (G-S3) → #103 (G-S5) → the G-A5 PR. Retarget each to `main` after the one below it is merged.
+- PRs waiting for Marina's merge, in order: #101 (G-S2) → #102 (G-S3) → #103 (G-S5) → #104 (G-A5). Retarget each to `main` after the one below it is merged.
 - Next: G-A6 (packing slip / print view of one order).
 
 ## History (summary)
