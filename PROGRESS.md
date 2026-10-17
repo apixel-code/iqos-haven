@@ -5,7 +5,7 @@
 - Date: 2026-10-17
 - Milestone: M7 — transactional checkout and first complete order: all steps (73–82) done; gate evidence ready, awaiting Marina's decision. M6: all steps (65–72) done; gate evidence ready, awaiting Marina's decision. M5: PASSED 2026-10-11. M4 steps done, gate awaits Marina's decision (publishing unblocked); M3 gate not closed; M0 review and M1 staging/fixtures still open
 - Step: **120 — local part done, step IN PROGRESS** (accessibility scans and keyboard journeys, five fixes, ADR 0084); the real-device and live-preview part waits for BI-15 and a staging URL. All four tier-L parity gaps done (ADRs 0080–0083). M11 in progress (115–119 done).
-- Branch: `step/120-accessibility` (from `parity/g-s4-menu-sheet`; PR to open, based on #97)
+- Branch: `step/120-accessibility` (from `parity/g-s4-menu-sheet`; PR #98 based on #97)
 - See docs/verification.md for actual checks.
 
 ## Next action
@@ -218,7 +218,7 @@ Tests: `pnpm verify` PASS (age preview 2245). `pnpm test:gate` PASS (2586). Brow
 
 Unfinished:
 
-- Push `step/120-accessibility` and open its PR on #97.
+- PR #98 is open (based on #97).
 - **Marina:** BI-15; the M4 and M6–M10 gates; merging the stacked PRs #61 → #98.
 - Step 120 finishes on staging; step 121 can start locally.
 
