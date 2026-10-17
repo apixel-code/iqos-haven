@@ -5,7 +5,7 @@
 - Date: 2026-10-17
 - Milestone: M7 — transactional checkout and first complete order: all steps (73–82) done; gate evidence ready, awaiting Marina's decision. M6: all steps (65–72) done; gate evidence ready, awaiting Marina's decision. M5: PASSED 2026-10-11. M4 steps done, gate awaits Marina's decision (publishing unblocked); M3 gate not closed; M0 review and M1 staging/fixtures still open
 - Step: parity gap **G-A1** (order item picker + returning-customer lookup, ADR 0080) — done, after step 119 (done). M11 in progress (115–119 done). **All M10 steps (103–114) done; gate evidence ready, awaiting Marina's decision.** All M9 steps (93–102) done; gate evidence ready, awaiting Marina's decision. All M8 steps (83–92) done, gate awaiting Marina's decision.
-- Branch: `parity/g-a1-order-picker` (from `step/119-profile-verification`; PR to open, based on #93)
+- Branch: `parity/g-a1-order-picker` (from `step/119-profile-verification`; PR #94 based on #93)
 - See docs/verification.md for actual checks.
 
 ## Next action
@@ -210,7 +210,7 @@ Tests: `pnpm verify` PASS. `pnpm test:int` PASS (650). Browser pass `order-picke
 
 Unfinished:
 
-- Push `parity/g-a1-order-picker` and open its PR (based on #93), then start G-A2.
+- PR #94 is open (based on #93). Next: start G-A2.
 - **Marina:** the M4 and M6–M10 gates; merging the stacked PRs #61 → #93.
 - Steps 120 onwards need a staging host, real devices and provider inputs.
 
