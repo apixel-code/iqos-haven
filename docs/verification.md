@@ -2309,3 +2309,12 @@ ADR 0086.
 | API           | `store-search.int.test.ts`: a category scope narrows results and counts; a malformed category is refused; 65 termless requests from one address all pass (catalogue budget); a first browse page is served from the cache while a typed term reads current data. Search and catalogue suites 30/30 PASS. |
 | Storefront    | Unit: category parsing, API params and listing-path links. `listing-filters.mjs`: all checks PASS (full filters on /shop, fixed facets hidden, own-path submit, empty state, old links, 360px).                                                                                                          |
 | No regression | `a11y-storefront.mjs` all PASS on the new listing pages. `pnpm test:age-preview` 2245 PASS after its stub API learned to answer termless search (listing pages no longer call `/store/products`). `pnpm test:int` 652, `pnpm test:gate` 2586 PASS.                                                       |
+
+## Parity G-S3 — mobile search sheet (2026-10-17, local)
+
+ADR 0087.
+
+| Item          | Evidence                                                                                                                                                                                         |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Sheet         | `search-sheet.mjs`: all checks PASS (twice) at 360px (focus, full screen, brands and recently viewed before typing, suggestions and the all-results link, Enter, Escape, brand link) and 1280px. |
+| No regression | `menu-sheet.mjs` and `a11y-storefront.mjs` all PASS with the new header.                                                                                                                         |
