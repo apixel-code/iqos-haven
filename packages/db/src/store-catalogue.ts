@@ -36,7 +36,15 @@ export interface StoreParentRow {
   productCount: number;
   /** Earlier slugs that redirect to this parent (step 101), newest first, at most 20. */
   formerSlugs: string[];
+  /** The brand logo or category image, when one is set and processed (parity G-A7). */
+  image: StoreImageRow | null;
 }
+/** The parent's ready catalogue image as a store image row (alt text: its name). */
+const PARENT_IMAGE = (column: "logo_asset_id" | "image_asset_id") => Prisma.sql`
+  (SELECT jsonb_build_object('alt', x.name, 'width', a.width, 'height', a.height,
+      'derivativeKeys', a.derivative_keys)
+    FROM media_assets a
+    WHERE a.id=x.${Prisma.raw(column)} AND a.purpose='catalogue' AND a.state='ready')`;
 const FORMER_SLUGS = (fk: "brand_id" | "category_id") => Prisma.sql`
   coalesce((SELECT array_agg(f.old_slug) FROM (
     SELECT r.old_slug FROM slug_redirects r WHERE r.${Prisma.raw(fk)}=x.id
@@ -46,7 +54,7 @@ export async function listStoreBrands(db: Database): Promise<StoreParentRow[]> {
   return db.$queryRaw<StoreParentRow[]>(Prisma.sql`
     SELECT x.name, x.slug, x.description,
       (SELECT count(*)::int ${PRODUCT_FROM} WHERE p.brand_id=x.id AND ${VISIBLE_PRODUCT})
-        AS "productCount", ${FORMER_SLUGS("brand_id")}
+        AS "productCount", ${FORMER_SLUGS("brand_id")}, ${PARENT_IMAGE("logo_asset_id")} AS image
     FROM brands x WHERE x.active AND x.deleted_at IS NULL
     ORDER BY x.sort_order, lower(x.name), x.id LIMIT 500`);
 }
@@ -55,7 +63,8 @@ export async function listStoreCategories(db: Database): Promise<StoreParentRow[
   return db.$queryRaw<StoreParentRow[]>(Prisma.sql`
     SELECT x.name, x.slug,
       (SELECT count(*)::int ${PRODUCT_FROM} WHERE p.category_id=x.id AND ${VISIBLE_PRODUCT})
-        AS "productCount", ${FORMER_SLUGS("category_id")}
+        AS "productCount", ${FORMER_SLUGS("category_id")},
+      ${PARENT_IMAGE("image_asset_id")} AS image
     FROM categories x WHERE x.active AND x.deleted_at IS NULL
     ORDER BY x.sort_order, lower(x.name), x.id LIMIT 500`);
 }

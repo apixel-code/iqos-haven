@@ -156,7 +156,9 @@ describe("catalogue client", () => {
     clientIp: "203.0.113.7",
   };
   const brands = {
-    items: [{ name: "Orbe", slug: "orbe", description: "", productCount: 2, formerSlugs: [] }],
+    items: [
+      { name: "Orbe", slug: "orbe", description: "", productCount: 2, formerSlugs: [], logo: null },
+    ],
   };
   function api(respond: (url: URL, init: RequestInit) => Response | Promise<Response>) {
     const calls: Array<{ url: URL; init: RequestInit }> = [];

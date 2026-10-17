@@ -146,24 +146,30 @@ export class StoreCatalogService {
 
   brands(): Promise<StoreBrandsResponse> {
     return this.cache.getOrLoad("store:brands", async () => ({
-      items: (await listStoreBrands(this.db)).map((row) => ({
-        name: row.name,
-        slug: row.slug,
-        description: row.description ?? "",
-        productCount: row.productCount,
-        formerSlugs: row.formerSlugs,
-      })),
+      items: await Promise.all(
+        (await listStoreBrands(this.db)).map(async (row) => ({
+          name: row.name,
+          slug: row.slug,
+          description: row.description ?? "",
+          productCount: row.productCount,
+          formerSlugs: row.formerSlugs,
+          logo: row.image ? await this.image(row.image) : null,
+        })),
+      ),
     }));
   }
 
   categories(): Promise<StoreCategoriesResponse> {
     return this.cache.getOrLoad("store:categories", async () => ({
-      items: (await listStoreCategories(this.db)).map((row) => ({
-        name: row.name,
-        slug: row.slug,
-        productCount: row.productCount,
-        formerSlugs: row.formerSlugs,
-      })),
+      items: await Promise.all(
+        (await listStoreCategories(this.db)).map(async (row) => ({
+          name: row.name,
+          slug: row.slug,
+          productCount: row.productCount,
+          formerSlugs: row.formerSlugs,
+          image: row.image ? await this.image(row.image) : null,
+        })),
+      ),
     }));
   }
 

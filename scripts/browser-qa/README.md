@@ -305,3 +305,13 @@ QA_PLAYWRIGHT_DIR=/tmp/ih-qa node scripts/browser-qa/packing-slip.mjs <SCHEMA>
 ```
 
 It checks the slip preview: order number, customer, area with the order's own emirate (never an assumed Dubai), item, quantity, SKU and the cash to collect. In print media only the slip is laid out, and the printed PDF is one A5 page. Staff without `customers.read` get no slip.
+
+## Brand logos, category images and purge (parity G-A7)
+
+With `qa-server.cjs` (its worker processes the upload) and the admin running as above:
+
+```sh
+QA_PLAYWRIGHT_DIR=/tmp/ih-qa node scripts/browser-qa/parent-images.mjs <SCHEMA>
+```
+
+Staff upload a generated PNG as a new brand's logo. It is processed and previewed, the brand is saved with it, and removing it clears and releases it. Staff get no permanent delete. The Owner trashes the brand and deletes it permanently. The pass also checks there is no sideways scroll.

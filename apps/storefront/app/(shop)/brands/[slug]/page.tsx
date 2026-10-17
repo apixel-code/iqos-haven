@@ -48,6 +48,17 @@ export default async function BrandPage({ params, searchParams }: Props) {
       head={
         <header className="my-4 grid gap-4 rounded-lg bg-accent-soft p-6 md:grid-cols-[1fr_auto] md:items-end md:px-10 md:py-9">
           <div className="flex flex-col gap-2">
+            {brand.logo && (
+              // Signed link to a sanitized derivative; the Next image optimizer is not used.
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={brand.logo.urls.medium}
+                alt={brand.logo.alt}
+                width={brand.logo.width}
+                height={brand.logo.height}
+                className="h-16 w-auto max-w-48 object-contain"
+              />
+            )}
             <p className="text-xs font-medium uppercase tracking-[0.1em] text-ink-2">Brand</p>
             <h1 className="text-4xl font-semibold tracking-tight md:text-5xl">{brand.name}</h1>
             {brand.description && (

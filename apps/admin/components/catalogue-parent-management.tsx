@@ -5,6 +5,7 @@ import {
   brandsResponseSchema,
   categoriesResponseSchema,
   categoryResponseSchema,
+  parentPurgeResponseSchema,
   type BrandResponse,
   type CategoryResponse,
 } from "@ih/contracts";
@@ -18,6 +19,7 @@ import {
 } from "../lib/catalogue";
 import { managementRequest, type ResponseContract } from "../lib/management";
 import { Fields, ResourceNotice, useManagementResource, type Field } from "./management-resource";
+import { ParentImage } from "./parent-image";
 
 type Tab = "live" | "trashed";
 type Parent = BrandResponse | CategoryResponse;
@@ -31,6 +33,8 @@ interface KindConfig {
   readonly badge: string;
   readonly empty: string;
   readonly description: boolean;
+  /** The image's label: a brand's logo or a category's image (parity G-A7). */
+  readonly imageLabel: string;
   readonly page: ResponseContract<Page>;
   readonly row: ResponseContract<Parent>;
   readonly create: (data: FormData, seo: boolean) => unknown;
@@ -46,6 +50,7 @@ const KINDS: Record<"brand" | "category", KindConfig> = {
     badge: "Brand pages and Shop by Brand",
     empty: "No brands found. Add a brand to group products and create a brand page.",
     description: true,
+    imageLabel: "Logo",
     page: brandsResponseSchema as ResponseContract<Page>,
     row: brandResponseSchema as ResponseContract<Parent>,
     create: brandCreateCommand,
@@ -59,6 +64,7 @@ const KINDS: Record<"brand" | "category", KindConfig> = {
     badge: "Navigation and category pages",
     empty: "No categories found. Add a category to organise products in the store.",
     description: false,
+    imageLabel: "Image",
     page: categoriesResponseSchema as ResponseContract<Page>,
     row: categoryResponseSchema as ResponseContract<Parent>,
     create: categoryCreateCommand,
@@ -68,8 +74,8 @@ const KINDS: Record<"brand" | "category", KindConfig> = {
 
 /**
  * Brands (step 42) and categories (step 43). Server permissions decide every action; buttons only
- * mirror them. Images arrive with the media pipeline (steps 48–50); permanent deletion is the
- * step-51 purge flow.
+ * mirror them. A brand logo or category image is uploaded here (parity G-A7, ADR 0091), and the
+ * Owner can delete a trashed one that no product uses.
  */
 export function CatalogueParentManagement({
   kind,
@@ -81,6 +87,7 @@ export function CatalogueParentManagement({
   const config = KINDS[kind];
   const canWrite = permissions.includes("catalog.write");
   const canTrash = permissions.includes("catalog.trash");
+  const canPurge = permissions.includes("catalog.purge");
   const canSeo = permissions.includes("seo.write");
   const [tab, setTab] = useState<Tab>("live");
   const [cursor, setCursor] = useState<string | null>(null);
@@ -142,6 +149,25 @@ export function CatalogueParentManagement({
       managementRequest(
         `${config.path}/${row.id}/restore`,
         config.row,
+        "POST",
+        { version: row.version },
+        signal,
+      ),
+    );
+    if (outcome.ok) drop(row.id);
+  }
+  /** Owner only (parity G-A7): a trashed brand or category that no product uses. */
+  async function purge(row: Parent) {
+    if (
+      !window.confirm(
+        `Delete ${row.name} permanently? Its old links stop redirecting. This cannot be undone.`,
+      )
+    )
+      return;
+    const outcome = await resource.run((signal) =>
+      managementRequest(
+        `${config.path}/${row.id}/purge`,
+        parentPurgeResponseSchema,
         "POST",
         { version: row.version },
         signal,
@@ -228,6 +254,16 @@ export function CatalogueParentManagement({
                       >
                         Restore
                       </button>
+                      {canPurge && (
+                        <button
+                          type="button"
+                          className="danger-button"
+                          disabled={resource.disabled}
+                          onClick={() => void purge(row)}
+                        >
+                          Delete permanently
+                        </button>
+                      )}
                     </div>
                   )}
                 </article>
@@ -259,6 +295,10 @@ export function CatalogueParentManagement({
                   </header>
                   <fieldset disabled={resource.disabled || !canWrite}>
                     <Fields fields={parentFields(config, canSeo, true, true)} value={row} />
+                    <ParentImage
+                      initial={"logoAssetId" in row ? row.logoAssetId : row.imageAssetId}
+                      label={config.imageLabel}
+                    />
                     <div className="form-actions">
                       {canWrite && (
                         <button className="secondary-button" type="submit">
@@ -426,7 +466,7 @@ function CreateParent({
             fields={parentFields(config, canSeo, false)}
             value={{ active: true, sortOrder: 0 }}
           />
-          <p className="muted">Images can be added once image upload is available.</p>
+          <ParentImage initial={null} label={config.imageLabel} />
           <button className="primary-button" type="submit">
             Create {config.noun}
           </button>

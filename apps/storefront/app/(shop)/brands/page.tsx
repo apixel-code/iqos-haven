@@ -32,7 +32,19 @@ export default async function BrandsPage() {
                 prefetch={false}
                 className="flex min-h-[92px] flex-col justify-between gap-2 rounded-md border border-line bg-surface px-3.5 py-3 transition-[transform,box-shadow,border-color] duration-150 ease-brand hover:-translate-y-0.5 hover:border-ink hover:shadow-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
               >
-                <span aria-hidden="true" className="h-[3px] w-[22px] rounded-pill bg-accent" />
+                {brand.logo ? (
+                  // Signed link to a sanitized derivative; the Next image optimizer is not used.
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={brand.logo.urls.thumb}
+                    alt=""
+                    width={brand.logo.width}
+                    height={brand.logo.height}
+                    className="h-8 w-auto max-w-24 object-contain object-left"
+                  />
+                ) : (
+                  <span aria-hidden="true" className="h-[3px] w-[22px] rounded-pill bg-accent" />
+                )}
                 <span className="text-[17px] font-semibold leading-tight">{brand.name}</span>
                 <span className="font-mono text-[10.5px] text-ink-2">
                   {brand.productCount} {brand.productCount === 1 ? "product" : "products"}
