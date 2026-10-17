@@ -53,6 +53,7 @@ pnpm format
 pnpm bootstrap:owner --email <a> --name "<n>"   # one-time first Owner (password prompted)
 pnpm identity:benchmark       # argon2id cost on this machine
 pnpm age:keygen [kid]         # Ed25519 age-ticket key pair (private key: storefront only)
+pnpm load:test                # load/query/payload run on a fresh test schema (needs infra + build)
 ```
 
 Keep in sync with root package.json. If a script is missing, add it — don't guess variants.

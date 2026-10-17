@@ -2282,3 +2282,20 @@ Not covered (needs BI-15 and staging):
 - Real iOS and Android devices, VoiceOver and TalkBack, Safari and Firefox.
 - Live preview fetchers (WhatsApp, iMessage, Facebook/Instagram, Telegram, X) on a public URL.
 - Manual review of reading order and wording with a screen reader.
+
+## Step 121 — representative load, query and payload testing (2026-10-17, local)
+
+ADR 0085; full report in `docs/load-report.md`. The scenario is Apixel's proposal until BI-16 is answered. Host: Apple M2, local Docker.
+
+| Item           | Evidence                                                                                                                                                               |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Targets        | `pnpm load:test`: read p95 32 ms (target 300), checkout order p95 62 ms (target 800) with 50 shoppers; 23 and 54 ms with 150 shoppers. 0 errors.                       |
+| Pool and locks | No request waited for a pool connection (max 8 of 10 open); at most 3 sessions waiting on a lock.                                                                      |
+| Contention     | 20 simultaneous last-unit orders → exactly 3 placed; 10 simultaneous one-use coupon orders → exactly 1. Ledger reconciliation 0 mismatches.                            |
+| Queue outage   | About 220 orders placed during a 20 s Redis stop (p95 58 ms); all effects completed 6 s after Redis returned.                                                          |
+| Query plans    | No statement over 100 ms during the runs (auto_explain). At 51,788 orders every admin and rollup read p95 ≤ 93 ms after fixing the orders list (52 → 2 ms first page). |
+| Regression     | `admin-orders`, `bulk-confirm` and customer integration suites PASS after the list query change.                                                                       |
+
+Not covered:
+
+- The production VPS (rerun on staging), browser-side LCP/CLS/JS (BI-15), client traffic figure (BI-16).

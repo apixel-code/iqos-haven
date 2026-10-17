@@ -46,8 +46,8 @@ changed total and a sold-out line. It changes the price and stock mid-journey wi
 Origin, because the served storefront refuses the local http one; the button is not clicked.
 The served stack also runs the worker's relay, queue and consumers on that schema (a private
 queue prefix), and the journey checks that both orders reach the inbox. Stop the stack with
-SIGTERM (`kill <pid>`): a process started in the background of a script ignores SIGINT, and then
-its schema and queue keys are left behind and must be dropped by hand.
+SIGTERM (`kill <pid>`): it stops the storefront's process group and the gateway container,
+then drops its schema and queue keys (step 121 fixed a shutdown hook that skipped this).
 
 ## Review link page (step 94)
 

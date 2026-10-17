@@ -15,3 +15,4 @@ next-env.d.ts
 dump.rdb
 
 packages/db/src/generated/
+.load/

@@ -219,6 +219,9 @@ async function main() {
     });
     const { createApp } = api(root + "/apps/api/dist/bootstrap.js");
     const app = await createApp(env, { pool, database: db });
+    // Nest's shutdown hooks end this process on SIGINT/SIGTERM before the cleanup below runs
+    // (left storefronts and schemas behind). The cleanup closes the app itself.
+    for (const signal of ["SIGINT", "SIGTERM"]) process.removeAllListeners(signal);
     // All interfaces: the gateway container reaches the host through host.docker.internal.
     await app.listen(apiPort, "0.0.0.0");
     cleanup.push(() => app.close());
@@ -229,6 +232,8 @@ async function main() {
       [path.join(root, "scripts/next-app.cjs"), "storefront", "start"],
       {
         cwd: path.join(root, "apps/storefront"),
+        // Its own process group: `next start` and its server are stopped together (step 121).
+        detached: true,
         stdio: ["ignore", "pipe", "pipe"],
         env: {
           ...process.env,
@@ -248,10 +253,28 @@ async function main() {
     cleanup.push(
       () =>
         new Promise((done) => {
-          if (store.exitCode !== null) return done();
-          store.once("exit", done);
-          store.kill("SIGTERM");
-          setTimeout(done, 5000).unref();
+          // The whole group: a forwarded SIGTERM alone left `next-server` running after the
+          // wrapper gave up, and those orphans piled up across runs.
+          const group = (signal) => {
+            try {
+              process.kill(-store.pid, signal);
+            } catch {
+              /* already gone */
+            }
+          };
+          if (store.exitCode !== null) {
+            group("SIGKILL");
+            return done();
+          }
+          store.once("exit", () => {
+            group("SIGKILL");
+            done();
+          });
+          group("SIGTERM");
+          setTimeout(() => {
+            group("SIGKILL");
+            done();
+          }, 5000).unref();
         }),
     );
 
@@ -279,7 +302,13 @@ async function main() {
       `${IMAGE.image}@${IMAGE.digest}`,
     );
     if (run.status !== 0) throw new Error("gateway container failed to start: " + run.stderr);
-    cleanup.push(() => void docker("stop", container));
+    cleanup.push(() => {
+      const stopped = docker("stop", container);
+      if (stopped.status !== 0)
+        console.error(
+          `cleanup: gateway ${container} not stopped: ${stopped.stderr || stopped.error}`,
+        );
+    });
     const base = `http://127.0.0.1:${gatewayPort}`;
 
     const get = (target, headers = {}, method = "GET") =>

@@ -4,8 +4,8 @@
 
 - Date: 2026-10-17
 - Milestone: M7 — transactional checkout and first complete order: all steps (73–82) done; gate evidence ready, awaiting Marina's decision. M6: all steps (65–72) done; gate evidence ready, awaiting Marina's decision. M5: PASSED 2026-10-11. M4 steps done, gate awaits Marina's decision (publishing unblocked); M3 gate not closed; M0 review and M1 staging/fixtures still open
-- Step: **120 — local part done, step IN PROGRESS** (accessibility scans and keyboard journeys, five fixes, ADR 0084); the real-device and live-preview part waits for BI-15 and a staging URL. All four tier-L parity gaps done (ADRs 0080–0083). M11 in progress (115–119 done).
-- Branch: `step/120-accessibility` (from `parity/g-s4-menu-sheet`; PR #98 based on #97)
+- Step: **121 — done** (load/query/payload test, ADR 0085, docs/load-report.md; scenario is Apixel's until BI-16). Step 120: local part done, real-device part waits for BI-15 + staging. All four tier-L parity gaps done (ADRs 0080–0083). M11 in progress (115–119, 121 done; 120 partial).
+- Branch: `step/121-load-testing` (from `step/120-accessibility`; PR to open, based on #98)
 - See docs/verification.md for actual checks.
 
 ## Next action
@@ -28,10 +28,11 @@
    3. ~~**G-S1**~~ — DONE 2026-10-17 (ADR 0082, PR #96).
    4. ~~**G-S4**~~ — DONE 2026-10-17 (ADR 0083, PR #97).
 8. **Step 120:** local part DONE (ADR 0084, branch `step/120-accessibility`). To finish: Marina answers **BI-15** (devices, assistive technology, preview platforms) and staging exists; then rerun `a11y-storefront.mjs`/`a11y-admin.mjs` against staging and check real devices and live preview fetchers.
-9. **Next work: step 121** (representative load/query/payload testing) on `step/121-load-testing`, from `step/120-accessibility`. It can run locally on the budget profile; read its roadmap row and the M11 gate first.
-   Each: look up the prototype symbols in `docs/prototype-map.md` (or the `prototype-reader` subagent), add or extend a browser pass in `scripts/browser-qa/`, `/verify`, then mark the gap DONE in `docs/parity-review.md`. Branch names `parity/g-a1-order-picker` etc., each from the latest pushed branch.
-   Still waiting on Marina: the M10 gate (docs/verification.md "Step 114") and M4, M6–M9. After the four gaps: **`/step 120`**. New migrations on deployment: `20261016000300_daily_summary_slot`, `20261016000400_report_jobs`, `20261016000500_seo_policy`.
-10. **Rules that carry forward:**
+9. ~~Step 121~~ — DONE 2026-10-17 (ADR 0085, branch `step/121-load-testing`). Rerun `pnpm load:test` on staging and with the client's figure (BI-16).
+10. **Next work: step 122** (production IaC, private networking, DNS/TLS/origin controls) needs the Hostinger VPS access and domain (BI-06/BI-07). Ask Marina what is available before starting; otherwise steps that can run locally come first.
+    Each: look up the prototype symbols in `docs/prototype-map.md` (or the `prototype-reader` subagent), add or extend a browser pass in `scripts/browser-qa/`, `/verify`, then mark the gap DONE in `docs/parity-review.md`. Branch names `parity/g-a1-order-picker` etc., each from the latest pushed branch.
+    Still waiting on Marina: the M10 gate (docs/verification.md "Step 114") and M4, M6–M9. After the four gaps: **`/step 120`**. New migrations on deployment: `20261016000300_daily_summary_slot`, `20261016000400_report_jobs`, `20261016000500_seo_policy`.
+11. **Rules that carry forward:**
     - Launch profile (step 119, BI-06): budget = one API process with the in-process catalogue cache and local limiters; `RATE_LIMIT_MAX_REPLICAS` must stay 1 on it (config refuses otherwise). A second API replica means the replicated profile with `CACHE_REDIS_URL` and `RATE_LIMIT_KEY_SECRET`.
     - Event stream (step 118): when the inbox poll fails, the stream checks the session first and ends with `signed-out` if it is no longer valid, otherwise `reconnect`. The gate script (`pnpm test:gate`) now also signs in through the gateway's admin surface; never print the session token (only cookie attributes) in its checks.
     - SEO policy (ADR 0079): `seo` settings row, `closed` by default or `public_pages` (only /responsible-use, /terms, /privacy). Written only by `PUT /v1/admin/seo/policy` (`seo.write`, expected version); read by the storefront through `GET /v1/public/seo` and held `SEO_POLICY_CACHE_SECONDS` (60); any failure = closed. robots.ts, sitemap.ts (public, empty when closed), the `(policy)` layout's robots meta and the proxy's header follow it; the static `X-Robots-Tag` excludes only those three paths. Product indexing, previews and JSON-LD are never switches (BI-05). Browser pass: `scripts/browser-qa/seo.mjs`; storefront side in `pnpm test:age-preview`.
@@ -90,9 +91,9 @@
     - Local storefront dev needs age keys in `.env`: run `pnpm age:keygen` and paste the three lines (Claude cannot read or edit `.env`). Without them every page redirects to the age check and accepting answers 503.
     - If `http://localhost:8080/api/age/*` answers 404, the gateway container is running an old config: `docker compose restart gateway`.
     - Every later stock writer (orders, steps 75–76, 85–86) must call `publishLowStockCrossing` in its transaction (ADR 0023).
-11. **Publishing works without a tax reference** (ADR 0036): a complete product can be published from the admin. The dev database has all migrations applied (2026-10-12) but no products yet; tests still seed their own.
-12. **Local invalidation call:** to exercise the worker → API call in dev, set `INTERNAL_SERVICE_KEYS` and the worker's `INTERNAL_SERVICE_*` in `.env` (see `.env.example`). Without them the effect completes as `skipped:not_configured`.
-13. **Browser QA for later admin steps:** use `scripts/browser-qa/` (README). `/tmp/ih-qa` does not survive; reinstall `playwright-core` there (or any directory) and set `QA_PLAYWRIGHT_DIR`.
+12. **Publishing works without a tax reference** (ADR 0036): a complete product can be published from the admin. The dev database has all migrations applied (2026-10-12) but no products yet; tests still seed their own.
+13. **Local invalidation call:** to exercise the worker → API call in dev, set `INTERNAL_SERVICE_KEYS` and the worker's `INTERNAL_SERVICE_*` in `.env` (see `.env.example`). Without them the effect completes as `skipped:not_configured`.
+14. **Browser QA for later admin steps:** use `scripts/browser-qa/` (README). `/tmp/ih-qa` does not survive; reinstall `playwright-core` there (or any directory) and set `QA_PLAYWRIGHT_DIR`.
 
 ## Blockers
 
@@ -151,6 +152,7 @@ BI-07: a verified sending domain and sender address are still needed before real
 - 104 — storefront telemetry queue (batches of 20, one retry, pause on overload, drop when full or on quiet pages), events from search/product page/cart/saved list, rotating anonymous ID, browser QA script (ADR 0070) — `step(104)` commit on `step/104-client-telemetry`
 - 105 — financial metric definitions (booked/delivered/collected, AOV, cancellation, status mix; Dubai days, AED fils, tax note) and the Owner's snapshot summary query (ADR 0071) — `step(105)` commit on `step/105-financial-metrics`
 - 106 — `sales_daily`, `product_sales_daily` (snapshot brand), `search_daily`, `wishlist_daily`; idempotent per-day rollup sharing the step 105 definitions; `analytics_rollup` consumer on order events (ADR 0072) — `step(106)` commit on `step/106-daily-rollups`
+- 121 — `pnpm load:test` (`scripts/load/`): launch-sized dataset, 50/150 shoppers + staff, contention, queue outage; read p95 32 ms, checkout p95 62 ms, no pool waits; admin orders list fixed (52 → 2 ms at 51,788 orders); gate harness cleanup fixed (Nest hooks, storefront group, gateway); BI-16 added (ADR 0085) — step/121-load-testing
 - 120 (local part; step still open) — axe WCAG 2.1 AA + keyboard passes `a11y-storefront.mjs` (51) and `a11y-admin.mjs` (70); fixes: storefront `--ink-3` contrast, Cart link name, dialog reopen race (cart sheet, menu), admin tab list, notification panel Escape; BI-15 added (ADR 0084) — step/120-accessibility
 - G-S4 — storefront mobile menu sheet: compact phone header (logo, Menu, Cart, search row), `MenuSheet` dialog from the left with sections, brands loaded on opening, saved/compare counts, help and WhatsApp; Help link on wide screens; browser pass `menu-sheet.mjs` (ADR 0083) — parity/g-s4-menu-sheet
 - G-S1 — storefront cart sheet after adding (`CartSheet` modal dialog: bottom sheet on a phone, side panel from 640px; lines, quantity, remove, subtotal, View cart and checkout, WhatsApp; quick add hands over; no payable total), shared `CartLines`, browser pass `cart-sheet.mjs`, two stale `checkout.mjs` expectations updated (ADR 0082) — parity/g-s1-cart-sheet
@@ -198,31 +200,32 @@ BI-07: a verified sending domain and sender address are still needed before real
 - Event `consumers` lists only implemented consumers (now `system_probe`, `email`, `notification`, `media_processor`, `storefront_revalidate`); planned ones are documented with roadmap steps and move in with a backfill decision (architecture §8: adding a consumer must not redefine old completions).
 - `audit_log` migration revokes UPDATE/DELETE/TRUNCATE only from a role named `ih_app`; other runtime role names must be revoked at provisioning (trigger blocks mutations regardless).
 
-## Last session handoff (2026-10-17, step 120 local part)
+## Last session handoff (2026-10-17, step 121)
 
 Done:
 
-- **Step 120, local part (ADR 0084).** Step 120 is **not** done: real devices, assistive technology and live preview fetchers need BI-15 (new, OPEN) and a staging URL.
-  - **Storefront pass** (`scripts/browser-qa/a11y-storefront.mjs`, axe-core WCAG 2.1 A/AA): 13 pages plus both sheets at 360px and 1280px, and the age check. Keyboard: add, sheet focus, Escape, re-add, checkout error summary, menu. 51 checks PASS.
-  - **Admin pass** (`scripts/browser-qa/a11y-admin.mjs`): sign-in, home, 16 sections, order detail and new order at 1366px light and dark and 390px. Keyboard: sign-in, alert, bell. 70 checks PASS.
-  - **Fixes:**
-    - storefront `--ink-3` darkened to #5f6a71 (contrast; the one change from the prototype's colours);
-    - the Cart link's accessible name now contains its visible text;
-    - the cart sheet and menu ignore a late `close` event (re-add right after Escape works; `lib/cart/sheet.ts` has an open revision);
-    - the admin "Delayed only" toggle moved out of the tablist;
-    - the notification panel closes on Escape, with focus back to the bell.
+- **Step 121 (ADR 0085, `docs/load-report.md`).**
+  - **The script:** `pnpm load:test` seeds 600 products, 1,800 options and 40 areas on a fresh test schema. It runs the built API on the budget profile in a child process (`scripts/load/api-server.cjs`, with the worker's relay, consumers and reconciler), then: 600 history orders → 50 shoppers + 2 staff for 120 s → contention → a 20 s queue-Redis outage.
+  - **Results:** read p95 32 ms and checkout p95 62 ms (targets 300 and 800); 23 and 54 ms with 150 shoppers. No pool waits. Last units and the one-use coupon exact. Effects drain 6 s after Redis returns. Reconciliation 0.
+  - **Volume check:** at 51,788 orders every admin and rollup read p95 is ≤ 93 ms.
+- **Fixes:**
+  - **Admin orders list** (`packages/db/src/order-admin.ts`): the page is picked before counting lines (52 → 2 ms at 51,788 orders).
+  - **`check-gate-e2e.cjs --serve`:** Nest's shutdown hooks had killed it before cleanup, leaving storefronts, gateway containers and schemas (load average 394). Now its cleanup always runs: it stops the storefront's process group and reports a gateway it cannot stop. 8 old gateway containers and 7 storefronts were stopped.
+- **BI-16 added:** the client's expected traffic.
 
-Files: `packages/tokens/storefront.css`, `apps/storefront/components/{cart-link.tsx,cart-sheet.tsx,menu-sheet.tsx}`, `apps/storefront/lib/cart/sheet.ts`, `apps/admin/components/{order-management.tsx,notification-bell.tsx}`, `apps/admin/app/globals.css`, `scripts/browser-qa/{a11y-storefront.mjs,a11y-admin.mjs,README.md}`, `docs/decisions/0084-accessibility-check-local.md`, `docs/business-inputs.md` (BI-15), `docs/verification.md`
+Files: `scripts/load/{load-test.cjs,api-server.cjs}`, `package.json` (`load:test`), `CLAUDE.md`, `.gitignore` (`.load/`), `packages/db/src/order-admin.ts`, `scripts/check-gate-e2e.cjs`, `scripts/browser-qa/README.md`, `docs/load-report.md`, `docs/decisions/0085-load-testing.md`, `docs/business-inputs.md` (BI-16), `docs/verification.md`
 
-Tests: `pnpm verify` PASS (age preview 2245). `pnpm test:gate` PASS (2586). Browser: both a11y passes PASS; `cart-sheet.mjs`, `menu-sheet.mjs`, `deep-links.mjs` PASS after the fixes (schemas dropped). `pnpm test:int` not rerun (no API change: 651).
+Tests: `pnpm verify` PASS (age preview 2245). `pnpm test:int` PASS (651). `pnpm test:gate` PASS (2586), nothing left running afterwards.
 
 Unfinished:
 
-- PR #98 is open (based on #97).
-- **Marina:** BI-15; the M4 and M6–M10 gates; merging the stacked PRs #61 → #98.
-- Step 120 finishes on staging; step 121 can start locally.
+- Push `step/121-load-testing` and open its PR on #98.
+- The test database still holds 10 old `ih_test_*` schemas from earlier interrupted runs (not dropped: Marina or the next session may drop them with `node scripts/browser-qa/qa-server.cjs --drop <schema>`).
+- **Marina:** BI-15, BI-16; the M4 and M6–M10 gates; merging the stacked PRs #61 → #99.
 
 ## History (summary)
+
+- 2026-10-17 step 120 (local part): axe WCAG 2.1 AA + keyboard passes, five accessibility fixes, BI-15 (PR #98).
 
 - 2026-10-17 parity G-S4: storefront mobile menu sheet and compact phone header (PR #97). All four tier-L parity gaps done.
 

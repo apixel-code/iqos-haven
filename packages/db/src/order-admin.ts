@@ -104,12 +104,14 @@ export async function listAdminOrders(db: Database, actorId: string, input: Admi
   const rows = await db.$queryRaw<OrderListRow[]>(Prisma.sql`
     SELECT o.id, o.order_number AS "orderNumber", o.status, o.source,
       o.customer_name AS "customerName", o.customer_phone_e164 AS "customerPhone",
-      sum(i.quantity)::int AS "itemCount", o.area_name AS "areaName",
+      -- Counted per order of the page only (step 121): grouping every order before the LIMIT
+      -- made the first page cost grow with the whole order history.
+      (SELECT sum(i.quantity)::int FROM order_items i WHERE i.order_id=o.id) AS "itemCount",
+      o.area_name AS "areaName",
       o.total_fils AS "totalFils", o.cod_status AS "codStatus", o.version,
       o.created_at AS "createdAt", o.created_at::text AS "cursorCreatedAt"
-    FROM orders o JOIN order_items i ON i.order_id=o.id
+    FROM orders o
     ${where}
-    GROUP BY o.id
     ORDER BY o.created_at DESC,o.id DESC
     LIMIT ${query.limit + 1}`);
   const page = rows.slice(0, query.limit);
