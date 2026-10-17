@@ -6,8 +6,14 @@ import { catalogueText } from "./catalogue";
  * adjustment carries a client-generated command ID (replay-safe) and a reason.
  */
 export const STOCK_REASONS = ["INITIAL_STOCK", "RESTOCK", "MANUAL", "DAMAGE"] as const;
-/** Every reason a movement can have in the ledger: what staff may enter, plus order sales. */
-export const STOCK_MOVEMENT_REASONS = [...STOCK_REASONS, "SALE"] as const;
+/** Every reason a movement can have in the ledger: what staff may enter, plus order effects. */
+export const STOCK_MOVEMENT_REASONS = [
+  ...STOCK_REASONS,
+  "SALE",
+  "ORDER_EDIT",
+  "ORDER_CANCEL",
+  "ORDER_RETURN",
+] as const;
 export const stockAdjustmentRequestSchema = z
   .strictObject({
     /** One per user action; a retry with the same payload returns the original result. */
@@ -53,6 +59,8 @@ export const inventoryItemSchema = z.strictObject({
 });
 export const inventoryQuerySchema = z.strictObject({
   productId: z.uuid().optional(),
+  /** One variant, e.g. from a low-stock notification (parity G-A2). */
+  variantId: z.uuid().optional(),
   state: stockStateSchema.optional(),
   /** SKU or product name, matched literally. */
   q: catalogueText(1, 100).optional(),

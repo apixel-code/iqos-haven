@@ -254,6 +254,17 @@ describe("category administration through the real API and PostgreSQL", () => {
     const category = await create();
     const first = category.slug;
     const second = slug();
+    // Changing an existing slug is the Owner's (step 101); Staff are refused.
+    expect(
+      (
+        await call(
+          "/" + category.id,
+          "PATCH",
+          { ...editable(category), slug: second },
+          cookies.staff,
+        )
+      ).status,
+    ).toBe(403);
     const renamed = await json(
       await call("/" + category.id, "PATCH", { ...editable(category), slug: second }),
     );

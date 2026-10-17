@@ -2,9 +2,12 @@ import {
   storeProductsQuerySchema,
   type StoreProductSort,
   type StoreProductsQuery,
+  type StoreRating,
+  type StoreReview,
 } from "@ih/contracts";
 import { productAvailability } from "@ih/domain";
 import { Prisma, type Database } from "./client";
+import { readProductReviews } from "./reviews";
 
 /**
  * Shopper catalogue reads (roadmap step 58). Read-only and the single definition of what a
@@ -31,13 +34,19 @@ export interface StoreParentRow {
   slug: string;
   description?: string;
   productCount: number;
+  /** Earlier slugs that redirect to this parent (step 101), newest first, at most 20. */
+  formerSlugs: string[];
 }
+const FORMER_SLUGS = (fk: "brand_id" | "category_id") => Prisma.sql`
+  coalesce((SELECT array_agg(f.old_slug) FROM (
+    SELECT r.old_slug FROM slug_redirects r WHERE r.${Prisma.raw(fk)}=x.id
+    ORDER BY r.created_at DESC, r.id DESC LIMIT 20) f), '{}') AS "formerSlugs"`;
 
 export async function listStoreBrands(db: Database): Promise<StoreParentRow[]> {
   return db.$queryRaw<StoreParentRow[]>(Prisma.sql`
     SELECT x.name, x.slug, x.description,
       (SELECT count(*)::int ${PRODUCT_FROM} WHERE p.brand_id=x.id AND ${VISIBLE_PRODUCT})
-        AS "productCount"
+        AS "productCount", ${FORMER_SLUGS("brand_id")}
     FROM brands x WHERE x.active AND x.deleted_at IS NULL
     ORDER BY x.sort_order, lower(x.name), x.id LIMIT 500`);
 }
@@ -46,7 +55,7 @@ export async function listStoreCategories(db: Database): Promise<StoreParentRow[
   return db.$queryRaw<StoreParentRow[]>(Prisma.sql`
     SELECT x.name, x.slug,
       (SELECT count(*)::int ${PRODUCT_FROM} WHERE p.category_id=x.id AND ${VISIBLE_PRODUCT})
-        AS "productCount"
+        AS "productCount", ${FORMER_SLUGS("category_id")}
     FROM categories x WHERE x.active AND x.deleted_at IS NULL
     ORDER BY x.sort_order, lower(x.name), x.id LIMIT 500`);
 }
@@ -173,6 +182,8 @@ export async function listStoreProducts(
   if (query.brand) filters.push(Prisma.sql`b.slug=${query.brand}`);
   if (query.category) filters.push(Prisma.sql`c.slug=${query.category}`);
   if (query.type) filters.push(Prisma.sql`p.type=${query.type}`);
+  // The same rule as the card's "was" price: a compare-at price above the lowest price.
+  if (query.sale) filters.push(Prisma.sql`p.compare_at_price_fils > s.price_from`);
   const rows = await db.$queryRaw<Array<StoreProductCardRow & { cursorKey: string | number }>>(
     Prisma.sql`
     WITH q AS (
@@ -232,6 +243,8 @@ export interface StoreProductDetail {
   }>;
   soldOut: boolean;
   images: StoreImageRow[];
+  rating: StoreRating | null;
+  reviews: StoreReview[];
 }
 
 /**
@@ -300,6 +313,7 @@ export async function readStoreProduct(
       const availability = productAvailability(
         variants.map((variant) => ({ ...variant, active: true })),
       );
+      const { rating, reviews } = await readProductReviews(tx, product.id);
       return {
         slug: product.slug,
         name: product.name,
@@ -322,6 +336,8 @@ export async function readStoreProduct(
         })),
         soldOut: availability.soldOut,
         images,
+        rating,
+        reviews,
       };
     },
     { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead },

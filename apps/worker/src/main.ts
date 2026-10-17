@@ -17,6 +17,17 @@ import { EffectRunner, startEffectWorkers, systemProbeHandler } from "./effects"
 import { BullEffectEnqueuer, createQueueConnection } from "./queue";
 import { EffectReconciler } from "./reconciler";
 import { OutboxRelay } from "./relay";
+import { createConfirmationCleanupJob, createIdempotencyCleanupJob } from "./idempotency";
+import { createNotificationConsumer, newOrderEmailPlanner } from "./order-notifications";
+import {
+  createAnalyticsRollupConsumer,
+  createLateEditRollupJob,
+  createTodayRollupJob,
+} from "./analytics-rollup";
+import { lowStockEmailPlanner } from "./low-stock-notifications";
+import { createBrowsingEventsCleanupJob } from "./browsing-events";
+import { createDailySummaryJob, dailySummaryEmailPlanner } from "./daily-summary";
+import { createReportBuilderConsumer, createReportUpkeepJob } from "./reports";
 import { Scheduler } from "./scheduler";
 import { startWorker, type WorkerRuntime } from "./runtime";
 const SHUTDOWN_TIMEOUT_MS = 20000;
@@ -44,6 +55,9 @@ async function main(): Promise<void> {
     planners: {
       "staff.password_reset_requested": passwordResetEmailPlanner(database, env),
       "staff.invited": staffInvitationEmailPlanner(database, env),
+      "order.created": newOrderEmailPlanner(database),
+      "inventory.low": lowStockEmailPlanner(database, log),
+      "report.daily_summary": dailySummaryEmailPlanner(database, log),
     },
   });
   // Image processing is CPU/memory heavy: one libvips thread per job, bounded worker concurrency.
@@ -58,11 +72,19 @@ async function main(): Promise<void> {
     db: database,
     owner,
     log,
-    handlers: [systemProbeHandler, emailConsumer, mediaConsumer, revalidateConsumer],
+    handlers: [
+      systemProbeHandler,
+      emailConsumer,
+      mediaConsumer,
+      revalidateConsumer,
+      createNotificationConsumer({ log }),
+      createAnalyticsRollupConsumer({ log }),
+      createReportBuilderConsumer({ db: database, storage, log }),
+    ],
     retries: enqueuer,
   });
   const reconciler = new EffectReconciler({ db: database, enqueuer, log });
-  // Scheduled jobs (daily summary, rollups, cleanup) register here in their roadmap steps.
+  // Scheduled jobs register here in their roadmap steps (daily summary: 92/107, rollups: 107).
   const scheduler = new Scheduler({
     db: database,
     owner,
@@ -70,6 +92,13 @@ async function main(): Promise<void> {
     jobs: [
       createMediaCleanupJob({ db: database, storage, log }),
       createStockReconciliationJob({ db: database, log }),
+      createIdempotencyCleanupJob({ db: database, log }),
+      createConfirmationCleanupJob({ db: database, log }),
+      createDailySummaryJob({ db: database, log }),
+      createBrowsingEventsCleanupJob({ db: database, log }),
+      createTodayRollupJob({ db: database, log }),
+      createLateEditRollupJob({ db: database, log }),
+      createReportUpkeepJob({ db: database, storage, log }),
     ],
   });
   let effectWorkers: { stop(): Promise<void> } | undefined;

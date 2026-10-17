@@ -16,6 +16,20 @@ export type ErrorEnvelope = z.infer<typeof errorEnvelopeSchema>;
 /** Stable 409 reasons a client may act on; anything else stays the generic CONFLICT. */
 export const CONFLICT_CODES = [
   "VERSION_CONFLICT",
+  // Reports (step 111): the job cannot be downloaded now, or grew past the stream limit.
+  "REPORT_NOT_AVAILABLE",
+  "REPORT_TOO_LARGE",
+  "INVALID_TRANSITION",
+  "ORDER_NOT_EDITABLE",
+  "NO_CHANGES",
+  /** Delivered or already cancelled: the cancel command does not apply (step 86). */
+  "ORDER_NOT_CANCELLABLE",
+  /** A return must classify every line of the order, and only those, completely. */
+  "RETURN_INCOMPLETE",
+  /** Cash can be recorded only for a Delivered order whose cash is still pending (step 87). */
+  "COLLECTION_NOT_ALLOWED",
+  /** A correction needs a recorded collection to correct. */
+  "NOT_COLLECTED",
   "DUPLICATE",
   "IN_USE",
   "TRASHED",
@@ -50,6 +64,18 @@ export const CONFLICT_CODES = [
   "LIMIT_BELOW_USES",
   /** An active coupon cannot end in the past. */
   "ALREADY_EXPIRED",
+  /** A review link is only for a Delivered order (step 93). */
+  "REVIEW_NOT_ALLOWED",
+  /** Every product of the order has been reviewed already. */
+  "NOTHING_TO_REVIEW",
+  /** The review link needs the store's domain in Settings. */
+  "STORE_DOMAIN_REQUIRED",
+  /** The draft is what is already published (step 97). */
+  "NOTHING_TO_PUBLISH",
+  /** The draft points at something a shopper cannot see; `fields` lists it (step 97). */
+  "CONTENT_REFERENCES",
+  /** A review link that is unknown, replaced, expired, or no longer covers the product (step 94). */
+  "REVIEW_PROOF_INVALID",
 ] as const;
 export type ConflictCode = (typeof CONFLICT_CODES)[number];
 /** 403 code of a store route reached without a valid age ticket (step 55). */
@@ -79,3 +105,12 @@ export * from "./store";
 export * from "./customers";
 export * from "./checkout";
 export * from "./coupons";
+export * from "./orders";
+export * from "./notifications";
+export * from "./reviews";
+export * from "./content";
+export * from "./telemetry";
+export * from "./analytics";
+export * from "./dashboard";
+export * from "./reports";
+export * from "./seo";

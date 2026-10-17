@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { join } from "node:path";
 for (const name of [
   "architecture",
   "roadmap",
@@ -30,4 +31,23 @@ assert(
   !/store\.(set|get)\("lastOrder"/.test(store),
   "Prototype confirmation PII persistence returned",
 );
-process.stdout.write("Reference set, 132 steps and prototype privacy checks passed.\n");
+// Prototype traps (step 100): demo coupon codes and fixed free-delivery claims never reach
+// application code. Tests may name a code to prove it is refused.
+const DEMO =
+  /\b(HAVEN10|SAVE20|VEKTOR15|BIGBOX15)\b|free (delivery )?on orders (of|over)|free delivery over/i;
+const skip = /(^|\/)(node_modules|\.next|dist|generated|coverage|\.turbo)(\/|$)|\.test\.tsx?$/;
+function* sources(dir) {
+  for (const name of readdirSync(dir)) {
+    const path = join(dir, name);
+    if (skip.test(path)) continue;
+    if (statSync(path).isDirectory()) yield* sources(path);
+    else if (/\.(tsx?|css|mjs|cjs)$/.test(name)) yield path;
+  }
+}
+for (const root of ["apps", "packages"])
+  for (const file of sources(root))
+    assert(
+      !DEMO.test(readFileSync(file, "utf8")),
+      "Prototype demo coupon or free-delivery claim in " + file,
+    );
+process.stdout.write("Reference set, 132 steps, prototype privacy and demo-copy checks passed.\n");

@@ -180,7 +180,9 @@ describe("catalogue client", () => {
     cookieHeader: `session=secret; ih_age=${TICKET}; cart=abc`,
     clientIp: "203.0.113.7",
   };
-  const brands = { items: [{ name: "Orbe", slug: "orbe", description: "", productCount: 2 }] };
+  const brands = {
+    items: [{ name: "Orbe", slug: "orbe", description: "", productCount: 2, formerSlugs: [] }],
+  };
   function api(respond: (url: URL, init: RequestInit) => Response | Promise<Response>) {
     const calls: Array<{ url: URL; init: RequestInit }> = [];
     const client = createStoreApi({

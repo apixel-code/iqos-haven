@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound, permanentRedirect } from "next/navigation";
 import type { StoreProductResponse } from "@ih/contracts";
 import { BuyBox } from "@/components/buy-box";
+import { ProductReviews, RatingLink } from "@/components/product-reviews";
 import { CompareToggle } from "@/components/compare-toggle";
 import { RecentlyViewed, RecordView } from "@/components/recently-viewed";
 import { SaveButton } from "@/components/save-button";
@@ -32,6 +33,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return {
     title: `${product.seo.title ?? product.name} · ${SITE.name}`,
     ...(product.seo.description ? { description: product.seo.description } : {}),
+    // The current slug, also when reached through a former one (step 101).
+    alternates: { canonical: `/p/${product.slug}` },
   };
 }
 
@@ -114,6 +117,7 @@ export default async function ProductPage({ params }: Props) {
               {product.brand.name}
             </a>
             <h1 className="text-3xl font-semibold tracking-tight">{product.name}</h1>
+            <RatingLink rating={product.rating} />
           </div>
           {/* Keyed by product so choices never carry over to another product. */}
           <BuyBox key={product.slug} product={product} />
@@ -167,6 +171,7 @@ export default async function ProductPage({ params }: Props) {
           </section>
         )}
       </div>
+      <ProductReviews rating={product.rating} reviews={product.reviews} />
       <RecordView slug={product.slug} />
       {more.length > 0 && (
         <section aria-labelledby="more" className="flex flex-col gap-5 pt-12">

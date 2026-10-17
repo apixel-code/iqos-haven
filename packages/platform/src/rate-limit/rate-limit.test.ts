@@ -17,6 +17,7 @@ function clock(start = 1_000_000) {
 
 const broken: RateLimiter = {
   consume: () => Promise.reject(new Error("ECONNREFUSED")),
+  peek: () => Promise.reject(new Error("ECONNREFUSED")),
   reset: () => Promise.reject(new Error("ECONNREFUSED")),
 };
 
@@ -79,6 +80,30 @@ describe("LocalRateLimiter", () => {
     for (let i = 0; i < 4; i++) await limiter.consume("a", rule);
     await limiter.reset("a");
     expect((await limiter.consume("a", rule)).allowed).toBe(true);
+  });
+
+  it("peeks without counting and without creating a key", async () => {
+    const time = clock();
+    const limiter = new LocalRateLimiter({ maxKeys: 10, now: time.now });
+    for (let i = 0; i < 20; i++) expect((await limiter.peek("e:d:a", rule)).allowed).toBe(true);
+    expect(limiter.size).toBe(0);
+    await limiter.consume("e:d:a", rule);
+    await limiter.consume("e:d:a", rule);
+    expect((await limiter.peek("e:d:a", rule)).allowed).toBe(true);
+    await limiter.consume("e:d:a", rule);
+    // The budget is spent: the next consume would be denied, and peek says so.
+    expect(await limiter.peek("e:d:a", rule)).toEqual({ allowed: false, retryAfterMs: 60_000 });
+    expect((await limiter.peek("e:d:b", rule)).allowed).toBe(true);
+    time.advance(60_000);
+    expect((await limiter.peek("e:d:a", rule)).allowed).toBe(true);
+  });
+
+  it("peeks the shared overflow window for an untracked key in a full partition", async () => {
+    const limiter = new LocalRateLimiter({ maxKeys: 1 });
+    await limiter.consume("e:d:a", rule);
+    for (let i = 0; i < 3; i++) await limiter.consume("e:d:" + i, rule);
+    expect((await limiter.peek("e:d:new", rule)).allowed).toBe(false);
+    expect((await limiter.peek("e:d:a", rule)).allowed).toBe(true);
   });
 });
 
@@ -199,5 +224,39 @@ describe("EndpointLimiter", () => {
       allowed: false,
       deniedBy: "ip",
     });
+  });
+
+  it("peeks every dimension without spending any budget", async () => {
+    const local = new LocalRateLimiter({ maxKeys: 100 });
+    const limiter = new EndpointLimiter({ primary: local, local, keySecret: SECRET });
+    const values = { ip: "203.0.113.7", identity: "owner@iqoshaven.test" };
+    for (let i = 0; i < 10; i++) expect((await limiter.peek(login, values)).allowed).toBe(true);
+    await limiter.consume(login, values);
+    await limiter.consume(login, values);
+    expect(await limiter.peek(login, values)).toMatchObject({
+      allowed: false,
+      deniedBy: "identity",
+      degraded: false,
+    });
+    expect((await limiter.peek(login, { ...values, identity: "x" })).allowed).toBe(true);
+  });
+
+  it("peeks the local fallback during an outage, or fails closed", async () => {
+    const local = new LocalRateLimiter({ maxKeys: 100 });
+    const limiter = new EndpointLimiter({ primary: broken, local, keySecret: SECRET });
+    const values = { ip: "203.0.113.1", phone: "+971500000001" };
+    // Peeking never uses the process ceiling (4): only counted attempts do.
+    for (let i = 0; i < 10; i++)
+      expect(await limiter.peek(checkout, values)).toMatchObject({ allowed: true, degraded: true });
+    await limiter.consume(checkout, values);
+    await limiter.consume(checkout, values);
+    expect(await limiter.peek(checkout, values)).toMatchObject({
+      allowed: false,
+      deniedBy: "phone",
+      degraded: true,
+    });
+    await expect(limiter.peek(login, { ip: "x", identity: "y" })).rejects.toBeInstanceOf(
+      RateLimiterUnavailableError,
+    );
   });
 });

@@ -182,6 +182,16 @@ describe("versioned settings through real API/PostgreSQL", () => {
         },
       },
       { key: "notifications", version: 0, value: { ...notifications, dailySummary: true } },
+      // Low-stock email shares the recipient list, so it needs one.
+      {
+        key: "notifications",
+        version: 0,
+        value: {
+          inApp: true,
+          newOrderEmail: { enabled: false, recipients: [] },
+          lowStockEmail: true,
+        },
+      },
       {
         key: "whatsapp",
         version: 0,

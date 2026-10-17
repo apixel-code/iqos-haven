@@ -1,4 +1,4 @@
-import type { StoreInfoResponse } from "@ih/contracts";
+import type { StoreHomeResponse, StoreInfoResponse } from "@ih/contracts";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { isIP } from "node:net";
@@ -65,7 +65,32 @@ export const storeInfo = cache(async (): Promise<StoreInfoResponse> => {
   } catch (error) {
     // Never redirect from the shell: a page that needs catalogue data decides that itself.
     if (error instanceof StoreApiError || error instanceof AgeRequiredError)
-      return { whatsappNumber: null };
+      return { whatsappNumber: null, checkoutOpen: false };
+    throw error;
+  }
+});
+
+/** What the shop shows when no content is published or it cannot be read: nothing extra. */
+export const EMPTY_HOME: StoreHomeResponse = {
+  ticker: null,
+  hero: null,
+  featured: [],
+  bestSellers: [],
+  brands: [],
+  banners: [],
+  offers: null,
+};
+/**
+ * The published home content for this request (step 99), read once even when the layout (the
+ * promotional bar) and the home page both ask. Managed content is an extra: if it cannot be
+ * read the shell shows none of it and the home page falls back to the catalogue sections.
+ */
+export const storeHome = cache(async (): Promise<StoreHomeResponse> => {
+  api ??= createStoreApi({ baseUrl: storefrontEnv().API_INTERNAL_URL });
+  try {
+    return await api.home(await shopper());
+  } catch (error) {
+    if (error instanceof StoreApiError || error instanceof AgeRequiredError) return EMPTY_HOME;
     throw error;
   }
 });

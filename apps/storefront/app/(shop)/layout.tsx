@@ -1,24 +1,26 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { CartLink } from "@/components/cart-link";
+import { CartSheet } from "@/components/cart-sheet";
+import { MenuSheet } from "@/components/menu-sheet";
 import { NavLinks } from "@/components/nav-links";
 import { SearchBox } from "@/components/search-box";
 import { WhatsAppLink } from "@/components/whatsapp-link";
 import { AGE_COPY } from "@/lib/age/copy";
 import { POLICY_PAGES, PRIMARY_NAV, SITE } from "@/lib/site";
-import { storeInfo } from "@/lib/store/server";
+import { PromoTicker } from "@/components/promo-ticker";
+import { storeHome, storeInfo } from "@/lib/store/server";
 import { WHATSAPP_MESSAGES } from "@/lib/whatsapp";
 
 const footerLink = "text-ink-2 hover:text-ink hover:underline";
 
 /**
- * Store shell (roadmap step 64): header with navigation, search, saved items and cart, and the
- * footer. Every route under it is restricted by the routing gate. Marketing content sections
- * (hero, promotions, editorial) come later from the content module; the footer copy marked below
- * awaits the client's approved wording (BI-01, BI-04).
+ * Store shell (roadmap step 64): the published promotional bar (step 99), header with navigation,
+ * search, saved items and cart, and the footer. Every route under it is restricted by the
+ * routing gate. The footer copy marked below awaits the client's approved wording (BI-01, BI-04).
  */
 export default async function ShopLayout({ children }: { children: ReactNode }) {
-  const { whatsappNumber } = await storeInfo();
+  const [{ whatsappNumber }, { ticker }] = await Promise.all([storeInfo(), storeHome()]);
   return (
     <div className="flex min-h-dvh flex-col">
       <a
@@ -27,19 +29,35 @@ export default async function ShopLayout({ children }: { children: ReactNode }) 
       >
         Skip to content
       </a>
+      {ticker && <PromoTicker messages={ticker.messages} />}
       <header className="border-b border-line bg-surface">
+        {/* Below `md` the header is the logo, Menu and Cart, with search on its own row; the
+            sections, brands, saved items, compare, help and WhatsApp are in the menu sheet
+            (parity G-S4). */}
         <div className="mx-auto flex w-full max-w-7xl flex-wrap items-center justify-between gap-x-6 gap-y-2 px-4 py-3 sm:px-8">
           <Link href="/" prefetch={false} className="text-lg font-semibold tracking-tight">
             {SITE.name}
           </Link>
-          <SearchBox />
+          <div className="order-last w-full md:order-none md:w-auto">
+            <SearchBox />
+          </div>
           <nav aria-label="Main" className="flex flex-wrap items-center gap-x-4 gap-y-2">
-            <NavLinks />
+            <div className="hidden md:block">
+              <NavLinks />
+            </div>
             <ul className="flex items-center gap-x-3 text-sm">
-              <li>
+              <li className="hidden md:list-item">
                 <Link href="/wishlist" prefetch={false} className="text-ink-2 hover:text-ink">
                   Saved
                 </Link>
+              </li>
+              <li className="hidden md:list-item">
+                <Link href="/help" prefetch={false} className="text-ink-2 hover:text-ink">
+                  Help
+                </Link>
+              </li>
+              <li className="md:hidden">
+                <MenuSheet whatsappNumber={whatsappNumber} />
               </li>
               <li>
                 <CartLink />
@@ -51,6 +69,7 @@ export default async function ShopLayout({ children }: { children: ReactNode }) 
       <main id="content" className="mx-auto w-full max-w-7xl flex-1 px-4 pb-16 sm:px-8">
         {children}
       </main>
+      <CartSheet whatsappNumber={whatsappNumber} />
       <footer className="border-t border-line bg-surface">
         <div className="mx-auto grid w-full max-w-7xl gap-8 px-4 py-10 text-sm sm:grid-cols-2 sm:px-8 lg:grid-cols-4">
           <div className="flex flex-col gap-2">
@@ -75,6 +94,11 @@ export default async function ShopLayout({ children }: { children: ReactNode }) 
           <nav aria-label="Help and legal" className="flex flex-col gap-2">
             <h2 className="font-semibold">Help &amp; legal</h2>
             <ul className="flex flex-col gap-1.5">
+              <li>
+                <Link href="/help" prefetch={false} className={footerLink}>
+                  Help &amp; delivery
+                </Link>
+              </li>
               {POLICY_PAGES.map((page) => (
                 <li key={page.path}>
                   <a href={page.path} className={footerLink}>

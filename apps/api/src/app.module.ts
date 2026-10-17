@@ -11,12 +11,19 @@ import { InternalModule } from "./internal/internal.module";
 import { DeliveryModule } from "./delivery/delivery.module";
 import { CouponsModule } from "./coupons/coupons.module";
 import { OrdersModule } from "./orders/orders.module";
+import { CustomersModule } from "./customers/customers.module";
+import { DashboardModule } from "./dashboard/dashboard.module";
+import { ReportsModule } from "./reports/reports.module";
+import { SeoModule } from "./seo/seo.module";
+import { NotificationsModule } from "./notifications/notifications.module";
 import { CatalogueCacheModule } from "./cache/catalogue-cache.module";
 import { CatalogueModule } from "./catalogue/catalogue.module";
 import { InventoryModule } from "./inventory/inventory.module";
 import { MediaModule } from "./media/media.module";
 import { StoreModule } from "./store/store.module";
 import { SettingsModule } from "./settings/settings.module";
+import { ReviewsModule } from "./reviews/reviews.module";
+import { ContentModule } from "./content/content.module";
 import { requestId } from "./http/request-id";
 @Module({})
 export class AppModule {
@@ -39,6 +46,9 @@ export class AppModule {
             },
             serializers: {
               req: (req: { id: string; method: string }) => ({ id: req.id, method: req.method }),
+              // Status only: response headers can carry credentials (a report's signed
+              // `Location`, step 112; cookies).
+              res: (res: { statusCode: number }) => ({ statusCode: res.statusCode }),
             },
             autoLogging: {
               ignore: (req) => /^\/v1\/health\/(live|ready)(?:\?|$)/.test(req.url ?? ""),
@@ -54,10 +64,17 @@ export class AppModule {
         DeliveryModule,
         CouponsModule,
         OrdersModule,
+        CustomersModule,
+        DashboardModule,
+        ReportsModule,
+        SeoModule,
+        NotificationsModule,
         CatalogueModule,
         InventoryModule,
         MediaModule,
         StoreModule,
+        ReviewsModule,
+        ContentModule,
         ReliabilityModule,
         HealthModule,
         ...testModules,

@@ -153,6 +153,21 @@ export async function authenticateSession(
   };
 }
 
+/**
+ * Whether a session is still good, without refreshing it: for a long-lived event stream that
+ * must end when the session is revoked, expires, goes idle or its user is deactivated, but must
+ * not itself keep the session alive.
+ */
+export async function sessionStillValid(db: Database, sessionId: string): Promise<boolean> {
+  const rows = await db.$queryRaw<Array<{ ok: number }>>(Prisma.sql`
+    SELECT 1 AS ok FROM sessions s JOIN staff_users u ON u.id=s.user_id
+    WHERE s.id=${sessionId}::uuid AND s.revoked_at IS NULL
+      AND s.expires_at > statement_timestamp()
+      AND s.last_seen_at > statement_timestamp() - make_interval(secs => ${SESSION_IDLE_MS / 1000})
+      AND u.active`);
+  return rows.length === 1;
+}
+
 export async function revokeSession(
   db: DbExecutor,
   sessionId: string,

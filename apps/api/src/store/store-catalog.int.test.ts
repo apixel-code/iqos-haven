@@ -717,7 +717,10 @@ describe("gated store catalogue reads (real API, PostgreSQL, Ed25519 ticket)", (
 
   it("gives the shell only the configured WhatsApp number, behind the age ticket", async () => {
     await cache.invalidate();
-    expect(await json<StoreInfoResponse>("/info")).toEqual({ whatsappNumber: null });
+    expect(await json<StoreInfoResponse>("/info")).toEqual({
+      whatsappNumber: null,
+      checkoutOpen: false,
+    });
     await db.setting.create({
       data: {
         key: "whatsapp",
@@ -745,7 +748,7 @@ describe("gated store catalogue reads (real API, PostgreSQL, Ed25519 ticket)", (
     await cache.invalidate();
     const response = await get("/info");
     const text = await response.text();
-    expect(JSON.parse(text)).toEqual({ whatsappNumber: "+971501234567" });
+    expect(JSON.parse(text)).toEqual({ whatsappNumber: "+971501234567", checkoutOpen: false });
     expect(response.headers.get("cache-control")).toBe("private, no-store");
     for (const secret of ["Private template", "owner@iqoshaven.test", "templates", "recipients"])
       expect(text).not.toContain(secret);
@@ -757,7 +760,10 @@ describe("gated store catalogue reads (real API, PostgreSQL, Ed25519 ticket)", (
       `UPDATE settings SET value='{"number":"call me"}'::jsonb WHERE key='whatsapp'`,
     );
     await cache.invalidate();
-    expect(await json<StoreInfoResponse>("/info")).toEqual({ whatsappNumber: null });
+    expect(await json<StoreInfoResponse>("/info")).toEqual({
+      whatsappNumber: null,
+      checkoutOpen: false,
+    });
   });
 
   it("lists active delivery areas and the flat fee for checkout, behind the age ticket", async () => {

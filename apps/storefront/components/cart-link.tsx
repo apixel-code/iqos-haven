@@ -8,20 +8,22 @@ import { useCart } from "@/lib/cart/store";
 export function CartLink() {
   const count = cartCount(useCart());
   return (
+    // The visible text ("Cart" and the count) is part of the accessible name (WCAG 2.5.3).
     <Link
       href="/cart"
       prefetch={false}
-      aria-label={count === 0 ? "Cart, empty" : `Cart, ${count} ${count === 1 ? "item" : "items"}`}
       className="inline-flex h-10 items-center gap-2 rounded-pill border border-line-2 bg-surface px-4 text-sm font-medium text-ink hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
     >
       Cart
-      {count > 0 && (
-        <span
-          aria-hidden="true"
-          className="inline-flex min-w-5 justify-center rounded-pill bg-accent px-1.5 text-xs font-semibold text-ink"
-        >
-          {count}
-        </span>
+      {count > 0 ? (
+        <>
+          <span className="inline-flex min-w-5 justify-center rounded-pill bg-accent px-1.5 text-xs font-semibold text-ink">
+            {count}
+          </span>
+          <span className="sr-only">{count === 1 ? "item" : "items"}</span>
+        </>
+      ) : (
+        <span className="sr-only">, empty</span>
       )}
     </Link>
   );

@@ -8,6 +8,14 @@ import { StaffManagement } from "./staff-management";
 import { CatalogueParentManagement } from "./catalogue-parent-management";
 import { ProductManagement } from "./product-management";
 import { InventoryManagement } from "./inventory-management";
+import { CustomerManagement } from "./customer-management";
+import { ReviewManagement } from "./review-management";
+import { ContentManagement } from "./content-management";
+import { OrderManagement } from "./order-management";
+import { AnalyticsManagement } from "./analytics-management";
+import { ReportManagement } from "./report-management";
+import { SeoManagement } from "./seo-management";
+import { NotificationInbox } from "./notification-inbox";
 import { sections } from "../lib/navigation";
 export function WorkspaceSection({ sectionKey }: { sectionKey: string }) {
   const session = useSession();
@@ -25,7 +33,38 @@ export function WorkspaceSection({ sectionKey }: { sectionKey: string }) {
     <main className="page-content">
       <p className="eyebrow">{section.group}</p>
       <h1>{section.label}</h1>
-      {sectionKey === "settings" ? (
+      {sectionKey === "orders" ? (
+        <OrderManagement
+          canReadContact={session.permissions.includes("customers.read")}
+          canTransition={session.permissions.includes("orders.transition")}
+          canEdit={session.permissions.includes("orders.edit")}
+          canCancel={session.permissions.includes("orders.cancel_before_dispatch")}
+          canReturn={session.permissions.includes("orders.cancel_after_dispatch")}
+          canCollect={session.permissions.includes("orders.collect")}
+          canCorrect={session.permissions.includes("orders.collection_correct")}
+          canCreate={session.permissions.includes("orders.create")}
+        />
+      ) : sectionKey === "notifications" ? (
+        <NotificationInbox />
+      ) : sectionKey === "seo" ? (
+        <SeoManagement canReport={session.permissions.includes("seo.reports")} />
+      ) : sectionKey === "reports" ? (
+        <ReportManagement
+          canExport={session.permissions.includes("reports.export")}
+          canExportCustomers={session.permissions.includes("customers.export")}
+        />
+      ) : sectionKey === "analytics" ? (
+        <AnalyticsManagement />
+      ) : sectionKey === "customers" ? (
+        <CustomerManagement />
+      ) : sectionKey === "content" ? (
+        <ContentManagement />
+      ) : sectionKey === "reviews" ? (
+        <ReviewManagement
+          canOpenOrders={session.permissions.includes("orders.read")}
+          canOpenProducts={session.permissions.includes("catalog.read")}
+        />
+      ) : sectionKey === "settings" ? (
         <SettingsManagement />
       ) : sectionKey === "delivery" ? (
         <DeliveryManagement />

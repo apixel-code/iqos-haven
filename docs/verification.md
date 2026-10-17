@@ -1016,3 +1016,1286 @@ Not covered: these locks under a real order creation (step 76); the staff row fo
 Found by this step's own run: the service threw one refusal synchronously instead of returning a rejected promise; it is now `async`.
 
 Not covered: placing an order over HTTP (step 77); the second 18+ confirmation as an input (required by the step-77 contract); notifications and the confirmation cookie (steps 78–79). The dev database has the migration applied.
+
+## Step 77 — store order route, limits and outage fallback (2026-10-13, local)
+
+`pnpm verify -- --integration`: exit 0, twice (before and after the review fixes). Unit 554, integration 469, gateway 29, age-preview 1847, gate 1978.
+
+**Integration (`store-orders.int.test.ts`, real API over HTTP and PostgreSQL, 10 tests):**
+
+- **Placing:** a two-unit order with a 10 % code answers 201 with the order number, total (AED 159.00) and time only, `private, no-store`, no cookie; one order, sale, coupon use, customer, idempotency answer and event are written; the stored order carries the age policy version.
+- **Switched off:** with `CHECKOUT_SUBMISSION_ENABLED` unset a valid, age-verified order answers 503 and writes nothing.
+- **Age and Origin:** no ticket (also with a crawler user agent) is 403 `AGE_VERIFICATION_REQUIRED`; no Origin, another Origin and a cross-site request are 403; nothing is written.
+- **Invalid input:** a bad name, phone and unit name their paths with the fixed text and do not echo the typed phone; `ageConfirmed` false or missing, a client total, a client line price, no lines, an empty token, and a missing, short or malformed `Idempotency-Key` are 400.
+- **Retry and conflict:** the same key and request (spelled differently, from another address) returns the same answer; two at once make one order (the loser gets the same answer or `IDEMPOTENCY_IN_PROGRESS`); another quantity on the same key is `IDEMPOTENCY_CONFLICT`.
+- **Old key:** after the answer expires and after the cleanup function removed it, the key answers `CHECKOUT_RECOVERY_REQUIRED` without the order ID or number and makes no order.
+- **Refusals:** `QUOTE_CHANGED` (price moved, token not ours), `QUOTE_EXPIRED`, `INSUFFICIENT_STOCK` (no variant ID in the body), `VARIANT_UNAVAILABLE`, `AREA_UNAVAILABLE`, `COUPON_INVALID`; row counts and stock unchanged.
+- **Attempt limits:** the sixth attempt a minute for one phone and the eleventh for one address are 429 with `Retry-After`, refused attempts counted; a real order from the limited address is refused and not written; quotes from it still work.
+- **Code guessing:** four refused codes at checkout plus six on the cart spend the budget; good codes in between use none; afterwards a right code and a wrong one both get 429 on both routes, an order with a code is refused and not written, an order without a code is placed, and another address is unaffected.
+- **Shared limiter down** (replicated profile, unreachable Redis): an order and its retry are placed, the third attempt for that phone is 429, and after five refused codes no code is looked at.
+
+**Other tests:** limiter `peek` (local, overflow partition, endpoint, outage and fail-closed in `rate-limit.test.ts`; Redis in `security.int.test.ts`); the quote limit test now shows ten refused codes, then 429, and thirty priced quotes a minute. `pnpm test:gate`: an order POST without a ticket is 403 for every attempt type, and a verified one is 503 with no order row while submission is off.
+
+**`invariant-reviewer`:** no blockers. Done: every coupon refusal counts; a failed count cannot replace the answer. Recorded in ADR 0046: the code budget can be exceeded by one simultaneous burst (bounded by the per-minute address limits); limits run before the replay.
+
+Not covered: a burst of simultaneous wrong codes; the `idempotency.cleanup` job wrapper; a browser flow (no checkout form until step 80). Limit values are not measured capacity (M11).
+
+## Step 78 — new-order inbox notification and email (2026-10-13, local)
+
+`pnpm verify -- --integration`: exit 0, twice (before and after the review fixes). Unit 554, integration 476, gateway 29, age-preview 1847, gate 1978.
+
+**Integration (`order-notifications.int.test.ts`, real PostgreSQL through `EffectRunner`, 7 tests):**
+
+- A new `order.created` event carries exactly the `notification` and `email` effects.
+- **Inbox:** one notification ("New order IH-…", "3 items · AED 165.00 · area", link `/orders/<id>`) with receipts for the active Owner and Staff users, none for a deactivated user or a role without `notifications.read_own`; a second delivery is a duplicate; no customer name, phone or address in it.
+- **Redelivery:** content stays as first written, one user's read flag survives and another's stays unread, a newly eligible user gets one receipt, nobody gets two. The database refuses changing or deleting a notification, un-reading or moving or deleting a receipt, and an absolute URL as a link.
+- **Inbox off:** nothing is written and the effect completes.
+- **Email:** nothing is sent while unconfigured or disabled (`no-recipients`); when enabled, one message to the listed addresses with the order number and AED 115.00 in the subject, item count and area in the text, and no customer data, order ID or link; a second run is a duplicate.
+- **No email dependency:** with a failing provider the email effect is `retry`, the inbox entry is written, the order is untouched and the stored error holds no address.
+- An event without an order goes to `dead` with `ORDER_NOT_FOUND`.
+
+**Other tests:** an order placed over HTTP (`store-orders.int.test.ts`) leaves both effects pending with its event; the catalogue test lists `notification` among wired consumers; two tests that used `order.created` as an event without consumers now use `order.updated`.
+
+**`invariant-reviewer`:** no blockers. Done: column-level `UPDATE (read_at)` for the runtime role; ADR notes on retention and on re-checking permissions in step 91.
+
+Not covered: sending this email through Mailpit or Resend (stub adapter here); reading the inbox (step 91); the worker process picking the effects up from the queue end to end (the M7 gate, step 82).
+
+## Step 79 — private confirmation cookie/API and replay expiry (2026-10-13, local)
+
+`pnpm verify -- --integration` PASS, exit 0: production builds, format/lint/typecheck, unit 562, integration 482, gateway 29, age-preview 1847, gate 1978, boundary/infra/reference/contract checks. Eight new unit tests cover independent 256-bit capabilities, authenticated encryption/AAD tampering, key rotation/retirement, exact/canonical separate-purpose keys, deployed checkout key requirements, strict cookie parsing/duplicate denial and non-extending secure cookie attributes. Six new real Nest/PostgreSQL tests extend the order-route suite (16 tests; combined with 13 creation tests, targeted 29 PASS).
+
+API tests prove private snapshots only with the capability cookie (no age/admin credential substitution), no customer identity/phone/notes/internal IDs in confirmation or raw capability in replay JSON/ciphertext, hashed verifier/30-minute expiry, same cookie restored on retry, malformed/forged/duplicate/URL-only denial, strict unknown-query rejection, independently scoped orders, per-address 60-read budget, unexpired ciphertext mutation refusal, expired private access denied, ciphertext erased while success remains replayable with no new order/effects, no material reattachment after clearing, and restoration across a fresh API/key rotation. Retiring the decrypt key still replays sanitized success without minting access or repeating writes. Existing creation rollback/concurrency/24-hour expiry/cleaned-key guards pass.
+
+Initial integration exposed Prisma BYTEA returning Uint8Array rather than Buffer and loss of PostgreSQL expiry microseconds through JS Date. The repository now normalizes bytes and copies expiry directly within SQL. Strict-query DTO wiring, obsolete no-cookie/null-verifier expectations, synthetic clock fixture bounds and test response typing were corrected before the final green run. Expiry fixtures alter guards only in disposable schemas and restore them in finally blocks. Final independent invariant review: no issues; exact/canonical AES key validation finding fixed and tested.
+
+No live migration, `.env` reads/edits, real keys/identities/emails or M7 gate closure. Additive migration was exercised only in isolated test schemas. The new cleanup function is exercised against real PostgreSQL; its scheduled worker process and cookie behavior in a browser through the real gateway are not independently demonstrated in this step. Existing gateway/age-boundary suites pass; complete checkout/confirmation UI and worker/browser journey remain steps 80–82. Applied API/worker deployment requires the migration and managed API-only keys before enabling checkout. README/start/status/security references were refreshed to remove obsolete foundation-only claims.
+
+## Step 80 — checkout form and attempt key (2026-10-13, local)
+
+`pnpm verify -- --integration`: exit 0, twice (before and after the review fixes). Unit 573, integration 482, gateway 29, age-preview 1855, gate 2079.
+
+**Unit (`lib/checkout/checkout.test.ts`, 11 tests):** the key is 256 random bits in the shape the API accepts and is stored with its time only; only an exact stored attempt is read back; the key is reused from storage, falls back to session storage, and lives on the page only when every store is blocked; the form reports every problem at once with the shared messages, a villa needs and sends no unit; API field names become messages without the typed values; a readable 201 is the only acknowledgement; in-progress, 429, 5xx and unreadable answers keep the key; an old or reused key is "already placed"; quote, stock, coupon, area and age answers map to their own outcome.
+
+**Browser (`scripts/browser-qa/checkout.mjs`, headless Chromium at 360px, real API + storefront + gateway with checkout open, 21 checks, run twice):** the cart page offers checkout once a total is accepted and the area is carried over; no horizontal scroll; an empty form shows five messages and sends nothing; after typing, after a lost answer and after the order, device storage holds nothing that was typed; no key exists before the first attempt, then only `{key, createdAt}`; the cart is kept while the outcome is unknown; a reload empties the form and keeps the key; typing the details again and pressing the button returns the order with the same key (two POSTs, one order row); the key and the cart are cleared after the acknowledgement; the confirmation cookie is HttpOnly and Secure; nothing is put in the URL; an empty cart says so.
+
+**Scripts:** `/checkout` is refused before the age check like every page; a verified shopper sees "Checkout is not open yet" while orders are off; with a stub API that reports open, the server-rendered frame carries no catalogue data and sets `no-referrer`.
+
+**`invariant-reviewer`:** no blockers; four should-fixes done (see PROGRESS).
+
+Not covered: a changed total, a sold-out line and the "already placed" screen in a browser; `CartQuote`'s accepted-total callback as a component test; real mobile devices; the confirmation page (step 81).
+
+## Step 81 — order confirmation page (2026-10-13, local)
+
+`pnpm verify -- --integration`: exit 0, twice (before and after the review fixes). Unit 577, integration 482, gateway 29, age-preview 2008, gate 2175.
+
+**Unit (`lib/checkout/checkout.test.ts`, 4 more tests):** only a snapshot that matches the contract exactly is shown (an extra field such as a phone is refused); 401 is "expired", 429 and 5xx are "could not load"; the subtotal row is the API's total less delivery plus discount (AED 159.00 − 15.00 + 16.00 = 160.00); address lines, option text and UAE-time formatting; the acknowledgement is remembered as number, total and time.
+
+**Browser (`scripts/browser-qa/checkout.mjs`, headless Chromium at 360px, real stack with checkout open, 28 checks, run twice):** the 21 checks of step 80, and: after the order the browser is on `/order-confirmation` with the order number, AED 64 to pay in cash, the next steps and the delivery address; the page shows no name, phone or delivery note; no horizontal scroll; no script or frame from another origin; a reload shows the order again; Back does not return to the checkout form; with the cookie removed the page says the order cannot be shown and shows no order detail. One order row from two submissions.
+
+**Scripts:** `/order-confirmation` (also with `?order=…&phone=…`) is refused before the age check; for a verified shopper the server-rendered frame carries no order or catalogue data, nothing from its address, `no-referrer`, `noindex`, and nothing loaded from another origin.
+
+**`invariant-reviewer`:** no blockers; the subtotal identity is guaranteed by the `order_total` database check.
+
+Not covered: the expired state with the order remembered from this visit (needs the cookie to lapse without a reload); status lines other than "received"; real mobile devices.
+
+## Step 82 — checkout correctness gate (2026-10-13, local)
+
+`pnpm verify -- --integration`: exit 0. Unit 577, integration 489, gateway 29, age-preview 2008, gate 2175. Browser journey (`scripts/browser-qa/checkout.mjs`): 49 checks, all passed on the final code. **The M7 gate is not marked passed here; that is Marina's decision.**
+
+**Gate items (roadmap row 82) and what proves each.** A = `apps/api/src/orders/create-order.int.test.ts` (order service, real PostgreSQL), H = `apps/api/src/orders/store-orders.int.test.ts` (real API over HTTP), W = `apps/worker/src/checkout-gate.int.test.ts`, B = browser journey.
+
+| Item                  | Proof                                                                                                                                                                                                                                                                                                                                        |
+| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Last unit             | A: eight shoppers race, one order, seven `INSUFFICIENT_STOCK`, stock 0, losers leave no row. H "gate: shoppers racing over HTTP": six requests, one 201, five 409, stock 0, exactly one order, sale, customer and stored answer. B: a line that sold out before the button was pressed is not ordered.                                       |
+| Last coupon use       | A: five orders race for one use, one wins, four `COUPON_LIMIT_REACHED`, counts exact. Service level only.                                                                                                                                                                                                                                    |
+| Duplicate lines       | H "gate: repeated lines": 2 + 3 of one variant is one line of five, one sale, AED 165.00; the same order written as one line replays the same answer; repeats cannot pass the per-item limit.                                                                                                                                                |
+| Simultaneous same key | A: six copies at once, one order. H: two at once, one order, the loser gets the answer or `IDEMPOTENCY_IN_PROGRESS`.                                                                                                                                                                                                                         |
+| Changed payload       | A and H: another quantity, name, address or coupon on a used key is `IDEMPOTENCY_CONFLICT`, no second order. B: a changed name after a lost answer shows "already placed" and places nothing.                                                                                                                                                |
+| Lost response         | B: the answer is dropped after the shop placed the order; the key is kept, survives a reload, and the retry returns that order (three submissions, one order). H: the cookie is restored on replay; an expired key answers `CHECKOUT_RECOVERY_REQUIRED`. W: after the cleanup jobs ran, the same request is refused and stock is unchanged.  |
+| Rollback              | A: the last write is made to fail and nothing remains, then the same attempt succeeds; every refusal test checks unchanged row counts and stock.                                                                                                                                                                                             |
+| Limiter outage        | H: with the shared limiter unreachable an order and its retry are placed, the third attempt for that phone is 429, code guessing stops after five. H "gate: a burst of wrong codes": 25 at once are answered only "invalid" or "too many", then no code is looked at.                                                                        |
+| Queue outage          | W "an unavailable queue costs no order": with nothing enqueueable the order is complete and both effects are untouched; when the queue returns, one notification and one email. `recovery.int.test.ts`: jobs lost in Redis are found again. H: the order route itself reaches no queue; its event and two pending effects are in PostgreSQL. |
+
+**M7 gate line** (age → product → variant → cart → quote → COD order → private confirmation, with real PostgreSQL and worker effects):
+
+- B, one run on the real API, storefront and gateway, with the worker's relay, queue Redis and consumers running on the same schema: the age check refuses the product address and shows nothing of the product; after accepting, the product page; a variant is chosen and added; the cart quotes a total; checkout places the order; the confirmation page shows it from the cookie; **the worker completes the inbox and email effects of both orders, one notification each, naming its own order.** Two journeys, two orders, stored at AED 64.00 and AED 66.00 (the totals their shoppers accepted), stock down by exactly what was sold, and the device holding only the cart and saved lists afterwards.
+- W "M7 gate": an order placed by the real order transaction goes through the real relay, BullMQ and consumers; one notification with the Owner's receipt, exactly one message in Mailpit with the order number and AED 255.00 and nothing about the customer; duplicate deliveries of both jobs are run and change nothing.
+
+**Not covered.**
+
+- The browser journey is a local script: it is not part of `pnpm verify` or CI.
+- In it the age answer is posted with the storefront's https Origin instead of clicking the button (the served storefront refuses the local http origin); the button is covered by the gate script and step 56.
+- In the browser run the email goes to a stub adapter; delivery to Mailpit is shown in W, where the order is placed through the database function, not HTTP.
+- A last-coupon race over HTTP; logs on the checkout path are not captured and searched for personal data; real mobile devices; staging.
+- The cleanup-job test moves an answer's dates with the table's guard switched off; it shows the jobs remove what is past its expiry, not the passing of real time.
+
+## Step 83 — admin order list, snapshot detail and history (2026-10-13, local)
+
+`pnpm verify -- --integration`: exit 0. Unit 577, integration 493, gateway 29, age-preview 2008, gate 2175. Production builds, format, lint, typecheck, package boundaries, infrastructure/reference checks and generated OpenAPI all passed.
+
+**API/PostgreSQL (`admin-orders.int.test.ts`, 4 tests):** anonymous access is 401 and removing the current actor's `orders.read` grant takes effect on the next request with 403; page size, status, time range, unknown query, UUID and opaque cursor bounds are strict; newest-first `(created_at,id)` keyset pages do not repeat a row; status and half-open date filters work; display-order-number and customer searches work. Detail returns the immutable customer/address, item, amount and append-only history snapshots after the live customer record changes, without customer/catalogue IDs, creation/idempotency hashes, quote/confirmation fields or command IDs.
+
+Removing `customers.read` strips the entire customer object from list and detail through both repository authorization and the response field policy. A name query then returns no result while the display order number still works, so contact search cannot be used as an existence oracle. Both routes are `private, no-store`; detail reads items and history in one repeatable-read transaction. The generated OpenAPI covers both routes, and the migration adds the unfiltered/date-page `(created_at DESC,id DESC)` index.
+
+**Admin UI:** the Orders workspace now has status tabs, order/contact search (order-number-only when contact permission is absent), placement date bounds, cursor paging, responsive rows and read-only detail cards for delivery, API totals, item snapshots and history. No transition/edit/cancel/collection/manual/bulk control is present; those are steps 84–89.
+
+Not covered: browser interaction and visual inspection of the Orders workspace; query-plan measurements with representative production volume; live migration or staging. The production build validates compilation and route composition but not those browser behaviours.
+
+## Step 84 — status transition commands and timeline actions (2026-10-13, local)
+
+`pnpm verify -- --integration`: exit 0. Unit 577, integration 497, gateway 29, age-preview 2008, gate 2175. Production builds, format, lint, typecheck, package boundaries, infrastructure/reference checks and generated API contracts all passed.
+
+`POST /v1/admin/orders/:id/transitions` enforces current `orders.transition`, admin Origin, strict UUID/body fields and a fail-closed staff mutation limit. Tests cover anonymous and revoked access, malformed IDs, unknown fields and the exclusion of cancellation from this command. Stale versions return `VERSION_CONFLICT`; skipped states return `INVALID_TRANSITION`; neither changes the order.
+
+The complete Pending → Confirmed → Processing → Out for Delivery → Delivered path records versions 2–5, the acting staff member and database times. Five concurrent copies of one command create one transition and replay one receipt; reusing that command for another target or order returns `COMMAND_REUSED`. The resulting order has one creation plus four transition history rows, four audits and four `order.status_changed` events. Dispatch and delivery times are present, while COD remains pending. A forced audit failure proves the order update, history and event roll back together.
+
+The admin detail exposes only the next valid fulfilment action to staff with `orders.transition`. It sends the displayed order version, retains its UUID across an uncertain retry and reloads the authoritative detail/timeline after success. Browser interaction and visual inspection, representative contention/load, live migration and staging remain outside this local step.
+
+## Step 85 — versioned order edits and diff display (2026-10-13, local)
+
+The verification-equivalent checks pass: unit 577, integration 499, gateway 29, age-preview 2008 and gate 2175. Format, lint, typecheck, package boundaries, infrastructure/reference checks and generated OpenAPI pass. All non-Next production builds pass through the installed Turborepo; admin and storefront production builds pass with Next's webpack builder. The normal `pnpm verify -- --integration` reached `build` and stopped because this execution sandbox forbids Turbopack's CSS helper from binding its internal local port (`EPERM`); the same source compiled with `next build --webpack`, and all remaining verify checks were then run individually.
+
+**API/PostgreSQL (`admin-orders.int.test.ts`, 10 tests total):** the two Step 85 cases create saleable two-variant fixtures and exercise `PATCH /v1/admin/orders/:id` through the real Nest app. Three concurrent copies of one command produce one edit and replay the same receipt. A Pending edit increases one line, adds another, applies a coupon, corrects the address and sets an operational note in one commit. The test checks the recalculated AED total, one-unit net stock consumption per variant, one immutable edit row and a display-safe diff. A second edit removes a line and the coupon; stock is released once, the redemption becomes inactive, the remaining line and note appear in detail, and two edit diffs are returned.
+
+A Confirmed order moves to Processing. A stale note is `VERSION_CONFLICT`, a merchandise edit is `ORDER_NOT_EDITABLE`, and a note-only edit succeeds at the next version. Removing the current actor's `orders.edit` grant immediately makes the endpoint 403. The pre-existing access, transition, rollback and snapshot cases also pass. Database integration now confirms the runtime role may delete replaceable `order_items` while it still cannot delete orders or rewrite history, and the canonical variant lock result includes the low-stock threshold needed by every stock writer.
+
+**Invariants:** the migration permits historical coupon redemptions with one active redemption per order, adds `ORDER_EDIT` ledger movements tied to the order, and creates append-only `order_edit_history` with a deferred committed-version check. The service uses the canonical order/customer/delivery/catalogue/coupon/variant lock sequence, applies only net stock deltas, calls the low-stock crossing helper, preserves unchanged line price/catalogue snapshots, refreshes changed/new lines from current locked catalogue data, and atomically writes totals, coupon/address state, the diff, metadata-only audit and `order.updated`. `NO_CHANGES` rolls the transaction back.
+
+**Admin UI:** staff with `orders.edit` can change quantities (zero removes), add a variant, replace/remove a coupon, edit permitted address fields and set/clear the operational note while Pending/Confirmed. Processing shows only the note. It submits the displayed version, reloads after a committed response and renders each immutable edit diff. Customer address fields remain hidden without `customers.read`; variant and area identifiers are returned only with `orders.edit`.
+
+Not covered: interactive browser/visual QA of the order edit form; a searchable catalogue picker (the current add control accepts a variant identifier); representative production-volume query plans/contention; live migration or staging.
+
+## Step 86 — order cancellation and returns (2026-10-14, local)
+
+`pnpm verify -- --integration`: exit 0, before and after the review fixes. Unit 577, integration 509, gateway 29, age-preview 2008, gate 2175.
+
+**Integration (`apps/api/src/orders/order-cancellation.int.test.ts`, real API and PostgreSQL, 10 tests):**
+
+- **Refusals:** without `orders.cancel_before_dispatch` 403; another Origin 403; blank, missing or over-long reason, a bad command ID or an unknown field 400; a return list on a Pending order 400; an unknown order 404; nothing changes.
+- **Before handoff:** a Pending order with a coupon (added by an edit) is cancelled: 2 units back, coupon use released, `cancelled`, cash `not_collected`, reason on the order and its history row, one audit entry without the reason text, one `order.cancelled` event; coupon counts and the stock ledger reconcile. The same command replays the same receipt; the same ID with another reason or another actor is `COMMAND_REUSED`; a new command is `ORDER_NOT_CANCELLABLE`; one `ORDER_CANCEL` movement.
+- **Concurrency:** six different commands race on one order: one 200, five 409, stock back once. The same command sent twice at once: two 200s, one of them a replay, stock back once.
+- **After an edit:** an order edited from 2 to 3 units returns 3, and stock ends where it began.
+- **States:** Staff cancels a Processing order; a Delivered order is refused for Staff and Owner with stock and cash untouched; a stale version is `VERSION_CONFLICT`.
+- **Return after handoff:** Staff is refused (403); missing, partial, over-counted, extra and duplicated classifications are `RETURN_INCOMPLETE`; the Owner's return of 2 resellable + 1 damaged puts 2 back, records the split, sets `returned_at`, shows it in the admin detail and replays. An all-damaged return puts nothing back but records the damage; upper- and lower-case IDs are the same command.
+- **Rollback and immutability:** a failing audit write leaves the order, stock and records unchanged, and the same command then succeeds; the cancellation record, the reason and the order's ledger rows cannot be changed or added to by hand.
+
+**Also:** `docs/api.openapi.json` regenerated (admin detail `returnItems`).
+
+Not covered: the admin cancel panel in a browser; a low-stock re-arm event after a restock from a cancellation (the publisher is called; its own rules are tested in step 53).
+
+## Step 87 — COD collection and Owner correction (2026-10-14, local)
+
+`pnpm verify -- --integration`: exit 0, before and after the review fixes. Unit 582, integration 515, gateway 29, age-preview 2008, gate 2175.
+
+**Integration (`apps/api/src/orders/order-collection.int.test.ts`, real API and PostgreSQL, 6 tests):**
+
+- **No automatic collection:** a Delivered order's cash stays pending until recorded. Recording AED 65.00 with a reference sets the order's cash fields once (version 5), writes one record, one audit entry and one `order.collection_recorded` event; the same command replays; the same ID with another amount is `COMMAND_REUSED`; a second record is `COLLECTION_NOT_ALLOWED`.
+- **Refusals:** Pending, Out for Delivery and Cancelled orders cannot be collected; a stale version, a future time and a time before delivery, a negative or fractional amount, an empty reference, an unknown field, another Origin and a missing `orders.collect` right are refused with nothing written; a collected order cannot be cancelled.
+- **Concurrency and time:** a time in the minute of delivery is accepted and stored exactly; two different collections sent at once give one 200 and one 409 and one record.
+- **Correction:** Staff is refused; an order without cash is `NOT_COLLECTED`; a blank reason is refused; a correction equal to the record in effect is `NO_CHANGES`; the Owner's correction from AED 60.00 to 65.00 is recorded with its reason while the order keeps the original amount, time, reference and actor; it replays; the admin detail lists both records; the audit entry holds the reason and both amounts.
+- **Later corrections:** changing only the reference keeps the exact original time; a reused ID is refused; a second correction becomes the record in effect; two `order.collection_corrected` events.
+- **Evidence:** record rows cannot be changed or deleted, and the order's cash fields cannot be rewritten or reset to pending.
+
+**Unit (`apps/admin/lib/orders.test.ts`, 3 tests):** typed AED amounts become exact integer fils; malformed amounts are refused; date-time input round trip.
+
+Not covered: the admin collection panel in a browser; reports reading the latest record (step 106).
+
+## Age-gate Origin amendment (commit a307657, recorded 2026-10-14)
+
+Unit tests in `apps/storefront/lib/age/age-gate.test.ts`: our Origin is accepted with `Sec-Fetch-Site` `same-origin`, `same-site` or `cross-site`; `Origin: null` is accepted only with `Sec-Fetch-Site: same-origin` and a forwarded host equal to a configured origin's host, and refused with a foreign forwarded host or `cross-site`; a missing, foreign or look-alike Origin is refused and no cookie is set. Included in every `pnpm verify` since (unit 582 on 2026-10-14). The gateway removes client-sent `X-Forwarded-Host`; ADR 0025 has the amendment and the reasoning.
+
+Not covered: a real privacy-mode browser sending `Origin: null` end to end.
+
+## Step 88 — manual orders (2026-10-14, local)
+
+`pnpm verify -- --integration`: exit 0 after the review fixes. Unit 582, integration 522, gateway 29, age-preview 2008, gate 2175. Two earlier runs failed in unrelated suites (`settings.int.test.ts` connection timeout, `brands.int.test.ts` concurrency assertion) under load; `test:int` now runs two packages at a time and passed.
+
+**Integration (`apps/api/src/orders/manual-orders.int.test.ts`, real API and PostgreSQL, 7 tests):**
+
+- Staff see the active areas, fee and ETA, and get the same total as the storefront (2 × AED 40.00 + 15.00).
+- A Pending manual order: `source='manual'`, `created_by` and a first history row by that staff member, stock taken, `order.created`; the same key replays; a changed request with that key is `IDEMPOTENCY_CONFLICT`; the same key from the Owner is the Owner's own attempt; the stock ledger reconciles.
+- Confirmed start: without evidence, with evidence on Pending, or with an unknown channel 400; without `orders.transition` 403 and nothing written; with evidence the order is Confirmed and its first history row says "Confirmed by phone call: …"; it then moves to Processing normally.
+- Refusals: without `orders.create` (create and quote) 403; missing or malformed key, no 18+ attestation, a client total, another Origin 400/403; nothing written.
+- A total that moved is `QUOTE_CHANGED`, more than stock `INSUFFICIENT_STOCK`, a closed area `AREA_UNAVAILABLE`; stock unchanged.
+- The same attempt sent twice at once makes one order; changed evidence or start on that key is a conflict; the staff member is on the order, its history and its audit entry.
+- A coupon applies through the same rules (AED 60.00); the database refuses a Confirmed first history row without a reason.
+
+Not covered: the admin New order form in a browser.
+
+## Step 89 — bulk confirm (2026-10-15, local)
+
+`pnpm verify -- --integration`: exit 0 before and after the review fixes. Unit 582, integration 526, gateway 29, age-preview 2008, gate 2175.
+
+**Integration (`apps/api/src/orders/bulk-confirm.int.test.ts`, real API and PostgreSQL, 4 tests):**
+
+- A mixed batch of three Pending orders, a stale version, a Delivered order and an unknown ID: three confirmed (one history row each), `VERSION_CONFLICT`, `INVALID_TRANSITION`, `NOT_FOUND`, in the order sent; `no-store`. The same batch again replays all three with the same versions and no new history rows; a new batch with new command IDs for the same orders is `VERSION_CONFLICT` for each.
+- The same batch sent twice at once: both answers say confirmed, each order has one confirmation. Another staff member reusing a command ID is `COMMAND_REUSED`.
+- Bounds: 51 orders, an empty list, a repeated order, a repeated command ID and an unknown field are 400; another Origin 403; without `orders.transition` 403; nothing changes.
+- Capitals are the same command (replay); a command ID reused in a later batch for another order is `COMMAND_REUSED`; two batches naming the same three orders in opposite orders at once confirm each order exactly once with no deadlock.
+
+Not covered: an unexpected server error part-way through a batch followed by a retry (the replay path is shown above); the admin selection in a browser.
+
+## Step 90 — admin customers and order WhatsApp messages (2026-10-15, local)
+
+`pnpm verify -- --integration`: exit 0 before and after the review fixes. Unit 585, integration 529, gateway 29, age-preview 2008, gate 2175.
+
+**Integration (`apps/api/src/customers/admin-customers.int.test.ts`, real API and PostgreSQL, 3 tests):**
+
+- **List:** a phone with a delivered (AED 55.00), an open (AED 95.00) and a cancelled order is one customer with 3 orders and the latest area; Staff get no spend; the Owner gets booked AED 150.00 and delivered AED 55.00. Phone search by "050 650 0002" finds that customer; two digits match no phone; a customer without orders is not listed; `%` is searched literally; keyset pages are newest first; a bad cursor and an over-limit page size are 400.
+- **Detail:** 2 orders newest first, no cancelled, the saved villa address, `private, no-store`; spend only for the Owner (booked AED 110.00, delivered 0); without `orders.read` the history is empty; without `customers.read` the list and detail are 403; an unknown customer 404.
+- **WhatsApp:** the customer's number and two placeholder messages ("We received your order IH-… for AED 55.00 … reply YES", "is now: received"), with `wa.me` links carrying the encoded text; after the Owner sets a template, that wording is used with the store name, order number, total and support number, the other stays placeholder; reading the links writes no audit entry and no event; without `customers.read` 403.
+
+**Unit (`packages/domain/src/whatsapp-templates.test.ts`, 3 tests):** placeholders filled and unknown ones left; values kept on one line; links only for an E.164 phone, text URL-encoded.
+
+Not covered: the Customers screen and the WhatsApp panel in a browser; real wording (BI-09).
+
+## Step 91 — inbox, read receipts and event stream (2026-10-15, local)
+
+`pnpm verify -- --integration`: exit 0 before and after the review fixes. Unit 585, integration 534, gateway 29, age-preview 2008, gate 2175.
+
+**Integration (`apps/api/src/notifications/inbox.int.test.ts`, real API and PostgreSQL, 5 tests, stream timings shortened):**
+
+- **Own read flags:** the staff inbox lists its two notifications newest first, unread 2, `private, no-store`; reading one keeps the first time on a second read; the Owner's receipt of the same notification stays unread (Owner unread 3); someone else's or an unknown notification is 404; paging and the unread filter; read-all up to the newest seen marks the rest; a malformed `upTo` is 400.
+- **Current permission:** without `orders.read` the `order.new` notifications disappear from the list and cannot be marked, while a low-stock one stays; without `notifications.read_own` the inbox and the stream are 403.
+- **Stream:** `text/event-stream`, `no-store`, `X-Accel-Buffering: no`, `event: ready`; a notification written after connecting arrives as `id: <notification id>` with only its ID and type, never its content; heartbeats; two notifications written while disconnected arrive after reconnecting with `Last-Event-ID`; a fourth stream beyond the per-user bound is 429.
+- **Ending:** revoking the session sends `event: signed-out` and ends the stream; removing `notifications.read_own` ends it with `event: reconnect`; its slot is free again.
+
+Not covered: the bell in a real browser through the gateway (`scripts/check-gateway.mjs` already checks that the stream route is not buffered); shutdown ending open streams; the per-process bound.
+
+## Step 92 — low-stock alerts, daily-summary slot and operations acceptance (2026-10-15, local)
+
+`pnpm verify`: exit 0 (unit 587, age-preview 2008; the contract was regenerated for the new setting). `pnpm test:int`: exit 0 (integration 540; platform 1, db 14, worker 13, api 36 files). `pnpm test:gate`: exit 0, 2175 checks. `invariant-reviewer`: no blockers. Its one low finding, an email lost when a send keeps failing past the window, is now an accepted loss stated in ADR 0060.
+
+**Low stock (`apps/worker/src/low-stock-notifications.int.test.ts`, real PostgreSQL, 5 tests):**
+
+- Three sales take a variant through its alert level and then on to zero. That writes one `inventory.low` event with both consumers. The event produces one notification, with the stock at delivery time ("Out of stock (alert level 10)") and a link to `/inventory/<id>`. Receipts go only to users who hold `inventory.read`. One email goes out, with no link. A redelivery returns `duplicate`.
+- A variant that drops low, recovers and drops low again inside 24 hours alerts once in the inbox and once by email. Once the window has passed, the next crossing alerts again.
+- Two crossings handled at the same time write one notification.
+- A variant restocked before delivery, a draft product, and alerts that are switched off: none of them sends anything or claims the window.
+- A missing variant ends as `dead`.
+
+**M8 operations journey (`apps/worker/src/operations-gate.int.test.ts`):**
+
+1. `createStoreOrder` sells 3 of 5 units, with the alert level at 2.
+2. Staff get one inbox entry each for the new order and the low stock, and both emails go out. Neither the inbox nor the emails contain the customer's name, address or phone.
+3. Staff move the order Pending → Confirmed → Processing → Out for Delivery → Delivered, each step with its expected version.
+4. At Delivered, `codStatus` is still pending. Staff then record the cash, which sets `codStatus` to collected; sending the same command again returns the original record.
+5. A further sale while the variant is low writes no second event.
+
+**Daily summary:** `daily-summary.test.ts` checks that the slot is 09:00 Asia/Dubai (05:00Z), that `catchUp` is 1, and that a run sends nothing.
+
+**Order edit, cancel, collection and session suites:** all passed in the same `test:int` run.
+
+Not covered:
+
+- The M8 journey runs at service level. The HTTP routes and guards for transitions and collection have their own API tests.
+- The bell and the settings switch have not been checked in a real browser.
+- Real email still waits for BI-07.
+- The daily summary has no figures until step 106.
+
+## Step 93 — review schema and verified-purchase proof (2026-10-15, local)
+
+`pnpm verify -- --integration`: exit 0. Unit 587, integration 546, gate 2175. `invariant-reviewer` found no blockers. It raised two low findings, both fixed:
+
+- Submission now locks the order before the proof.
+- The message text now uses replacer functions.
+
+**Integration (`apps/api/src/orders/review-link.int.test.ts`, real API and PostgreSQL, 6 tests):**
+
+- **Refusals:** a pending order gives 409 `REVIEW_NOT_ALLOWED`; an unknown order gives 404; a foreign origin gives 403; a missing `customers.read` gives 403. None of these writes a proof.
+- **Issuance:** the answer is 201 with `no-store`. The link is `https://<domain>/review#<43 characters>`, with a `wa.me` message that contains the link. The database holds the token's SHA-256 with a 30-day expiry. The token appears nowhere in `review_proofs` or `audit_log`, and the issue writes one audit row. `readReviewProof` returns only the product ID and name.
+- **Abuse:** these all give `REVIEW_PROOF_INVALID`:
+  - an order ID used as a token;
+  - a well-formed guess;
+  - the replaced (older) link;
+  - another order's product;
+  - an expired proof.
+
+  The live link works once per product, then the issue route answers `NOTHING_TO_REVIEW`.
+
+- **Concurrency:** two submissions sent at once with one link record exactly one review.
+- **Database:** these are refused:
+  - a product the order does not contain;
+  - a review that starts approved;
+  - a content edit;
+  - a delete;
+  - an expiry change.
+
+  Moderation (status, moderator, time, version) is allowed.
+
+- **Settings:** without the store domain, the route answers `STORE_DOMAIN_REQUIRED`.
+
+Not covered:
+
+- The admin panel has not been tried in a real browser.
+- The `/review` page and the submission route come in step 94.
+- The link wording is placeholder until BI-09.
+
+## Step 94 — store review submission and pending moderation (2026-10-15, local)
+
+`pnpm verify -- --integration`: exit 0, run again after the review fixes: unit 592, integration 556, gate 2175. `invariant-reviewer` found no High or Medium findings. It raised four low ones:
+
+- **Fixed:** ZWNJ and ZWJ are now allowed in names. Only control characters and invisible or direction-changing marks are refused.
+- **Fixed:** a unique violation now maps to `REVIEW_PROOF_INVALID`.
+- **Confirmed, no change:** the gateway overwrites `X-IH-Client-IP` (`header_up`).
+- **Accepted:** the 10-per-minute submission limit could catch customers behind a shared mobile NAT.
+
+**Integration (`apps/api/src/store/store-reviews.int.test.ts`, real API and PostgreSQL, 8 tests):**
+
+- **Refused with 403:** no ticket, a forged ticket, a crawler user agent, a foreign Origin, `Sec-Fetch-Site: cross-site`. A form post gets 415. None of them writes anything.
+- **Proof read:** only `expiresAt` and `[{ productId, name }]`, with `private, no-store` and `no-referrer`. No order ID, order number, customer name, phone or amount.
+- **One code (409 `REVIEW_PROOF_INVALID`) for:** a well-formed guess, a token one character off, a replaced link, another order's product. An order ID sent as the token is refused as 400.
+- **Contract refuses:** rating 0, 6, 4.5 or "5"; an empty or too-long title; a title with NUL or U+200B; a body that is too short, too long or holds a bell character; an empty or too-long name; the fields `status`, `verified` and `orderId`; broken JSON.
+- **Submission:** 201 `{ pending, remaining: 0 }`. The stored text is normalised and the review is pending with no moderator. The audit row has actor system and none of the words. One `review.submitted` event carries the `notification` effect. A second submission for the same product, and the proof read afterwards, both answer `REVIEW_PROOF_INVALID`.
+- **Concurrency:** of six parallel submissions for one purchase, one returns 201 and five return 409. One row is stored.
+- **Limit:** the 11th submission from one address in a minute gets 429, refused ones included. Another address still works.
+- **Notification:** the title names the product and the body gives the stars, never the author or the text. Writing it again creates nothing new. Receipts go to Owners only.
+
+**Worker (`apps/worker/src/review-notifications.int.test.ts`, 2 tests):** the real `EffectRunner` completes the effect once, and a rerun writes no second notification. Staff (no `reviews.moderate`) get no receipt. With the inbox switched off, the effect completes and writes nothing.
+
+**Unit:** `apps/storefront/lib/reviews.test.ts` covers fragment parsing, the recheck link (token only in the fragment, return `/review`), how answers are read (a proof answer with extra fields is refused), and the form rules (ZWNJ kept, U+202E refused). The logger test checks that `token` and `authorName` are redacted.
+
+**Browser (`scripts/browser-qa/review.mjs`, Chromium at 360px, real served stack after `checkout.mjs` with 49 passed): 15 passed.**
+
+- The order went through the real commands to Delivered and got a link.
+- The page HTML holds no product name. The token leaves the address bar and appears in no API URL, Referer or device storage. No order number or amount is shown, and there is no horizontal scroll.
+- An empty send shows four messages and sends nothing. A review is stored as `pending|4|Smooth draw|Q. A.`.
+- The served worker wrote "New review: Gatecheck Halo".
+- A reload, and the used-up link, both say the link can't be used. Still exactly one review.
+
+The fragment hand-over through the age question was checked separately in Chromium with a stand-in server (307 to the question, form post, 303 back). The URL came back as `/review#<token>`, and the server saw only `return=/review`.
+
+Not covered:
+
+- A real phone, and WhatsApp's in-app browser opening the link.
+- The served gate's own redirect, which goes to the https origin that this local pass cannot open.
+- Moderation and public display (step 95).
+- Placeholder wording until BI-09.
+
+## Step 95 — review moderation and the public rating (2026-10-15, local)
+
+`pnpm verify -- --integration`: exit 0 after the review fix: unit 592, integration 561, age preview 2013, gate 2175. `invariant-reviewer` found no blocking findings and raised four low ones:
+
+- **Fixed:** the admin list now reads items, counts and the average in one repeatable-read snapshot.
+- **Checked, no change:** nothing reads the event's `aggregateVersion`.
+- **Accepted:** the list read has no rate limit (it is permission-gated), and the public list uses index keys (static per render).
+
+**Integration (`apps/api/src/reviews/admin-reviews.int.test.ts`, real API and PostgreSQL, 5 tests):**
+
+- **Access:** Staff get 403 on both routes, no session gets 401, and a foreign origin gets 403. These are refused with 400 and change nothing: a bad status, rating, product ID, cursor or limit; an unknown decision; a missing or zero version; an extra field; an ID that is not a UUID. An unknown review gives 404.
+- **Public:** a pending review is not on the product page, whose rating is null and list empty. Approving it at version 1 returns version 2. The page, which was cached, then shows `{ average: 4, count: 1, distribution: [0,1,0,0,0] }` and the review, marked verified, with no order ID, order number or review ID.
+- **Conflicts:** a stale version gets `VERSION_CONFLICT`, and a repeated decision gets `INVALID_TRANSITION`.
+- **Hiding:** rejecting the approved review takes it off the page again. The stored content is unchanged and the moderator is recorded.
+- **Records:** the audit entries are `review.submitted`, `review.approved` and `review.rejected`, and two `catalog.changed` events are written for the product.
+- **Averages:** with reviews of 5 and 2 approved and one of 1 rejected, each product page counts only its own approved reviews, and the admin average is 3.5 over 2.
+- **List:** counts and keyset pages (limit 1 plus the cursor) are correct, as are the rating and product filters. The order is shown for the Owner.
+- **Concurrency:** two simultaneous decisions on the same version give one 200 and one 409, and the review ends at version 2.
+
+**Age preview (stub API):** the verified product page shows the rating line "4.5 · 2 reviews", the review title, body, author with date ("14 Oct 2026") and "Verified purchase". Unverified requests never reach the API.
+
+**Browser (`scripts/browser-qa/admin-reviews.mjs`, Chromium through the gateway, real API on a test schema): 14 passed.**
+
+- Two pending reviews are listed newest first, with the verified label and "Pending 2".
+- Approving one removes it from Pending, and the summary changes to "5.0 average from 1 published review".
+- Rejecting the other leaves "No reviews waiting".
+- Approved shows "Hide (reject)", Rejected holds the rejected one, and an empty filter says "No reviews here".
+- The database matches the decisions.
+- No horizontal scroll at 390px and no page errors.
+- Staff see no Reviews link and get "Access unavailable".
+
+Not covered:
+
+- The storefront product page with real reviews in a browser. Its markup is checked through the stub age preview.
+- Two API replicas: cross-replica invalidation relies on the existing `catalog.changed` → `storefront_revalidate` path (step 52 evidence).
+- Placeholder wording until BI-09.
+
+## Step 96 — content-section schemas and draft/published storage (2026-10-15, local)
+
+`pnpm verify -- --integration`: exit 0. Unit 597, integration 566, age preview 2013, gate 2175.
+
+The first run failed in `apps/worker/src/checkout-gate.int.test.ts`. The test checked the whole Mailpit JSON for the phone fragment "630", and a random hex message ID contained it. The test now checks only what a reader sees (subject, text, HTML and recipients), and the rerun passed.
+
+`invariant-reviewer` found no blockers.
+
+- **Medium, recorded in ADR 0064:** publishing reads the catalogue without locks, so the step 98 read side's re-check is the guarantee.
+- **Low, fixed:** product media routes now see only product assets, the worker writes content derivatives under `content/<id>/`, the image guard also covers `purpose` and `product_id`, and more invisible characters are refused.
+- **Low, accepted:** references in a disabled banner are checked anyway.
+
+**Unit (`packages/contracts/src/content.test.ts`, 5 tests):**
+
+- There are seven keys with current schemas, and an unknown version throws.
+- Text is trimmed to plain text. These are refused: `<b>`, a bell character, U+202E, a soft hyphen, a tag character, too long, blank, fewer than 2 or more than 6 messages.
+- These links are refused: a URL, a slug, an href on `shop`. An image needs alt text and an asset ID (no data URL). An empty title and extra fields are refused.
+- Lists refuse repeats and more than 8 items. Automatic best sellers refuse a list. There are at most 2 banners, and offers refuse coupon codes.
+- References are found once each, across buttons, images and lists.
+
+**Integration (`packages/db/src/content.int.test.ts`, real PostgreSQL, 5 tests):**
+
+- **Access:** Staff are refused on save, list and publish.
+- **Drafts:** a new draft starts at version 1, unpublished, with normalised text. Invalid content is refused. A stale version and a second "new" save are `VERSION_CONFLICT`.
+- **Publishing:** publishing copies the draft (version 2). Publishing again gives `NOTHING_TO_PUBLISH`, and a new draft leaves the published copy alone. One `content.published` event carries the section ID. The audit entries are draft saved, published, draft saved.
+- **References:** a draft product and a missing product block publishing, reported as `not_visible` and `missing`. A product image used as a hero image is `missing` (only content images count). A ready content image publishes, and then cannot be removed or turned into a product image.
+- **Database:** these are refused:
+  - a published copy that is not the draft;
+  - an update that does not advance the version;
+  - a key change;
+  - a delete;
+  - an insert that starts published;
+  - an unknown key;
+  - a content asset with a product;
+  - a product asset without one.
+- **Concurrency:** of two simultaneous first saves, one wins and the other gets `VERSION_CONFLICT`.
+
+Not covered:
+
+- No routes or editor (step 97) and no public read (step 98).
+- Content image upload is not wired: the worker key path is in place, but no route creates content assets yet.
+
+## Step 97 — content APIs and editor (2026-10-15, local)
+
+`pnpm verify -- --integration`: exit 0, run again after the review fixes. Unit 597, integration 571, age preview 2013, gate 2175.
+
+`invariant-reviewer` found no blockers.
+
+- **Fixed:** save and publish answer with the committed record, not a second read. A chosen image older than the newest 60 keeps a clear label. A test now shows a product image is unknown to the content completion route.
+- **Already recorded (ADR 0064):** publishing does not lock the catalogue; the read side re-checks.
+- **Accepted:** an invalid stored draft returns a bare 409, and the preview and image reads are not rate limited (Owner only).
+
+**Integration (`apps/api/src/content/admin-content.int.test.ts`, real API, PostgreSQL and MinIO, 4 tests):**
+
+- **Access:** Staff get 403 on all six route kinds, no session gets 401, and a foreign origin gets 403.
+- **Refused with 400, nothing stored:** an unknown key, a `<script>` title, an extra field, a URL link, a negative version, a body field outside the contract. An empty title gives `fields: [{ path: "content.title" }]`.
+- **Save and publish:** the list shows all seven sections at version 0. A save gives version 1 with `no-store`. A second "new" save is `VERSION_CONFLICT`. Publishing gives version 2 with the published copy equal to the draft, and publishing again gives `NOTHING_TO_PUBLISH`. Publishing a section never saved gives 404. The `content.published` effect is `storefront_revalidate`.
+- **Preview:** it lists the visible product first and the draft product as not visible, with the price from. Publishing then gives 409 `CONTENT_REFERENCES` with `fields: [{ path: "product:<id>", message: "not_visible" }]`. An unsaved section's preview gives 404.
+- **Content images:**
+  - Upload authorization returns no product. The real POST goes to MinIO.
+  - The product completion route gives 404; the content route completes (`purpose=content`, `uploaded`, no product, one `media.uploaded`), and the image is listed without a URL until ready.
+  - A hero using it cannot publish (`image:<id>`, `not_ready`).
+  - A product image is unknown to the content completion route.
+  - The 11th open upload is refused with 409.
+
+**Worker (`apps/worker/src/revalidate.int.test.ts`):** `content.published` snapshots `storefront_revalidate` and completes after one signed catalogue invalidation.
+
+**Browser (`scripts/browser-qa/content-editor.mjs`, Chromium through the gateway, qa-server API and worker): 18 passed.**
+
+- **States:** a new section reads "Not set up".
+- **Promotional bar:** markup is refused by the form. A save leaves it "Draft, never published", the preview shows the saved messages, and Publish makes it "Live".
+- **Featured products:** a product hidden after being picked blocks publishing, named "“Draft QA …” is not visible". After removing it, the section publishes.
+- **Hero:** the uploaded image was processed by the worker and offered. The preview showed the processed image, and the hero published with typed data (link kind `shop`, asset ID).
+- **Editing:** "Unsaved" shows, and Discard restores the saved draft.
+- **Records:** three publishes wrote three `content.published` events.
+- **Layout and access:** no horizontal scroll at 390px and no page errors. Staff see no link and get "Access unavailable".
+
+Not covered:
+
+- The public read and the home page (steps 98–99).
+- Pruning content images: none is ever removed yet.
+- Placeholder wording until BI-09.
+
+## Step 98 — published home content read (2026-10-15, local)
+
+`pnpm verify -- --integration`: exit 0. Unit 597, integration 575, age preview 2013, gate 2242. After the review fix, `pnpm test:gate` was run again and passed 2242 checks.
+
+`invariant-reviewer` found no blockers.
+
+- **Fixed:** the gate check now parses the JSON instead of matching key order.
+- **Confirmed:** the cache invalidation clears everything (`invalidateAll`).
+- **Accepted:** sold-out cards stay in manual lists, and image links are cached for up to 60 s (they live for 10 minutes).
+
+**Integration (`apps/api/src/store/store-content.int.test.ts`, real API, PostgreSQL and MinIO, 4 tests):**
+
+- **Age ticket:** no ticket, a forged ticket and a crawler user agent all get 403.
+- **Drafts:** before anything is published, every section is null or empty. A saved draft is not shown. Once published it is shown, and a newer draft does not replace it.
+- **Assembly:**
+  - The hero button resolves to `/brands/<slug>`. The featured order is kept, there are two brands, and only the enabled banner is shown, its button resolving to `/p/<slug>`. Offers are shown.
+  - No IDs or stock values appear in the answer.
+- **Re-checking references:**
+  - After the kit is unpublished, it leaves featured, and the banner keeps its title but loses its button.
+  - After the brand is hidden, the hero button and the featured cards go.
+- **Automatic best sellers:** they include the recent sellers that are in stock and leave out the sold-out one (at most 8).
+
+**Gate (`scripts/check-gate-e2e.cjs`):** the route is refused without a ticket through the gateway. With a ticket, it answers the empty home.
+
+Not covered:
+
+- The home page itself (step 99).
+- Content images in the public answer: they are covered by the same signing code as product images, but not tested here.
+
+## Step 99 — home hero, ticker and curated sections (2026-10-15, local)
+
+`pnpm verify -- --integration`: exit 0. Unit 597, integration 575, age preview 2030, gate 2242.
+
+The first run failed in `apps/api/src/auth/age.int.test.ts`. The test searched the whole refusal body for the price "4900", and a random request ID contained it. It now leaves out the request ID before checking, and the rerun passed.
+
+`invariant-reviewer` found no blocking, high or medium findings.
+
+- **Fixed:** the banner text uses a token colour, the hero image is fetched with high priority, and the age-preview checks clean up in `finally`.
+- **Kept on purpose:** the promotional bar on every shop page, recorded in the ADR 0066 addendum.
+
+**Age preview (stub API):** with no content (the stub answers 404), the home page shows the catalogue fallbacks. With published content it shows the ticker, hero title, eyebrow and subtitle, "Popular right now", the best seller, the banner, the offers title and product, and "Pause offers ticker". The hero button links to `/brands/orbe`. The looping copy carries `aria-hidden`, and the bar also shows on `/shop`.
+
+**Browser (`scripts/browser-qa/home.mjs`, real served stack, Chromium; content published with the real storage commands): all passed at 360px, at 1280px, and at 360px with reduced motion.**
+
+- The hero, promotional bar, banner and offers are shown.
+- The ticker animates only without reduced motion, and the pause button pauses it.
+- No horizontal scroll and no page errors.
+
+Fixed after looking at the screenshots:
+
+- On phones the hero circle sat behind the headline (low contrast); it now sits in the bottom corner.
+- The three-way toggle wrapped onto two rows; it is now equal columns.
+- A banner without an image showed an empty saffron block; it now has no art column.
+
+Not covered:
+
+- A content image on the home page in a browser: the hero and banners were published without images.
+- Real phones.
+- BI-09 wording.
+
+## Step 100 — offers, help and free-delivery rule (2026-10-15, local)
+
+`pnpm verify -- --integration`: exit 0. Unit 599, integration 575, age preview 2189, gate 2434. The reference check now includes the demo-copy guard.
+
+`invariant-reviewer` found no blockers.
+
+- **Fixed:** a zero fee reads "Included in your total".
+- **Recorded:** once free delivery is enabled, the API should send the remaining amount with the quote.
+- **Accepted:** the guard regex is a tripwire, not proof.
+
+**Unit:** `lib/cart/free-delivery.test.ts` checks that nothing shows for a null or zero threshold, and that with a threshold it gives the remaining amount and percentage, or "reached".
+
+**Guard:** `scripts/check-reference-set.mjs` was run with a temporary probe file containing HAVEN10. It failed, naming the file. With the probe removed, it passed.
+
+**Age preview (stub API):**
+
+- `/offers` and `/help` are restricted without a ticket.
+- Offers lists only the reduced product, and the API was asked for `sale=1`.
+- Help shows "AED 15 per order", the delivery time, "Dubai, Sharjah" (from the areas) and cash on delivery.
+- Home, Offers and Help carry no "free delivery" text and no demo code.
+
+**Gate:** both pages are refused through the gateway without a ticket.
+
+**Browser:** both pages, on the real served stack at 360px, answered 200 with no horizontal scroll and no page errors. The FAQ got a visible +/− mark afterwards.
+
+Not covered:
+
+- A free-delivery threshold in a browser: it cannot be enabled by contract.
+- BI-01/BI-09 wording.
+
+## Step 101 — slug changes, former slugs and canonical URLs (2026-10-15, local)
+
+`pnpm verify -- --integration`: exit 0. Unit 599, integration 576, age preview 2194, gate 2434.
+
+The first run failed in a storefront unit test: its brands fixture lacked `formerSlugs`. That was fixed.
+
+`invariant-reviewer` found no blockers. Accepted and recorded in ADR 0068: the 20-former-slug limit, and the different error order (409 before 403) for brands and categories.
+
+**Integration:**
+
+- **Products (`apps/api/src/catalogue/products.int.test.ts`):**
+  - A Staff slug change is refused with 403, while a Staff edit without one succeeds and writes no redirect.
+  - The Owner renames twice, and both old slugs point straight at the product.
+  - Taking back the first slug removes its own alias.
+  - Another product cannot take a former slug or the current one (`DUPLICATE`).
+- **Brands and categories:** a Staff slug change is refused with 403. The existing rename, reclaim and alias tests still pass.
+- **Database (`packages/db/src/catalogue.int.test.ts`):** `listStoreBrands` returns former slugs newest first. A hidden brand is not listed, so its former slugs lead nowhere.
+
+**Age preview (stub API):** `/brands/orbe-old` redirects to `/brands/orbe`, and `/categories/disposables-old` redirects to `/categories/disposables`. The brand page declares `<link rel="canonical" href="…/brands/orbe">`.
+
+Not covered:
+
+- The admin's read-only slug field in a browser.
+- Listing filters with former slugs (ADR 0068).
+
+## Step 102 — review and content acceptance pass, M9 gate evidence (2026-10-16, local)
+
+`pnpm verify -- --integration`: exit 0. Unit 599, integration 580, age preview 2194, gate 2434. The new suite passed three runs in a row.
+
+This step adds one suite, `apps/api/src/content/content-acceptance.int.test.ts` (4 tests). It runs the real API, PostgreSQL and the cache with a 1-second TTL:
+
+- **Two editors:** two simultaneous saves on the same version give one 200 and one 409 `VERSION_CONFLICT`. The stale editor also cannot publish until it reloads. Each change is audited once.
+- **Refused publish:** a publish refused for a draft product leaves the live home content exactly as it was.
+- **Propagation:** a publish through the admin route is visible at once on that replica. A publish written without the route (as another replica would) is visible within the TTL. Every publish writes its `storefront_revalidate` effect.
+- **Cache and gate:** a cache warmed by a verified shopper still answers 403 with no content to no ticket or a forged ticket.
+
+**Done condition, item by item:**
+
+| Item                        | Evidence                                                                                                                                                                                                                                                                                                                                         |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Invalid references rejected | Step 96: `packages/db/src/content.int.test.ts` (draft or missing product, product image used as content). Step 97: `admin-content.int.test.ts` (409 `CONTENT_REFERENCES` with `<kind>:<id>`, image `not_ready`). Step 98: `store-content.int.test.ts` (references re-checked at read time). Browser `content-editor.mjs` (hidden product named). |
+| Multiple-editor conflict    | This step (saves and publish), and step 96 (two first saves, DB).                                                                                                                                                                                                                                                                                |
+| Publish retry and TTL       | Step 97: `apps/worker/src/revalidate.int.test.ts` (`content.published` invalidation, retry on an unavailable API, dead after rejected keys). This step: propagation within the TTL without an event.                                                                                                                                             |
+| Order-proof abuse           | Steps 93–94: `review-link.int.test.ts` and `store-reviews.int.test.ts`: an order ID as token, a guessed token, a replaced or expired link, another order's product, parallel submissions (one wins), rate limit, no order data in answers. Browser `review.mjs`.                                                                                 |
+| Cache and gate behaviour    | Step 98: route refused without a ticket, also through the gateway (`check-gate-e2e.cjs`). This step: a warmed cache never answers an unverified request. Age preview: home, offers, help and redirects restricted.                                                                                                                               |
+
+**M9 gate:** "Storefront and admin prototype content and review interactions work with real data." The evidence is above plus the browser passes: review link (step 94), admin Reviews (step 95), content editor (step 97), and home at 360px, 1280px and reduced motion (step 99). **Not marked passed: Marina decides.**
+
+Not covered:
+
+- Two real API replicas: the cross-replica path is the worker effect, which has its own tests.
+- Real phones and WhatsApp's in-app browser.
+- BI-09 and BI-13 wording and scope.
+
+## Step 103 — anonymous browsing events (2026-10-16, local)
+
+`pnpm verify -- --integration`: exit 0 after the review fixes. Unit 601, integration 586, age preview 2194, gate 2434.
+
+The first run failed in `admin-customers.int.test.ts`: its `beforeAll` timed out after 10 s under parallel load, before any of its tests ran. This is the known parallel-load flake, not caused by this change, and the rerun passed.
+
+`invariant-reviewer` found no high-severity issues.
+
+- **Medium, fixed:**
+  - Arabic-Indic digits now count as digits (NFKC).
+  - Search terms over 40 characters or 4 words are stored as `null`.
+  - Search rows carry no anonymous ID.
+- **Low, fixed:**
+  - A slug lookup prefers the current slug over a former one.
+  - At most 2 batches are written at once, with a 2-second statement timeout.
+  - The runtime role cannot update or truncate `events`.
+  - The cleanup job warns when it leaves a backlog.
+- **Recorded in ADR 0069:** a chunked body is bounded by the global 32 KB limit; the address header comes from the gateway (existing pattern).
+
+**Unit (`packages/contracts/src/telemetry.test.ts`):**
+
+- Terms are normalized.
+- These are stored as `null`: a phone number with spaces, a "+971" number, Arabic-Indic digits, an email, a long name-and-address phrase, a term over 40 characters, a zero-width mark.
+- Batches outside the contract are refused: empty, more than 20 events, an unknown type, an extra field, a bad quantity, slug or ID, an extra top-level field.
+
+**Integration (`apps/api/src/store/store-events.int.test.ts`, real API and PostgreSQL, 6 tests):**
+
+- **Refused:** no ticket and a foreign origin get 403, and a non-JSON body gets 415. Nothing is stored.
+- **Stored:** all six types (7 events), with products resolved to IDs. The term "grape ice" is normalized, and a "+971 50 …" term is stored as `null`. The anonymous ID is kept on non-search rows only. No phone digits, IP or cookie appear in the stored rows.
+- **Duplicates and drops:** a resent event counts as `duplicate`. A draft product, a variant of one, and an unknown slug are `dropped`. A former slug counts for its product.
+- **Contract limits:** 21 events, an empty batch, extra fields and an unknown type get 400. A body over 8 KB gets 413.
+- **Rate limit:** the 61st batch from one address in a minute gets 429.
+- **Retention:** an event 91 days old is deleted, and a second pass deletes nothing.
+
+Not covered:
+
+- The storefront sending events (step 104).
+- Daily rollups (step 106).
+- Load behaviour beyond the in-process cap.
+
+## Step 104 — storefront telemetry batching and overload (2026-10-16, local)
+
+`pnpm verify -- --integration`: exit 0 after the review fixes. Unit 610, integration 586, age preview 2194, gate 2434.
+
+During the fixes, a run failed once. The events test searched the stored rows, random UUIDs included, for "971", and a UUID contained it. It now checks types and payloads only; three reruns passed, then the full verify.
+
+`invariant-reviewer` found no blocking or high-severity issues.
+
+- **Fixed:**
+  - Events waiting when a quiet page is reached are dropped (no idle timer loop).
+  - A search term that may be personal is normalized in the browser and sent as `null`; the contract allows `null`.
+- **Recorded in ADR 0070:** a page leave sends one batch at most, and wishlist events carry the rotating anonymous ID.
+
+**Unit (`apps/storefront/lib/telemetry/telemetry.test.ts`, 9 tests):**
+
+- **Batching:** batches of 20 then 5, unique IDs, and the last batch sent with keepalive.
+- **Full queue:** new events are dropped.
+- **Failures:** one retry with the same IDs, then dropped. A thrown send counts as a failure; a refusal is final.
+- **Overload:** a 429 or 503 drops what waits and pauses for one minute.
+- **Quiet pages:** checkout, confirmation and review pages record nothing and drop what waits. `/checkouts` is not quiet.
+- **Sampling:** works per type.
+- **Status mapping:** the answer codes map to the outcomes in ADR 0070.
+- **Anonymous ID:** kept for 24 hours, then replaced; unreadable storage gives a new one.
+
+**Integration:** `store-events.int.test.ts` also stores a search whose term the storefront already sent as `null`.
+
+**Browser (`scripts/browser-qa/telemetry.mjs`, real served stack, Chromium at 360px): 12 passed.**
+
+- A search, a product view, a save and an add to cart reached the database, with the term stored normalized.
+- Event bodies held no personal fields, and device storage held only the cart, the lists and `ih_anon_v1`.
+- The checkout page sent no telemetry.
+- With the events route answering 503:
+  - add to cart was immediate (under 2 s);
+  - checkout opened;
+  - the route was tried at most twice;
+  - no page errors.
+
+CI on the PR then failed in `pricing-acceptance.int.test.ts`. Its "no tax/vat/excise" check searched the whole quote, and the random quote token contained such letters. It now checks only the fields and text, with tokens and UUIDs left out. The same random-value risk was also removed from `admin-reviews.int.test.ts`, which now uses the displayed order number, not bare digits.
+
+Not covered:
+
+- Real phones and slow networks.
+- Rollups (step 106).
+
+## Step 105 — financial metric definitions and summary query (2026-10-16, local)
+
+`pnpm verify -- --integration`: exit 0. Unit 614, integration 590, age preview 2194, gate 2434.
+
+The first full run failed in the new suite, though it had passed on its own. The test sent the collection correction time from the test machine's clock, and the database (Docker) refused it as before delivery or in the future. The test now uses the database's own delivery time and passed three runs in a row.
+
+`invariant-reviewer` found no blocking issues.
+
+- **Fixed:** the permission check moved inside the snapshot, and the range bounds are cast to `timestamptz`.
+- **Added:** a Dubai-midnight boundary test.
+- **Recorded:** the collected cash amount versus the order total (ADR 0071).
+
+**Unit (`packages/domain/src/metrics.test.ts`):**
+
+- **Day bounds:** one Dubai day is 20:00 UTC to 20:00 UTC, and a leap year has 366 days.
+- **Refused ranges:** an impossible date, a reversed range, a non-padded date, and a range over a year.
+- **AOV:** half-up to the fil (8166.67 → 8167, 500.5 → 501), none for no orders, and out of range refused.
+- **Rates:** basis points rounded half-up.
+
+**Integration (`packages/db/src/financial-metrics.int.test.ts`, real PostgreSQL, 4 tests).** The four orders were made with the real commands:
+
+- **A:** pending.
+- **B:** delivered.
+- **C:** delivered, collected at 6500, then corrected to 6000.
+- **D:** cancelled.
+
+Results:
+
+- **Booked:** 3 active orders, merchandise net 20,000, delivery 4,500, total 24,500, AOV 8,167. Cancelled: 1 order, total 16,500.
+- **Delivered:** 2 orders, total 18,000, AOV 9,000.
+- **Collected:** 1 order, 6,000. The correction replaced the first record; it was not added to it.
+- **Cancellation rate:** 2,500 bps.
+- **Status mix:** correct, and every basis is labelled by its Dubai date basis, with the tax note.
+- **Other days:** a range of earlier days counts nothing, and has no average or rate.
+- **Dubai midnight:** an order at 19:59:59.999Z counts on the earlier Dubai day, one at 20:00:00Z on the next.
+- **Access and ranges:** Staff are refused, and so are impossible ranges.
+
+Not covered:
+
+- A route or UI: the dashboards are step 109, the reports step 111.
+- Daily tables for long ranges (step 106).
+
+## Step 106 — daily aggregate tables and idempotent rollups (2026-10-16, local)
+
+`pnpm verify -- --integration`: exit 0. Unit 614, integration 595, age preview 2194, gate 2434.
+
+Expected changes to older tests (a new required consumer):
+
+- The event catalogue test, the order and checkout tests and the M7 and M8 gate tests now expect `analytics_rollup` on order events.
+- Two tests that needed an event with no consumers now use `delivery.configuration_updated`.
+
+`invariant-reviewer` found no blocking issues.
+
+- **Fixed:**
+  - A day past the raw-event retention keeps its search and saved-list rows.
+  - Indexes on `orders(delivered_at)` and `order_collection_records(collected_at)`.
+  - A comment on the lock order.
+- **Tried and reverted:** a repeatable-read rollup made parallel recomputes conflict (the snapshot is taken before the lock wait). The rollup stays in Read Committed, as recorded in ADR 0072.
+- **Recorded:** no backfill until step 107.
+
+**Integration (`packages/db/src/daily-rollups.int.test.ts`, real PostgreSQL, 4 tests).** The four step 105 orders, plus browsing events:
+
+- **Sales:** the `sales_daily` row equals `readFinancialSummary` for that day, with placed 4, cancelled 1 and collected 6000 after the correction.
+- **Products:** 4 ordered units (the cancelled order left out) and 3 delivered.
+- **Search:** "grape" has 2 searches with 1 zero-result; the `''` bucket has 1.
+- **Saved list:** 2 adds and 1 remove.
+- **Idempotent:** running the day again, and three times at once, gives identical rows.
+- **Brand:** after the catalogue brand is renamed, the row keeps the order item's snapshot name.
+- **Days:** `orderRollupDays` lists the days an order touches. An impossible day is refused. An empty day gives an all-zero sales row, and a day past retention keeps its search row.
+
+**Worker (`apps/worker/src/analytics-rollup.int.test.ts`):** three real `order.status_changed` events, run by the `EffectRunner`, filled today's row (delivered 6500). A redelivery is a `duplicate`, and the figures stay the same.
+
+Not covered:
+
+- The scheduled recent-day pass, the backfill and today's freshness (step 107).
+- Load on very busy days.
+
+## Step 107 — recent-day rollups, backfill, freshness and daily summary (2026-10-16, local)
+
+`pnpm verify`: exit 0 (unit 620, age preview 2194; contracts regenerated for the new setting and event). `pnpm test:int`: 599 of 600 passed. The one failure was `admin-orders.int.test.ts` (search by order number returned a second seeded order). It passed twice on rerun, and this step does not touch it. `invariant-reviewer` found nothing material.
+
+**Integration (`apps/worker/src/daily-summary.int.test.ts`, real PostgreSQL, 5 tests):**
+
+- **One slot, one event:** two schedulers ticking the same moment complete the summary slot once. Three more concurrent runs of that slot add no event. A direct second insert is refused by `outbox_events_one_daily_summary`.
+- **Permissioned recipients:** the Settings list holds an Owner, a staff user without `dashboard.financial_read`, a deactivated Owner and an address with no account. Only the active Owner is in Bcc. The text shows booked AED 180.00 for 2 orders, labels each basis with its date meaning, and has no links, customer name or phone.
+- **Off or nobody permitted:** no setting, or a list with no permitted staff, sends nothing.
+- **Freshness:** with no rows, both days are reported missing. The today job fills yesterday and today; a second run gives the same figures with a newer `computedAt`. The nightly job fills the 7 days before today.
+- **Backfill:** 11 named days are recomputed oldest first, and a second run gives the same figures. A range ending after today, or longer than 366 days, is refused.
+
+**Unit:** daily summary slot (09:00 Dubai, `catchUp: 1`); the template escapes product names; the backfill CLI refuses a missing, impossible, reversed, over-long or future range, unknown parts and extra flags, and never prints error details; the domain day helpers handle the Dubai midnight boundary, month and year ends, and invalid input; the admin setting needs a recipient.
+
+Not covered:
+
+- A real email send (BI-07).
+- Load on very busy days.
+- The dashboard display of `computedAt` (step 109).
+
+## Step 108 — operational home dashboard (2026-10-16, local)
+
+`pnpm verify`: exit 0 (unit 620, age preview 2194). `pnpm test:int`: exit 0 (605 tests). `invariant-reviewer` found nothing material. Its optional suggestion was applied: deleted products are left out of top products.
+
+**API (`apps/api/src/dashboard/admin-dashboard.int.test.ts`, real API + PostgreSQL, 5 tests).** Three open orders were seeded, one of them pending for 3 hours.
+
+- No session: 401.
+- **Staff:**
+  - Open counts are 2 pending and 1 confirmed; delayed is 1, and the 3-hour order leads the attention list.
+  - Recent orders carry the customer's name (Staff has `customers.read`). No phone or address appears anywhere in the answer.
+  - The out-of-stock variant is listed.
+  - Reviews and sales are `null`.
+  - Top products show 4 units with no amounts.
+- **Rights withdrawn:** without `customers.read` the names are `null`; without `orders.read` and `inventory.read`, the orders, top-product and stock sections are `null`. Restoring the rights brings them back.
+- **Owner:**
+  - Before a rollup, today and yesterday are `null` ("not computed").
+  - After `rollupDay`: 3 orders, AED 245.00, AOV 8167 fils (half-up), with a `computedAt` and the tax note.
+  - Reviews count present; top products carry amounts.
+- **Deactivated staff:** refused.
+
+Not covered: a real-browser pass of the home page; the delay limits await BI-14.
+
+## Step 109 — Owner analytics (2026-10-16, local)
+
+`pnpm verify`: exit 0 (unit 624, age preview 2194). It first stopped at lint: the screen set state synchronously inside an effect. The loading state moved to the range handlers. `pnpm test:int`: exit 0 (608). `invariant-reviewer` found nothing material.
+
+**API (`apps/api/src/dashboard/admin-analytics.int.test.ts`, real API + PostgreSQL, 3 tests):**
+
+- **Refusals:** no session 401; Staff 403; an impossible date, a range over a year, a missing `to` or an unknown field 400.
+- **Before any rollup:** the 3 days are listed as missing, with no per-day rows and zero totals. The live status mix already shows the 2 orders.
+- **After `rollupDay`:**
+  - The booked totals equal `readFinancialSummary` for the day: 2 orders, AED 180.00, AOV 9000 fils, cancellation 0.
+  - The previous period (the day before) is reported as 1 missing day with no AOV.
+  - The product with 2 units leads; its share is undefined because nothing has been delivered.
+  - Brand units total 3.
+  - Search: 4 searches, 2 with no results (50.00%), 1 term not kept; "mango ice" is the no-result term; the `''` bucket is never listed.
+  - Saved lists: 2 adds and 1 remove, with the product out of stock.
+
+**Unit (`apps/admin/lib/analytics.test.ts`):** ranges are Dubai days, today included; basis points show as one decimal, rounded half-up; the comparison never divides by zero; day lists cross month ends correctly.
+
+**Browser (`scripts/browser-qa/dashboard.mjs`, headless Chromium through the gateway, 18 checks, all PASS):**
+
+- **Owner, home:** counts, booked sales with "As of", and recent orders.
+- **Owner, Analytics:**
+  - The booked-order count equals `sales_daily`, and the tax basis is shown.
+  - The chart has one slot per day of the range, with gray marks for days not computed; focusing a column reads out its AED value.
+  - The Search tab lists the no-result term, and every tab opens.
+  - The 7-day range names the missing days.
+- **Layout:** no sideways scrolling at 390px on either page.
+- **Staff:** no sales figures and no Analytics link; Analytics shows "Access unavailable".
+- **Both roles:** no page errors.
+
+The screenshots were reviewed by eye. The first version stretched a single computed day across the whole chart, and was fixed to give one slot per day of the range.
+
+Not covered:
+
+- Dark-theme screenshots.
+- Real touch input.
+- Ranges with heavy data.
+
+## Step 110 — report jobs: request and status (2026-10-16, local)
+
+`pnpm verify`: exit 0 (unit 624, age preview 2194). `pnpm test:int`: exit 0 (613). After the final trigger change, api lint, typecheck and format check were run again and passed. `invariant-reviewer` found nothing material; both of its notes were applied.
+
+**API (`apps/api/src/reports/admin-reports.int.test.ts`, real API + PostgreSQL, 5 tests):**
+
+- **Refusals:** no session 401; Staff 403 on request and list. Each of these is a 400, and none of them creates a job: an unknown type, an unknown basis, an impossible date, a range over a year, a range ending after today, a range on inventory, an extra field, a missing command ID.
+- **Stream and replay:**
+  - A 7-day sales report becomes a `stream` job: `ready`, available, estimate 7, expiring 15 minutes after creation, `private, no-store`.
+  - The same command again returns 200 with the same job. The command reused for another report gets 409 `IDEMPOTENCY_CONFLICT`, and still only one row exists.
+  - There is one `report.requested` audit entry by the Owner, and no event for a stream.
+- **Estimates and permissions:**
+  - The orders estimate counts order lines (2).
+  - A role with `reports.export` but no `customers.export` gets 403 for customers and 201 for sales.
+  - The Owner's customers job stores both required rights.
+- **File jobs and immutability:**
+  - With the stream limit lowered, inventory becomes a `file` job, `queued`, not available, with exactly one `report.requested` event.
+  - Changing the type or the requester is refused.
+  - Once completed, its file key cannot change and it cannot go back to queued.
+- **Own jobs only:**
+  - Each requester lists only their own jobs, newest first.
+  - Another person's job ID, or an unknown one, answers 404; a malformed ID answers 400.
+  - Without `reports.read`, both the list and the status answer 403.
+
+Not covered here: generating and downloading (steps 111–112). The UI arrives in step 112.
+
+## Step 111 — CSV generators and the streamed download (2026-10-16, local)
+
+`pnpm verify`: exit 0 (unit 628, age preview 2194). `pnpm test:int`: exit 0 (618).
+
+`invariant-reviewer` found one real bug: the keyset cursors on orders and customers carried a millisecond JS `Date`, so rows would repeat at every batch boundary of a large report. The fix uses microsecond text cursors. A new test pages the orders, inventory and customers reports with a batch size of 1 and compares them with one batch:
+
+- Fixed code: the test passes.
+- Cursor temporarily put back to `new Date(...)`: the test fails ("never repeats or skips a row across batch boundaries").
+- The fix was restored afterwards.
+
+**Unit (`packages/domain/src/csv.test.ts`):**
+
+- `=`, `+`, `-`, `@`, tab and CR at the start of text get `'`, phone numbers included. Text with `=` in the middle is left alone.
+- RFC 4180 quoting works for commas, quotes, line breaks and edge spaces.
+- Amounts come from integer fils, including negatives. Basis points become percentages. A non-integer number or exponent text is refused.
+- Times are Dubai time.
+
+**API (`apps/api/src/reports/report-downloads.int.test.ts`, real API + PostgreSQL, 5 tests).** The test reads the CSV with its own RFC 4180 parser and checks the raw bytes for the UTF-8 byte-order mark.
+
+- **Sales:**
+  - Booked: one row per day; the 2 days not computed say "not computed" and have empty figures. Today shows 2 placed, 2 booked, AED 150.00 net, 30.00 delivery, 180.00 total, 90.00 AOV and 0.00% cancelled.
+  - Delivered: today shows 1 order, 100.00, 15.00, 115.00.
+  - Collected: 0 orders.
+  - The file name names the basis and the range.
+- **Orders:**
+  - One row per line, with status now, totals 65.00 and 115.00, and no address.
+  - A customer name `=HYPERLINK(...)` comes out as `'=HYPERLINK(...)`, and phones as `'+971…`.
+- **Products, inventory and customers:**
+  - Products: delivered 2 units, 1 order, 100.00 net.
+  - Inventory: 2 variants, out of stock, with the snapshot time; the file name is `…-as-of-<day>`.
+  - Customers: 2 customers, the injected name defused, delivered spend 115.00 and 0.00.
+  - The download is audited with `personalData`.
+- **Refusals:**
+  - Another person's job or an unknown ID: 404. No session: 401.
+  - An expired stream: 409 `REPORT_NOT_AVAILABLE`. So does a file job, until step 112.
+  - A requester who lost `customers.export` after requesting customers data: 403, and no audit entry is written.
+- **Batch boundaries:** see above.
+- **`admin-reports.int.test.ts`:** the orders report now also needs `customers.export`.
+
+Not covered: built files, signed links and expiry cleanup (step 112); opening the files in a real spreadsheet program.
+
+## Step 112 — report files, signed downloads, expiry and the Reports screen (2026-10-16, local)
+
+`pnpm verify`: exit 0 (unit 629, age preview 2194). `pnpm test:int`: exit 0 (624).
+
+`invariant-reviewer` found two real issues, both fixed and tested:
+
+- The signed `Location` would have been written to the API access log. The response log now keeps only the status code, and the logger redacts `Location`; a unit test checks that a signed link never reaches the output.
+- A file could outlive a failed job. The worker tests now cover a file from an earlier attempt, a stale job's file, and a job failed during its upload (a storage wrapper fails the job mid-upload); none leaves an object behind.
+
+**Worker (`apps/worker/src/reports.int.test.ts`, real PostgreSQL and MinIO, 4 tests):**
+
+- **Build once:** an inventory file job is built once: completed, 2 rows, attempts 1, kept 7 days. The object starts with the UTF-8 byte-order mark, has 3 lines and matches the recorded size. A redelivery is a duplicate.
+- **Lost right:** a requester who lost `customers.export` gets `failed`/`REQUESTER_FORBIDDEN`, and no object remains, including one stored earlier.
+- **Upkeep:**
+  - An expired stream becomes `expired`.
+  - A dead build becomes `failed`/`BUILD_NOT_FINISHED`, and its object is removed.
+  - A completed file past 7 days is deleted from storage and the job marked `expired`; the record and its key stay.
+  - A second run changes nothing.
+- **Race:** a job failed during its upload ends with no object.
+
+**API (`apps/api/src/reports/report-files.int.test.ts`, real API, PostgreSQL and MinIO, 2 tests):**
+
+- **Download:**
+  - The requester gets 303 with `no-store` and `no-referrer`.
+  - The `Location` is a link into the reports bucket with `X-Amz-Expires=300` and an attachment file name.
+  - The link downloads the CSV on its own; the same object without a signature is 403.
+  - One audit entry is written.
+- **Refusals:** another person's job is 404. Lost rights are 403 with no `Location`. Expired and still-queued jobs are 409. None of them writes an audit entry.
+
+**Browser (`scripts/browser-qa/reports.mjs`, headless Chromium through the gateway, 14 checks, all PASS):**
+
+- **Sales:** ready at once, and downloads with a named file and the byte-order mark.
+- **Customers:** asks first; dismissing sends nothing, and accepting downloads the file.
+- **File job:** queued in the database, built by the qa-server worker; the screen notices it by itself, and it downloads through its signed link.
+- **Audit:** the downloads are audited.
+- **Layout:** fits 390px without sideways scrolling.
+- **Staff:** no Reports link, "Access unavailable", and 403 for the Owner's file by its ID.
+- **Both roles:** no page errors.
+
+The first run caught a 390px overflow: a visually hidden table header was positioned outside the scroll box. The fix (`.order-table-wrap` `position: relative`; `.dashboard` columns `minmax(0, 1fr)`) applies to every admin table. `dashboard.mjs` was re-run afterwards: 18/18.
+
+Not covered:
+
+- Dark-theme screenshots.
+- Real touch input.
+- A production storage provider (BI-06).
+- Reports large enough to approach the 200,000-row limit.
+
+## Step 113 — SEO policy, issue report, public sitemap and the SEO screen (2026-10-16, local)
+
+`pnpm verify`: exit 0 (unit 634, age preview 2243). After the case fix, `pnpm test:age-preview` passed 2245, and storefront lint, typecheck and unit tests passed. `pnpm test:int`: exit 0 (627).
+
+`invariant-reviewer` found nothing material; it compiled the header pattern and tried the near-miss paths. One low note was fixed: a `/Terms`-style spelling now gets `noindex` from the proxy.
+
+**Storefront (`pnpm test:age-preview`, built storefront over HTTP with a stub API whose policy changes mid-run):**
+
+- **Closed, and with the policy API down:**
+  - robots disallows everything, allows nothing and names no sitemap.
+  - `/sitemap.xml` is public and lists nothing.
+  - The three policy pages have `noindex` in both the header and the meta tag.
+- **Public pages:**
+  - robots still disallows everything else, allows exactly the three pages and names the sitemap.
+  - The sitemap lists exactly those three, on our origin.
+  - Those pages have `index` meta and no `noindex` header.
+  - `/Terms` and `/PRIVACY` keep `noindex`.
+  - A catalogue page keeps `noindex`.
+  - No sitemap ever lists a catalogue address.
+
+**Unit:** the policy is closed on a failed fetch, a 500, an unknown value or an extra field; it is held for the configured time; only the three policy paths are ever indexable. The gate lets `/sitemap.xml` through but not `/sitemap.xml/x` or `/sitemap-products.xml`.
+
+**API (`apps/api/src/seo/admin-seo.int.test.ts`, real API + PostgreSQL, 3 tests):**
+
+- **Default:** the public answer is `closed` with `public, max-age=60`. The overview lists the features: generic previews, canonical addresses and redirects active; sitemap and the three product features inactive.
+- **Changing the policy:**
+  - Staff 403 and no session 401. An unknown value, an extra field or a missing version gets 400.
+  - The Owner opens it: version 1, the sitemap active, product indexing still inactive, and the public answer follows.
+  - A stale version gets 409 `VERSION_CONFLICT`; the same value again changes nothing.
+  - One audit entry and one event are written.
+  - The Settings screen does not list `seo`.
+- **Issue report:** Staff 403. It checks 3 published products, 1 brand and 1 category (a draft is skipped), and finds one title over 60 characters, a duplicate title across a product and a brand, and a category without SEO fields.
+
+**Browser (`scripts/browser-qa/seo.mjs`, 13 checks, all PASS):**
+
+- **Defaults:** closed by default; product indexing listed as inactive and not a switch; the issue report shows the seeded brand.
+- **Changing the policy:** dismissing changes nothing; accepting opens the public pages, shows the sitemap as active and is audited; closing again works.
+- **Layout:** fits 390px.
+- **Staff:** no link and no access.
+- **Errors:** no page errors.
+
+The first screenshots showed each radio button alone on its own line, then a 390px overflow. The fix was a dedicated choice style, a fieldset `min-width`, and an auto-width radio. `dashboard.mjs` and `reports.mjs` were re-run afterwards: all passed.
+
+Not covered:
+
+- A real crawler or search console.
+- Product indexing (BI-05; not built).
+
+## Step 114 — dashboard, report and SEO acceptance pass; M10 gate evidence (2026-10-16, local)
+
+`pnpm verify -- --integration`: exit 0.
+
+- unit 634;
+- age preview 2245;
+- integration 630 (platform 6, db 139, worker 85, api 400);
+- gateway 29;
+- real-stack gate 2434.
+
+It first stopped at lint: a literal byte-order mark in the new test, now written as an escape.
+
+**New in this step: `apps/api/src/dashboard/m10-acceptance.int.test.ts`** (real API and PostgreSQL, 3 tests). Two orders were seeded around a Dubai midnight:
+
+- one placed at 23:30 on day A, delivered at 00:30 on day B, with cash collected at 10:00 on day C;
+- one placed at 23:59 on day A, then cancelled.
+
+The test checks three things:
+
+- **One day per basis, everywhere.**
+  - The live summary puts booked AED 115.00 on A with a cancellation rate of 50.00%, delivered 115.00 (net 100.00) on B, and collected 115.00 on C. No basis leaks onto another day.
+  - Analytics over A..C equals the live summary over A..C, with no day missing. Its per-day placements and deliveries are on A and B.
+  - The sales CSV shows the figure on the same day for each basis: booked on A, delivered on B, collected on C.
+- **Recomputing never changes a figure.** The three days are backfilled again, then backfilled twice more at the same time as single-day recomputes. The four daily tables, compared without `computed_at`, are identical row for row. The test also checks that the rows exist (three sales days and products), so it is not a comparison of empty tables.
+- **Fields per role on every M10 route.**
+
+  | Route                   | Owner | Staff                       | Finance only (`dashboard.financial_read`) | Clerk (`reports.read` + `reports.export`) |
+  | ----------------------- | ----- | --------------------------- | ----------------------------------------- | ----------------------------------------- |
+  | Analytics               | 200   | 403                         | 200                                       | 403                                       |
+  | Reports list            | 200   | 403                         | 403                                       | 200                                       |
+  | Report request          | 201   | 403                         | 403                                       | 201                                       |
+  | SEO overview            | 200   | 403                         | 403                                       | 403                                       |
+  | SEO issues              | 200   | 403                         | 403                                       | 403                                       |
+  | Home dashboard sections | all   | orders, stock, top products | sales only                                | —                                         |
+
+  The Staff dashboard carries no product amounts, phone or address. The clerk is refused the customers report (403), and gets 404 for the Owner's job and its download.
+
+### M10 gate evidence
+
+Gate: _Operational dashboards/reports contain correct real data, access is permissioned and SEO UI reflects actual indexing policy._
+
+| Item                                   | Evidence                                                                                                                                                                                                                                                                                                                                                                                   |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Financial and date definitions correct | Step 105: `financial-metrics.int.test.ts` (bases, AOV half-up, Dubai days, corrections). Step 106: daily rows equal the live summary. **This step:** across a Dubai midnight, the summary, daily rows, analytics and CSV agree per basis.                                                                                                                                                  |
+| Idempotent backfill and rollups        | Step 106: a repeated or parallel recompute gives the same rows; the analytics consumer redelivered. Step 107: the scheduled today and recent-day jobs; the backfill CLI. **This step:** concurrent backfills and recomputes leave all four tables unchanged.                                                                                                                               |
+| Field denial                           | Step 108: dashboard sections by right, rights withdrawn mid-session. Steps 109–113: each route's allowed and refused roles. **This step:** the role-by-route matrix above. Browser: `dashboard.mjs`, `reports.mjs`, `seo.mjs` (Staff sees no sales and no Analytics, Reports or SEO).                                                                                                      |
+| Export security                        | Step 110: requester-only jobs, command replay and conflict. Step 111: formula defusing, personal-data reports need `customers.export`, audited downloads, the batch-boundary test. Step 112: signed 5-minute links after the checks, no link or audit on refusal, no orphan files, links kept out of logs. **This step:** the clerk cannot reach customer data or another person's report. |
+| Correct real data on screens           | Browser passes `dashboard.mjs` (18), `reports.mjs` (14) and `seo.mjs` (13) on seeded orders and events through the gateway, at 1366px and 390px. No sample values: missing days are named, never zero.                                                                                                                                                                                     |
+| SEO UI reflects the indexing policy    | Step 113: `admin-seo.int.test.ts` (features follow the policy; product indexing always inactive). `pnpm test:age-preview` checks the storefront under closed, API-down and public-pages policies. Browser `seo.mjs` (policy switch, active/inactive labels).                                                                                                                               |
+| Preview and age-boundary tests         | `pnpm test:age-preview` 2245 (generic previews, no product data for any agent, robots, sitemap, policy pages). `pnpm test:gate` 2434 (real API, storefront and gateway).                                                                                                                                                                                                                   |
+
+Not covered, and decided by Marina or by business input:
+
+- **BI-05:** product indexing, previews and JSON-LD are not built.
+- **BI-07:** real email for the daily summary waits for a verified sending domain.
+- **BI-14:** the delay limits are the prototype's values.
+- **Not exercised here:** a production storage provider (BI-06), real crawlers and preview platforms (staging), dark-theme screenshots, real touch input, very large data volumes.
+
+Do not mark M10 passed without Marina's decision.
+
+## Step 115 — full prototype parity review (2026-10-16, local)
+
+Review: `docs/parity-review.md`. It covers the 19 areas and the shared states, with 26 gaps registered, each with evidence, a tier and a size.
+
+- **Method:** two read-only code inventories (storefront and admin) against the prototype symbols in `docs/prototype-map.md`. The main claims were then checked by hand:
+  - `ProductGridSkeleton` is unused.
+  - There are no mobile sheets (ADR 0033 "Not built here").
+  - The Notifications section had no screen.
+  - The orders list reads no URL filters.
+  - Manual order lines take a typed variant ID.
+  - The requirements said "Dubai only".
+- **Fixed in this step:**
+  - The admin Notifications inbox page. The browser pass `dashboard.mjs` (now 20 checks, all PASS) checks that it is not the placeholder and that it fits 390px.
+  - The requirements wording.
+
+`pnpm verify`: exit 0 (unit 634, age preview 2245).
+
+Not covered: the prototype's own behaviour was not run; the comparison is symbol by symbol. Real devices are step 120.
+
+## Step 116 — commerce concurrency regression (2026-10-16, local)
+
+`pnpm verify`: exit 0 (unit 634, age preview 2245). `pnpm test:int`: exit 0 (637). The new suite was also run 5 times in a row: 7/7 every time.
+
+**`apps/api/src/orders/concurrency-regression.int.test.ts`** (real PostgreSQL, pool of 20). Each test races different commands at the same moment. A refusal must be one of the known business errors (version or stock conflict, insufficient stock, coupon refused, idempotency conflict or in progress, quote not accepted, transaction contention); any other error fails the test.
+
+| Race                                                                                          | Holds                                                                                                                                                                                          |
+| --------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 6 checkouts of 1 unit, a damage write-off and a count at "3", against 3 units                 | At least one sale goes through, and sales plus damage never exceed 3. The final stock is exactly 3 − sold − damaged: the count applies only while nothing has left. Ledger equals balance.     |
+| Cancel, two edits (lines, coupon) and a transition at one order version, 4 rounds             | Exactly one wins each round, and the version moves once. When the cancel wins, both lines return in full. Ledger and coupon counters reconcile.                                                |
+| 4 cancels (2 sharing a command ID)                                                            | One cancellation record, one `ORDER_CANCEL` movement; the stock is back to 5.                                                                                                                  |
+| 4 checkouts with a single-use coupon, plus an edit adding it to another order                 | Exactly one live redemption, and the counters match.                                                                                                                                           |
+| 4 cash records (2 sharing a command ID, different amounts), then 2 corrections at one version | One record, then exactly one correction.                                                                                                                                                       |
+| One checkout key: 3 identical requests and 1 with changed lines                               | One order and one sale; the stock falls by 1.                                                                                                                                                  |
+| Whole database afterwards                                                                     | No ledger mismatch and no negative stock; coupon counters equal live redemptions; every cancelled order has one cancellation and one return per line; no live redemption on a cancelled order. |
+
+Not covered: load at volume (step 121); worker and queue failure (step 117).
+
+## Step 117 — worker crash and Redis-loss recovery drill (2026-10-16, local)
+
+`pnpm verify`: exit 0 (unit 634, age preview 2245). `pnpm test:int`: exit 0 (642). The drill was run 3 times in a row: 5/5 each time.
+
+**`apps/worker/src/recovery-drill.int.test.ts`** (real PostgreSQL and queue Redis; the real relay, reconciler, runners and the inbox, email and analytics consumers; a stub email provider that accepts once per delivery key, as Resend does with `Idempotency-Key`):
+
+| Injected failure                                                              | What holds                                                                                                                                                                        |
+| ----------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| The relay claims the event and dies before enqueue; its lease expires         | The event stays undispatched; a healthy relay takes it over and queues all three effects.                                                                                         |
+| Redis loses every queued job, then late copies of the original job IDs arrive | The reconciler re-enqueues all 3 from PostgreSQL. Each effect completes with 1 attempt; one notification, one email; the day's placed count matches; nothing stranded.            |
+| Crash after the provider accepted, before completion was recorded             | The effect retries. Both attempts carry the same delivery key, so the provider delivers once.                                                                                     |
+| Lease lost mid-send, then the new owner dies too                              | The stale worker gets `lease_lost` and cannot finish; after the lease expires a new worker reclaims it and the email is delivered once.                                           |
+| Permanent provider refusal                                                    | The effect goes dead with `RECIPIENT_REJECTED`, and the event is not complete. The Owner's replay is audited (`effect.replayed`); the email is sent once and the event completes. |
+| 3 copies of every effect on 3 workers, then once more                         | Exactly 3 completions, the rest duplicates. The provider is asked once; nothing changes later; ledger and stranded checks are clean.                                              |
+
+**Step 116 fix:** under full-suite load the idempotency race was won by the 2-unit payload, while the test expected the 1-unit one. The test now asserts one order and one sale, stock reduced by the winner's quantity, and conflicts or in-progress answers for the rest. The product behaviour was already right.
+
+Not covered: a real Redis failover and a production restore (steps 122–126, provider-dependent).
+
+## Step 118 — auth, privacy, gate, token and key regression (2026-10-17, local)
+
+`pnpm verify -- --integration`: exit 0 (unit 636, age preview 2245, integration 645, gateway 29, gate 2586). After the reviewer's fix, `pnpm test:gate` was run again: 2586.
+
+**Coverage.** A read-only inventory mapped each condition and scenario to existing tests:
+
+- **Owner guard** (including simultaneous attempts): `staff-administration` and `staff-role`.
+- **Reset and invite reuse, concurrency, expiry and revocation:** `password-reset` and `staff-invitation`.
+- **Logout, deactivation, role change, idle and absolute expiry:** `auth`, `access` and `staff-*`.
+- **Cookie attributes:** `auth`, `session-cookie` and `age-gate`.
+- **Key rotation and revocation; wrong, expired or tampered tickets:** `age-ticket.test.ts` and `age.int.test.ts`.
+- **No product data, warm cache, previews:** `check-age-preview` and `check-gate-e2e`.
+- **No checkout data on the device:** browser `checkout.mjs`.
+- **RBAC-01/02:** `access` and `m10-acceptance`; report downloads.
+
+**Gaps closed in this step:**
+
+| Gap                                        | New evidence                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| SSE on a real deactivation and role change | `inbox.int.test.ts`: the real `deactivateStaff` / `changeStaffRole` end an open stream with `signed-out`, and the cookie then opens no new one (401). **Product fix:** the stream used to end with `reconnect` (its inbox poll failed first), so the browser was not told to sign out. On a failed poll the stream now checks the session and says `signed-out` when it is invalid. The rest of the suite is unchanged (losing the inbox right still gives `reconnect`); 3 runs, 7/7 each. |
+| Age ticket on admin routes                 | `age.int.test.ts`: a valid ticket alone on `/v1/auth/me`, dashboard, orders, customers, reports and the event stream → 401, with no cookie set.                                                                                                                                                                                                                                                                                                                                            |
+| Legacy `co`/`lastOrder`                    | `lib/device/legacy.test.ts`: both storages lose exactly those keys (with planted name and phone) and keep the cart and lists; a blocked storage or a refusing one does not stop the rest.                                                                                                                                                                                                                                                                                                  |
+| Logger                                     | `index.test.ts`: `authorization` and a response `set-cookie` never reach the output.                                                                                                                                                                                                                                                                                                                                                                                                       |
+| AUTH-01 through the real gateway           | `check-gate-e2e.cjs` §7, on the admin surface published on loopback: <ul><li>the sign-in sets `__Host-ih_admin` with `Path=/; Secure; HttpOnly; SameSite=Strict` and no `Domain`;</li><li>the session works for `/auth/me`;</li><li>the storefront origin has no sign-in (404);</li><li>the admin session opens nothing on the storefront;</li><li>an age ticket is 401 on the admin origin;</li><li>a sign-in from the storefront origin is refused (403).</li></ul>                      |
+| PRIV-01 exports                            | `report-downloads.int.test.ts`: the exact column lists of the orders and customers exports. Personal data is the name, phone and area only; no address, notes, Makani or staff email.                                                                                                                                                                                                                                                                                                      |
+
+`invariant-reviewer`: one low finding, fixed. On failure, the gate check would have printed the session token; it now prints only the cookie's attributes.
+
+Not covered:
+
+- Traces (no tracing backend yet; step 125).
+- A WhatsApp user agent in the preview list (platform tests are step 120).
+
+## Step 119 — selected-profile cache, limiter and replica verification (2026-10-17, local)
+
+Profile: budget (BI-06, one Hostinger VPS): one API process, an in-process catalogue cache, local limiters and no cache Redis. `pnpm verify`: exit 0 (unit 637, age preview 2245). `pnpm test:int`: exit 0 (649).
+
+| Item                               | Evidence                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| TTL and invalidation               | Unit (`cache.test.ts`): TTL capped at 60 s; expiry frees bytes; a load that began before an invalidation is never stored or served. Integration (`revalidate.int.test.ts`): local invalidation after a committed admin change and on a signed worker call. **New** (`budget-profile.int.test.ts`, production profile settings, TTL 1 s): a change made behind the API is served from memory within the TTL and fresh after it with no signal; a restarted API starts cold and current. |
+| Bounds                             | Unit: entry and byte bounds, an oversized value not cached, bounded concurrent and queued misses. Config: TTL ≤ 60, bounded entries, bytes and misses.                                                                                                                                                                                                                                                                                                                                 |
+| Checkout limiter fallback          | Unit (`rate-limit.test.ts`): bounded local fallback for checkout with a per-process ceiling; authentication fails closed; key caps with a shared overflow ceiling. On budget the local limiter is the authority. **New:** with no Redis at all, one address gets exactly 240 catalogue reads a minute and then 429 with Retry-After, another address is unaffected, and the 11th sign-in per identity and network is refused.                                                          |
+| Per-instance ceilings              | `limit-policies.ts` divides fallback budgets by `RATE_LIMIT_MAX_REPLICAS`. **New:** the budget profile refuses any value other than 1 (`index.test.ts`), so a second process cannot silently run with its own cache and limits; more replicas require the replicated profile with `CACHE_REDIS_URL` and `RATE_LIMIT_KEY_SECRET` (already enforced).                                                                                                                                    |
+| Identical cache rules for replicas | Budget: there is one replica by configuration. The storefront keeps no second cache (ESLint rule: every server fetch uses `cache: "no-store"`). Cache keys carry `CATALOGUE_CACHE_VERSION`. Replicated (not selected): shared entries, cluster-wide invalidation and outage fallback are unit-tested.                                                                                                                                                                                  |
+
+Not covered:
+
+- The VPS itself: memory headroom, a container restart under load (steps 121–122).
+- An edge or CDN layer.
+
+## Parity G-A1 — order item picker and returning-customer lookup (2026-10-17, local)
+
+ADR 0080. `pnpm verify`: exit 0. `pnpm test:int`: exit 0 (650, one new test).
+
+| Item                         | Evidence                                                                                                                                                                                                                                                                                            |
+| ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Picker lists orderable items | Integration (`manual-orders.int.test.ts`): name, brand and SKU each find the variant; an inactive variant, a draft product and LIKE wildcards find nothing; option label in option order; override price; a never-stocked variant is listed as sold out.                                            |
+| Access                       | Same test: `orders.edit` alone opens the picker, neither right gives 403, and no session gives 401. `@RequireAnyPermission` is covered by the startup route check (`@Serialize` required).                                                                                                          |
+| Browser journey              | `scripts/browser-qa/order-picker.mjs`: all checks PASS. A new number creates the customer, a 0-prefixed retype finds the same customer, name and saved address are filled, a sold-out or already added variant cannot be added, the order edit adds a picked variant, 390px has no sideways scroll. |
+| Found and fixed              | Every manual order submitted from the admin failed validation (a top-level `areaId` in the strict request). The browser pass caught it; API tests had not, because they send their own body.                                                                                                        |
+
+Not covered:
+
+- Real mobile touch and screen reader use of the picker list.
+- More than 30 matches: staff narrow the search, and there is no paging.
+
+## Parity G-A2 — admin deep links (2026-10-17, local)
+
+ADR 0081.
+
+| Item            | Evidence                                                                                                                                                                                                                                                                         |
+| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| API filters     | Integration: `admin-orders.int.test.ts` lists a pending order older than 2 h under `delayed=true` but not a 2.5 h confirmed one (3 h rule), combines it with `status`, and refuses `delayed=yes`; `inventory.int.test.ts` returns exactly the requested variant for `variantId`. |
+| Link mapping    | Unit (`lib/links.test.ts`): a notification path becomes the exact order or stock link; anything but a UUID, a nested path or an outside URL gives no exact link.                                                                                                                 |
+| Browser journey | `scripts/browser-qa/deep-links.mjs`: all 18 checks PASS: order URL, reload, Back; dashboard pending, delayed, recent order and low stock; bell; inbox; customer and their history; product URL; malformed ID. `order-picker.mjs` still all PASS.                                 |
+
+Not covered:
+
+- Review links in the browser: the markup is the same `Link` as elsewhere, and typecheck covers the IDs. The review fixtures live in `admin-reviews.mjs`.
+
+## Parity G-S1 — storefront cart sheet (2026-10-17, local)
+
+ADR 0082.
+
+| Item                | Evidence                                                                                                                                                                                                                                                   |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Sheet behaviour     | `scripts/browser-qa/cart-sheet.mjs` on the served gate stack: all 14 checks PASS at 360px (bottom sheet, focus, quantity, Escape, continue, cart page) and 1280px (quick add hand-over, side panel, remove last line, outside click), with no page errors. |
+| Cart page unchanged | `checkout.mjs`: 49/49 PASS after the line list moved into `CartLines`. Two stale expectations were updated: the anonymous ID from step 104, and the `analytics_rollup` effect of step 107 (all 6 effects completed).                                       |
+| No payable total    | The sheet shows the buyable-lines subtotal only and leads to the cart page, where the server quote is accepted (ADR 0041).                                                                                                                                 |
+
+Not covered:
+
+- Real phones (touch, on-screen keyboard, iOS dialog quirks): step 120.
+
+## Parity G-S4 — storefront mobile menu sheet (2026-10-17, local)
+
+ADR 0083.
+
+| Item            | Evidence                                                                                                                                                                                                                                             |
+| --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Menu and header | `scripts/browser-qa/menu-sheet.mjs` on the served gate stack: all checks PASS at 360px (compact header, every section, saved count, brands on demand, link closes, Escape returns focus, outside click) and 1280px (full header with Help, no Menu). |
+| No regression   | `cart-sheet.mjs` all PASS and `checkout.mjs` 49/49 on the same stack after the header change.                                                                                                                                                        |
+
+Not covered:
+
+- Real phones and screen readers (step 120).
+
+## Step 120 — link-preview and browser/mobile accessibility check: LOCAL PART (2026-10-17)
+
+ADR 0084. **Not done yet:** the real-device and live-preview part waits for BI-15 (the agreed devices and platforms) and a staging URL.
+
+| Item                   | Evidence                                                                                                                                                                                                                                                                                                                    |
+| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Storefront WCAG 2.1 AA | `a11y-storefront.mjs`: axe on 13 pages + cart sheet + menu sheet at 360px and 1280px, and the unverified age check. No serious or critical violations (after the fixes below). 51 checks PASS.                                                                                                                              |
+| Storefront keyboard    | Option, add, sheet focus kept inside the dialog (with the browser toolbar as the only other stop), Escape returns focus, an immediate re-add reopens, the sheet's link reaches the cart; checkout errors: an alert summary with links to each invalid field, each `aria-invalid` with its error text; the menu by keyboard. |
+| Admin WCAG 2.1 AA      | `a11y-admin.mjs`: axe on sign-in, home, 16 sections, an order detail and the new-order form at 1366px light, 1366px dark and 390px. 70 checks PASS.                                                                                                                                                                         |
+| Admin keyboard         | Sign-in by keyboard, a refused sign-in announced, the notification panel opened with Enter and closed with Escape (focus back to the bell), labelled required fields.                                                                                                                                                       |
+| Previews               | Local proof unchanged: `pnpm test:age-preview` (2245) and `pnpm test:gate` (2586) PASS: preview user agents and unverified visitors get generic previews only.                                                                                                                                                              |
+| Fixed                  | Storefront `--ink-3` contrast; Cart link accessible name; dialog reopen race (cart sheet and menu); admin tab list holding a non-tab; notification panel Escape.                                                                                                                                                            |
+| No regression          | `cart-sheet.mjs`, `menu-sheet.mjs`, `deep-links.mjs` all PASS after the fixes.                                                                                                                                                                                                                                              |
+
+Not covered (needs BI-15 and staging):
+
+- Real iOS and Android devices, VoiceOver and TalkBack, Safari and Firefox.
+- Live preview fetchers (WhatsApp, iMessage, Facebook/Instagram, Telegram, X) on a public URL.
+- Manual review of reading order and wording with a screen reader.
+
+## Step 121 — representative load, query and payload testing (2026-10-17, local)
+
+ADR 0085; full report in `docs/load-report.md`. The scenario is Apixel's proposal until BI-16 is answered. Host: Apple M2, local Docker.
+
+| Item           | Evidence                                                                                                                                                               |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Targets        | `pnpm load:test`: read p95 32 ms (target 300), checkout order p95 62 ms (target 800) with 50 shoppers; 23 and 54 ms with 150 shoppers. 0 errors.                       |
+| Pool and locks | No request waited for a pool connection (max 8 of 10 open); at most 3 sessions waiting on a lock.                                                                      |
+| Contention     | 20 simultaneous last-unit orders → exactly 3 placed; 10 simultaneous one-use coupon orders → exactly 1. Ledger reconciliation 0 mismatches.                            |
+| Queue outage   | About 220 orders placed during a 20 s Redis stop (p95 58 ms); all effects completed 6 s after Redis returned.                                                          |
+| Query plans    | No statement over 100 ms during the runs (auto_explain). At 51,788 orders every admin and rollup read p95 ≤ 93 ms after fixing the orders list (52 → 2 ms first page). |
+| Regression     | `admin-orders`, `bulk-confirm` and customer integration suites PASS after the list query change.                                                                       |
+
+Not covered:
+
+- The production VPS (rerun on staging), browser-side LCP/CLS/JS (BI-15), client traffic figure (BI-16).

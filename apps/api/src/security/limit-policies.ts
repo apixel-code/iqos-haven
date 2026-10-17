@@ -27,7 +27,7 @@ export const LOGIN_POLICY: EndpointLimitPolicy<"ip" | "identityNetwork" | "ident
   outage: "fail_closed",
 };
 
-/** Order submission (used from step 75): attempted submissions count, not just orders. */
+/** Order submission (step 77): attempted submissions count, not just orders. */
 export const checkoutPolicy = (env: ApiEnv): EndpointLimitPolicy<"ip" | "phone"> => ({
   endpoint: "checkout",
   rules: { ip: perMinute(10), phone: perMinute(5) },
@@ -106,6 +106,43 @@ export const INVENTORY_ADJUST_POLICY = {
   endpoint: "inventory_adjust",
 } as const;
 
+export const ORDER_TRANSITION_POLICY = {
+  ...CATALOG_MANAGE_POLICY,
+  endpoint: "order.transition",
+} as const;
+export const ORDER_EDIT_POLICY = {
+  ...CATALOG_MANAGE_POLICY,
+  endpoint: "order.edit",
+} as const;
+export const ORDER_BULK_CONFIRM_POLICY = {
+  ...CATALOG_MANAGE_POLICY,
+  endpoint: "order.bulk_confirm",
+} as const;
+export const MANUAL_ORDER_POLICY = {
+  ...CATALOG_MANAGE_POLICY,
+  endpoint: "order.manual",
+} as const;
+export const ORDER_COLLECTION_POLICY = {
+  ...CATALOG_MANAGE_POLICY,
+  endpoint: "order.collection",
+} as const;
+export const ORDER_CANCEL_POLICY = {
+  ...CATALOG_MANAGE_POLICY,
+  endpoint: "order.cancel",
+} as const;
+export const REVIEW_LINK_POLICY = {
+  ...CATALOG_MANAGE_POLICY,
+  endpoint: "order.review_link",
+} as const;
+export const CONTENT_MANAGE_POLICY = {
+  ...CATALOG_MANAGE_POLICY,
+  endpoint: "content.manage",
+} as const;
+export const REVIEW_MODERATION_POLICY = {
+  ...CATALOG_MANAGE_POLICY,
+  endpoint: "review.moderate",
+} as const;
+
 /**
  * Shopper catalogue reads (step 58), per client address. Browsing must keep working when the
  * shared limiter is down, so the outage path is a bounded local budget plus a process ceiling.
@@ -126,6 +163,27 @@ export const STORE_QUOTE_POLICY: EndpointLimitPolicy<"ip"> = {
   rules: { ip: perMinute(30) },
   outage: { fallback: { ip: perMinute(15) }, processCeiling: perMinute(1500) },
 };
+
+/**
+ * Refused coupon codes (step 77), counted across the quote and the order route. Only a refused
+ * code (unknown, inactive, expired or full) uses this budget, so re-pricing a cart with a good code is never slowed; once it is
+ * spent, any request that carries a code is refused before the code is looked at, which keeps a
+ * guesser from telling a right code from a wrong one. Requests without a code are unaffected.
+ */
+const TEN_MINUTES = 10 * MINUTE;
+export const couponFailurePolicy = (env: ApiEnv): EndpointLimitPolicy<"ip"> => ({
+  endpoint: "store_coupon_failure",
+  rules: { ip: { limit: 10, windowMs: TEN_MINUTES } },
+  outage: {
+    fallback: {
+      ip: {
+        limit: Math.max(1, Math.floor(5 / env.RATE_LIMIT_MAX_REPLICAS)),
+        windowMs: TEN_MINUTES,
+      },
+    },
+    processCeiling: { limit: 300, windowMs: TEN_MINUTES },
+  },
+});
 
 /**
  * Search and facets (step 60) are not cached, because the text is free-form, so their budget is
@@ -154,4 +212,38 @@ export const STORE_CARDS_POLICY: EndpointLimitPolicy<"ip"> = {
   endpoint: "store_cards",
   rules: { ip: perMinute(120) },
   outage: { fallback: { ip: perMinute(60) }, processCeiling: perMinute(3000) },
+};
+
+/** Capability reads: bounded address budget; no public order lookup without the cookie. */
+export const ORDER_CONFIRMATION_POLICY: EndpointLimitPolicy<"ip"> = {
+  endpoint: "order_confirmation",
+  rules: { ip: perMinute(60) },
+  outage: { fallback: { ip: perMinute(30) }, processCeiling: perMinute(1500) },
+};
+
+/**
+ * Review links (step 94, ADR 0062), per client address. Opening a link reads products only;
+ * submitting writes a pending review. A token is 256 random bits, so these budgets slow
+ * abuse of a real link rather than guessing. IP only: rotating tokens must not create an
+ * unbounded second limiter partition.
+ */
+export const STORE_REVIEW_PROOF_POLICY: EndpointLimitPolicy<"ip"> = {
+  endpoint: "store_review_proof",
+  rules: { ip: perMinute(30) },
+  outage: { fallback: { ip: perMinute(15) }, processCeiling: perMinute(600) },
+};
+export const STORE_REVIEW_SUBMIT_POLICY: EndpointLimitPolicy<"ip"> = {
+  endpoint: "store_review_submit",
+  rules: { ip: perMinute(10) },
+  outage: { fallback: { ip: perMinute(5) }, processCeiling: perMinute(300) },
+};
+
+/**
+ * Browsing events (step 103, ADR 0069), per client address. Best effort: when the shared
+ * limiter is down a small local budget applies, and the route drops rather than queues.
+ */
+export const STORE_EVENTS_POLICY: EndpointLimitPolicy<"ip"> = {
+  endpoint: "store_events",
+  rules: { ip: perMinute(60) },
+  outage: { fallback: { ip: perMinute(30) }, processCeiling: perMinute(3000) },
 };

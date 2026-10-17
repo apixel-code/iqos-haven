@@ -302,6 +302,135 @@ h2 {
     padding: 24px 20px;
   }
 }
+
+.order-filters {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+.order-table-wrap {
+  /* Contains absolutely positioned content (e.g. .sr-only headers) inside its scroll box. */
+  position: relative;
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+}
+.order-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 900px;
+  font-size: 0.78rem;
+}
+.order-table th,
+.order-table td {
+  padding: 12px;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  vertical-align: top;
+}
+.order-table tbody tr {
+  cursor: pointer;
+}
+.order-table tbody tr:hover {
+  background: var(--surface-2);
+}
+.order-table td small,
+.order-item small,
+.order-history small {
+  display: block;
+  color: var(--ink-3);
+  margin-top: 4px;
+}
+.order-link {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--primary);
+  font-family: var(--mono);
+  font-weight: 600;
+}
+.order-status {
+  display: inline-block;
+  border-radius: 999px;
+  padding: 5px 8px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  white-space: nowrap;
+  background: var(--surface-2);
+}
+.status-pending {
+  color: var(--st-pending);
+  background: var(--st-pending-bg);
+}
+.status-confirmed {
+  color: var(--st-confirmed);
+  background: var(--st-confirmed-bg);
+}
+.status-processing {
+  color: var(--st-processing);
+  background: var(--st-processing-bg);
+}
+.status-out_for_delivery {
+  color: var(--st-ofd);
+  background: var(--st-ofd-bg);
+}
+.status-delivered {
+  color: var(--st-delivered);
+  background: var(--st-delivered-bg);
+}
+.status-cancelled {
+  color: var(--st-cancelled);
+  background: var(--st-cancelled-bg);
+}
+.order-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+.order-detail h3 {
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+.order-totals {
+  display: grid;
+  gap: 8px;
+}
+.order-totals div {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+}
+.order-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 12px;
+}
+.order-item > :last-child {
+  text-align: right;
+}
+.order-item strong {
+  display: block;
+}
+.order-history {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  gap: 16px;
+}
+.order-history li {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 14px;
+  align-items: start;
+}
+@media (max-width: 700px) {
+  .order-filters,
+  .order-detail-grid {
+    grid-template-columns: 1fr;
+  }
+}
 @media (max-width: 420px) {
   .auth-card {
     padding: 24px 18px;
@@ -426,4 +555,381 @@ h2 {
   .record-card {
     padding: 14px;
   }
+}
+/* Review text keeps the customer's paragraphs (step 95). */
+.review-body {
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+/* Storefront content editor (step 97). */
+.checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.inline-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.inline-row input {
+  flex: 1;
+  min-width: 0;
+}
+.preview-block {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow-wrap: anywhere;
+}
+.preview-hero {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 16px;
+  border-radius: 8px;
+  background: var(--surface-2, var(--surface));
+}
+.preview-hero img,
+.content-thumb {
+  width: 100%;
+  max-width: 320px;
+  height: auto;
+  border-radius: 6px;
+}
+.content-images {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 8px;
+}
+.content-image-choice {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+}
+.content-image-choice img {
+  width: 100%;
+  height: 80px;
+  object-fit: cover;
+  border-radius: 4px;
+}
+
+/* Operational home (step 108) */
+.dashboard {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+}
+.attention {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.attention-item {
+  border: 1px solid var(--warn);
+  background: var(--warn-soft);
+  color: var(--ink);
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-weight: 600;
+}
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+.kpi {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  display: grid;
+  gap: 4px;
+  padding: 16px;
+  color: var(--ink);
+}
+a.kpi:hover {
+  border-color: var(--ink-3);
+  text-decoration: none;
+}
+.kpi-value {
+  font-size: 1.6rem;
+  font-weight: 700;
+}
+.dashboard-split {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  gap: 16px;
+  align-items: start;
+}
+.dashboard-stack {
+  display: grid;
+  gap: 16px;
+}
+.dashboard-list {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding-left: 18px;
+}
+ul.dashboard-list {
+  list-style: none;
+  padding-left: 0;
+}
+.stock-low {
+  color: var(--warn);
+  font-weight: 600;
+}
+.stock-out {
+  color: var(--err);
+  font-weight: 600;
+}
+@media (max-width: 900px) {
+  .dashboard-split {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Owner analytics (step 109) */
+.status-bar {
+  display: flex;
+  gap: 2px;
+  height: 12px;
+  border-radius: 6px;
+  overflow: hidden;
+}
+.status-bar i {
+  min-width: 4px;
+  background: currentColor;
+}
+.status-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  color: var(--ink-2);
+}
+.status-legend li {
+  color: var(--ink-2);
+  background: none;
+}
+.status-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-right: 6px;
+  background: currentColor;
+}
+.rank-list {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding-left: 18px;
+}
+.rank-list li {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 4px 12px;
+}
+.rank-bar {
+  grid-column: 1 / -1;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--surface-2);
+}
+.rank-bar i {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  background: var(--accent);
+}
+.column-chart {
+  margin: 0;
+  display: grid;
+  gap: 6px;
+}
+.column-chart svg {
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+.chart-axis {
+  stroke: var(--line);
+  stroke-width: 1;
+}
+.chart-bar {
+  fill: var(--accent);
+}
+.chart-bar.is-active {
+  fill: var(--accent-ink);
+}
+.column-chart g:focus {
+  outline: none;
+}
+.column-chart g:focus-visible rect {
+  stroke: var(--ink-3);
+  stroke-width: 1;
+}
+.chart-range {
+  display: flex;
+  justify-content: space-between;
+}
+.tab-list button[aria-selected="true"],
+.secondary-button[aria-pressed="true"] {
+  border-color: var(--ink);
+  font-weight: 600;
+}
+.chart-missing {
+  fill: var(--ink-4);
+}
+
+/* Visually hidden, still read by screen readers (step 112) */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* SEO feature states (step 113): text label plus colour, never colour alone */
+.seo-active,
+.seo-inactive {
+  display: inline-block;
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+.seo-active {
+  color: var(--ok);
+  background: var(--ok-soft);
+}
+.seo-inactive {
+  color: var(--ink-2);
+  background: var(--surface-2);
+}
+.seo-choices {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  /* A fieldset is as wide as its content by default; let the text wrap instead. */
+  min-width: 0;
+  display: grid;
+  gap: 12px;
+}
+.management-card label.seo-choice {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+.management-card label.seo-choice span {
+  flex: 1;
+  min-width: 0;
+}
+.management-card label.seo-choice input {
+  /* Form inputs are full width elsewhere; a radio is only as wide as itself. */
+  width: auto;
+  margin-top: 4px;
+  flex: none;
+}
+/* Order item picker (parity G-A1): search, then add a variant to the order. */
+.item-picker {
+  display: grid;
+  gap: 10px;
+}
+.item-picks {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  max-height: 320px;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+}
+.item-picks li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+}
+.item-picks li + li {
+  border-top: 1px solid var(--line);
+}
+.item-pick-text {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+  overflow-wrap: anywhere;
+}
+.item-pick-price {
+  display: grid;
+  justify-items: end;
+  gap: 4px;
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+.order-lines {
+  display: grid;
+  gap: 10px;
+}
+.order-line {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 96px auto;
+  align-items: end;
+  gap: 12px;
+}
+.management-card .order-line input {
+  max-width: 120px;
+}
+.customer-found {
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 12px;
+  display: grid;
+  gap: 10px;
+}
+.customer-found ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.customer-found li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  justify-content: space-between;
+}
+@media (max-width: 700px) {
+  .order-line {
+    grid-template-columns: minmax(0, 1fr) 80px;
+  }
+  .order-line > button {
+    grid-column: 1/-1;
+    justify-self: start;
+  }
+  .item-picks li,
+  .customer-found li {
+    flex-wrap: wrap;
+  }
+}
+/* Order status tabs with the "Delayed only" toggle beside them (step 120). */
+.order-filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
 }

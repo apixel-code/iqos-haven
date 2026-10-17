@@ -263,6 +263,10 @@ export async function updateProduct(
       await tx.$queryRaw(Prisma.sql`SELECT id FROM products WHERE id=${id}::uuid FOR UPDATE`);
       const row = await load(tx, id);
       if (!row) throw new CatalogueNotFoundError();
+      // A new slug turns the old one into a redirect: SEO and redirect administration are the
+      // Owner's (architecture §11 matrix, step 101). Creating with a slug stays catalogue work.
+      if (row.slug !== command.slug && !(await canWriteSeo(tx, actor)))
+        throw new CatalogueForbiddenError();
       if (row.version !== version) throw new CatalogueConflictError("VERSION_CONFLICT");
       if (row.deletedAt) throw new CatalogueConflictError("TRASHED");
       // A draft may keep a parent that was trashed later; moving to (or publishing under) an

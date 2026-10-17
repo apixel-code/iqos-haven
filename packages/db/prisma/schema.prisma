@@ -139,15 +139,19 @@ model RolePermission {
 
 /// Admin users. Never deleted (deactivate). Email stored normalized (trimmed, lower case).
 model StaffUser {
+  orderCancellations   OrderCancellation[]
   settingsUpdates     Setting[]
   deliveryAreaUpdates DeliveryArea[]
   couponUpdates       Coupon[]
+  notificationReceipts NotificationReceipt[]
   ordersCreated       Order[]              @relation("OrderCreatedBy")
   ordersCollected     Order[]              @relation("OrderCollectedBy")
   orderStatusChanges  OrderStatusHistory[]
+  orderEdits          OrderEditHistory[]
   stockMovements      StockMovement[]
   mediaUploads        MediaAsset[]
   id                  String                 @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  collectionRecords   OrderCollectionRecord[]
   email               String                 @unique @db.VarChar(254)
   passwordHash        String                 @map("password_hash") @db.VarChar(255)
   name                String                 @db.VarChar(100)
@@ -163,6 +167,11 @@ model StaffUser {
   sessions            Session[]
   passwordResets      PasswordResetToken[]
   invitationsSent     StaffInvitationToken[] @relation("Inviter")
+  reviewProofsIssued ReviewProof[]
+  reviewsModerated   Review[]
+  reportJobs         ReportJob[]
+  contentDrafts      ContentSection[] @relation("ContentDraftUpdater")
+  contentPublished   ContentSection[] @relation("ContentPublisher")
 
   @@index([roleId])
   @@map("staff_users")
@@ -276,12 +285,12 @@ model Coupon {
   @@map("coupons")
 }
 
-/// What one order used; released at most once.
+/// One historical coupon use; an order has at most one unreleased use at a time.
 model CouponRedemption {
   id                      String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
   couponId                String    @map("coupon_id") @db.Uuid
   coupon                  Coupon    @relation(fields: [couponId], references: [id], onDelete: Restrict, onUpdate: Restrict)
-  orderId                 String    @unique @map("order_id") @db.Uuid
+  orderId                 String    @map("order_id") @db.Uuid
   order                   Order     @relation(fields: [orderId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   code                    String    @db.VarChar(32)
   percentBps              Int       @map("percent_bps")
@@ -291,6 +300,7 @@ model CouponRedemption {
   releasedAt              DateTime? @map("released_at") @db.Timestamptz(6)
 
   @@index([couponId, redeemedAt(sort: Desc), id(sort: Desc)], map: "coupon_redemptions_coupon")
+  @@index([orderId], map: "coupon_redemptions_order")
   @@map("coupon_redemptions")
 }
 
@@ -397,10 +407,13 @@ model Product {
   orderItems OrderItem[]
   redirects SlugRedirect[]
   search    ProductSearch?
+  reviews    Review[]
 
   @@index([brandId], map: "products_brand")
   @@index([categoryId], map: "products_category")
   @@map("products")
+  salesDaily     ProductSalesDaily[]
+  wishlistDaily  WishlistDaily[]
 }
 
 model ProductOption {
@@ -419,6 +432,7 @@ model ProductOption {
 }
 
 model Variant {
+  returnItems  OrderReturnItem[]
   id                String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
   productId         String   @map("product_id") @db.Uuid
   product           Product  @relation(fields: [productId], references: [id], onDelete: Restrict, onUpdate: Restrict)
@@ -437,6 +451,7 @@ model Variant {
 
   stockMovements StockMovement[]
   orderItems     OrderItem[]
+  lowStockAlerts LowStockAlert[]
 
   @@unique([productId, optionSignature])
   @@index([productId, active], map: "variants_availability")
@@ -528,8 +543,10 @@ model SlugRedirect {
 /// asset `ready`; only ready assets may become product images.
 model MediaAsset {
   id                 String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
-  productId          String    @map("product_id") @db.Uuid
-  product            Product   @relation(fields: [productId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  productId          String?   @map("product_id") @db.Uuid
+  product            Product?  @relation(fields: [productId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  /// `product` (gallery) or `content` (home sections, no product). Step 96.
+  purpose            String    @default("product") @db.VarChar(16)
   uploadedBy         String    @map("uploaded_by") @db.Uuid
   uploader           StaffUser @relation(fields: [uploadedBy], references: [id], onDelete: Restrict, onUpdate: Restrict)
   quarantineKey      String    @unique @map("quarantine_key") @db.VarChar(512)
@@ -560,7 +577,9 @@ model MediaAsset {
 /// An order with its own copy of customer, address, area, coupon and totals (step 73).
 /// Never deleted; contents are fixed once processing starts.
 model Order {
+  cancellation                 OrderCancellation?
   id                           String               @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  collectionRecords            OrderCollectionRecord[]
   /// Sequential display number assigned by the database; gaps are normal.
   orderNumber                  BigInt               @unique @default(autoincrement()) @map("order_number")
   customerId                   String               @map("customer_id") @db.Uuid
@@ -615,10 +634,14 @@ model Order {
   updatedAt                    DateTime             @default(dbgenerated("statement_timestamp()")) @map("updated_at") @db.Timestamptz(6)
   items                        OrderItem[]
   history                      OrderStatusHistory[]
-  couponRedemption             CouponRedemption?
+  couponRedemptions            CouponRedemption[]
   stockMovements               StockMovement[]
+  edits                        OrderEditHistory[]
+  reviewProofs ReviewProof[]
+  reviews      Review[]
 
   @@unique([creationScope, creationKeyHash], map: "orders_creation_key")
+  @@index([createdAt(sort: Desc), id(sort: Desc)], map: "orders_created")
   @@index([customerId, createdAt(sort: Desc), id(sort: Desc)], map: "orders_customer")
   @@index([status, createdAt(sort: Desc), id(sort: Desc)], map: "orders_status")
   @@map("orders")
@@ -674,20 +697,306 @@ model OrderStatusHistory {
   @@map("order_status_history")
 }
 
+/// Append-only staff edit command and its display-safe diff.
+model OrderEditHistory {
+  id           String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  seq          BigInt    @unique @default(autoincrement())
+  orderId      String    @map("order_id") @db.Uuid
+  order        Order     @relation(fields: [orderId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  actorId      String    @map("actor_id") @db.Uuid
+  actor        StaffUser @relation(fields: [actorId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  commandId    String    @unique @map("command_id") @db.Uuid
+  requestHash  Bytes     @map("request_hash")
+  orderVersion Int       @map("order_version")
+  diff         Json
+  createdAt    DateTime  @default(dbgenerated("statement_timestamp()")) @map("created_at") @db.Timestamptz(6)
+
+  @@index([orderId, seq], map: "order_edit_history_order")
+  @@map("order_edit_history")
+}
+
 /// One accepted command key and the answer to replay for it (step 74). Hashes only.
 model IdempotencyRecord {
-  id           String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
-  scope        String   @db.VarChar(64)
-  keyHash      Bytes    @map("key_hash")
-  payloadHash  Bytes    @map("payload_hash")
-  response     Json?
-  resourceType String?  @map("resource_type") @db.VarChar(32)
-  resourceId   String?  @map("resource_id") @db.Uuid
-  createdAt    DateTime @default(dbgenerated("statement_timestamp()")) @map("created_at") @db.Timestamptz(6)
-  expiresAt    DateTime @map("expires_at") @db.Timestamptz(6)
+  replayCookieMaterial  Bytes?    @map("replay_cookie_material")
+  replayCookieExpiresAt DateTime? @map("replay_cookie_expires_at") @db.Timestamptz(6)
+  id                    String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  scope                 String    @db.VarChar(64)
+  keyHash               Bytes     @map("key_hash")
+  payloadHash           Bytes     @map("payload_hash")
+  response              Json?
+  resourceType          String?   @map("resource_type") @db.VarChar(32)
+  resourceId            String?   @map("resource_id") @db.Uuid
+  createdAt             DateTime  @default(dbgenerated("statement_timestamp()")) @map("created_at") @db.Timestamptz(6)
+  expiresAt             DateTime  @map("expires_at") @db.Timestamptz(6)
 
   @@unique([scope, keyHash], map: "idempotency_records_key")
   @@index([expiresAt], map: "idempotency_records_expiry")
   @@map("idempotency_records")
 }
 
+
+/// Staff notification content, written once per source event and type (step 78). Immutable.
+model Notification {
+  id            String                @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  sourceEventId String                @map("source_event_id") @db.Uuid
+  type          String                @db.VarChar(64)
+  title         String                @db.VarChar(150)
+  body          String                @db.VarChar(500)
+  link          String?               @db.VarChar(300)
+  createdAt     DateTime              @default(dbgenerated("statement_timestamp()")) @map("created_at") @db.Timestamptz(6)
+  receipts      NotificationReceipt[]
+
+  @@unique([sourceEventId, type], map: "notifications_source")
+  @@index([createdAt], map: "notifications_created")
+  @@map("notifications")
+}
+
+/// One per recipient; `readAt` is that user's own read flag.
+model NotificationReceipt {
+  notificationId String       @map("notification_id") @db.Uuid
+  userId         String       @map("user_id") @db.Uuid
+  notification   Notification @relation(fields: [notificationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  user           StaffUser    @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  deliveredAt    DateTime     @default(dbgenerated("statement_timestamp()")) @map("delivered_at") @db.Timestamptz(6)
+  readAt         DateTime?    @map("read_at") @db.Timestamptz(6)
+
+  @@id([notificationId, userId])
+  @@index([userId, readAt, notificationId], map: "notification_receipts_inbox")
+  @@map("notification_receipts")
+}
+
+/// Verified-purchase proof (step 93): only the token's SHA-256 is stored; one live per order.
+model ReviewProof {
+  id        String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  orderId   String    @map("order_id") @db.Uuid
+  order     Order     @relation(fields: [orderId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  tokenHash Bytes     @unique(map: "review_proofs_token") @map("token_hash")
+  issuedBy  String    @map("issued_by") @db.Uuid
+  issuer    StaffUser @relation(fields: [issuedBy], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  issuedAt  DateTime  @default(dbgenerated("statement_timestamp()")) @map("issued_at") @db.Timestamptz(6)
+  expiresAt DateTime  @map("expires_at") @db.Timestamptz(6)
+  revokedAt DateTime? @map("revoked_at") @db.Timestamptz(6)
+  reviews   Review[]
+
+  @@map("review_proofs")
+}
+
+/// A customer review (step 93); always verified at launch, pending until moderated.
+model Review {
+  id          String      @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  productId   String      @map("product_id") @db.Uuid
+  product     Product     @relation(fields: [productId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  orderId     String      @map("order_id") @db.Uuid
+  order       Order       @relation(fields: [orderId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  proofId     String      @map("proof_id") @db.Uuid
+  proof       ReviewProof @relation(fields: [proofId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  rating      Int         @db.SmallInt
+  title       String      @db.VarChar(120)
+  body        String      @db.VarChar(2000)
+  authorName  String      @map("author_name") @db.VarChar(60)
+  status      String      @default("pending") @db.VarChar(16)
+  moderatedBy String?     @map("moderated_by") @db.Uuid
+  moderator   StaffUser?  @relation(fields: [moderatedBy], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  moderatedAt DateTime?   @map("moderated_at") @db.Timestamptz(6)
+  version     Int         @default(1)
+  createdAt   DateTime    @default(dbgenerated("statement_timestamp()")) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([orderId, productId], map: "reviews_one_per_purchase")
+  @@index([status, createdAt, id], map: "reviews_moderation")
+  @@index([productId, status], map: "reviews_product")
+  @@map("reviews")
+}
+
+/// Low-stock quiet window (step 92): the last alert per variant and channel.
+model LowStockAlert {
+  variantId     String   @map("variant_id") @db.Uuid
+  variant       Variant  @relation(fields: [variantId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  channel       String   @db.VarChar(16)
+  sourceEventId String   @map("source_event_id") @db.Uuid
+  alertedAt     DateTime @default(dbgenerated("statement_timestamp()")) @map("alerted_at") @db.Timestamptz(6)
+
+  @@id([variantId, channel])
+  @@map("low_stock_alerts")
+}
+
+/// The command that cancelled an order (step 86). One per order; immutable.
+model OrderCancellation {
+  orderId        String            @id @map("order_id") @db.Uuid
+  order          Order             @relation(fields: [orderId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  commandId      String            @unique @map("command_id") @db.Uuid
+  actorId        String            @map("actor_id") @db.Uuid
+  actor          StaffUser         @relation(fields: [actorId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  kind           String            @db.VarChar(16)
+  fromStatus     String            @map("from_status") @db.VarChar(20)
+  requestHash    Bytes             @map("request_hash")
+  orderVersion   Int               @map("order_version")
+  couponReleased Boolean           @map("coupon_released")
+  createdAt      DateTime          @default(dbgenerated("statement_timestamp()")) @map("created_at") @db.Timestamptz(6)
+  returnItems    OrderReturnItem[]
+
+  @@map("order_cancellations")
+}
+
+/// How one line of a returned order came back: resellable units restocked, damaged recorded.
+model OrderReturnItem {
+  orderId            String            @map("order_id") @db.Uuid
+  cancellation       OrderCancellation @relation(fields: [orderId], references: [orderId], onDelete: Restrict, onUpdate: Restrict)
+  variantId          String            @map("variant_id") @db.Uuid
+  variant            Variant           @relation(fields: [variantId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  sku                String            @db.VarChar(64)
+  quantity           Int
+  resellableQuantity Int               @map("resellable_quantity")
+  damagedQuantity    Int               @map("damaged_quantity")
+
+  @@id([orderId, variantId])
+  @@map("order_return_items")
+}
+
+/// One collection command: the first record or an Owner correction (step 87). Immutable; the
+/// latest row is in effect, the order keeps the original evidence.
+model OrderCollectionRecord {
+  id           String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  seq          BigInt    @unique @default(autoincrement())
+  orderId      String    @map("order_id") @db.Uuid
+  order        Order     @relation(fields: [orderId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  kind         String    @db.VarChar(16)
+  commandId    String    @unique @map("command_id") @db.Uuid
+  actorId      String    @map("actor_id") @db.Uuid
+  actor        StaffUser @relation(fields: [actorId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  requestHash  Bytes     @map("request_hash")
+  orderVersion Int       @map("order_version")
+  amountFils   BigInt    @map("amount_fils")
+  collectedAt  DateTime  @map("collected_at") @db.Timestamptz(6)
+  reference    String?   @db.VarChar(100)
+  reason       String?   @db.VarChar(500)
+  createdAt    DateTime  @default(dbgenerated("statement_timestamp()")) @map("created_at") @db.Timestamptz(6)
+
+  @@index([orderId, seq], map: "order_collection_records_order")
+  @@map("order_collection_records")
+}
+
+/// Storefront content section (step 96, ADR 0064): validated draft and published copy.
+model ContentSection {
+  id                     String     @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  key                    String     @unique(map: "content_sections_key") @db.VarChar(32)
+  schemaVersion          Int        @map("schema_version")
+  draft                  Json
+  draftUpdatedBy         String     @map("draft_updated_by") @db.Uuid
+  draftUpdater           StaffUser  @relation("ContentDraftUpdater", fields: [draftUpdatedBy], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  draftUpdatedAt         DateTime   @default(dbgenerated("statement_timestamp()")) @map("draft_updated_at") @db.Timestamptz(6)
+  published              Json?
+  publishedSchemaVersion Int?       @map("published_schema_version")
+  publishedBy            String?    @map("published_by") @db.Uuid
+  publisher              StaffUser? @relation("ContentPublisher", fields: [publishedBy], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  publishedAt            DateTime?  @map("published_at") @db.Timestamptz(6)
+  version                Int        @default(1)
+
+  @@map("content_sections")
+}
+
+/// Anonymous browsing event (step 103, ADR 0069): no customer data, 90-day raw retention.
+model BrowsingEvent {
+  id          String   @id @db.Uuid
+  type        String   @db.VarChar(24)
+  payload     Json
+  anonymousId String?  @map("anonymous_id") @db.Uuid
+  receivedAt  DateTime @default(dbgenerated("statement_timestamp()")) @map("received_at") @db.Timestamptz(6)
+
+  @@index([type, receivedAt], map: "events_type_time")
+  @@index([receivedAt], map: "events_time")
+  @@map("events")
+}
+
+/// Daily sales slice (step 106, ADR 0072): booked/delivered/collected apart, Dubai day.
+model SalesDaily {
+  day                   DateTime @id @db.Date
+  placedOrders          Int      @map("placed_orders")
+  cancelledOrders       Int      @map("cancelled_orders")
+  bookedOrders          Int      @map("booked_orders")
+  bookedNetFils         BigInt   @map("booked_net_fils")
+  bookedDeliveryFils    BigInt   @map("booked_delivery_fils")
+  bookedTotalFils       BigInt   @map("booked_total_fils")
+  cancelledTotalFils    BigInt   @map("cancelled_total_fils")
+  deliveredOrders       Int      @map("delivered_orders")
+  deliveredNetFils      BigInt   @map("delivered_net_fils")
+  deliveredDeliveryFils BigInt   @map("delivered_delivery_fils")
+  deliveredTotalFils    BigInt   @map("delivered_total_fils")
+  collectedOrders       Int      @map("collected_orders")
+  collectedFils         BigInt   @map("collected_fils")
+  definitionVersion     Int      @map("definition_version")
+  computedAt            DateTime @default(dbgenerated("statement_timestamp()")) @map("computed_at") @db.Timestamptz(6)
+
+  @@map("sales_daily")
+}
+
+/// Daily product sales with the brand as snapshotted on the order (step 106).
+model ProductSalesDaily {
+  day                   DateTime @db.Date
+  productId             String   @map("product_id") @db.Uuid
+  product               Product  @relation(fields: [productId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  brandName             String   @map("brand_name") @db.VarChar(150)
+  orderedUnits          Int      @map("ordered_units")
+  orderedNetFils        BigInt   @map("ordered_net_fils")
+  deliveredUnits        Int      @map("delivered_units")
+  deliveredNetFils      BigInt   @map("delivered_net_fils")
+  deliveredDiscountFils BigInt   @map("delivered_discount_fils")
+  computedAt            DateTime @default(dbgenerated("statement_timestamp()")) @map("computed_at") @db.Timestamptz(6)
+
+  @@id([day, productId, brandName], map: "product_sales_daily_key")
+  @@index([productId, day], map: "product_sales_daily_product")
+  @@map("product_sales_daily")
+}
+
+/// Daily searches per normalized term ('' = not kept) (step 106).
+model SearchDaily {
+  day         DateTime @db.Date
+  term        String   @db.VarChar(100)
+  searches    Int
+  zeroResults Int      @map("zero_results")
+  resultTotal BigInt   @map("result_total")
+  computedAt  DateTime @default(dbgenerated("statement_timestamp()")) @map("computed_at") @db.Timestamptz(6)
+
+  @@id([day, term], map: "search_daily_key")
+  @@map("search_daily")
+}
+
+/// Daily saved-list adds and removes per product (step 106).
+model WishlistDaily {
+  day        DateTime @db.Date
+  productId  String   @map("product_id") @db.Uuid
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  adds       Int
+  removes    Int
+  computedAt DateTime @default(dbgenerated("statement_timestamp()")) @map("computed_at") @db.Timestamptz(6)
+
+  @@id([day, productId], map: "wishlist_daily_key")
+  @@map("wishlist_daily")
+}
+
+/// Report export requests (step 110, ADR 0076). Never deleted; request fields immutable (trigger).
+model ReportJob {
+  id                  String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  type                String    @db.VarChar(16)
+  params              Json
+  delivery            String    @db.VarChar(8)
+  status              String    @db.VarChar(16)
+  requestedBy         String    @map("requested_by") @db.Uuid
+  requester           StaffUser @relation(fields: [requestedBy], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  requiredPermissions String[]  @map("required_permissions")
+  commandId           String    @map("command_id") @db.Uuid
+  estimatedRows       Int       @map("estimated_rows")
+  artifactKey         String?   @map("artifact_key") @db.VarChar(300)
+  rowCount            Int?      @map("row_count")
+  byteSize            BigInt?   @map("byte_size")
+  errorCode           String?   @map("error_code") @db.VarChar(64)
+  attempts            Int       @default(0)
+  createdAt           DateTime  @default(dbgenerated("statement_timestamp()")) @map("created_at") @db.Timestamptz(6)
+  startedAt           DateTime? @map("started_at") @db.Timestamptz(6)
+  completedAt         DateTime? @map("completed_at") @db.Timestamptz(6)
+  expiresAt           DateTime? @map("expires_at") @db.Timestamptz(6)
+  version             Int       @default(1)
+
+  @@unique([requestedBy, commandId], map: "report_jobs_command")
+  @@index([requestedBy, createdAt(sort: Desc), id(sort: Desc)], map: "report_jobs_requester")
+  @@map("report_jobs")
+}

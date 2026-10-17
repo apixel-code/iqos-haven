@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   adminEnvSchema,
   apiEnvSchema,
+  confirmationEnvFields,
   assertTestDatabase,
   emailIntegrationTestEnvSchema,
   loadEnv,
@@ -401,6 +402,22 @@ describe("browser origins and rate-limit profile", () => {
     ).toThrow(/ADMIN_ORIGINS/);
   });
 
+  it("keeps the budget profile to one API process (step 119)", () => {
+    expect(loadEnv(apiEnvSchema, base).RATE_LIMIT_MAX_REPLICAS).toBe(1);
+    expect(() => loadEnv(apiEnvSchema, { ...base, RATE_LIMIT_MAX_REPLICAS: "2" })).toThrow(
+      /RATE_LIMIT_MAX_REPLICAS/,
+    );
+    // More replicas are the replicated profile's business, with its shared cache.
+    const replicated = loadEnv(apiEnvSchema, {
+      ...base,
+      RATE_LIMIT_PROFILE: "replicated",
+      RATE_LIMIT_MAX_REPLICAS: "3",
+      CACHE_REDIS_URL: "redis://cache:6379",
+      RATE_LIMIT_KEY_SECRET: "s".repeat(32),
+    });
+    expect(replicated.RATE_LIMIT_MAX_REPLICAS).toBe(3);
+  });
+
   it("requires a cache Redis and a key secret for the replicated profile", () => {
     const run = () => loadEnv(apiEnvSchema, { ...base, RATE_LIMIT_PROFILE: "replicated" });
     expect(run).toThrow(/CACHE_REDIS_URL/);
@@ -526,5 +543,42 @@ describe("quote signing keys", () => {
   it("are required in staging and production", () => {
     for (const APP_ENV of ["staging", "production"])
       expect(() => loadEnv(apiEnvSchema, { ...base, APP_ENV })).toThrow(/QUOTE_SIGNING_KEYS/);
+  });
+});
+
+describe("confirmation encryption configuration", () => {
+  it("requires the separate purpose and exactly 32 canonical secret bytes", () => {
+    const secret = Buffer.alloc(32, 7).toString("base64url");
+    expect(
+      confirmationEnvFields.ORDER_CONFIRMATION_KEYS.parse("confirmation:k1:" + secret),
+    ).toHaveLength(1);
+    for (const value of [
+      "quote:k1:" + secret,
+      "confirmation:k1:" + Buffer.alloc(33, 7).toString("base64url"),
+      "confirmation:k1:" + secret + "=",
+    ])
+      expect(() => confirmationEnvFields.ORDER_CONFIRMATION_KEYS.parse(value)).toThrow();
+  });
+  it("requires managed keys when deployed checkout is enabled", () => {
+    const minimal = {
+      APP_ENV: "staging",
+      DATABASE_URL: "postgres://u:p@localhost:5432/db",
+      QUEUE_REDIS_URL: "redis://localhost:6379",
+      CHECKOUT_SUBMISSION_ENABLED: "true",
+    };
+    const missing = apiEnvSchema.safeParse(minimal);
+    expect(missing.success).toBe(false);
+    if (!missing.success)
+      expect(
+        missing.error.issues.some((issue) => issue.path[0] === "ORDER_CONFIRMATION_KEYS"),
+      ).toBe(true);
+    const configured = apiEnvSchema.safeParse({
+      ...minimal,
+      ORDER_CONFIRMATION_KEYS: "confirmation:k1:" + Buffer.alloc(32, 7).toString("base64url"),
+    });
+    if (!configured.success)
+      expect(
+        configured.error.issues.some((issue) => issue.path[0] === "ORDER_CONFIRMATION_KEYS"),
+      ).toBe(false);
   });
 });

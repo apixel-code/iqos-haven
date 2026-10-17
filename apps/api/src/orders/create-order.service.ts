@@ -1,3 +1,4 @@
+import { OrderConfirmationService } from "./order-confirmation.service";
 import { Inject, Injectable } from "@nestjs/common";
 import type { ApiEnv } from "@ih/config";
 import type { CheckoutAddress, CheckoutContact } from "@ih/contracts";
@@ -16,13 +17,15 @@ export interface PlaceOrderCommand {
   /** The token returned with the total the shopper accepted. */
   quoteToken: string;
   requestId: string;
+  /** A staff-entered order (step 88): who, and how it starts. No confirmation cookie. */
+  manual?: { actorId: string; start: "pending" | "confirmed"; evidence: string | null };
 }
 const FINGERPRINT = /^[A-Za-z0-9_-]{43}$/;
 /**
  * Places a storefront order (roadmap step 76). Supplies what the database layer cannot know:
  * the quote signing keys and the age policy the shopper confirmed. Everything else, including
- * every lock and write, happens in `createStoreOrder`'s single transaction. No route calls
- * this yet (step 77).
+ * every lock and write, happens in `createStoreOrder`'s single transaction. Reached through
+ * `StoreOrdersController` (step 77).
  */
 @Injectable()
 export class CreateOrderService {
@@ -30,6 +33,7 @@ export class CreateOrderService {
     @Inject(DATABASE) private readonly db: Database,
     @Inject(API_ENV) private readonly env: ApiEnv,
     private readonly quotes: CartQuoteService,
+    private readonly confirmations: OrderConfirmationService,
   ) {}
   // Async so that every refusal, including the early one below, is a rejected promise.
   async place(command: PlaceOrderCommand) {
@@ -46,6 +50,9 @@ export class CreateOrderService {
     const issued = verifyQuote(command.quoteToken, this.quotes.keys, now);
     if (!issued.ok && issued.reason !== "expired") throw new QuoteNotAcceptedError("QUOTE_CHANGED");
     return createStoreOrder(this.db, {
+      ...(command.manual
+        ? { manual: command.manual }
+        : { confirmation: this.confirmations.mint(command.idempotencyKey) }),
       idempotencyKey: command.idempotencyKey,
       contact: command.contact,
       address: command.address,

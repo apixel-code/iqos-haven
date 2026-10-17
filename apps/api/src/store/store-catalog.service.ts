@@ -16,6 +16,7 @@ import {
   type StoreProductResponse,
   type StoreProductsQuery,
   type StoreProductsResponse,
+  type StoreHomeResponse,
 } from "@ih/contracts";
 import {
   assertStoreCursor,
@@ -27,6 +28,8 @@ import {
   readStoreDelivery,
   readStoreInfo,
   readStoreProduct,
+  readPublishedHome,
+  type HomeBanner,
   type Database,
   type StoreImageRow,
   type StoreProductCardRow,
@@ -54,7 +57,7 @@ export class StoreCatalogService {
   constructor(
     @Inject(DATABASE) private readonly db: Database,
     @Inject(OBJECT_STORAGE) private readonly storage: ObjectStorage,
-    @Inject(API_ENV) env: ApiEnv,
+    @Inject(API_ENV) private readonly env: ApiEnv,
     private readonly cache: CatalogueCacheService,
   ) {
     this.log = createLogger({ service: "api-store-catalog", level: env.LOG_LEVEL });
@@ -124,8 +127,10 @@ export class StoreCatalogService {
   }
 
   /** Shell settings. Cached like other catalogue reads: a change shows within the cache TTL. */
-  info(): Promise<StoreInfoResponse> {
-    return this.cache.getOrLoad("store:info", () => readStoreInfo(this.db));
+  async info(): Promise<StoreInfoResponse> {
+    const settings = await this.cache.getOrLoad("store:info", () => readStoreInfo(this.db));
+    // Only lets the storefront open or close its checkout page; the order route decides.
+    return { ...settings, checkoutOpen: this.env.CHECKOUT_SUBMISSION_ENABLED };
   }
 
   /**
@@ -143,6 +148,7 @@ export class StoreCatalogService {
         slug: row.slug,
         description: row.description ?? "",
         productCount: row.productCount,
+        formerSlugs: row.formerSlugs,
       })),
     }));
   }
@@ -153,6 +159,7 @@ export class StoreCatalogService {
         name: row.name,
         slug: row.slug,
         productCount: row.productCount,
+        formerSlugs: row.formerSlugs,
       })),
     }));
   }
@@ -172,6 +179,7 @@ export class StoreCatalogService {
       query.brand ?? null,
       query.category ?? null,
       query.type ?? null,
+      query.sale ?? null,
       query.sort,
       query.limit,
     ]);
@@ -208,6 +216,37 @@ export class StoreCatalogService {
       if (error instanceof NotVisible) return null;
       throw error;
     }
+  }
+
+  /**
+   * The published home sections (roadmap step 98, ADR 0066), assembled once and cached like
+   * the catalogue: `content.published` and `catalog.changed` both drop it, and it lives at most
+   * the cache TTL. Drafts are never read.
+   */
+  home(): Promise<StoreHomeResponse> {
+    return this.cache.getOrLoad("store:content:home", async () => {
+      const home = await readPublishedHome(this.db, (key) =>
+        this.log.warn({ key }, "published content does not match its schema"),
+      );
+      const banner = async (value: HomeBanner) => ({
+        title: value.title,
+        subtitle: value.subtitle,
+        cta: value.cta,
+        image: value.image ? await this.image(value.image) : null,
+      });
+      const cards = (rows: StoreProductCardRow[]) => Promise.all(rows.map((row) => this.card(row)));
+      return {
+        ticker: home.ticker,
+        hero: home.hero ? { ...(await banner(home.hero)), eyebrow: home.hero.eyebrow } : null,
+        featured: await cards(home.featured),
+        bestSellers: await cards(home.bestSellers),
+        brands: home.brands,
+        banners: await Promise.all(home.banners.map(banner)),
+        offers: home.offers
+          ? { title: home.offers.title, products: await cards(home.offers.products) }
+          : null,
+      };
+    });
   }
 
   /**

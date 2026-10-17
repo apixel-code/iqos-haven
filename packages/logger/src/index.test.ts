@@ -18,11 +18,16 @@ describe("log privacy", () => {
         customer: { name: "PERSON_SECRET" },
         nested: { contact: { email: "MAIL_SECRET", address: "ADDRESS_SECRET" } },
         list: [{ mobile: "MOBILE_SECRET" }],
+        proof: { token: "REVIEW_TOKEN_SECRET", authorName: "AUTHOR_SECRET" },
         req: {
           id: "request-1234",
           method: "GET",
           url: "/reset/TOKEN_PATH_SECRET?token=QUERY_SECRET",
-          headers: { cookie: "COOKIE_SECRET" },
+          headers: { cookie: "COOKIE_SECRET", authorization: "Bearer AUTH_SECRET" },
+        },
+        res: {
+          statusCode: 200,
+          headers: { "set-cookie": "__Host-ih_admin=SESSION_SECRET; Path=/; Secure; HttpOnly" },
         },
         err: new Error("postgres://PASSWORD_SECRET"),
       },
@@ -38,7 +43,11 @@ describe("log privacy", () => {
       "TOKEN_PATH_SECRET",
       "QUERY_SECRET",
       "COOKIE_SECRET",
+      "AUTH_SECRET",
+      "SESSION_SECRET",
       "PASSWORD_SECRET",
+      "REVIEW_TOKEN_SECRET",
+      "AUTHOR_SECRET",
     ])
       expect(output).not.toContain(marker);
     expect(output).toContain("request-1234");
@@ -56,5 +65,27 @@ describe("log privacy", () => {
     circular.again = circular;
     expect(() => createLogger({ service: "test" }, sink).info(circular, "cycle")).not.toThrow();
     expect(output).toContain("[truncated]");
+  });
+
+  it("never writes a redirect's signed link (report downloads, step 112)", () => {
+    let output = "";
+    const sink = new Writable({
+      write(chunk, _encoding, done) {
+        output += String(chunk);
+        done();
+      },
+    });
+    const log = createLogger({ service: "test" }, sink);
+    log.info(
+      {
+        res: {
+          statusCode: 303,
+          headers: { location: "http://storage/ih-reports/r.csv?X-Amz-Signature=SIGNED_SECRET" },
+        },
+      },
+      "request completed",
+    );
+    expect(output).toContain("303");
+    expect(output).not.toContain("SIGNED_SECRET");
   });
 });

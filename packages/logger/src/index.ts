@@ -1,7 +1,7 @@
 import pino, { type Logger, type LoggerOptions, type DestinationStream } from "pino";
 const CENSOR = "[redacted]";
 const PRIVATE_KEY =
-  /password|secret|token|cookie|authorization|phone|mobile|email|address|makani|notes|customer|recipient|idempotency|capability|replay|sql|stack|ticket|signing|private|key|credential|hash|session/i;
+  /password|secret|token|cookie|authorization|phone|mobile|email|address|makani|notes|customer|recipient|idempotency|capability|replay|sql|stack|ticket|signing|private|key|credential|hash|session|author/i;
 const PRIVATE_FIELDS = new Set([
   "name",
   "fullname",
@@ -33,6 +33,9 @@ export const REDACT_PATHS = [
   "req.headers.cookie",
   "req.headers.authorization",
   'res.headers["set-cookie"]',
+  // A redirect to a signed storage link (report downloads, step 112) is a bearer credential.
+  "res.headers.location",
+  'res.headers["location"]',
 ];
 
 /** Error text/stack may contain SQL, provider responses, credentials or PII. */

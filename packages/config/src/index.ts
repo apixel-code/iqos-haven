@@ -327,6 +327,7 @@ const securitySafety = (
     STOREFRONT_ORIGINS: string[];
     RATE_LIMIT_PROFILE: "budget" | "replicated";
     RATE_LIMIT_KEY_SECRET?: string | undefined;
+    RATE_LIMIT_MAX_REPLICAS: number;
     CACHE_REDIS_URL?: string | undefined;
   },
   ctx: z.RefinementCtx,
@@ -341,6 +342,15 @@ const securitySafety = (
       code: "custom",
       path: ["ADMIN_ORIGINS"],
       message: "admin and storefront origins must differ",
+    });
+  // Budget (step 119, BI-06): the catalogue cache and the limiters live inside one API process.
+  // A second process would have its own cache (local invalidation only) and its own limits, so
+  // more replicas need the replicated profile and a shared cache Redis (architecture §9).
+  if (value.RATE_LIMIT_PROFILE === "budget" && value.RATE_LIMIT_MAX_REPLICAS !== 1)
+    ctx.addIssue({
+      code: "custom",
+      path: ["RATE_LIMIT_MAX_REPLICAS"],
+      message: "the budget profile runs one API process; use the replicated profile for more",
     });
   if (value.RATE_LIMIT_PROFILE === "replicated") {
     if (!value.CACHE_REDIS_URL)
@@ -638,6 +648,21 @@ const quoteSafety = (
     });
 };
 
+export const confirmationEnvFields = {
+  ORDER_CONFIRMATION_KEYS: serviceKeysSchema
+    .refine(
+      (keys) =>
+        keys.every(
+          (key) =>
+            key.service === "confirmation" &&
+            Buffer.from(key.secret, "base64url").length === 32 &&
+            Buffer.from(key.secret, "base64url").toString("base64url") === key.secret,
+        ),
+      "Confirmation keys require confirmation service and canonical 32-byte secrets",
+    )
+    .transform((keys) => keys.map(({ keyId, secret }) => ({ keyId, secret }))),
+};
+
 export const apiEnvSchema = baseEnvSchema
   .extend({
     API_PORT: port.default(4000),
@@ -652,6 +677,12 @@ export const apiEnvSchema = baseEnvSchema
     ...resetEnvFields,
     ...invitationEnvFields,
     ...quoteEnvFields,
+    ...confirmationEnvFields,
+    /**
+     * Whether the store accepts orders (step 77). Off by default: the order route answers 503
+     * until the checkout gate (step 82) has passed and the Owner is ready to take orders.
+     */
+    CHECKOUT_SUBMISSION_ENABLED: strictBoolean.default(false),
     ...securityEnvFields,
     ...catalogueCacheEnvFields,
     ...ageVerifierEnvFields,
@@ -661,6 +692,16 @@ export const apiEnvSchema = baseEnvSchema
     ageSafety({ ...value, AGE_TICKET_PRIVATE_KEY: undefined }, ctx);
     noForeignAgeSigningKey(value, ctx);
     quoteSafety(value, ctx);
+    if (
+      value.CHECKOUT_SUBMISSION_ENABLED &&
+      !value.ORDER_CONFIRMATION_KEYS.length &&
+      (value.APP_ENV === "staging" || value.APP_ENV === "production")
+    )
+      ctx.addIssue({
+        code: "custom",
+        path: ["ORDER_CONFIRMATION_KEYS"],
+        message: "required for checkout outside development and test",
+      });
     separateCacheRedis(value, ctx);
     storageSafety(value, ctx);
     securitySafety(value, ctx);
@@ -689,6 +730,9 @@ export const bootstrapEnvSchema = baseEnvSchema.extend({
   ...passwordHashEnvFields,
 });
 export type BootstrapEnv = z.infer<typeof bootstrapEnvSchema>;
+
+/** `pnpm analytics:backfill` (step 107): the runtime database only. */
+export const analyticsBackfillEnvSchema = baseEnvSchema.extend({ DATABASE_URL: postgresUrl });
 
 export const workerEnvSchema = baseEnvSchema
   .extend({
@@ -736,6 +780,8 @@ export const storefrontEnvSchema = baseEnvSchema
     STOREFRONT_ORIGINS: securityEnvFields.STOREFRONT_ORIGINS,
     /** How long an under-age answer keeps the device on the restricted page (BI-04). */
     AGE_RESTRICTED_MINUTES: z.coerce.number().int().min(1).max(1440).default(15),
+    /** How long the storefront holds the Owner's indexing policy (step 113). */
+    SEO_POLICY_CACHE_SECONDS: z.coerce.number().int().min(0).max(300).default(60),
   })
   .superRefine((value, ctx) => {
     ageSafety(value, ctx, "signer");

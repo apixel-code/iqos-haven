@@ -13,3 +13,7 @@ export * from "./customer";
 export * from "./order-lines";
 export * from "./pricing";
 export * from "./coupon";
+export * from "./whatsapp-templates";
+export * from "./metrics";
+export * from "./reports";
+export * from "./csv";

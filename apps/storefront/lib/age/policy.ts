@@ -24,6 +24,8 @@ const PUBLIC_INFO_PATHS: readonly string[] = [
   "/terms",
   "/privacy",
   "/robots.txt",
+  // Policy pages only, and only while the Owner offers them; otherwise empty (step 113).
+  "/sitemap.xml",
   "/opengraph-image",
 ];
 const MAX_RETURN_LENGTH = 512;
@@ -133,15 +135,24 @@ export function hasRestrictedCookie(cookieHeader: string | null | undefined): bo
 
 /**
  * Origin validation for the decision POSTs: the Origin header must be one of our storefront
- * origins, and a browser that reports the request as cross-site is refused. A request without an
- * Origin header is refused: every browser sends it on a form POST.
+ * origins. A privacy-mode browser can serialize a same-origin form Origin as `null`; that case is
+ * accepted only when the browser's unforgeable Fetch Metadata says `same-origin` and the gateway
+ * host exactly matches a configured origin. A missing Origin is always refused.
  */
 export function isSameOriginPost(
   headers: { get(name: string): string | null },
   allowedOrigins: readonly string[],
 ): boolean {
   const origin = headers.get("origin");
-  if (!origin || !allowedOrigins.includes(origin)) return false;
-  const site = headers.get("sec-fetch-site");
-  return site === null || site === "same-origin" || site === "none";
+  if (origin && origin !== "null") return allowedOrigins.includes(origin);
+  if (origin !== "null" || headers.get("sec-fetch-site") !== "same-origin") return false;
+  const host = headers.get("x-forwarded-host") ?? headers.get("host");
+  if (!host) return false;
+  return allowedOrigins.some((allowed) => {
+    try {
+      return new URL(allowed).host === host;
+    } catch {
+      return false;
+    }
+  });
 }

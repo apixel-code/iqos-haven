@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { verifyRequestTicket } from "@/lib/age/handlers";
 import { gateAction, hasRestrictedCookie } from "@/lib/age/policy";
 import { ageGate } from "@/lib/age/runtime";
+import { INDEXABLE_PATHS, pageIsIndexable, readSeoPolicy } from "@/lib/seo-policy";
 
 /**
  * Routing gate (roadmap step 56, architecture §9). Runs before every page, RSC and route
@@ -9,7 +10,7 @@ import { ageGate } from "@/lib/age/runtime";
  * uses the signed cookie only; never the User-Agent or any other client hint. The API checks the
  * same ticket again on every store request, so this gate is not the only line.
  */
-export function proxy(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { runtime } = ageGate();
   const cookieHeader = request.headers.get("cookie");
   const action = gateAction({
@@ -36,6 +37,16 @@ export function proxy(request: NextRequest) {
         );
   // Gated and gate responses depend on the cookie: never store or share them.
   response.headers.set("Cache-Control", "private, no-store");
+  // The policy pages are noindex like everything else unless the Owner offers public pages
+  // (step 113); the static config leaves their header to this decision.
+  // The static rule matches without regard to case, so `/Terms` also lacks it: only the exact
+  // lower-case page may ever go without noindex.
+  const { pathname } = request.nextUrl;
+  if (
+    INDEXABLE_PATHS.includes(pathname.toLowerCase()) &&
+    !pageIsIndexable(await readSeoPolicy(), pathname)
+  )
+    response.headers.set("X-Robots-Tag", "noindex, nofollow");
   return response;
 }
 

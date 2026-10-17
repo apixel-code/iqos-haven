@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { Dashboard } from "../../components/dashboard";
 import { useSession } from "../../components/session-shell";
 import { visibleSections } from "../../lib/navigation";
 export default function WorkspaceHome() {
@@ -9,7 +10,8 @@ export default function WorkspaceHome() {
     <main className="page-content">
       <p className="eyebrow">Your workspace</p>
       <h1>Welcome, {session.user.name}</h1>
-      <p className="muted">Choose an area to get started.</p>
+      <Dashboard />
+      <h2>Your areas</h2>
       <div className="section-grid">
         {visibleSections(session.permissions).map((section) => (
           <Link className="section-card" href={`/workspace/${section.key}`} key={section.key}>

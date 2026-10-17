@@ -19,6 +19,9 @@ export function whatsappHref(number: string | null | undefined, message: string)
 
 export const WHATSAPP_MESSAGES = {
   general: (store: string) => `Hi ${store}, I have a question.`,
+  /** Names the order by its display number only; that number grants nothing. */
+  order: (store: string, orderNumber: string) =>
+    `Hi ${store}, I have a question about my order ${orderNumber}.`,
   product: (store: string, product: { name: string; priceFromFils: number; soldOut: boolean }) =>
     product.soldOut
       ? `Hi ${store}, please let me know when ${product.name} is back in stock.`

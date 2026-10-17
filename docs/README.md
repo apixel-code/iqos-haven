@@ -7,7 +7,7 @@
 | requirements.md            | 19 functional areas, actions, role matrix                              | Derived specification; review against source |
 | acceptance.md              | Foundation and business success/failure scenarios                      | Business scenarios not executed yet          |
 | database-contract.md       | Exactly 40 planned tables, constraints and transaction rules           | Models/migrations pending                    |
-| api.openapi.json           | Generated schemas and two implemented internal health routes           | No invented commerce endpoints               |
+| api.openapi.json           | Generated schemas and implemented HTTP routes                          | Only routes present in the application       |
 | design-handoff.md          | UI references, tokens, state coverage, accessibility and asset handoff | Final assets/screens pending                 |
 | prototype-map.md           | Targeted symbol index into the HTML references                         | Line numbers approximate after corrections   |
 | prototypes/storefront.html | Visual/interaction reference; checkout PII persistence removed         | Demo, never production service               |

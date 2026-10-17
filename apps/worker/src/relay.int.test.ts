@@ -206,9 +206,12 @@ describe("OutboxRelay (real PostgreSQL + Redis)", () => {
   });
 
   it("never claims completed events (including zero-consumer events)", async () => {
-    const orderId = randomUUID();
+    // An event type that still has no consumer (order events gained analytics in step 106).
     await withTransaction(db, (tx) =>
-      writer.publish(tx, defineEvent("order.created", orderId, { orderId })),
+      writer.publish(
+        tx,
+        defineEvent("delivery.configuration_updated", "delivery", { key: "delivery" }),
+      ),
     );
     expect(await relay(new RecordingEnqueuer()).tick()).toEqual({ claimed: 0, dispatched: 0 });
   });

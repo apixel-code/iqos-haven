@@ -77,6 +77,8 @@ async function main() {
       await pool.end();
     });
     const role = await db.role.findUniqueOrThrow({ where: { key: "owner" } });
+    // Random per run and never printed: section 7 signs in with it through the admin gateway.
+    const staffPassword = randomBytes(24).toString("base64url");
     const staff = await db.staffUser.create({
       data: {
         email: "gate-check@iqoshaven.test",
@@ -86,10 +88,7 @@ async function main() {
           memoryKib: 19456,
           timeCost: 2,
           parallelism: 1,
-        })
-          // Random per run: the API listens on all interfaces for the gateway container, and
-          // nobody, including this script, ever signs in as this account.
-          .hash(randomBytes(24).toString("base64url")),
+        }).hash(staffPassword),
       },
     });
     const brand = await db.brand.create({
@@ -186,7 +185,8 @@ async function main() {
     const pair = generateKeyPairSync("ed25519");
     const signer = ageTicketSigner("gate", rawKey(pair.privateKey, "pkcs8"));
     const publicKeys = `gate:${rawKey(pair.publicKey, "spki")}`;
-    const [apiPort, storePort, gatewayPort] = [
+    const [apiPort, storePort, gatewayPort, adminGatewayPort] = [
+      await freePort(),
       await freePort(),
       await freePort(),
       await freePort(),
@@ -209,9 +209,19 @@ async function main() {
       // The store origins a browser would send with the quote POST: the nominal one used by
       // these checks, and the local gateway address for a manual browser pass (`--serve`).
       STOREFRONT_ORIGINS: `${ORIGIN},http://127.0.0.1:${gatewayPort}`,
+      // The admin surface of the same gateway (section 7: a real admin-origin sign-in).
+      ADMIN_ORIGINS: `http://127.0.0.1:${adminGatewayPort}`,
+      // Orders stay off for the checks (they prove that). A manual browser pass of the
+      // checkout form asks for them with `--serve --checkout-open`.
+      CHECKOUT_SUBMISSION_ENABLED: String(
+        process.argv.includes("--serve") && process.argv.includes("--checkout-open"),
+      ),
     });
     const { createApp } = api(root + "/apps/api/dist/bootstrap.js");
     const app = await createApp(env, { pool, database: db });
+    // Nest's shutdown hooks end this process on SIGINT/SIGTERM before the cleanup below runs
+    // (left storefronts and schemas behind). The cleanup closes the app itself.
+    for (const signal of ["SIGINT", "SIGTERM"]) process.removeAllListeners(signal);
     // All interfaces: the gateway container reaches the host through host.docker.internal.
     await app.listen(apiPort, "0.0.0.0");
     cleanup.push(() => app.close());
@@ -222,6 +232,8 @@ async function main() {
       [path.join(root, "scripts/next-app.cjs"), "storefront", "start"],
       {
         cwd: path.join(root, "apps/storefront"),
+        // Its own process group: `next start` and its server are stopped together (step 121).
+        detached: true,
         stdio: ["ignore", "pipe", "pipe"],
         env: {
           ...process.env,
@@ -241,10 +253,28 @@ async function main() {
     cleanup.push(
       () =>
         new Promise((done) => {
-          if (store.exitCode !== null) return done();
-          store.once("exit", done);
-          store.kill("SIGTERM");
-          setTimeout(done, 5000).unref();
+          // The whole group: a forwarded SIGTERM alone left `next-server` running after the
+          // wrapper gave up, and those orphans piled up across runs.
+          const group = (signal) => {
+            try {
+              process.kill(-store.pid, signal);
+            } catch {
+              /* already gone */
+            }
+          };
+          if (store.exitCode !== null) {
+            group("SIGKILL");
+            return done();
+          }
+          store.once("exit", () => {
+            group("SIGKILL");
+            done();
+          });
+          group("SIGTERM");
+          setTimeout(() => {
+            group("SIGKILL");
+            done();
+          }, 5000).unref();
         }),
     );
 
@@ -259,6 +289,8 @@ async function main() {
       "host.docker.internal:host-gateway",
       "-p",
       `127.0.0.1:${gatewayPort}:8080`,
+      "-p",
+      `127.0.0.1:${adminGatewayPort}:8081`,
       "-v",
       `${root}/infra/gateway/Caddyfile:/etc/caddy/Caddyfile:ro`,
       "-e",
@@ -270,7 +302,13 @@ async function main() {
       `${IMAGE.image}@${IMAGE.digest}`,
     );
     if (run.status !== 0) throw new Error("gateway container failed to start: " + run.stderr);
-    cleanup.push(() => void docker("stop", container));
+    cleanup.push(() => {
+      const stopped = docker("stop", container);
+      if (stopped.status !== 0)
+        console.error(
+          `cleanup: gateway ${container} not stopped: ${stopped.stderr || stopped.error}`,
+        );
+    });
     const base = `http://127.0.0.1:${gatewayPort}`;
 
     const get = (target, headers = {}, method = "GET") =>
@@ -285,6 +323,25 @@ async function main() {
           areaId: area.id,
           couponCode: COUPON,
           ...body,
+        }),
+      });
+    const order = (headers = {}) =>
+      fetch(base + "/api/v1/store/orders", {
+        method: "POST",
+        redirect: "manual",
+        headers: {
+          "content-type": "application/json",
+          origin: ORIGIN,
+          "idempotency-key": randomBytes(24).toString("base64url"),
+          ...headers,
+        },
+        body: JSON.stringify({
+          contact: { name: "Gate Probe", phone: "0501234567" },
+          address: { areaId: area.id, type: "villa", building: "Gate Villa 1" },
+          lines: [{ variantId: visible.variants[0].id, quantity: 1 }],
+          couponCode: null,
+          quoteToken: "v1.gate.0.probe",
+          ageConfirmed: true,
         }),
       });
     let ready = false;
@@ -312,6 +369,8 @@ async function main() {
     const PAGES = [
       "/",
       "/shop",
+      "/offers",
+      "/help",
       "/disposable-vapes",
       "/brands",
       "/brands/gatebrand",
@@ -319,6 +378,8 @@ async function main() {
       "/search?q=gatecheck",
       "/p/gatecheck-halo",
       "/cart",
+      "/checkout",
+      "/order-confirmation",
       "/wishlist",
       "/compare",
       "/_next/image?url=%2Fmedia%2Fgatecheck.webp&w=640&q=75",
@@ -334,6 +395,7 @@ async function main() {
       "/api/v1/store/search/suggest?q=gatecheck",
       `/api/v1/store/cart/lines?variant=${visible.variants[0].id}`,
       "/api/v1/store/product-cards?slug=gatecheck-halo",
+      "/api/v1/store/content/home",
     ];
     async function refused(label, headers) {
       for (const target of PAGES)
@@ -365,6 +427,15 @@ async function main() {
           !leaks(body) && !settingsLeak(body) && !/totalFils|deliveryFeeFils|etaText/.test(body),
           `${name} carries no price, fee or product data`,
         );
+      }
+      // Placing an order needs the ticket as well, before anything in the request is read.
+      {
+        const response = await order(headers);
+        const body = await response.text();
+        const name = `${label}: API order`;
+        check(response.status === 403, `${name} answers 403`, String(response.status));
+        check(body.includes("AGE_VERIFICATION_REQUIRED"), `${name} says the age check is required`);
+        check(!leaks(body) && !settingsLeak(body), `${name} carries no product or settings data`);
       }
       for (const target of API_ROUTES) {
         const response = await get(target, headers);
@@ -432,6 +503,55 @@ async function main() {
     const verified = { cookie: setCookie.split(";")[0] };
 
     if (process.argv.includes("--serve")) {
+      // The worker's own relay, queue and consumers on this schema, so an order placed in the
+      // browser is carried to the inbox the way production carries it (queue Redis, a private
+      // prefix). Email is planned by the real planner and handed to an adapter that sends
+      // nothing.
+      const worker = createRequire(root + "/apps/worker/package.json");
+      const dist = (name) => worker(`${root}/apps/worker/dist/${name}.js`);
+      const { createEmailConsumer } = worker("@ih/application");
+      const log = worker("@ih/logger").createLogger({ service: "gate-worker", level: "warn" });
+      const queue = dist("queue");
+      const redis = queue.createQueueConnection(env.QUEUE_REDIS_URL);
+      const prefix = queue.testQueuePrefix();
+      const enqueuer = new queue.BullEffectEnqueuer(redis, prefix);
+      const notifications = dist("order-notifications");
+      const lowStock = dist("low-stock-notifications");
+      const effects = dist("effects");
+      const runner = new effects.EffectRunner({
+        db,
+        owner: "gate-worker",
+        log,
+        handlers: [
+          notifications.createNotificationConsumer({ log }),
+          dist("analytics-rollup").createAnalyticsRollupConsumer({ log }),
+          createEmailConsumer({
+            from: "no-reply@iqoshaven.local",
+            planners: {
+              "order.created": notifications.newOrderEmailPlanner(db),
+              "inventory.low": lowStock.lowStockEmailPlanner(db, log),
+            },
+            adapter: {
+              send: async (message) => ({
+                receipt: "gate:" + message.deliveryKey,
+                accepted: message.bcc.length,
+                rejected: 0,
+              }),
+            },
+          }),
+        ],
+      });
+      const workers = effects.startEffectWorkers(runner, redis, 2, log, prefix);
+      const relay = new (dist("relay").OutboxRelay)({ db, enqueuer, owner: "gate-relay", log });
+      const ticking = setInterval(() => void relay.tick().catch(() => undefined), 1000);
+      cleanup.push(async () => {
+        clearInterval(ticking);
+        await workers.stop();
+        await enqueuer.close();
+        const keys = await redis.keys(`${prefix}:*`);
+        if (keys.length) await redis.del(...keys);
+        redis.disconnect();
+      });
       console.log(
         `SERVING ${base}\nCOOKIE ${verified.cookie}\nVARIANT ${visible.variants[0].id}\nSCHEMA ${namespace}\nCOUPON ${COUPON}`,
       );
@@ -469,6 +589,7 @@ async function main() {
     await page("/search?q=gatecheck", 200, NAMES[0], "1</b> product");
     await page("/p/gatecheck-halo", 200, NAMES[0], "choose one", "grape", "mint", "Add to cart");
     await page("/p/gatecheck-hidden", 404);
+    await page("/checkout", 200, "Checkout is not open yet.");
     await page("/cart", 200, "Your cart");
     const apiJson = async (target, expected = 200) => {
       const response = await get(target, verified);
@@ -486,8 +607,8 @@ async function main() {
     };
     const infoText = await apiJson("/api/v1/store/info");
     check(
-      infoText === JSON.stringify({ whatsappNumber: WHATSAPP }),
-      "store info is exactly the WhatsApp number",
+      infoText === JSON.stringify({ whatsappNumber: WHATSAPP, checkoutOpen: false }),
+      "store info is exactly the WhatsApp number and the closed checkout",
       infoText,
     );
     check(
@@ -518,6 +639,11 @@ async function main() {
       "saved-item cards through the gateway",
     );
     await apiJson("/api/v1/store/products/gatecheck-hidden", 404);
+    const homeContent = JSON.parse(await apiJson("/api/v1/store/content/home"));
+    check(
+      homeContent.ticker === null && homeContent.hero === null && homeContent.featured.length === 0,
+      "home content through the gateway (nothing published, no draft shown)",
+    );
     const deliveryText = await apiJson("/api/v1/store/delivery");
     check(
       deliveryText ===
@@ -591,6 +717,20 @@ async function main() {
       }
     }
 
+    {
+      // Order submission stays off until it is switched on deliberately (step 77).
+      const orders = async () =>
+        (await pool.query("SELECT count(*)::int AS n FROM orders")).rows[0].n;
+      const before = await orders();
+      const response = await order(verified);
+      check(
+        response.status === 503,
+        "a verified order is refused while submission is off",
+        String(response.status),
+      );
+      check((await orders()) === before, "no order was written");
+    }
+
     // 4. Warm: the API's catalogue cache now holds what the verified shopper loaded.
     for (const [label, headers] of Object.entries(ATTEMPTS))
       await refused(`warm, ${label}`, headers);
@@ -631,6 +771,54 @@ async function main() {
       "a rejected browser is sent to the restricted page",
       `${afterReject.status} ${afterReject.headers.get("location")}`,
     );
+    // 7. Staff sign in on the admin origin, through the same gateway (step 118, AUTH-01).
+    const adminBase = `http://127.0.0.1:${adminGatewayPort}`;
+    const signIn = (target, origin) =>
+      fetch(target + "/api/v1/auth/login", {
+        method: "POST",
+        redirect: "manual",
+        headers: { "content-type": "application/json", origin },
+        body: JSON.stringify({ email: "gate-check@iqoshaven.test", password: staffPassword }),
+      });
+    const signedIn = await signIn(adminBase, adminBase);
+    const sessionCookie = signedIn.headers
+      .getSetCookie()
+      .find((value) => value.startsWith("__Host-ih_admin="));
+    check(
+      signedIn.status === 200 && Boolean(sessionCookie),
+      "staff sign in through the admin gateway",
+      String(signedIn.status),
+    );
+    check(
+      /^__Host-ih_admin=[^;]+; .*Path=\/.*; Secure; HttpOnly; SameSite=Strict/.test(
+        sessionCookie ?? "",
+      ) && !/Domain=/i.test(sessionCookie ?? ""),
+      "the admin cookie is host-only, Secure, HttpOnly and SameSite=Strict through the gateway",
+      // Attributes only: the token itself never reaches the log, even on failure.
+      (sessionCookie ?? "").split(";").slice(1).join(";"),
+    );
+    const session = { cookie: (sessionCookie ?? "").split(";")[0] };
+    const me = await fetch(adminBase + "/api/v1/auth/me", { headers: session });
+    check(me.status === 200, "the session works on the admin origin", String(me.status));
+    // The storefront origin offers no sign-in, and the session opens nothing for shoppers.
+    check(
+      (await signIn(base, ORIGIN)).status === 404,
+      "the storefront origin has no sign-in route",
+    );
+    await refused("an admin session on the storefront", session);
+    // A shopper's age ticket opens nothing on the admin origin.
+    const asShopper = await fetch(adminBase + "/api/v1/auth/me", { headers: verified });
+    check(
+      asShopper.status === 401,
+      "an age ticket is no staff session on the admin origin",
+      String(asShopper.status),
+    );
+    // A sign-in claiming another origin is refused.
+    check(
+      (await signIn(adminBase, ORIGIN)).status === 403,
+      "a sign-in from the storefront origin is refused",
+    );
+
     exitCode = failures ? 1 : 0;
     // On failure, the storefront's own log usually names the cause.
     if (failures) console.error("storefront log (tail):\n" + storeLog.slice(-1500));

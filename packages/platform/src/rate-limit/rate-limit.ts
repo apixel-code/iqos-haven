@@ -22,6 +22,8 @@ export interface LimitDecision {
 
 export interface RateLimiter {
   consume(key: string, rule: LimitRule): Promise<LimitDecision>;
+  /** Whether one more `consume` would be allowed, without counting anything. */
+  peek(key: string, rule: LimitRule): Promise<LimitDecision>;
   reset(key: string): Promise<void>;
 }
 
@@ -63,6 +65,21 @@ export class LocalRateLimiter implements RateLimiter {
 
   consume(key: string, rule: LimitRule): Promise<LimitDecision> {
     return Promise.resolve(this.consumeSync(key, rule));
+  }
+
+  peek(key: string, rule: LimitRule): Promise<LimitDecision> {
+    const now = this.now();
+    const partition = partitionOf(key);
+    const windows = this.partitions.get(partition);
+    // A key that is not tracked while its partition is full is counted in the overflow window.
+    const window =
+      windows?.get(key) ??
+      ((windows?.size ?? 0) >= this.options.maxKeys ? this.overflow.get(partition) : undefined);
+    return Promise.resolve(
+      !window || window.resetAt <= now || window.count < rule.limit
+        ? { allowed: true, retryAfterMs: 0 }
+        : { allowed: false, retryAfterMs: window.resetAt - now },
+    );
   }
 
   reset(key: string): Promise<void> {
@@ -130,6 +147,10 @@ local ttl = redis.call('PTTL', KEYS[1])
 if ttl < 0 then redis.call('PEXPIRE', KEYS[1], ARGV[1]); ttl = tonumber(ARGV[1]) end
 return {count, ttl}`;
 
+const PEEK = `
+local count = tonumber(redis.call('GET', KEYS[1]) or '0')
+return {count, redis.call('PTTL', KEYS[1])}`;
+
 /** Shared limiter for the replicated profile (cache Redis). Errors propagate to the policy. */
 export class RedisRateLimiter implements RateLimiter {
   constructor(
@@ -142,6 +163,15 @@ export class RedisRateLimiter implements RateLimiter {
     if (!Array.isArray(result) || result.length !== 2) throw new Error("unexpected limiter reply");
     const [count, ttl] = result.map(Number) as [number, number];
     return count <= rule.limit
+      ? { allowed: true, retryAfterMs: 0 }
+      : { allowed: false, retryAfterMs: Math.max(1, ttl) };
+  }
+
+  async peek(key: string, rule: LimitRule): Promise<LimitDecision> {
+    const result = await this.redis.eval(PEEK, 1, this.prefix + key);
+    if (!Array.isArray(result) || result.length !== 2) throw new Error("unexpected limiter reply");
+    const [count, ttl] = result.map(Number) as [number, number];
+    return count < rule.limit
       ? { allowed: true, retryAfterMs: 0 }
       : { allowed: false, retryAfterMs: Math.max(1, ttl) };
   }
@@ -220,7 +250,7 @@ export class EndpointLimiter {
         policy.rules,
         values,
         dimensions,
-        false,
+        { degraded: false, count: true },
       );
     } catch (error) {
       this.options.onPrimaryFailure?.(policy.endpoint, error);
@@ -236,8 +266,34 @@ export class EndpointLimiter {
         policy.outage.fallback,
         values,
         dimensions,
-        true,
+        { degraded: true, count: true },
       );
+    }
+  }
+
+  /**
+   * Whether `consume` would deny, without counting: for a budget that only some outcomes use up
+   * (wrong coupon codes), so the request is refused before its outcome can be learned. The
+   * outage path reads the local fallback windows and leaves the process ceiling alone.
+   */
+  async peek<D extends string>(
+    policy: EndpointLimitPolicy<D>,
+    values: Readonly<Record<D, string>>,
+  ): Promise<EndpointDecision> {
+    const dimensions = Object.keys(policy.rules) as D[];
+    const { endpoint } = policy;
+    try {
+      return await this.check(this.options.primary, endpoint, policy.rules, values, dimensions, {
+        degraded: false,
+        count: false,
+      });
+    } catch (error) {
+      this.options.onPrimaryFailure?.(endpoint, error);
+      if (policy.outage === "fail_closed") throw new RateLimiterUnavailableError(endpoint);
+      return this.check(this.options.local, endpoint, policy.outage.fallback, values, dimensions, {
+        degraded: true,
+        count: false,
+      });
     }
   }
 
@@ -262,17 +318,17 @@ export class EndpointLimiter {
     rules: Readonly<Record<D, LimitRule>>,
     values: Readonly<Record<D, string>>,
     dimensions: readonly D[],
-    degraded: boolean,
+    { degraded, count }: { degraded: boolean; count: boolean },
   ): Promise<EndpointDecision> {
     // Dimensions are checked in policy order and stop at the first denial: put the cheapest,
     // broadest key (client IP) first so a denied source cannot create further keys. The attempt
     // has still been counted against every dimension checked so far.
     let denied: EndpointDecision | undefined;
     for (const dimension of dimensions) {
-      const decision = await limiter.consume(
-        this.key(endpoint, dimension, values[dimension]),
-        rules[dimension],
-      );
+      const key = this.key(endpoint, dimension, values[dimension]);
+      const decision = await (count
+        ? limiter.consume(key, rules[dimension])
+        : limiter.peek(key, rules[dimension]));
       if (!decision.allowed) {
         denied = { ...decision, degraded, deniedBy: dimension };
         break;

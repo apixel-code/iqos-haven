@@ -4,6 +4,7 @@ import { AGE_COPY } from "@/lib/age/copy";
 import { safeReturnPath } from "@/lib/age/policy";
 import { ageGate } from "@/lib/age/runtime";
 import { GateShell } from "../gate-shell";
+import { KeepFragment } from "./keep-fragment";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Age check · Iqos Haven" };
@@ -33,7 +34,7 @@ export default async function AgeCheckPage({
         aria-label="Confirm your age"
         className="flex flex-col gap-3 sm:flex-row sm:justify-center"
       >
-        <form method="post" action="/api/age/accept" className="contents">
+        <form id="age-accept" method="post" action="/api/age/accept" className="contents">
           <input type="hidden" name="return" value={target} />
           <Button type="submit" size="lg" className="w-full sm:w-auto">
             {AGE_COPY.accept}
@@ -46,6 +47,7 @@ export default async function AgeCheckPage({
         </form>
       </div>
       <p className="text-xs text-ink-2">{AGE_COPY.fine(days)}</p>
+      <KeepFragment formId="age-accept" />
     </GateShell>
   );
 }

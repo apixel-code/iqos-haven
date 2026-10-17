@@ -10,7 +10,9 @@ import {
 import { addCommand, reasonLabel, removeCommand, setCommand } from "../lib/inventory";
 import { managementRequest } from "../lib/management";
 import { describeAttributes } from "../lib/variants";
+import { isUuid } from "../lib/links";
 import { ResourceNotice, useManagementResource } from "./management-resource";
+import { useUrlQuery } from "./use-url-query";
 
 type State = "all" | "in_stock" | "low" | "out";
 const STATE_LABEL: Record<InventoryItem["stockState"], string> = {
@@ -26,11 +28,26 @@ const STATE_LABEL: Record<InventoryItem["stockState"], string> = {
  */
 export function InventoryManagement({ permissions }: { permissions: readonly string[] }) {
   const canAdjust = permissions.includes("inventory.adjust");
-  const [state, setState] = useState<State>("all");
+  // Filters and a single linked variant live in the URL (parity G-A2): a low-stock alert opens
+  // its own stock line.
+  const { get, navigate } = useUrlQuery();
+  const urlState = get("state");
+  const state: State = (["in_stock", "low", "out"] as const).find((v) => v === urlState) ?? "all";
+  const setState = (value: State) => navigate({ state: value === "all" ? null : value });
+  const urlVariant = get("variant");
+  const variant = isUuid(urlVariant) ? urlVariant : null;
   const [q, setQ] = useState("");
   const [cursor, setCursor] = useState<string | null>(null);
+  // A link can change the filters while this list is open: start again from the first page.
+  const filterScope = `${state}|${variant}`;
+  const [pagedScope, setPagedScope] = useState(filterScope);
+  if (pagedScope !== filterScope) {
+    setPagedScope(filterScope);
+    setCursor(null);
+  }
   const params = new URLSearchParams({ limit: "50" });
   if (state !== "all") params.set("state", state);
+  if (variant) params.set("variantId", variant);
   if (q) params.set("q", q);
   if (cursor) params.set("after", cursor);
   const inventory = useManagementResource(`/inventory?${params}`, inventoryResponseSchema);
@@ -81,6 +98,14 @@ export function InventoryManagement({ permissions }: { permissions: readonly str
           <input name="q" type="search" maxLength={100} defaultValue={q} />
         </label>
       </form>
+      {variant && (
+        <p className="notice">
+          Showing one stock line.{" "}
+          <button type="button" className="text-button" onClick={() => navigate({ variant: null })}>
+            Show all stock
+          </button>
+        </p>
+      )}
       <ResourceNotice resource={inventory} />
       {inventory.data && (
         <>

@@ -18,9 +18,11 @@ export async function managementRequest<T>(
   method: "GET" | "POST" | "PATCH" | "PUT" = "GET",
   body?: unknown,
   signal?: AbortSignal,
+  /** Extra request headers, e.g. `Idempotency-Key` for a create command. */
+  extraHeaders: Record<string, string> = {},
 ): Promise<T> {
   if (
-    !/^\/(settings|staff|delivery-areas|coupons|brands|categories|products|inventory|media)(?:[/?]|$)/.test(
+    !/^\/(settings|staff|delivery-areas|coupons|brands|categories|products|inventory|media|orders|customers|reviews|content)(?:[/?]|$)/.test(
       path,
     ) ||
     path.includes("..") ||
@@ -34,7 +36,10 @@ export async function managementRequest<T>(
     signal: signal
       ? AbortSignal.any([signal, AbortSignal.timeout(10_000)])
       : AbortSignal.timeout(10_000),
-    headers: body === undefined ? {} : { "Content-Type": "application/json" },
+    headers: {
+      ...(body === undefined ? {} : { "Content-Type": "application/json" }),
+      ...extraHeaders,
+    },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
   if (!response.ok) {
@@ -112,6 +117,8 @@ export function settingsCommand(
           .map((email) => email.trim())
           .filter(Boolean),
       },
+      lowStockEmail: checked(data, "lowStockEmail"),
+      dailySummaryEmail: checked(data, "dailySummaryEmail"),
     };
   if (key === "whatsapp")
     value = {
@@ -150,6 +157,12 @@ export function deliveryCommand(version: number, data: FormData) {
 export function managementError(error: unknown, mutation = false) {
   if (error instanceof FormValidationError) return error.message;
   if (error instanceof ApiError) {
+    if (error.status === 409 && error.code === "REVIEW_NOT_ALLOWED")
+      return "A review link is only for a delivered order.";
+    if (error.status === 409 && error.code === "NOTHING_TO_REVIEW")
+      return "Every product of this order has been reviewed already.";
+    if (error.status === 409 && error.code === "STORE_DOMAIN_REQUIRED")
+      return "Set the store's domain in Settings first: the link points to the store.";
     if (error.status === 409 && error.code === "IN_USE")
       return "Other records still depend on this (published products or stock history), so it is kept.";
     if (error.status === 409 && error.code === "DUPLICATE")
@@ -166,6 +179,40 @@ export function managementError(error: unknown, mutation = false) {
       return "The file did not arrive. Choose the file again.";
     if (error.status === 409 && error.code === "VERSION_CONFLICT")
       return "Someone changed this meanwhile. Reload current values and try again.";
+    if (error.status === 409 && error.code === "ORDER_NOT_EDITABLE")
+      return "This order can no longer accept those changes. Reload its current status.";
+    if (error.status === 409 && error.code === "ORDER_NOT_CANCELLABLE")
+      return "This order can no longer be cancelled: it is delivered or already cancelled. Reload it.";
+    if (error.status === 409 && error.code === "RETURN_INCOMPLETE")
+      return "Classify every item: resellable and damaged units must add up to the quantity sent.";
+    if (error.status === 409 && error.code === "COLLECTION_NOT_ALLOWED")
+      return "Cash can be recorded only once, for a delivered order. Reload it.";
+    if (error.status === 409 && error.code === "NOT_COLLECTED")
+      return "There is no cash record to correct yet. Reload the order.";
+    if (error.status === 409 && error.code === "QUOTE_CHANGED")
+      return "The total changed since it was shown. Get the total again and check it.";
+    if (error.status === 409 && error.code === "QUOTE_EXPIRED")
+      return "The total was shown too long ago. Get the total again.";
+    if (error.status === 409 && error.code === "IDEMPOTENCY_CONFLICT")
+      return "An order was already created from this form with other details. Check the order list; leave and reopen New order to create another.";
+    if (error.status === 409 && error.code === "IDEMPOTENCY_IN_PROGRESS")
+      return "The order is still being created. Press Create again in a moment.";
+    if (error.status === 409 && error.code === "CHECKOUT_RECOVERY_REQUIRED")
+      return "This order was already created earlier. Check the order list before creating another.";
+    if (error.status === 409 && error.code === "NO_CHANGES")
+      return "Change at least one value before saving.";
+    if (error.status === 409 && error.code === "INSUFFICIENT_STOCK")
+      return "There is not enough stock for the requested quantity.";
+    if (error.status === 409 && error.code === "VARIANT_UNAVAILABLE")
+      return "One selected item is no longer available for ordering.";
+    if (error.status === 409 && error.code === "AREA_UNAVAILABLE")
+      return "That delivery area is no longer available.";
+    if (error.status === 409 && error.code === "COUPON_LIMIT_REACHED")
+      return "That coupon has reached its usage limit.";
+    if (error.status === 409 && error.code === "COUPON_INVALID")
+      return "That coupon is not currently valid for this order.";
+    if (error.status === 409 && error.code === "COMMAND_REUSED")
+      return "This saved action belongs to a different change. Reload and try again.";
     if (error.status === 409 && error.code === "LIMIT_BELOW_USES")
       return "Orders already hold more uses than that limit. Choose a limit at or above the uses shown.";
     if (error.status === 409 && error.code === "ALREADY_EXPIRED")

@@ -236,4 +236,18 @@ describe("shared Redis limiter (real Redis)", () => {
     await limiter.reset("login:identity:y");
     expect((await limiter.consume("login:identity:y", rule)).allowed).toBe(true);
   });
+
+  it("peeks without counting or creating a key", async () => {
+    const limiter = new RedisRateLimiter(redis, prefix);
+    const key = "coupon:ip:z";
+    expect((await limiter.peek(key, rule)).allowed).toBe(true);
+    expect(await redis.exists(prefix + key)).toBe(0);
+    for (let i = 0; i < 4; i++) await limiter.consume(key, rule);
+    expect((await limiter.peek(key, rule)).allowed).toBe(true);
+    await limiter.consume(key, rule);
+    const spent = await limiter.peek(key, rule);
+    expect(spent.allowed).toBe(false);
+    expect(spent.retryAfterMs).toBeGreaterThan(59_000);
+    expect(await redis.get(prefix + key)).toBe("5");
+  });
 });

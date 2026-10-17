@@ -95,9 +95,13 @@ async function refused(response: Response) {
   const text = await response.text();
   expect(response.status).toBe(403);
   expect(JSON.parse(text).error.code).toBe(AGE_VERIFICATION_REQUIRED);
-  // Nothing about the product leaves the API without a valid ticket.
-  expect(text).not.toContain("Restricted product");
-  expect(text).not.toContain("4900");
+  // Nothing about the product leaves the API without a valid ticket. The random request ID is
+  // left out of the check: it can contain "4900" by chance.
+  const { requestId: _id, ...error } = JSON.parse(text).error as Record<string, unknown>;
+  const shown = JSON.stringify(error);
+  expect(shown).not.toContain("Restricted product");
+  expect(shown).not.toContain("4900");
+  expect(Object.keys(JSON.parse(text))).toEqual(["error"]);
   expect(response.headers.get("cache-control")).toBe("no-store");
 }
 
@@ -180,6 +184,24 @@ describe("API age gate (real API, Ed25519 tickets)", () => {
     await refused(await get({ cookie: `${AGE_COOKIE}=${good}; ${AGE_COOKIE}=forged` }));
     await refused(await get({ cookie: `${AGE_COOKIE}=forged; ${AGE_COOKIE}=${good}` }));
     expect((await get({ cookie: `${session}; ${AGE_COOKIE}=${good}` })).status).toBe(200);
+  });
+
+  it("never lets a shopper's age ticket stand in for a staff session (step 118)", async () => {
+    const good = ticket();
+    for (const path of [
+      "/v1/auth/me",
+      "/v1/admin/dashboard",
+      "/v1/admin/orders",
+      "/v1/admin/customers",
+      "/v1/admin/reports",
+      "/v1/admin/events/stream",
+    ]) {
+      const response = await fetch(`${base}${path}`, {
+        headers: { cookie: `${AGE_COOKIE}=${good}`, origin: ADMIN, "x-ih-client-ip": "192.0.2.9" },
+      });
+      expect(response.status, path).toBe(401);
+      expect(response.headers.get("set-cookie"), path).toBeNull();
+    }
   });
 
   it("fails closed when no verification key is configured", async () => {

@@ -228,7 +228,7 @@ describe("atomic order creation (real PostgreSQL)", () => {
     expect(Object.keys(placed.response).sort()).toEqual(["orderNumber", "placedAt", "totalFils"]);
     const order = await db.order.findUniqueOrThrow({
       where: { id: placed.orderId! },
-      include: { items: true, history: true, couponRedemption: true, stockMovements: true },
+      include: { items: true, history: true, couponRedemptions: true, stockMovements: true },
     });
     expect(order).toMatchObject({
       status: "pending",
@@ -258,7 +258,7 @@ describe("atomic order creation (real PostgreSQL)", () => {
       agePolicyVersion: POLICY,
       codStatus: "pending",
       creationScope: "store.checkout",
-      confirmationHash: null,
+      confirmationHash: expect.any(Uint8Array),
       version: 1,
     });
     expect(order.ageConfirmedAt).toBeInstanceOf(Date);
@@ -296,7 +296,7 @@ describe("atomic order creation (real PostgreSQL)", () => {
     expect(await stockOf(kit.id)).toBe(4);
     expect(await stockOf(pods.id)).toBe(7);
     // Coupon use, with its snapshot.
-    expect(order.couponRedemption).toMatchObject({
+    expect(order.couponRedemptions[0]).toMatchObject({
       code: "ORDER10",
       percentBps: 1000,
       merchandiseSubtotalFils: 21999n,
@@ -731,12 +731,16 @@ describe("atomic order creation (real PostgreSQL)", () => {
     const placing = await checkout({ lines: [{ variantId: item.id, quantity: 1 }] });
     const placed = await orders.place(placing);
     // A day later the stored answer is gone.
-    await pool.query("ALTER TABLE idempotency_records DISABLE TRIGGER idempotency_records_guard");
     await pool.query(
-      "UPDATE idempotency_records SET created_at=created_at-interval '2 days', expires_at=expires_at-interval '2 days' WHERE resource_id=$1",
+      "ALTER TABLE idempotency_records DISABLE TRIGGER idempotency_records_guard; ALTER TABLE idempotency_records DISABLE TRIGGER idempotency_cookie_guard",
+    );
+    await pool.query(
+      "UPDATE idempotency_records SET created_at=created_at-interval '2 days', expires_at=expires_at-interval '2 days', replay_cookie_expires_at=replay_cookie_expires_at-interval '2 days' WHERE resource_id=$1",
       [placed.orderId],
     );
-    await pool.query("ALTER TABLE idempotency_records ENABLE TRIGGER idempotency_records_guard");
+    await pool.query(
+      "ALTER TABLE idempotency_records ENABLE TRIGGER idempotency_records_guard; ALTER TABLE idempotency_records ENABLE TRIGGER idempotency_cookie_guard",
+    );
     const expired = await orders.place(placing).catch((error: unknown) => error);
     expect(expired).toBeInstanceOf(IdempotencyExpiredError);
     expect(expired).toMatchObject({

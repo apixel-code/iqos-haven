@@ -19,6 +19,8 @@ const ORIGIN = "https://shop.preview-check.test";
 const RESTRICTED = [
   "/",
   "/shop",
+  "/offers",
+  "/help",
   "/shop?brand=orbe&sort=price_asc",
   "/disposable-vapes",
   "/vape-kits",
@@ -30,7 +32,9 @@ const RESTRICTED = [
   "/brands/orbe",
   "/cart",
   "/checkout",
-  "/sitemap.xml",
+  "/order-confirmation",
+  "/order-confirmation?order=IH-001001&phone=0501234567",
+  "/sitemap-products.xml",
   "/_next/image",
   "/_next/image?url=%2Fmedia%2Fhalo.webp&w=640&q=75",
   "/_next/image?url=https%3A%2F%2Fmedia.example%2Forbe-halo.webp&w=640&q=75",
@@ -99,15 +103,43 @@ const card = (name, overrides = {}) => ({
   ...overrides,
 });
 const CATALOGUE = {
-  "/v1/store/info": { whatsappNumber: "+971501234567" },
+  "/v1/store/info": { whatsappNumber: "+971501234567", checkoutOpen: false },
   "/v1/store/brands": {
     items: [
-      { name: "Orbe", slug: "orbe", description: "Synthetic brand story.", productCount: 2 },
-      { name: "Empty Brand", slug: "empty-brand", description: "", productCount: 0 },
+      {
+        name: "Orbe",
+        slug: "orbe",
+        description: "Synthetic brand story.",
+        productCount: 2,
+        formerSlugs: ["orbe-old"],
+      },
+      {
+        name: "Empty Brand",
+        slug: "empty-brand",
+        description: "",
+        productCount: 0,
+        formerSlugs: [],
+      },
     ],
   },
   "/v1/store/categories": {
-    items: [{ name: "Disposables", slug: "disposables", productCount: 2 }],
+    items: [
+      {
+        name: "Disposables",
+        slug: "disposables",
+        productCount: 2,
+        formerSlugs: ["disposables-old"],
+      },
+    ],
+  },
+  "/v1/store/delivery": {
+    feeFils: 1500,
+    etaText: "Synthetic delivery time",
+    freeThresholdFils: null,
+    areas: [
+      { id: "0199e0a0-0000-7000-8000-0000000000a1", name: "Synthetic area", emirate: "dubai" },
+      { id: "0199e0a0-0000-7000-8000-0000000000a2", name: "Other area", emirate: "sharjah" },
+    ],
   },
 };
 const variantOf = (n, attributes, overrides = {}) => ({
@@ -150,9 +182,22 @@ const DETAIL = {
   ],
   soldOut: false,
   images: [],
+  rating: { average: 4.5, count: 2, distribution: [1, 1, 0, 0, 0] },
+  reviews: [
+    {
+      rating: 5,
+      title: "Synthetic review title",
+      body: "Synthetic review body.",
+      authorName: "Synthetic R.",
+      date: "2026-10-14",
+      verified: true,
+    },
+  ],
 };
 const apiCalls = [];
 let apiMode = "ok";
+/** The Owner's indexing policy as the stub API answers it (step 113); null = API failure. */
+let seoPolicy = { indexing: "closed" };
 const stub = createHttpServer((request, response) => {
   const url = new URL(request.url, "http://stub");
   apiCalls.push({ path: url.pathname, search: url.search, headers: request.headers });
@@ -160,6 +205,9 @@ const stub = createHttpServer((request, response) => {
     response.writeHead(status, { "content-type": "application/json" });
     response.end(JSON.stringify(body));
   };
+  // Public: read without a ticket by robots.txt, the sitemap and the policy pages.
+  if (url.pathname === "/v1/public/seo")
+    return seoPolicy ? send(200, seoPolicy) : send(503, { error: { code: "SERVICE_UNAVAILABLE" } });
   if (
     !/^ih_age=v1\.check\.[\w-]+\.[\w-]+$/.test(request.headers.cookie ?? "") ||
     apiMode === "refuse"
@@ -168,6 +216,11 @@ const stub = createHttpServer((request, response) => {
   if (apiMode === "down") return send(503, { error: { code: "SERVICE_UNAVAILABLE" } });
   if (url.searchParams.get("cursor") === "c3RhbGU")
     return send(400, { error: { code: "VALIDATION_ERROR" } });
+  if (url.pathname === "/v1/store/products" && url.searchParams.get("sale") === "1")
+    return send(200, {
+      items: [card("Orbe Reduced Pick", { priceFromFils: 4500, compareAtPriceFils: 5900 })],
+      nextCursor: null,
+    });
   if (url.pathname === "/v1/store/products")
     return send(
       200,
@@ -244,6 +297,8 @@ const child = spawn(
       AGE_TICKET_KEY_ID: "check",
       AGE_TICKET_PRIVATE_KEY: raw(pair.privateKey, "pkcs8"),
       AGE_TICKET_PUBLIC_KEYS: `check:${raw(pair.publicKey, "spki")}`,
+      // The policy is read again on every request, so the check can change it mid-run.
+      SEO_POLICY_CACHE_SECONDS: "0",
     },
   },
 );
@@ -537,6 +592,11 @@ try {
     "Coil",
     "Cash on delivery",
     "contains nicotine",
+    "4.5 · 2 reviews",
+    "Synthetic review title",
+    "Synthetic review body.",
+    "Synthetic R. · 14 Oct 2026",
+    "Verified purchase",
   ])
     check(pdp.includes(text), `product page shows "${text}"`);
   check(/From <\/span>AED 45/.test(pdp), "price says From the lowest option until one is chosen");
@@ -568,6 +628,59 @@ try {
   const badSlug = productCalls();
   await page("/p/Not_A_Slug", 404);
   check(productCalls() === badSlug, "an impossible slug is refused without a product API call");
+
+  // Checkout page: closed unless the API says orders are being taken; never any catalogue data.
+  const checkoutClosed = await page("/checkout");
+  check(
+    checkoutClosed.includes("<title>Checkout · Iqos Haven</title>") &&
+      checkoutClosed.includes("Checkout is not open yet."),
+    "checkout page says it is closed while the API is not taking orders",
+  );
+  CATALOGUE["/v1/store/info"] = { whatsappNumber: "+971501234567", checkoutOpen: true };
+  const checkoutOpen = await page("/checkout");
+  CATALOGUE["/v1/store/info"] = { whatsappNumber: "+971501234567", checkoutOpen: false };
+  check(
+    checkoutOpen.includes("Loading checkout") &&
+      !checkoutOpen.includes("Checkout is not open yet."),
+    "checkout page frame renders when orders are being taken",
+  );
+  check(
+    !/AED|Halo/.test(checkoutOpen.replace(/<script[\s\S]*?<\/script>/g, "")),
+    "checkout page carries no catalogue data from the server",
+  );
+  check(
+    /<meta name="referrer" content="no-referrer"/.test(checkoutOpen),
+    "checkout page sends no referrer",
+  );
+
+  // Confirmation page: a frame only. The order is read in the browser with its cookie, so the
+  // server's HTML holds no order and loads nothing from another origin.
+  const confirmation = await page("/order-confirmation");
+  check(
+    confirmation.includes("<title>Your order · Iqos Haven</title>") &&
+      confirmation.includes("Loading your order"),
+    "confirmation page frame renders",
+  );
+  check(
+    !/AED|Halo|IH-\d/.test(confirmation.replace(/<script[\s\S]*?<\/script>/g, "")),
+    "confirmation page carries no order or catalogue data from the server",
+  );
+  check(
+    /<meta name="referrer" content="no-referrer"/.test(confirmation) &&
+      /<meta name="robots" content="noindex, nofollow"/.test(confirmation),
+    "confirmation page sends no referrer and is not indexed",
+  );
+  check(
+    [...confirmation.matchAll(/<(?:script|iframe|img|link)[^>]+(?:src|href)="([^"]+)"/g)].every(
+      ([, target]) => target.startsWith("/") && !target.startsWith("//"),
+    ),
+    "confirmation page loads nothing from another origin (no analytics or session replay)",
+  );
+  const withQuery = await page("/order-confirmation?order=IH-001001&phone=0501234567");
+  check(
+    !withQuery.replace(/<script[\s\S]*?<\/script>/g, "").includes("0501234567"),
+    "confirmation page shows nothing taken from its address",
+  );
 
   // Cart page: the server renders only the frame; the cart itself is device state.
   const cartPage = await page("/cart");
@@ -622,10 +735,109 @@ try {
     ),
     "product page WhatsApp link names the product and its price",
   );
-  CATALOGUE["/v1/store/info"] = { whatsappNumber: null };
+  // Former slugs (step 101): a renamed brand or category sends its old link to the current
+  // one, and every page names the current slug as canonical.
+  for (const [old, current] of [
+    ["/brands/orbe-old", "/brands/orbe"],
+    ["/categories/disposables-old", "/categories/disposables"],
+  ]) {
+    const moved = await get(old, verified);
+    check(
+      [301, 307, 308].includes(moved.status) &&
+        new URL(moved.headers.get("location") ?? "", ORIGIN).pathname === current,
+      `${old} redirects to ${current}`,
+      `${moved.status} ${moved.headers.get("location")}`,
+    );
+  }
+  check(
+    (await page("/brands/orbe")).includes(
+      '<link rel="canonical" href="https://shop.preview-check.test/brands/orbe"/>',
+    ),
+    "brand page names its current slug as canonical",
+  );
+  // Offers and Help (step 100): offers ask the API for reduced prices only; Help shows the
+  // Owner's delivery settings, and no free delivery or coupon code while none is set up.
+  const offers = await page("/offers");
+  check(
+    offers.includes("Orbe Reduced Pick") && !offers.includes("Orbe Halo Mint"),
+    "offers list only reduced prices",
+  );
+  check(
+    apiCalls.some((call) => call.path === "/v1/store/products" && call.search.includes("sale=1")),
+    "offers ask the API for the sale filter",
+  );
+  const help = await page("/help");
+  for (const text of [
+    "AED 15 per order",
+    "Synthetic delivery time",
+    "Dubai, Sharjah",
+    "Cash on delivery",
+  ])
+    check(help.includes(text), `help shows "${text}"`);
+  for (const page_ of [help, offers, await page("/")])
+    check(
+      !/free delivery|HAVEN10|SAVE20|VEKTOR15|BIGBOX15/i.test(page_),
+      "no free-delivery claim or demo coupon code on the page",
+    );
+  // Published home content (step 99): the promotional bar on every shop page, the hero, the
+  // curated rows, banners and offers. Without it (above) the catalogue sections fill in.
+  CATALOGUE["/v1/store/content/home"] = {
+    ticker: { messages: ["Synthetic ticker one", "Synthetic ticker two"] },
+    hero: {
+      eyebrow: "Synthetic eyebrow",
+      title: "Synthetic hero title",
+      subtitle: "Synthetic hero subtitle",
+      cta: { label: "Synthetic hero button", href: "/brands/orbe" },
+      image: null,
+    },
+    featured: [card("Synthetic Featured Pick")],
+    bestSellers: [card("Synthetic Best Seller")],
+    brands: [{ name: "Orbe", slug: "orbe", productCount: 2 }],
+    banners: [
+      {
+        title: "Synthetic banner title",
+        subtitle: null,
+        cta: { label: "Synthetic banner button", href: "/shop" },
+        image: null,
+      },
+    ],
+    offers: { title: "Synthetic offers title", products: [card("Synthetic Offer Pick")] },
+  };
+  try {
+    const curated = await page("/");
+    for (const text of [
+      "Synthetic ticker one",
+      "Synthetic hero title",
+      "Synthetic hero subtitle",
+      "Synthetic eyebrow",
+      "Popular right now",
+      "Synthetic Best Seller",
+      "Synthetic banner title",
+      "Synthetic offers title",
+      "Synthetic Offer Pick",
+      "Pause offers ticker",
+    ])
+      check(curated.includes(text), `home shows published content "${text}"`);
+    check(
+      /href="\/brands\/orbe"[^>]*>Synthetic hero button/.test(curated),
+      "hero button links to the resolved store page",
+    );
+    check(
+      /<ul class="promo-list"><li>Synthetic ticker one/.test(curated) &&
+        /<ul class="promo-list" aria-hidden="true"><li>Synthetic ticker one/.test(curated),
+      "the ticker's looping copy is hidden from screen readers",
+    );
+    check(
+      (await page("/shop")).includes("Synthetic ticker two"),
+      "the promotional bar shows on other shop pages",
+    );
+  } finally {
+    delete CATALOGUE["/v1/store/content/home"];
+  }
+  CATALOGUE["/v1/store/info"] = { whatsappNumber: null, checkoutOpen: false };
   const noNumber = await page("/");
   check(!noNumber.includes("wa.me"), "no WhatsApp link without a configured number");
-  CATALOGUE["/v1/store/info"] = { whatsappNumber: "+971501234567" };
+  CATALOGUE["/v1/store/info"] = { whatsappNumber: "+971501234567", checkoutOpen: false };
 
   // Search: term, filters and the similar-results notice; only contract parameters reach the API.
   const found = await page(
@@ -737,27 +949,96 @@ try {
   );
   apiMode = "ok";
 
-  // 8. Public information: crawler policy, preview image, policy pages. No sitemap while closed.
-  const robots = await get("/robots.txt");
-  const robotsText = await robots.text();
+  // 8. Public information: crawler policy, preview image, policy pages (step 113 policy).
+  const crawlerView = async (label) => {
+    const robots = await get("/robots.txt");
+    const sitemap = await get("/sitemap.xml");
+    const pages = {};
+    for (const path of ["/responsible-use", "/terms", "/privacy"]) {
+      const response = await get(path, { "user-agent": AGENTS.facebook });
+      const html = await response.text();
+      check(response.status === 200, `${label} ${path}: public`, String(response.status));
+      check(
+        !FORBIDDEN.some((pattern) => pattern.test(html)),
+        `${label} ${path}: no catalogue data`,
+      );
+      pages[path] = {
+        header: response.headers.get("x-robots-tag") ?? "",
+        meta: /<meta name="robots" content="([^"]+)"/.exec(html)?.[1] ?? "",
+      };
+    }
+    const sitemapText = await sitemap.text();
+    check(sitemap.status === 200, `${label} sitemap.xml: public`, String(sitemap.status));
+    // Every listed address must be one of the policy pages, on our own origin.
+    const listed = [...sitemapText.matchAll(/<loc>([^<]*)<\/loc>/g)].map((match) => match[1]);
+    check(
+      listed.every((loc) =>
+        ["/responsible-use", "/terms", "/privacy"].some((path) => loc === ORIGIN + path),
+      ),
+      `${label} sitemap.xml: never a catalogue URL`,
+      listed.join(" "),
+    );
+    return { robots: await robots.text(), sitemap: sitemapText, pages };
+  };
+  for (const [label, policy] of [
+    ["closed", { indexing: "closed" }],
+    ["api down", null],
+  ]) {
+    seoPolicy = policy;
+    const view = await crawlerView(label);
+    check(/^Disallow: \/$/m.test(view.robots), `${label}: robots.txt disallows everything`);
+    check(
+      !/allow: \/[a-z]/i.test(view.robots.replace(/Disallow/gi, "")),
+      `${label}: robots allows nothing`,
+    );
+    check(!/sitemap/i.test(view.robots), `${label}: robots.txt advertises no sitemap`);
+    check(!/<loc>/.test(view.sitemap), `${label}: sitemap lists nothing`);
+    for (const [path, page] of Object.entries(view.pages)) {
+      check(/noindex/.test(page.header), `${label} ${path}: noindex header`);
+      check(/noindex/.test(page.meta), `${label} ${path}: noindex meta`);
+    }
+  }
+  seoPolicy = { indexing: "public_pages" };
+  const open = await crawlerView("public pages");
+  check(/^Disallow: \/$/m.test(open.robots), "public pages: everything else stays disallowed");
+  for (const path of ["/responsible-use", "/terms", "/privacy"]) {
+    check(open.robots.includes(`Allow: ${path}`), `public pages: robots allows ${path}`);
+    check(
+      open.sitemap.includes(`<loc>${ORIGIN}${path}</loc>`),
+      `public pages: sitemap lists ${path}`,
+    );
+    check(!/noindex/.test(open.pages[path].header), `public pages ${path}: no noindex header`);
+    check(/^index/.test(open.pages[path].meta), `public pages ${path}: index meta`);
+  }
   check(
-    robots.status === 200 && /^Disallow: \/$/m.test(robotsText),
-    "robots.txt disallows everything",
+    open.robots.includes(`Sitemap: ${ORIGIN}/sitemap.xml`),
+    "public pages: robots names the sitemap",
   );
-  check(!/sitemap/i.test(robotsText), "robots.txt advertises no sitemap");
+  check(
+    (open.sitemap.match(/<loc>/g) ?? []).length === 3,
+    "public pages: sitemap has the 3 pages only",
+  );
+  // Another spelling of a policy page is never the indexable page.
+  for (const path of ["/Terms", "/PRIVACY"]) {
+    const response = await get(path);
+    check(
+      /noindex/.test(response.headers.get("x-robots-tag") ?? ""),
+      `public pages ${path}: noindex`,
+    );
+  }
+  // A catalogue page stays noindex and gated whatever the policy.
+  const catalogue = await get("/brands/orbe", { "user-agent": AGENTS.googlebot });
+  check(
+    /noindex/.test(catalogue.headers.get("x-robots-tag") ?? ""),
+    "public pages: catalogue still noindex",
+  );
+  seoPolicy = { indexing: "closed" };
   const image = await get("/opengraph-image");
   check(
     image.status === 200 && image.headers.get("content-type") === "image/png",
     "generic preview image is served",
     `${image.status} ${image.headers.get("content-type")}`,
   );
-  for (const path of ["/responsible-use", "/terms", "/privacy"]) {
-    const response = await get(path, { "user-agent": AGENTS.facebook });
-    const html = await response.text();
-    check(response.status === 200, `${path}: public`, String(response.status));
-    check(/noindex/.test(response.headers.get("x-robots-tag") ?? ""), `${path}: noindex`);
-    check(!FORBIDDEN.some((pattern) => pattern.test(html)), `${path}: no catalogue data`);
-  }
 } finally {
   stop();
 }

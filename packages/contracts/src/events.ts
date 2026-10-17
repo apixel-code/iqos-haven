@@ -71,6 +71,14 @@ export const EVENT_CATALOGUE = {
     consumers: [],
     plannedConsumers: {},
   }),
+  "seo.policy_updated": define({
+    schemaVersion: 1,
+    aggregateType: "setting",
+    payload: z.strictObject({ key: z.literal("seo") }),
+    // Step 113 (ADR 0079): nothing caches the policy, so no consumer is needed.
+    consumers: [],
+    plannedConsumers: {},
+  }),
   "settings.updated": define({
     schemaVersion: 1,
     aggregateType: "setting",
@@ -155,36 +163,58 @@ export const EVENT_CATALOGUE = {
     schemaVersion: 1,
     aggregateType: "order",
     payload: z.strictObject({ orderId: id }),
-    consumers: [],
-    plannedConsumers: { notification: 78, email: 78, analytics_rollup: 106 },
+    // Step 78 (ADR 0047). No backfill: order submission was never switched on, so the only
+    // earlier events are in development and test databases and keep their empty snapshot.
+    // analytics_rollup: step 106 (ADR 0072). No backfill: step 107 recomputes recent days
+    // and offers a controlled historical backfill.
+    consumers: ["notification", "email", "analytics_rollup"],
+    plannedConsumers: {},
   }),
   "order.updated": define({
     schemaVersion: 1,
     aggregateType: "order",
     payload: z.strictObject({ orderId: id }),
-    consumers: [],
-    plannedConsumers: { analytics_rollup: 106 },
+    // analytics_rollup: step 106 (ADR 0072). No backfill: step 107 recomputes recent days
+    // and offers a controlled historical backfill.
+    consumers: ["analytics_rollup"],
+    plannedConsumers: {},
   }),
   "order.status_changed": define({
     schemaVersion: 1,
     aggregateType: "order",
     payload: z.strictObject({ orderId: id, from: orderStatus, to: orderStatus }),
-    consumers: [],
-    plannedConsumers: { notification: 91, analytics_rollup: 106 },
+    // analytics_rollup: step 106 (ADR 0072). No backfill: step 107 recomputes recent days
+    // and offers a controlled historical backfill.
+    consumers: ["analytics_rollup"],
+    plannedConsumers: { notification: 91 },
   }),
   "order.cancelled": define({
     schemaVersion: 1,
     aggregateType: "order",
     payload: z.strictObject({ orderId: id }),
-    consumers: [],
-    plannedConsumers: { notification: 91, analytics_rollup: 106 },
+    // analytics_rollup: step 106 (ADR 0072). No backfill: step 107 recomputes recent days
+    // and offers a controlled historical backfill.
+    consumers: ["analytics_rollup"],
+    plannedConsumers: { notification: 91 },
   }),
   "order.collection_recorded": define({
     schemaVersion: 1,
     aggregateType: "order",
     payload: z.strictObject({ orderId: id }),
-    consumers: [],
-    plannedConsumers: { analytics_rollup: 106 },
+    // analytics_rollup: step 106 (ADR 0072). No backfill: step 107 recomputes recent days
+    // and offers a controlled historical backfill.
+    consumers: ["analytics_rollup"],
+    plannedConsumers: {},
+  }),
+  // Step 87: the Owner corrected a recorded collection. New type, nothing to backfill.
+  "order.collection_corrected": define({
+    schemaVersion: 1,
+    aggregateType: "order",
+    payload: z.strictObject({ orderId: id }),
+    // analytics_rollup: step 106 (ADR 0072). No backfill: step 107 recomputes recent days
+    // and offers a controlled historical backfill.
+    consumers: ["analytics_rollup"],
+    plannedConsumers: {},
   }),
   "inventory.low": define({
     schemaVersion: 1,
@@ -192,8 +222,10 @@ export const EVENT_CATALOGUE = {
     // Emitted once per crossing from above the threshold to at/below it (step 53, ADR 0023).
     // `cause` says which side moved; consumers load current stock themselves.
     payload: z.strictObject({ variantId: id, cause: z.enum(["stock", "threshold"]) }),
-    consumers: [],
-    plannedConsumers: { notification: 92, email: 92 },
+    // Step 92 (ADR 0060). No backfill: events written before it keep their empty consumer set;
+    // the inventory list already shows those variants as low.
+    consumers: ["notification", "email"],
+    plannedConsumers: {},
   }),
   "catalog.changed": define({
     schemaVersion: 1,
@@ -211,15 +243,17 @@ export const EVENT_CATALOGUE = {
     schemaVersion: 1,
     aggregateType: "content",
     payload: z.strictObject({ contentId: id }),
-    consumers: [],
-    plannedConsumers: { storefront_revalidate: 97 },
+    // Step 97 (ADR 0065). No backfill: nothing could be published before this step's routes.
+    consumers: ["storefront_revalidate"],
+    plannedConsumers: {},
   }),
   "review.submitted": define({
     schemaVersion: 1,
     aggregateType: "review",
     payload: z.strictObject({ reviewId: id }),
-    consumers: [],
-    plannedConsumers: { notification: 94 },
+    // Step 94 (ADR 0062). No backfill: reviews could not be submitted before this step.
+    consumers: ["notification"],
+    plannedConsumers: {},
   }),
   "media.uploaded": define({
     schemaVersion: 1,
@@ -233,8 +267,21 @@ export const EVENT_CATALOGUE = {
     schemaVersion: 1,
     aggregateType: "report_job",
     payload: z.strictObject({ reportJobId: id }),
-    consumers: [],
-    plannedConsumers: { report_builder: 112 },
+    // report_builder: step 112 (ADR 0078). Backfill: events written in step 110 kept no consumer;
+    // no deployment ran that step, and the upkeep job fails any file job left queued (the table,
+    // not these events, is the queue of record).
+    consumers: ["report_builder"],
+    plannedConsumers: {},
+  }),
+  "report.daily_summary": define({
+    schemaVersion: 1,
+    // The aggregate ID is the Dubai day the summary covers (`YYYY-MM-DD`); a unique index allows
+    // one such event per day (step 107, ADR 0073).
+    aggregateType: "report",
+    payload: z.strictObject({ day: z.iso.date() }),
+    // Step 107: new with this step, so there is nothing to backfill.
+    consumers: ["email"],
+    plannedConsumers: {},
   }),
 } as const;
 

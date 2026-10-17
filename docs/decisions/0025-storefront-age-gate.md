@@ -24,7 +24,7 @@ GET/HEAD redirect with 307, other methods with 303. The redirect base is the req
 
 **Decision routes** (`POST /api/age/accept`, `POST /api/age/reject`; plain form posts, so the gate works without JavaScript):
 
-1. Origin must be one of `STOREFRONT_ORIGINS`; a missing Origin or `Sec-Fetch-Site` of `cross-site`/`same-site` is refused (403).
+1. Origin must be one of `STOREFRONT_ORIGINS`, or the one `null` case in the amendment below; a missing Origin is refused (403). (Amended 2026-10-14: `Sec-Fetch-Site` no longer refuses a request whose Origin is one of ours.)
 2. Rate limit: 20 decisions per minute per client address, from the gateway's `X-IH-Client-IP` (the gateway strips browser-supplied copies). An unusable address shares one bucket.
 3. Accept signs a ticket (the only signing call in the system), sets `ih_age` and clears the restricted marker, then 303 to the return path. Without a signing key it answers 503 and sets nothing.
 4. Reject clears `ih_age`, sets `ih_age_restricted=1` and 303 to `/restricted`.
@@ -59,3 +59,14 @@ GET/HEAD redirect with 307, other methods with 303. The redirect base is the req
 - The limiter is per storefront process. More than one storefront replica multiplies the allowance until a shared limiter or the edge limit exists.
 - Step 57 adds public policy pages to `isPublicPath`; nothing else should ever be added without review.
 - The rejected state is device-local and short. It is a courtesy barrier, not verification.
+
+## Amendment (2026-10-14, commit a307657)
+
+Some privacy-mode browsers send `Origin: null` on a same-origin form post, which locked those shoppers out of the age check. The decision POSTs now accept:
+
+- an Origin that is one of `STOREFRONT_ORIGINS`, whatever `Sec-Fetch-Site` says (a browser sets Origin to the page that made the request, so a match already means our page);
+- `Origin: null` only together with `Sec-Fetch-Site: same-origin` and a request host (`X-Forwarded-Host`, else `Host`) equal to the host of a configured origin.
+
+Everything else is refused: a missing Origin, a foreign Origin, and `null` with any other `Sec-Fetch-Site` (a sandboxed frame on another site sends `cross-site`).
+
+Why the host check does not have to be trusted: `Sec-Fetch-Site` is set by the browser and cannot be set by page script, so the `null` case is reachable from a browser only on our own pages. A non-browser client can forge every header, but it can also send our real Origin; cross-site request forgery needs a victim's browser, and that browser tells the truth. The gateway also removes any client-sent `X-Forwarded-Host` (`strip_untrusted` in `infra/gateway/Caddyfile`) and sets its own from the request's Host. Tests: `apps/storefront/lib/age/age-gate.test.ts` ("origin validation", "accept and reject handlers").

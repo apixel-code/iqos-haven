@@ -19,6 +19,7 @@ describe("event catalogue", () => {
     expect(Object.keys(EVENT_CATALOGUE).sort()).toEqual(
       [
         "settings.updated",
+        "seo.policy_updated",
         "delivery.area_updated",
         "delivery.configuration_updated",
         "coupon.updated",
@@ -28,9 +29,11 @@ describe("event catalogue", () => {
         "media.uploaded",
         "order.cancelled",
         "order.collection_recorded",
+        "order.collection_corrected",
         "order.created",
         "order.status_changed",
         "order.updated",
+        "report.daily_summary",
         "report.requested",
         "review.submitted",
         "system.probe",
@@ -67,14 +70,35 @@ describe("event catalogue", () => {
     expect(required.filter((consumer) => planned.includes(consumer))).toEqual([]);
   });
 
-  it("only wires consumers whose handlers exist (probe, email, media, revalidation)", () => {
+  it("only wires consumers whose handlers exist (probe, email, media, revalidation, inbox, analytics, reports)", () => {
     const wired = entries.flatMap(([, definition]) => definition.consumers as readonly string[]);
     expect([...new Set(wired)].sort()).toEqual([
+      "analytics_rollup",
       "email",
       "media_processor",
+      "notification",
+      "report_builder",
       "storefront_revalidate",
       "system_probe",
     ]);
+    // A new order must reach the inbox and the email planner (step 78).
+    // ... and the day's analytics (step 106).
+    expect(EVENT_CATALOGUE["order.created"].consumers).toEqual([
+      "notification",
+      "email",
+      "analytics_rollup",
+    ]);
+    // Every order event that moves a figure recomputes its days (step 106).
+    for (const type of [
+      "order.updated",
+      "order.status_changed",
+      "order.cancelled",
+      "order.collection_recorded",
+      "order.collection_corrected",
+    ] as const)
+      expect(EVENT_CATALOGUE[type].consumers).toContain("analytics_rollup");
+    // A low-stock crossing reaches the inbox and the email planner (step 92).
+    expect(EVENT_CATALOGUE["inventory.low"].consumers).toEqual(["notification", "email"]);
   });
 });
 

@@ -170,7 +170,7 @@ describe("coupons and redemptions (real PostgreSQL, isolated schema)", () => {
     const row = await coupon({ percentBps: 2500 });
     const { orderId, applied } = await order(row.code, 12999);
     expect(applied.discountFils).toBe(3250);
-    expect(await db.couponRedemption.findUniqueOrThrow({ where: { orderId } })).toMatchObject({
+    expect(await db.couponRedemption.findFirstOrThrow({ where: { orderId } })).toMatchObject({
       couponId: row.id,
       code: row.code,
       percentBps: 2500,
@@ -187,7 +187,7 @@ describe("coupons and redemptions (real PostgreSQL, isolated schema)", () => {
     expect(await uses(other.id)).toBe(0);
     // Later edits of the coupon do not change what the order recorded.
     await pool.query("UPDATE coupons SET percent_bps=100, version=version+1 WHERE id=$1", [row.id]);
-    expect((await db.couponRedemption.findUniqueOrThrow({ where: { orderId } })).percentBps).toBe(
+    expect((await db.couponRedemption.findFirstOrThrow({ where: { orderId } })).percentBps).toBe(
       2500,
     );
     await rejected("UPDATE coupon_redemptions SET discount_fils=1 WHERE order_id=$1", [orderId]);
@@ -231,7 +231,7 @@ describe("coupons and redemptions (real PostgreSQL, isolated schema)", () => {
     );
     expect(released.filter(Boolean)).toHaveLength(1);
     expect(await uses(row.id)).toBe(0);
-    const kept = await db.couponRedemption.findUniqueOrThrow({ where: { orderId } });
+    const kept = await db.couponRedemption.findFirstOrThrow({ where: { orderId } });
     expect(kept.releasedAt).toBeInstanceOf(Date);
     // History stays: the row is still there, and cannot be released or revived again.
     await rejected("UPDATE coupon_redemptions SET released_at=NULL WHERE order_id=$1", [orderId]);

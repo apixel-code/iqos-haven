@@ -283,7 +283,7 @@ describe("quote assembly (real PostgreSQL, isolated schema)", () => {
     expect(appliedCoupon).toMatchObject({ code: "QUOTELOCK", discountFils: 5200 });
     expect(locked).toMatchObject({ discountFils: 5200, deliveryFeeFils: 1500, totalFils: 22298 });
     await Promise.all(edits);
-    expect(await db.couponRedemption.findUniqueOrThrow({ where: { orderId } })).toMatchObject({
+    expect(await db.couponRedemption.findFirstOrThrow({ where: { orderId } })).toMatchObject({
       discountFils: 5200n,
       merchandiseSubtotalFils: 25998n,
     });

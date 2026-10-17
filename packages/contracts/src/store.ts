@@ -1,9 +1,10 @@
 import { z } from "zod";
 import { ORDER_LIMITS, UAE_EMIRATES } from "@ih/domain";
 import { catalogueSlugSchema } from "./catalogue";
-import { orderLinesSchema } from "./checkout";
+import { checkoutAddressSchema, checkoutContactSchema, orderLinesSchema } from "./checkout";
 import { couponCodeInputSchema } from "./coupons";
 import { disposableSpecsSchema, kitSpecsSchema, productFilsSchema } from "./products";
+import { STORE_REVIEWS_SHOWN, storeRatingSchema, storeReviewSchema } from "./reviews";
 
 /**
  * Shopper catalogue reads (roadmap step 58, architecture §10 "Store reads"). Served only to a
@@ -36,6 +37,8 @@ export const storeBrandsResponseSchema = z.strictObject({
         description: z.string(),
         /** Products a shopper can see under this brand. */
         productCount: z.number().int().min(0),
+        /** Earlier slugs that now redirect here (step 101): the page sends them to `slug`. */
+        formerSlugs: z.array(z.string()).max(20),
       }),
     )
     .max(500),
@@ -49,6 +52,8 @@ export const storeCategoriesResponseSchema = z.strictObject({
         name: z.string(),
         slug: z.string(),
         productCount: z.number().int().min(0),
+        /** Earlier slugs that now redirect here (step 101). */
+        formerSlugs: z.array(z.string()).max(20),
       }),
     )
     .max(500),
@@ -65,6 +70,8 @@ export const storeProductsQuerySchema = z.strictObject({
   brand: catalogueSlugSchema.optional(),
   category: catalogueSlugSchema.optional(),
   type: z.enum(["disposable", "kit"]).optional(),
+  /** Offers (step 100): only products shown with a reduced price (compare-at above the price). */
+  sale: z.literal("1").optional(),
   sort: z.enum(STORE_PRODUCT_SORTS).default("newest"),
   limit: z.coerce.number().int().min(1).max(STORE_PAGE_SIZES.max).default(STORE_PAGE_SIZES.default),
   cursor: cursor.optional(),
@@ -130,6 +137,10 @@ export const storeProductResponseSchema = z.strictObject({
     .max(500),
   soldOut: z.boolean(),
   images: z.array(storeImageSchema).max(8),
+  /** From approved reviews only (step 95); null while none is approved. */
+  rating: storeRatingSchema.nullable(),
+  /** The newest approved reviews. */
+  reviews: z.array(storeReviewSchema).max(STORE_REVIEWS_SHOWN),
 });
 export type StoreProductResponse = z.infer<typeof storeProductResponseSchema>;
 
@@ -286,6 +297,8 @@ export const storeInfoResponseSchema = z.strictObject({
     .string()
     .regex(/^\+[1-9]\d{7,14}$/)
     .nullable(),
+  /** Whether orders are being taken (step 80). The order route decides again on every order. */
+  checkoutOpen: z.boolean(),
 });
 export type StoreInfoResponse = z.infer<typeof storeInfoResponseSchema>;
 
@@ -355,3 +368,108 @@ export const storeQuoteResponseSchema = z.strictObject({
   }),
 });
 export type StoreQuoteResponse = z.infer<typeof storeQuoteResponseSchema>;
+
+// --- Order submission (roadmap step 77, ADR 0046) ---
+/**
+ * What a shopper sends to place an order: who and where, the lines, at most one code, the token
+ * of the total they accepted and the second 18+ confirmation. There is no field for a price, a
+ * fee, a discount or a total. The attempt key travels in the `Idempotency-Key` header.
+ */
+export const storeOrderRequestSchema = z.strictObject({
+  contact: checkoutContactSchema,
+  address: checkoutAddressSchema,
+  lines: orderLinesSchema,
+  couponCode: couponCodeInputSchema,
+  quoteToken: z.string().min(1).max(256),
+  /** The shopper ticked "I am 18 or older" on the checkout form. Only `true` is an order. */
+  ageConfirmed: z.literal(true),
+});
+export type StoreOrderRequest = z.input<typeof storeOrderRequestSchema>;
+/**
+ * The answer for a placed order, given again unchanged when the same attempt is retried.
+ * Nothing personal and nothing that grants access: the order number is a display reference.
+ */
+export const storeOrderResponseSchema = z.strictObject({
+  orderNumber: z.string().max(32),
+  totalFils: z.number().int().min(0),
+  placedAt: z.iso.datetime(),
+});
+export type StoreOrderResponse = z.infer<typeof storeOrderResponseSchema>;
+
+/** Cookie-authorized confirmation snapshots; excludes customer identity, phone, notes and internal IDs. */
+export const orderConfirmationResponseSchema = z.strictObject({
+  orderNumber: z.string().regex(/^IH-[0-9]{6,}$/),
+  placedAt: z.iso.datetime(),
+  status: z.enum([
+    "pending",
+    "confirmed",
+    "processing",
+    "out_for_delivery",
+    "delivered",
+    "cancelled",
+  ]),
+  totalFils: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
+  deliveryFeeFils: z.number().int().nonnegative(),
+  discountFils: z.number().int().nonnegative(),
+  etaText: z.string().max(500),
+  address: z.strictObject({
+    area: z.string().max(100),
+    emirate: z.string().max(32),
+    type: z.enum(["apartment", "villa", "office"]),
+    building: z.string().max(200),
+    unit: z.string().max(100).nullable(),
+    street: z.string().max(200).nullable(),
+  }),
+  items: z
+    .array(
+      z.strictObject({
+        name: z.string().max(150),
+        attributes: z.record(z.string(), z.string()),
+        quantity: z.number().int().positive(),
+        unitPriceFils: z.number().int().nonnegative(),
+        totalFils: z.number().int().nonnegative(),
+      }),
+    )
+    .min(1)
+    .max(100),
+});
+export type OrderConfirmationResponse = z.infer<typeof orderConfirmationResponseSchema>;
+
+export const orderConfirmationQuerySchema = z.strictObject({});
+
+// --- Published home content (step 98, ADR 0066) ---
+/** A link inside the store, resolved from the content's IDs to the current slug. */
+const homeHref = z
+  .string()
+  .regex(/^\/(shop|categories\/[a-z0-9-]{1,120}|brands\/[a-z0-9-]{1,120}|p\/[a-z0-9-]{1,120})$/);
+const homeLinkSchema = z.strictObject({ label: z.string().min(1).max(30), href: homeHref });
+const homeBannerSchema = z.strictObject({
+  title: z.string().min(1).max(60),
+  subtitle: z.string().max(160).nullable(),
+  cta: homeLinkSchema.nullable(),
+  image: storeImageSchema.nullable(),
+});
+/**
+ * `GET /v1/store/content/home`: the published home sections, assembled. Only published copies;
+ * anything a shopper cannot see is already left out. A disabled or unpublished section is
+ * null (or empty), and the page simply does not show it.
+ */
+export const storeHomeResponseSchema = z.strictObject({
+  ticker: z.strictObject({ messages: z.array(z.string().min(1).max(90)).min(1).max(6) }).nullable(),
+  hero: homeBannerSchema.extend({ eyebrow: z.string().max(40).nullable() }).nullable(),
+  featured: z.array(storeProductCardSchema).max(8),
+  bestSellers: z.array(storeProductCardSchema).max(8),
+  brands: z
+    .array(
+      z.strictObject({ name: z.string(), slug: z.string(), productCount: z.number().int().min(0) }),
+    )
+    .max(24),
+  banners: z.array(homeBannerSchema).max(2),
+  offers: z
+    .strictObject({
+      title: z.string().min(1).max(60),
+      products: z.array(storeProductCardSchema).max(6),
+    })
+    .nullable(),
+});
+export type StoreHomeResponse = z.infer<typeof storeHomeResponseSchema>;

@@ -8,7 +8,9 @@
   --line-2: #c6ced1;
   --ink: #12161b;
   --ink-2: #47525a;
-  --ink-3: #6b767d;
+  /* Darkened from the prototype's #6b767d (4.2:1 on --bg) to meet WCAG AA 4.5:1 on --bg and
+     --surface-2 (step 120, ADR 0084). */
+  --ink-3: #5f6a71;
   --ink-inv: #ffffff;
   --primary: #12161b;
   --primary-hover: #2a313a;

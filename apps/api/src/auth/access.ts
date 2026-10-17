@@ -35,6 +35,8 @@ export type AgeVerifiedRequest = FastifyRequest & {
  *   (`AgeGuard` behaviour). No staff session is read; an admin cookie never substitutes.
  * - `@Authenticated()` — any signed-in, active staff member (e.g. /me).
  * - `@RequirePermission(...keys)` — signed in AND holding every listed permission.
+ * - `@RequireAnyPermission(...keys)` — signed in AND holding at least one listed permission
+ *   (a read shared by two jobs, e.g. the order item picker for creating and for editing).
  *
  * Permissions come from the database on every request (role → role_permissions), never from
  * the client or the UI. A handler-level policy overrides a controller-level one.
@@ -44,7 +46,8 @@ export type AccessPolicy =
   | { readonly kind: "internal" }
   | { readonly kind: "store" }
   | { readonly kind: "authenticated" }
-  | { readonly kind: "permission"; readonly permissions: readonly PermissionKey[] };
+  | { readonly kind: "permission"; readonly permissions: readonly PermissionKey[] }
+  | { readonly kind: "anyPermission"; readonly permissions: readonly PermissionKey[] };
 
 export const ACCESS_POLICY = "ih:access-policy";
 
@@ -63,6 +66,20 @@ export const RequirePermission = (first: PermissionKey, ...rest: PermissionKey[]
   for (const key of permissions)
     if (!PERMISSION_KEYS.includes(key)) throw new Error(`Unknown permission "${String(key)}"`);
   return SetMetadata(ACCESS_POLICY, { kind: "permission", permissions } satisfies AccessPolicy);
+};
+/** At least two keys: with one, `@RequirePermission` says the same thing. */
+export const RequireAnyPermission = (
+  first: PermissionKey,
+  second: PermissionKey,
+  ...rest: PermissionKey[]
+) => {
+  const permissions = [first, second, ...rest];
+  for (const key of permissions)
+    if (!PERMISSION_KEYS.includes(key)) throw new Error(`Unknown permission "${String(key)}"`);
+  return SetMetadata(ACCESS_POLICY, {
+    kind: "anyPermission",
+    permissions,
+  } satisfies AccessPolicy);
 };
 
 function policyOf(
@@ -117,7 +134,11 @@ export class AccessGuard implements CanActivate {
     if (policy.kind === "authenticated") return true;
 
     const missing = policy.permissions.filter((key) => !staff.permissions.includes(key));
-    if (missing.length) {
+    const refused =
+      policy.kind === "anyPermission"
+        ? missing.length === policy.permissions.length
+        : missing.length > 0;
+    if (refused) {
       request.log.warn(
         { staffId: staff.userId, role: staff.role, missing, route: request.routeOptions.url },
         "permission denied",
@@ -175,6 +196,7 @@ export function routeAccessProblems(
       else if (
         (policy.kind === "authenticated" ||
           policy.kind === "permission" ||
+          policy.kind === "anyPermission" ||
           policy.kind === "store") &&
         !reflector.getAllAndOverride(SERIALIZE, [handler, metatype])
       )

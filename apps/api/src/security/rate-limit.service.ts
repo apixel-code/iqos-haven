@@ -12,6 +12,7 @@ import {
   LocalRateLimiter,
   RateLimiterUnavailableError,
   RedisRateLimiter,
+  type EndpointDecision,
   type EndpointLimitPolicy,
   type RateLimiter,
 } from "@ih/platform";
@@ -67,9 +68,47 @@ export class RateLimitService {
     request: FastifyRequest,
     reply: FastifyReply,
   ): Promise<void> {
-    let decision;
+    this.answer(policy, await this.decide(policy, values, reply, true), request, reply);
+  }
+
+  /**
+   * Refuses when the budget is already spent, without counting this request. For budgets that
+   * only some outcomes use up (see `record`): the refusal comes before the outcome is known.
+   */
+  async assertOpen<D extends string>(
+    policy: EndpointLimitPolicy<D>,
+    values: Readonly<Record<D, string>>,
+    request: FastifyRequest,
+    reply: FastifyReply,
+  ): Promise<void> {
+    this.answer(policy, await this.decide(policy, values, reply, false), request, reply);
+  }
+
+  /**
+   * Counts one outcome against a budget checked with `assertOpen`. Never refuses and never
+   * throws: the caller is already answering, and a lost count must not change that answer.
+   */
+  async record<D extends string>(
+    policy: EndpointLimitPolicy<D>,
+    values: Readonly<Record<D, string>>,
+  ): Promise<void> {
     try {
-      decision = await this.limiter.consume(policy, values);
+      await this.limiter.consume(policy, values);
+    } catch (error) {
+      this.log.warn({ endpoint: policy.endpoint, ...errorSummary(error) }, "limit count lost");
+    }
+  }
+
+  private async decide<D extends string>(
+    policy: EndpointLimitPolicy<D>,
+    values: Readonly<Record<D, string>>,
+    reply: FastifyReply,
+    count: boolean,
+  ): Promise<EndpointDecision> {
+    try {
+      return await (count
+        ? this.limiter.consume(policy, values)
+        : this.limiter.peek(policy, values));
     } catch (error) {
       if (error instanceof RateLimiterUnavailableError) {
         reply.header("Retry-After", "30");
@@ -77,6 +116,14 @@ export class RateLimitService {
       }
       throw error;
     }
+  }
+
+  private answer(
+    policy: EndpointLimitPolicy,
+    decision: EndpointDecision,
+    request: FastifyRequest,
+    reply: FastifyReply,
+  ): void {
     if (decision.degraded) request.log.warn({ endpoint: policy.endpoint }, "rate limit degraded");
     if (decision.allowed) return;
     // Identity-wide denials can be an attacker delaying a real account: warn so it can alert.

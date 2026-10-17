@@ -5,6 +5,7 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from "
 import type { MeResponse } from "@ih/contracts";
 import { ApiError, authRequest, currentSession } from "../lib/auth";
 import { visibleSections } from "../lib/navigation";
+import { NotificationBell } from "./notification-bell";
 const SessionContext = createContext<MeResponse | null>(null);
 const SessionCheckingContext = createContext(false);
 export function useSessionChecking() {
@@ -13,6 +14,9 @@ export function useSessionChecking() {
 export function useSession() {
   return useContext(SessionContext);
 }
+/** The event stream says the session ended (revoked, expired, deactivated): sign in again. */
+const signedOut = () => window.location.replace("/login?reason=expired");
+
 export function SessionShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const [snapshot, setSnapshot] = useState<{ session: MeResponse; path: string } | null>(null);
@@ -127,6 +131,9 @@ export function SessionShell({ children }: { children: ReactNode }) {
           <div className="workspace-body">
             <header className="workspace-header">
               <span className="muted">Admin workspace</span>
+              {session.permissions.includes("notifications.read_own") && (
+                <NotificationBell onSignedOut={signedOut} />
+              )}
               <span>
                 {session.user.name}{" "}
                 <span className="badge">{session.user.role === "owner" ? "Owner" : "Staff"}</span>
