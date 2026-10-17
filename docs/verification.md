@@ -2205,3 +2205,19 @@ Not covered:
 
 - The VPS itself: memory headroom, a container restart under load (steps 121–122).
 - An edge or CDN layer.
+
+## Parity G-A1 — order item picker and returning-customer lookup (2026-10-17, local)
+
+ADR 0080. `pnpm verify`: exit 0. `pnpm test:int`: exit 0 (650, one new test).
+
+| Item                         | Evidence                                                                                                                                                                                                                                                                                            |
+| ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Picker lists orderable items | Integration (`manual-orders.int.test.ts`): name, brand and SKU each find the variant; an inactive variant, a draft product and LIKE wildcards find nothing; option label in option order; override price; a never-stocked variant is listed as sold out.                                            |
+| Access                       | Same test: `orders.edit` alone opens the picker, neither right gives 403, and no session gives 401. `@RequireAnyPermission` is covered by the startup route check (`@Serialize` required).                                                                                                          |
+| Browser journey              | `scripts/browser-qa/order-picker.mjs`: all checks PASS. A new number creates the customer, a 0-prefixed retype finds the same customer, name and saved address are filled, a sold-out or already added variant cannot be added, the order edit adds a picked variant, 390px has no sideways scroll. |
+| Found and fixed              | Every manual order submitted from the admin failed validation (a top-level `areaId` in the strict request). The browser pass caught it; API tests had not, because they send their own body.                                                                                                        |
+
+Not covered:
+
+- Real mobile touch and screen reader use of the picker list.
+- More than 30 matches: staff narrow the search, and there is no paging.

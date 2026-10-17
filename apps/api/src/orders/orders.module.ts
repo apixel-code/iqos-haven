@@ -10,6 +10,7 @@ import { OrderTransitionsController } from "./order-transitions.controller";
 import { OrderCancellationController } from "./order-cancellation.controller";
 import { OrderCollectionController } from "./order-collection.controller";
 import { ManualOrdersController } from "./manual-orders.controller";
+import { OrderItemChoicesController } from "./order-item-choices.controller";
 import { ReviewLinkController } from "./review-link.controller";
 
 /** Order commands and the store route that places an order (step 77). */
@@ -23,6 +24,7 @@ import { ReviewLinkController } from "./review-link.controller";
     OrderCancellationController,
     OrderCollectionController,
     ManualOrdersController,
+    OrderItemChoicesController,
     ReviewLinkController,
   ],
   providers: [CreateOrderService, OrderConfirmationService, AdminOrdersService],

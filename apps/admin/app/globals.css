@@ -842,3 +842,87 @@ ul.dashboard-list {
   margin-top: 4px;
   flex: none;
 }
+/* Order item picker (parity G-A1): search, then add a variant to the order. */
+.item-picker {
+  display: grid;
+  gap: 10px;
+}
+.item-picks {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  max-height: 320px;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+}
+.item-picks li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+}
+.item-picks li + li {
+  border-top: 1px solid var(--line);
+}
+.item-pick-text {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+  overflow-wrap: anywhere;
+}
+.item-pick-price {
+  display: grid;
+  justify-items: end;
+  gap: 4px;
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+.order-lines {
+  display: grid;
+  gap: 10px;
+}
+.order-line {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 96px auto;
+  align-items: end;
+  gap: 12px;
+}
+.management-card .order-line input {
+  max-width: 120px;
+}
+.customer-found {
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 12px;
+  display: grid;
+  gap: 10px;
+}
+.customer-found ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.customer-found li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  justify-content: space-between;
+}
+@media (max-width: 700px) {
+  .order-line {
+    grid-template-columns: minmax(0, 1fr) 80px;
+  }
+  .order-line > button {
+    grid-column: 1/-1;
+    justify-self: start;
+  }
+  .item-picks li,
+  .customer-found li {
+    flex-wrap: wrap;
+  }
+}

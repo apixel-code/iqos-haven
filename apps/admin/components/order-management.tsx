@@ -22,6 +22,7 @@ import {
   type OrderCollectionRequest,
   type OrderEditDiff,
   type OrderEditRequest,
+  type OrderItemChoice,
   type ReviewLinkResponse,
 } from "@ih/contracts";
 import { ApiError } from "../lib/auth";
@@ -37,6 +38,7 @@ import {
   when,
 } from "../lib/orders";
 import { ManualOrderPanel } from "./manual-order";
+import { choiceLabel, OrderItemPicker } from "./order-item-picker";
 import { ResourceNotice, useManagementResource } from "./management-resource";
 
 const STATUSES = [
@@ -146,6 +148,7 @@ export function OrderManagement({
     return (
       <ManualOrderPanel
         canConfirm={canTransition}
+        canLookUp={canReadContact}
         onCancel={() => setCreating(false)}
         onCreated={(orderId) => {
           setCreating(false);
@@ -633,11 +636,13 @@ function editCommand(order: AdminOrderResponse, data: FormData): OrderEditReques
         quantity: Number(data.get(`quantity.${item.variantId}`)),
       }))
       .filter((line) => line.quantity > 0);
-    const addedId = String(data.get("addedVariantId") ?? "").trim();
-    const addedQuantity = Number(data.get("addedQuantity") ?? 1);
-    if (addedId) lines.push({ variantId: addedId, quantity: addedQuantity });
+    // Items added with the picker, as `added.<variantId>` = quantity.
+    const added = [...data.keys()]
+      .filter((name) => name.startsWith("added."))
+      .map((name) => ({ variantId: name.slice(6), quantity: Number(data.get(name)) }));
+    lines.push(...added);
     const quantitiesChanged =
-      Boolean(addedId) ||
+      added.length > 0 ||
       lines.length !== order.items.length ||
       order.items.some(
         (item) =>
@@ -1077,12 +1082,13 @@ function OrderEditPanel({
 }) {
   const commerce = order.status === "pending" || order.status === "confirmed";
   const [validationMessage, setValidationMessage] = useState("");
+  const [added, setAdded] = useState<OrderItemChoice[]>([]);
   return (
     <article className="record-card">
       <h3>Edit order</h3>
       <p className="muted">
         {commerce
-          ? "Quantities, coupon, delivery address and the operational note can be changed before processing. Set a quantity to zero to remove that item."
+          ? "Quantities, items, coupon, delivery address and the operational note can be changed before processing. Set a quantity to zero to remove an item; add one from the product search."
           : "Only the operational note can change while this order is processing."}
       </p>
       <form
@@ -1118,14 +1124,44 @@ function OrderEditPanel({
                 />
               </label>
             ))}
-            <label>
-              <span>Add variant ID</span>
-              <input name="addedVariantId" type="text" placeholder="UUID" />
-            </label>
-            <label>
-              <span>Added quantity</span>
-              <input name="addedQuantity" type="number" min={1} max={10} defaultValue={1} />
-            </label>
+            {added.map((choice) => (
+              <div key={choice.variantId} className="order-line wide-field">
+                <label>
+                  <span>
+                    Added: {choice.brandName} {choice.productName} · {choiceLabel(choice)} ·{" "}
+                    {money(choice.unitPriceFils)}
+                  </span>
+                  <input
+                    name={`added.${choice.variantId}`}
+                    type="number"
+                    min={1}
+                    max={10}
+                    step={1}
+                    defaultValue={1}
+                    required
+                    aria-label={`Quantity of ${choice.productName}`}
+                  />
+                </label>
+                <span />
+                <button
+                  type="button"
+                  className="secondary-button"
+                  onClick={() => setAdded(added.filter((entry) => entry !== choice))}
+                >
+                  Remove
+                </button>
+              </div>
+            ))}
+            <OrderItemPicker
+              disabled={disabled}
+              taken={
+                new Set([
+                  ...order.items.flatMap((item) => (item.variantId ? [item.variantId] : [])),
+                  ...added.map((choice) => choice.variantId),
+                ])
+              }
+              onPick={(choice) => setAdded([...added, choice])}
+            />
             <label>
               <span>Coupon code</span>
               <input

@@ -160,6 +160,36 @@ export const manualOrderResponseSchema = z.strictObject({
   replayed: z.boolean(),
 });
 
+// --- Item picker for manual orders and order edits (parity G-A1, ADR 0080) ---
+export const orderItemChoicesQuerySchema = z.strictObject({
+  /** Product name, brand or SKU; empty lists the first choices. */
+  q: z.string().trim().max(100).optional(),
+});
+/**
+ * Variants an order can take now: the store's visibility rule, an active variant and a price.
+ * The unit price is for display only; the server quote stays authoritative. Stock is shown as
+ * sold out or not, never as a count (that needs `inventory.read`).
+ */
+export const orderItemChoicesResponseSchema = z.strictObject({
+  items: z
+    .array(
+      z.strictObject({
+        variantId: z.uuid(),
+        productName: z.string().min(1).max(150),
+        brandName: z.string().min(1).max(150),
+        sku: z.string().min(1).max(64),
+        /** Option values in the product's option order, e.g. "Mint · 20 mg"; empty without options. */
+        options: z.string().max(400),
+        unitPriceFils: filsSchema,
+        soldOut: z.boolean(),
+      }),
+    )
+    .max(30),
+});
+export type OrderItemChoicesQuery = z.infer<typeof orderItemChoicesQuerySchema>;
+export type OrderItemChoicesResponse = z.infer<typeof orderItemChoicesResponseSchema>;
+export type OrderItemChoice = OrderItemChoicesResponse["items"][number];
+
 // --- Cancellation (roadmap step 86, ADR 0054) ---
 const returnItemSchema = z.strictObject({
   variantId: z.uuid(),

@@ -10,6 +10,7 @@ import {
 import {
   errorEnvelopeSchema,
   manualOrderResponseSchema,
+  orderItemChoicesResponseSchema,
   storeQuoteResponseSchema,
 } from "@ih/contracts";
 import { createDatabase, createPool, stockReconciliationMismatches } from "@ih/db";
@@ -441,5 +442,93 @@ describe("manual orders through the real API and PostgreSQL", () => {
         [placed.orderId],
       ),
     ).rejects.toThrow();
+  });
+
+  it("offers only orderable variants in the item picker, to staff who may create or edit orders", async () => {
+    const tag = "Picker" + randomUUID().slice(0, 8);
+    const brand = await db.brand.create({
+      data: { name: `${tag} Brand`, slug: key(), active: true },
+    });
+    const category = await db.category.create({
+      data: { name: "Picker category " + key(), slug: key(), active: true },
+    });
+    const product = (name: string, status = "published") =>
+      db.product.create({
+        data: {
+          name,
+          slug: key(),
+          brandId: brand.id,
+          categoryId: category.id,
+          type: "kit",
+          basePriceFils: 4900n,
+          status,
+        },
+      });
+    const mintPod = await product(`${tag} Pod`);
+    await db.productOption.createMany({
+      data: [
+        { productId: mintPod.id, name: "nicotine", allowedValues: ["20 mg"], sortOrder: 1 },
+        { productId: mintPod.id, name: "flavour", allowedValues: ["mint", "ice"], sortOrder: 0 },
+      ],
+    });
+    const make = (productId: string, attributes: Record<string, string>, active = true) =>
+      db.variant.create({
+        data: { productId, sku: key().slice(0, 20).toUpperCase(), attributes, active },
+      });
+    const mint = await make(mintPod.id, { flavour: "mint", nicotine: "20 mg" });
+    const retired = await make(mintPod.id, { flavour: "ice", nicotine: "20 mg" }, false);
+    await pool.query(
+      "INSERT INTO stock_movements (variant_id, delta, balance_after, reason, command_id) VALUES ($1, 4, 4, 'INITIAL_STOCK', $2)",
+      [mint.id, randomUUID()],
+    );
+    const draft = await make((await product(`${tag} Draft`, "draft")).id, {});
+    await db.variant.update({ where: { id: mint.id }, data: { priceOverrideFils: 4500n } });
+
+    const choices = async (q: string, cookie = staff) => {
+      const response = await send(`/item-choices?q=${encodeURIComponent(q)}`, "GET", null, cookie);
+      return { status: response.status, response };
+    };
+    const read = async (q: string) => {
+      const { status, response } = await choices(q);
+      expect(status).toBe(200);
+      expect(response.headers.get("cache-control")).toBe("no-store");
+      return orderItemChoicesResponseSchema.parse(await response.json()).items;
+    };
+    // Name, brand and SKU all match; the inactive variant and the draft product never do.
+    for (const q of [`${tag} pod`, `${tag} brand`, mint.sku.toLowerCase()])
+      expect((await read(q)).map((item) => item.variantId)).toEqual([mint.id]);
+    expect(await read(retired.sku)).toEqual([]);
+    expect(await read(draft.sku)).toEqual([]);
+    expect(await read("100%_")).toEqual([]);
+    expect((await read(tag))[0]).toEqual({
+      variantId: mint.id,
+      productName: `${tag} Pod`,
+      brandName: `${tag} Brand`,
+      sku: mint.sku,
+      options: "mint · 20 mg",
+      unitPriceFils: 4500,
+      soldOut: false,
+    });
+    // Never stocked: listed (stock does not unpublish) but marked sold out.
+    const empty = await make((await product(`${tag} Empty`)).id, {});
+    expect((await read(empty.sku))[0]).toMatchObject({ soldOut: true, options: "" });
+
+    // Either right opens the picker; neither refuses it.
+    await setPermission("orders.create", false);
+    try {
+      expect((await choices(tag)).status).toBe(200);
+      await setPermission("orders.edit", false);
+      expect((await choices(tag)).status).toBe(403);
+    } finally {
+      await setPermission("orders.create", true);
+      await setPermission("orders.edit", true);
+    }
+    expect(
+      (
+        await fetch(`${base}/v1/admin/orders/item-choices`, {
+          headers: { origin: ADMIN, "x-ih-client-ip": "192.0.2.249" },
+        })
+      ).status,
+    ).toBe(401);
   });
 });

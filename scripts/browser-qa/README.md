@@ -184,3 +184,18 @@ The pass covers:
 - **Errors:** no page errors.
 
 The storefront side of the policy is checked by `pnpm test:age-preview`.
+
+## Order item picker and returning customer (parity G-A1)
+
+With `qa-server.cjs` and the admin running as above:
+
+```sh
+QA_PLAYWRIGHT_DIR=/tmp/ih-qa node scripts/browser-qa/order-picker.mjs <SCHEMA>
+```
+
+It seeds a published pod with two flavours in stock and one sold out, an area and the fee. Staff
+then create a manual order for a new number: the lookup says "new customer", items come from the
+search (name, brand, SKU), and a sold-out or already added variant cannot be added. A second
+order for the same number, typed with a leading 0, finds the returning customer, fills the name
+and the saved address, and lands on the same customer. The order edit then adds a variant from
+the picker. It also checks the 390px layout and that there are no page errors.

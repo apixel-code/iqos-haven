@@ -1,4 +1,6 @@
 import { z } from "zod";
+/** One phone identity on both sides: the admin looks a customer up the way orders store it. */
+export { InvalidPhoneError, normalizePhone } from "@ih/domain";
 /** Stored customer phone identity. Typed input is normalized by `normalizePhone` first. */
 export const phoneE164Schema = z.string().regex(/^\+[1-9]\d{7,14}$/);
 export const customerAddressTypeSchema = z.enum(["apartment", "villa", "office"]);
@@ -69,6 +71,8 @@ export const adminCustomerResponseSchema = z.strictObject({
     .array(
       z.strictObject({
         id: z.uuid(),
+        /** So a manual order for a returning customer can start from this address. */
+        areaId: z.uuid(),
         areaName: z.string().min(1).max(100),
         emirate: z.string().min(1).max(16),
         type: customerAddressTypeSchema,

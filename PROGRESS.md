@@ -2,10 +2,10 @@
 
 ## Current position
 
-- Date: 2026-10-16
+- Date: 2026-10-17
 - Milestone: M7 — transactional checkout and first complete order: all steps (73–82) done; gate evidence ready, awaiting Marina's decision. M6: all steps (65–72) done; gate evidence ready, awaiting Marina's decision. M5: PASSED 2026-10-11. M4 steps done, gate awaits Marina's decision (publishing unblocked); M3 gate not closed; M0 review and M1 staging/fixtures still open
-- Step: 119 (selected-profile cache/limiter/replica verification) — done. M11 in progress (115–119 done). **All M10 steps (103–114) done; gate evidence ready, awaiting Marina's decision.** All M9 steps (93–102) done; gate evidence ready, awaiting Marina's decision. All M8 steps (83–92) done, gate awaiting Marina's decision.
-- Branch: `step/119-profile-verification` (pushed; PR #93 based on #92)
+- Step: parity gap **G-A1** (order item picker + returning-customer lookup, ADR 0080) — done, after step 119 (done). M11 in progress (115–119 done). **All M10 steps (103–114) done; gate evidence ready, awaiting Marina's decision.** All M9 steps (93–102) done; gate evidence ready, awaiting Marina's decision. All M8 steps (83–92) done, gate awaiting Marina's decision.
+- Branch: `parity/g-a1-order-picker` (from `step/119-profile-verification`; PR to open, based on #93)
 - See docs/verification.md for actual checks.
 
 ## Next action
@@ -23,7 +23,7 @@
 5. **Marina: decide the M8 gate.** Evidence: docs/verification.md "Step 92" (service-level journey from store order to collected cash, plus the HTTP suites for each route). Do not mark M8 passed without her decision.
 6. **Marina: decide the M9 gate.** Evidence: docs/verification.md "Step 102". Do not mark M9 passed without her decision.
 7. **Next work: the four tier-L parity gaps** — Marina's decision (2026-10-17): build Apixel's recommended launch set from `docs/parity-review.md` before step 120. One branch, PR and commit each, in this order:
-   1. **G-A1** — manual order and order edit: a product/variant picker instead of a typed variant ID, and a returning-customer lookup by phone in the manual order (`manual-order.tsx`, `OrderEditPanel`; ADR 0053/0056 deferred the picker).
+   1. ~~**G-A1**~~ — DONE 2026-10-17 (ADR 0080, branch `parity/g-a1-order-picker`). **Next: G-A2** on `parity/g-a2-deep-links`, branched from `parity/g-a1-order-picker`.
    2. **G-A2** — deep links: open one order (and product/variant) from the bell, dashboard, customer history and reviews; the orders list reads URL filters (pending, delayed) so dashboard links keep them.
    3. **G-S1** — storefront cart sheet after adding (lines, subtotal, checkout), mobile first (ADR 0031/0033 deferred it).
    4. **G-S4** — storefront mobile menu sheet with brands, saved items, compare, help and WhatsApp (ADR 0033).
@@ -149,6 +149,7 @@ BI-07: a verified sending domain and sender address are still needed before real
 - 104 — storefront telemetry queue (batches of 20, one retry, pause on overload, drop when full or on quiet pages), events from search/product page/cart/saved list, rotating anonymous ID, browser QA script (ADR 0070) — `step(104)` commit on `step/104-client-telemetry`
 - 105 — financial metric definitions (booked/delivered/collected, AOV, cancellation, status mix; Dubai days, AED fils, tax note) and the Owner's snapshot summary query (ADR 0071) — `step(105)` commit on `step/105-financial-metrics`
 - 106 — `sales_daily`, `product_sales_daily` (snapshot brand), `search_daily`, `wishlist_daily`; idempotent per-day rollup sharing the step 105 definitions; `analytics_rollup` consumer on order events (ADR 0072) — `step(106)` commit on `step/106-daily-rollups`
+- G-A1 — order item picker (`GET /v1/admin/orders/item-choices`, `orders.create` or `orders.edit` via new `@RequireAnyPermission`), returning-customer lookup by phone in the manual order (customer addresses carry `areaId`), fixed manual-order submission (stray top-level `areaId`), browser pass `order-picker.mjs` (ADR 0080) — parity/g-a1-order-picker
 - 119 — budget launch profile verified: config refuses more than one API process on the budget profile; real-API test with production profile settings (no cache Redis) shows in-process caching, TTL recovery without invalidation, a cold cache after restart, the local catalogue limiter (240/min, then 429 with Retry-After) and the strict sign-in limit — `step(119)` commit on `step/119-profile-verification`
 - 118 — security regression: coverage mapped for every step 118 condition and AGE/AUTH/RBAC/PRIV scenario; gaps closed (SSE ends with signed-out on real deactivation and role change — product fix in the stream —, age ticket refused on admin routes, legacy `co`/`lastOrder` cleanup unit-tested, logger redacts authorization and set-cookie, real admin sign-in through the gateway, exact export columns) — `step(118)` commit on `step/118-security-regression`
 - 117 — recovery drill on a real `order.created` (inbox, email, analytics): relay dies before enqueue, Redis loses every job, crash after provider acceptance, lease lost mid-send, dead effect and audited replay, duplicate deliveries — the shop hears once — `step(117)` commit on `step/117-recovery-drill`
@@ -191,36 +192,31 @@ BI-07: a verified sending domain and sender address are still needed before real
 - Event `consumers` lists only implemented consumers (now `system_probe`, `email`, `notification`, `media_processor`, `storefront_revalidate`); planned ones are documented with roadmap steps and move in with a backfill decision (architecture §8: adding a consumer must not redefine old completions).
 - `audit_log` migration revokes UPDATE/DELETE/TRUNCATE only from a role named `ih_app`; other runtime role names must be revoked at provisioning (trigger blocks mutations regardless).
 
-## Last session handoff (2026-10-17, step 119)
+## Last session handoff (2026-10-17, parity G-A1)
 
 Done:
 
-- **Step 119 (BI-06: Hostinger VPS, budget profile).** Existing unit suites already covered the parts:
-  - `cache.test.ts`: bounds, TTL ≤ 60 s, LRU, stale-load guard, bounded misses, shared backend and outage fallback;
-  - `rate-limit.test.ts`: key caps with a shared overflow ceiling, keyed hashes, auth fails closed, checkout local fallback with a per-process ceiling;
-  - `revalidate.int.test.ts`: post-commit and signed invalidation;
-  - per-instance budgets = cluster ÷ `RATE_LIMIT_MAX_REPLICAS` (`limit-policies.ts`);
-  - storefront fetches `no-store` (ESLint rule).
+- **G-A1 (ADR 0080).**
+  - **API:** `GET /v1/admin/orders/item-choices?q=` (`searchOrderItemChoices` in `packages/db/src/order-choices.ts`): ≤30 orderable variants (same rule as `priceRows`), match on name/brand/SKU, option label, display price, `soldOut` only.
+  - **Access:** new `@RequireAnyPermission` in `apps/api/src/auth/access.ts`; the route takes `orders.create` or `orders.edit`.
+  - **Admin:** the `OrderItemPicker` component replaces the typed variant IDs in the manual order and the order edit (the edit can add several items). The manual order gains "Find customer by phone" (with `customers.read`): exact E.164 match via `/customers?q=`, fills the name, and "Use this address" fills the area and address fields.
+  - **Contracts:** `normalizePhone` is re-exported from `@ih/contracts`; admin customer addresses now carry `areaId`.
+  - **Bug fixed:** manual order submission from the admin always failed validation (a stray top-level `areaId`); the browser pass caught it.
+- Parity review row marked DONE; verification record "Parity G-A1".
 
-  New:
-  - **Config guard:** the budget profile refuses `RATE_LIMIT_MAX_REPLICAS` ≠ 1, because a second process would have its own cache (local invalidation only) and its own limits. Unit tests; `.env.example` and `docs/environment.md` updated.
-  - **`apps/api/src/cache/budget-profile.int.test.ts`** (real API and PostgreSQL, production profile settings, no cache Redis, TTL 1 s):
-    - a change made behind the API is served from memory within the TTL and fresh after it, with no signal;
-    - a restarted API starts cold and current;
-    - one address gets exactly 240 catalogue reads a minute, then 429 with Retry-After, while another address is unaffected;
-    - the sign-in limit refuses the 11th attempt per identity and network.
+Files: `packages/contracts/src/{orders.ts,customers.ts}`, `packages/db/src/{order-choices.ts,customer-admin.ts,index.ts}`, `apps/api/src/auth/access.ts`, `apps/api/src/orders/{order-item-choices.controller.ts,orders.module.ts,manual-orders.int.test.ts}`, `apps/admin/components/{order-item-picker.tsx,manual-order.tsx,order-management.tsx}`, `apps/admin/app/globals.css`, `scripts/browser-qa/{order-picker.mjs,README.md}`, `docs/decisions/0080-order-item-picker-and-customer-lookup.md`, `docs/parity-review.md`, `docs/verification.md`
 
-Files: `packages/config/src/{index.ts,index.test.ts}`, `.env.example`, `docs/environment.md`, `apps/api/src/cache/budget-profile.int.test.ts`, `docs/verification.md`
-
-Tests: `pnpm verify` PASS (unit 637, age preview 2245). `pnpm test:int` PASS (649).
+Tests: `pnpm verify` PASS. `pnpm test:int` PASS (650). Browser pass `order-picker.mjs`: all PASS (schema dropped).
 
 Unfinished:
 
-- **Marina:** the M10 gate (and M4, M6–M9); which parity gaps to build before launch.
-- PRs #61 → … → #92 are stacked, step 119 is PR #93.
-- Steps 120 onwards largely need a staging host, real devices and provider inputs (BI-06 is answered; BI-07 and the real Owner are still needed).
+- Push `parity/g-a1-order-picker` and open its PR (based on #93), then start G-A2.
+- **Marina:** the M4 and M6–M10 gates; merging the stacked PRs #61 → #93.
+- Steps 120 onwards need a staging host, real devices and provider inputs.
 
 ## History (summary)
+
+- 2026-10-17 step 119: budget profile verified; config refuses >1 API process on budget, cache/limiter real-API test (PR #93); integration 649.
 
 - 2026-10-17 step 118: security regression gaps closed, SSE signed-out fix, admin sign-in through the gateway (PR #92); integration 645, gate 2586.
 

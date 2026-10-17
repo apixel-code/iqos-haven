@@ -171,6 +171,7 @@ export async function readAdminCustomer(
       const addresses = await tx.$queryRaw<
         Array<{
           id: string;
+          areaId: string;
           areaName: string;
           emirate: string;
           type: "apartment" | "villa" | "office";
@@ -182,7 +183,7 @@ export async function readAdminCustomer(
           createdAt: Date;
         }>
       >(Prisma.sql`
-        SELECT a.id, d.name AS "areaName", d.emirate, a.type, a.building, a.unit, a.street,
+        SELECT a.id, a.area_id AS "areaId", d.name AS "areaName", d.emirate, a.type, a.building, a.unit, a.street,
           a.makani, a.notes, a.created_at AS "createdAt"
         FROM customer_addresses a JOIN delivery_areas d ON d.id=a.area_id
         WHERE a.customer_id=${customerId}::uuid
