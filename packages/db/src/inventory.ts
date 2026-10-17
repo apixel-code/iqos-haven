@@ -105,6 +105,7 @@ export async function listInventory(db: Database, actorId: string, input: Invent
   await lockCatalogueActor(db, actorId, ["inventory.read"], false);
   const filters = [Prisma.sql`p.deleted_at IS NULL`];
   if (query.productId) filters.push(Prisma.sql`p.id=${query.productId}::uuid`);
+  if (query.variantId) filters.push(Prisma.sql`v.id=${query.variantId}::uuid`);
   if (query.q)
     filters.push(Prisma.sql`(v.sku ILIKE ${like(query.q)} OR p.name ILIKE ${like(query.q)})`);
   if (query.state === "out") filters.push(Prisma.sql`v.stock_on_hand=0`);

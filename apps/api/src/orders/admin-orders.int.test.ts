@@ -218,6 +218,33 @@ describe("admin order list and snapshot detail through the real API and PostgreS
     expect(confirmed.items[0]).toMatchObject({ itemCount: 1, customer: { name: "Seed Customer" } });
   });
 
+  it("lists only delayed open orders with the dashboard's rule (deep links, parity G-A2)", async () => {
+    const late = await seedOrder(pool);
+    const lateConfirmed = await seedOrder(pool, { status: "confirmed" });
+    // Pending over 2 h is delayed; confirmed at 2.5 h is not yet (3 h).
+    // Placement time is immutable; only this fixture steps around the guard trigger.
+    await pool.query("ALTER TABLE orders DISABLE TRIGGER USER");
+    try {
+      await pool.query(
+        "UPDATE orders SET created_at=now() - interval '150 minutes' WHERE id=ANY($1)",
+        [[late.orderId, lateConfirmed.orderId]],
+      );
+    } finally {
+      await pool.query("ALTER TABLE orders ENABLE TRIGGER USER");
+    }
+    const response = await call("?delayed=true&limit=100");
+    expect(response.status).toBe(200);
+    const ids = adminOrdersResponseSchema.parse(await response.json()).items.map((item) => item.id);
+    expect(ids).toContain(late.orderId);
+    expect(ids).not.toContain(lateConfirmed.orderId);
+    expect(ids).not.toContain(second.orderId);
+    const confirmedOnly = adminOrdersResponseSchema.parse(
+      await (await call("?delayed=true&status=confirmed")).json(),
+    );
+    expect(confirmedOnly.items.map((item) => item.id)).not.toContain(late.orderId);
+    expect((await call("?delayed=yes")).status).toBe(400);
+  });
+
   it("returns immutable customer, address, item, amount and append-only history snapshots", async () => {
     const byNumber = adminOrdersResponseSchema.parse(
       await (await call("?q=" + first.orderNumber)).json(),

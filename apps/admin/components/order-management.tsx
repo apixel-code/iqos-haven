@@ -26,6 +26,7 @@ import {
   type ReviewLinkResponse,
 } from "@ih/contracts";
 import { ApiError } from "../lib/auth";
+import { isUuid } from "../lib/links";
 import { managementError, managementRequest, validate } from "../lib/management";
 import {
   addressLine,
@@ -40,6 +41,7 @@ import {
 import { ManualOrderPanel } from "./manual-order";
 import { choiceLabel, OrderItemPicker } from "./order-item-picker";
 import { ResourceNotice, useManagementResource } from "./management-resource";
+import { useUrlQuery } from "./use-url-query";
 
 const STATUSES = [
   "all",
@@ -71,12 +73,21 @@ export function OrderManagement({
   canCollect: boolean;
   canCorrect: boolean;
 }) {
-  const [status, setStatus] = useState<(typeof STATUSES)[number]>("all");
+  // The open order and the status/delayed filters live in the URL (parity G-A2), so a link from
+  // the bell, the dashboard, a customer or a review opens exactly that view, and Back works.
+  const { get: query, navigate } = useUrlQuery();
+  const urlStatus = query("status");
+  const status = STATUSES.find((value) => value === urlStatus) ?? "all";
+  const setStatus = (value: (typeof STATUSES)[number]) =>
+    navigate({ status: value === "all" ? null : value });
+  const delayed = query("delayed") === "1";
+  const urlOrder = query("order");
+  const selected = isUuid(urlOrder) ? urlOrder : null;
+  const setSelected = (id: string | null) => navigate({ order: id }, true);
   const [search, setSearch] = useState("");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [cursors, setCursors] = useState<string[]>([]);
-  const [selected, setSelected] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   // Bulk confirm (step 89): chosen Pending orders with the version seen and one command ID each.
   // An unclear answer keeps the same batch, so "Retry" replays instead of confirming twice.
@@ -133,9 +144,17 @@ export function OrderManagement({
   }
   const params = new URLSearchParams({ limit: "25" });
   if (status !== "all") params.set("status", status);
+  if (delayed) params.set("delayed", "true");
   if (search) params.set("q", search);
   if (from) params.set("from", new Date(from).toISOString());
   if (to) params.set("to", new Date(to).toISOString());
+  // A link can change the filters while this list is open: start again from the first page.
+  const filterScope = `${status}|${delayed}`;
+  const [pagedScope, setPagedScope] = useState(filterScope);
+  if (pagedScope !== filterScope) {
+    setPagedScope(filterScope);
+    setCursors([]);
+  }
   const cursor = cursors.at(-1);
   if (cursor) params.set("after", cursor);
   const orders = useManagementResource(`/orders?${params}`, adminOrdersResponseSchema);
@@ -201,6 +220,17 @@ export function OrderManagement({
             {value === "all" ? "All" : ORDER_STATUS_LABELS[value]}
           </button>
         ))}
+        <button
+          type="button"
+          className="secondary-button"
+          aria-pressed={delayed}
+          onClick={() => {
+            navigate({ delayed: delayed ? null : "1" });
+            resetPage();
+          }}
+        >
+          Delayed only
+        </button>
       </div>
       <form
         key={`${search}|${from}|${to}`}
@@ -237,7 +267,7 @@ export function OrderManagement({
               setSearch("");
               setFrom("");
               setTo("");
-              setStatus("all");
+              navigate({ status: null, delayed: null });
               resetPage();
             }}
           >

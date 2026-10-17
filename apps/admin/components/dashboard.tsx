@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { adminDashboardSchema, type AdminDashboard } from "@ih/contracts";
+import { orderHref, ordersHref, productHref, variantStockHref } from "../lib/links";
 import { money, ORDER_STATUS_LABELS } from "../lib/orders";
 
 type Load = { state: "loading" } | { state: "failed" } | { state: "ready"; data: AdminDashboard };
@@ -59,11 +60,19 @@ export function Dashboard() {
   const { orders, stock, reviews, sales, topProducts } = data;
   const attention = [
     orders?.open.pending
-      ? { href: "/workspace/orders", text: `${orders.open.pending} pending to confirm` }
+      ? {
+          href: ordersHref({ status: "pending" }),
+          text: `${orders.open.pending} pending to confirm`,
+        }
       : null,
-    orders?.delayed ? { href: "/workspace/orders", text: `${orders.delayed} delayed` } : null,
+    orders?.delayed
+      ? { href: ordersHref({ delayed: true }), text: `${orders.delayed} delayed` }
+      : null,
     stock && stock.low + stock.out
-      ? { href: "/workspace/inventory", text: `${stock.low + stock.out} low or out of stock` }
+      ? {
+          href: "/workspace/inventory?state=low",
+          text: `${stock.low + stock.out} low or out of stock`,
+        }
       : null,
     reviews?.pending
       ? { href: "/workspace/reviews", text: `${reviews.pending} reviews to moderate` }
@@ -110,7 +119,7 @@ export function Dashboard() {
                 ? `${orders.delayed} open orders waiting too long`
                 : "Need confirmation"
             }
-            href="/workspace/orders"
+            href={ordersHref({ status: "pending" })}
           />
           <Kpi
             label="Confirmed or processing"
@@ -122,7 +131,7 @@ export function Dashboard() {
             label="Out for delivery"
             value={orders.open.outForDelivery}
             foot="With the courier"
-            href="/workspace/orders"
+            href={ordersHref({ status: "out_for_delivery" })}
           />
         </div>
       )}
@@ -176,7 +185,10 @@ export function Dashboard() {
                 <ul className="dashboard-list">
                   {stock.items.map((item) => (
                     <li key={item.variantId}>
-                      <b>{item.productName}</b> <span className="muted small">{item.sku}</span>
+                      <Link href={variantStockHref(item.variantId)}>
+                        <b>{item.productName}</b>
+                      </Link>{" "}
+                      <span className="muted small">{item.sku}</span>
                       <br />
                       <span className={item.stock <= 0 ? "stock-out" : "stock-low"}>
                         {item.stock <= 0 ? "Out of stock" : `${item.stock} left`}
@@ -207,7 +219,10 @@ export function Dashboard() {
             <ol className="dashboard-list">
               {topProducts.items.map((item) => (
                 <li key={item.productId}>
-                  <b>{item.name}</b> · {item.units} {item.units === 1 ? "unit" : "units"}
+                  <Link href={productHref(item.productId)}>
+                    <b>{item.name}</b>
+                  </Link>{" "}
+                  · {item.units} {item.units === 1 ? "unit" : "units"}
                   {item.netFils !== null && (
                     <span className="muted small"> · {money(item.netFils)}</span>
                   )}
@@ -262,7 +277,9 @@ function OrderList({ lines, now, empty }: { lines: OrderLine[]; now: string; emp
     <ul className="dashboard-list">
       {lines.map((line) => (
         <li key={line.id}>
-          <b>{line.orderNumber}</b>
+          <Link href={orderHref(line.id)}>
+            <b>{line.orderNumber}</b>
+          </Link>
           {line.customerName ? ` · ${line.customerName}` : ""}{" "}
           <span className={`order-status status-${line.status}`}>
             {ORDER_STATUS_LABELS[line.status] ?? line.status}

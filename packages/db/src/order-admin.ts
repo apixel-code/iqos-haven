@@ -7,6 +7,7 @@ import {
 } from "@ih/contracts";
 import { formatOrderNumber, parseOrderNumber } from "@ih/domain";
 import { Prisma, type Database, type Tx } from "./client";
+import { DELAYED_ORDER } from "./dashboard";
 
 export class OrderReadForbiddenError extends Error {}
 export class AdminOrderNotFoundError extends Error {}
@@ -78,6 +79,7 @@ export async function listAdminOrders(db: Database, actorId: string, input: Admi
   const access = await actorAccess(db, actorId);
   const filters: Prisma.Sql[] = [];
   if (query.status) filters.push(Prisma.sql`o.status=${query.status}`);
+  if (query.delayed === "true") filters.push(DELAYED_ORDER);
   if (query.from) filters.push(Prisma.sql`o.created_at>=${new Date(query.from)}`);
   if (query.to) filters.push(Prisma.sql`o.created_at<${new Date(query.to)}`);
   if (query.q) {

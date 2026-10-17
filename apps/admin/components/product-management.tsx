@@ -13,7 +13,9 @@ import {
 import { slugify } from "../lib/catalogue";
 import { filsToAed, managementRequest, type ResponseContract } from "../lib/management";
 import { formatExtraSpecs, productCreateCommand, productUpdateCommand } from "../lib/products";
+import { isUuid } from "../lib/links";
 import { ResourceNotice, useManagementResource } from "./management-resource";
+import { useUrlQuery } from "./use-url-query";
 import { ProductVariants } from "./product-variants";
 import { ProductImages } from "./product-images";
 import { ProductPublishing } from "./product-publishing";
@@ -33,7 +35,15 @@ const NEW_PRODUCT: ResponseContract<ProductResponse | null> = { parse: () => nul
 export function ProductManagement({ permissions }: { permissions: readonly string[] }) {
   const canWrite = permissions.includes("catalog.write");
   const canSeo = permissions.includes("seo.write");
-  const [editing, setEditing] = useState<string | "new" | null>(null);
+  // An existing product opens from the URL (`?product=`, parity G-A2); a new one is local.
+  const { get, navigate } = useUrlQuery();
+  const [creating, setCreating] = useState(false);
+  const urlProduct = get("product");
+  const editing: string | "new" | null = creating ? "new" : isUuid(urlProduct) ? urlProduct : null;
+  const setEditing = (id: string | "new" | null) => {
+    setCreating(id === "new");
+    if (id !== "new") navigate({ product: id }, true);
+  };
   if (editing)
     return (
       <ProductEditor

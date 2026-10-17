@@ -4,8 +4,8 @@
 
 - Date: 2026-10-17
 - Milestone: M7 — transactional checkout and first complete order: all steps (73–82) done; gate evidence ready, awaiting Marina's decision. M6: all steps (65–72) done; gate evidence ready, awaiting Marina's decision. M5: PASSED 2026-10-11. M4 steps done, gate awaits Marina's decision (publishing unblocked); M3 gate not closed; M0 review and M1 staging/fixtures still open
-- Step: parity gap **G-A1** (order item picker + returning-customer lookup, ADR 0080) — done, after step 119 (done). M11 in progress (115–119 done). **All M10 steps (103–114) done; gate evidence ready, awaiting Marina's decision.** All M9 steps (93–102) done; gate evidence ready, awaiting Marina's decision. All M8 steps (83–92) done, gate awaiting Marina's decision.
-- Branch: `parity/g-a1-order-picker` (from `step/119-profile-verification`; PR #94 based on #93)
+- Step: parity gaps **G-A1** (ADR 0080) and **G-A2** (admin deep links, ADR 0081) — done, after step 119 (done). Next: G-S1.
+- Branch: `parity/g-a2-deep-links` (from `parity/g-a1-order-picker`; PR to open, based on #94)
 - See docs/verification.md for actual checks.
 
 ## Next action
@@ -23,8 +23,8 @@
 5. **Marina: decide the M8 gate.** Evidence: docs/verification.md "Step 92" (service-level journey from store order to collected cash, plus the HTTP suites for each route). Do not mark M8 passed without her decision.
 6. **Marina: decide the M9 gate.** Evidence: docs/verification.md "Step 102". Do not mark M9 passed without her decision.
 7. **Next work: the four tier-L parity gaps** — Marina's decision (2026-10-17): build Apixel's recommended launch set from `docs/parity-review.md` before step 120. One branch, PR and commit each, in this order:
-   1. ~~**G-A1**~~ — DONE 2026-10-17 (ADR 0080, branch `parity/g-a1-order-picker`). **Next: G-A2** on `parity/g-a2-deep-links`, branched from `parity/g-a1-order-picker`.
-   2. **G-A2** — deep links: open one order (and product/variant) from the bell, dashboard, customer history and reviews; the orders list reads URL filters (pending, delayed) so dashboard links keep them.
+   1. ~~**G-A1**~~ — DONE 2026-10-17 (ADR 0080, PR #94).
+   2. ~~**G-A2**~~ — DONE 2026-10-17 (ADR 0081, branch `parity/g-a2-deep-links`). **Next: G-S1** on `parity/g-s1-cart-sheet`, branched from `parity/g-a2-deep-links`.
    3. **G-S1** — storefront cart sheet after adding (lines, subtotal, checkout), mobile first (ADR 0031/0033 deferred it).
    4. **G-S4** — storefront mobile menu sheet with brands, saved items, compare, help and WhatsApp (ADR 0033).
       Each: look up the prototype symbols in `docs/prototype-map.md` (or the `prototype-reader` subagent), add or extend a browser pass in `scripts/browser-qa/`, `/verify`, then mark the gap DONE in `docs/parity-review.md`. Branch names `parity/g-a1-order-picker` etc., each from the latest pushed branch.
@@ -149,6 +149,7 @@ BI-07: a verified sending domain and sender address are still needed before real
 - 104 — storefront telemetry queue (batches of 20, one retry, pause on overload, drop when full or on quiet pages), events from search/product page/cart/saved list, rotating anonymous ID, browser QA script (ADR 0070) — `step(104)` commit on `step/104-client-telemetry`
 - 105 — financial metric definitions (booked/delivered/collected, AOV, cancellation, status mix; Dubai days, AED fils, tax note) and the Owner's snapshot summary query (ADR 0071) — `step(105)` commit on `step/105-financial-metrics`
 - 106 — `sales_daily`, `product_sales_daily` (snapshot brand), `search_daily`, `wishlist_daily`; idempotent per-day rollup sharing the step 105 definitions; `analytics_rollup` consumer on order events (ADR 0072) — `step(106)` commit on `step/106-daily-rollups`
+- G-A2 — admin deep links: URL-held view state (`useUrlQuery`; orders `order`/`status`/`delayed`, products `product`, inventory `variant`/`state`, customers `customer`), `delayed=true` orders filter on the shared `DELAYED_ORDER` rule, inventory `variantId`, links from bell, inbox, dashboard, customer history and reviews, browser pass `deep-links.mjs` (ADR 0081) — parity/g-a2-deep-links
 - G-A1 — order item picker (`GET /v1/admin/orders/item-choices`, `orders.create` or `orders.edit` via new `@RequireAnyPermission`), returning-customer lookup by phone in the manual order (customer addresses carry `areaId`), fixed manual-order submission (stray top-level `areaId`), browser pass `order-picker.mjs` (ADR 0080) — parity/g-a1-order-picker
 - 119 — budget launch profile verified: config refuses more than one API process on the budget profile; real-API test with production profile settings (no cache Redis) shows in-process caching, TTL recovery without invalidation, a cold cache after restart, the local catalogue limiter (240/min, then 429 with Retry-After) and the strict sign-in limit — `step(119)` commit on `step/119-profile-verification`
 - 118 — security regression: coverage mapped for every step 118 condition and AGE/AUTH/RBAC/PRIV scenario; gaps closed (SSE ends with signed-out on real deactivation and role change — product fix in the stream —, age ticket refused on admin routes, legacy `co`/`lastOrder` cleanup unit-tested, logger redacts authorization and set-cookie, real admin sign-in through the gateway, exact export columns) — `step(118)` commit on `step/118-security-regression`
@@ -192,29 +193,31 @@ BI-07: a verified sending domain and sender address are still needed before real
 - Event `consumers` lists only implemented consumers (now `system_probe`, `email`, `notification`, `media_processor`, `storefront_revalidate`); planned ones are documented with roadmap steps and move in with a backfill decision (architecture §8: adding a consumer must not redefine old completions).
 - `audit_log` migration revokes UPDATE/DELETE/TRUNCATE only from a role named `ih_app`; other runtime role names must be revoked at provisioning (trigger blocks mutations regardless).
 
-## Last session handoff (2026-10-17, parity G-A1)
+## Last session handoff (2026-10-17, parity G-A1 + G-A2)
 
 Done:
 
-- **G-A1 (ADR 0080).**
-  - **API:** `GET /v1/admin/orders/item-choices?q=` (`searchOrderItemChoices` in `packages/db/src/order-choices.ts`): ≤30 orderable variants (same rule as `priceRows`), match on name/brand/SKU, option label, display price, `soldOut` only.
-  - **Access:** new `@RequireAnyPermission` in `apps/api/src/auth/access.ts`; the route takes `orders.create` or `orders.edit`.
-  - **Admin:** the `OrderItemPicker` component replaces the typed variant IDs in the manual order and the order edit (the edit can add several items). The manual order gains "Find customer by phone" (with `customers.read`): exact E.164 match via `/customers?q=`, fills the name, and "Use this address" fills the area and address fields.
-  - **Contracts:** `normalizePhone` is re-exported from `@ih/contracts`; admin customer addresses now carry `areaId`.
-  - **Bug fixed:** manual order submission from the admin always failed validation (a stray top-level `areaId`); the browser pass caught it.
-- Parity review row marked DONE; verification record "Parity G-A1".
+- **G-A1 (ADR 0080, PR #94):** order item picker, returning-customer lookup, and the fix for manual order submission. Details in docs/verification.md "Parity G-A1".
+- **G-A2 (ADR 0081):**
+  - **View state in the URL:** the `useUrlQuery` hook (`apps/admin/components/use-url-query.ts`) keeps the open order, product, stock line and customer, plus the order status/delayed and inventory state filters. Opening a record pushes history; a filter replaces it.
+  - **Link building:** `apps/admin/lib/links.ts` builds every link and maps notification paths, putting only UUIDs into a link.
+  - **API:** `GET /v1/admin/orders?delayed=true` on the shared `DELAYED_ORDER` (exported from `packages/db/src/dashboard.ts`); `GET /v1/admin/inventory?variantId=`.
+  - **Links now point at the exact record or list** from the bell, inbox, dashboard (pending, delayed, out for delivery, recent and attention orders, low stock, top products), customer history and reviews.
+  - A "Delayed only" toggle sits next to the status tabs.
 
-Files: `packages/contracts/src/{orders.ts,customers.ts}`, `packages/db/src/{order-choices.ts,customer-admin.ts,index.ts}`, `apps/api/src/auth/access.ts`, `apps/api/src/orders/{order-item-choices.controller.ts,orders.module.ts,manual-orders.int.test.ts}`, `apps/admin/components/{order-item-picker.tsx,manual-order.tsx,order-management.tsx}`, `apps/admin/app/globals.css`, `scripts/browser-qa/{order-picker.mjs,README.md}`, `docs/decisions/0080-order-item-picker-and-customer-lookup.md`, `docs/parity-review.md`, `docs/verification.md`
+Files (G-A2): `packages/contracts/src/{orders.ts,inventory.ts}`, `packages/db/src/{dashboard.ts,order-admin.ts,inventory.ts}`, `apps/api/src/orders/admin-orders.int.test.ts`, `apps/api/src/inventory/inventory.int.test.ts`, `apps/admin/lib/{links.ts,links.test.ts}`, `apps/admin/components/{use-url-query.ts,order-management.tsx,product-management.tsx,inventory-management.tsx,customer-management.tsx,review-management.tsx,notification-bell.tsx,notification-inbox.tsx,dashboard.tsx,workspace-section.tsx}`, `scripts/browser-qa/{deep-links.mjs,README.md}`, `docs/decisions/0081-admin-deep-links.md`, `docs/parity-review.md`, `docs/verification.md`
 
-Tests: `pnpm verify` PASS. `pnpm test:int` PASS (650). Browser pass `order-picker.mjs`: all PASS (schema dropped).
+Tests: `pnpm verify` PASS (admin unit 60). `pnpm test:int` PASS (651). Browser passes `deep-links.mjs` and `order-picker.mjs`: all PASS (schema dropped).
 
 Unfinished:
 
-- PR #94 is open (based on #93). Next: start G-A2.
-- **Marina:** the M4 and M6–M10 gates; merging the stacked PRs #61 → #93.
+- Push `parity/g-a2-deep-links` and open its PR on #94; then G-S1 (storefront cart sheet), then G-S4.
+- **Marina:** the M4 and M6–M10 gates; merging the stacked PRs #61 → #94.
 - Steps 120 onwards need a staging host, real devices and provider inputs.
 
 ## History (summary)
+
+- 2026-10-17 parity G-A1: order item picker, phone lookup, manual-order submission fix (PR #94); integration 650.
 
 - 2026-10-17 step 119: budget profile verified; config refuses >1 API process on budget, cache/limiter real-API test (PR #93); integration 649.
 

@@ -268,6 +268,8 @@ const boundedInstant = z.iso.datetime({ offset: true });
 export const adminOrdersQuerySchema = z
   .strictObject({
     status: adminOrderStatusSchema.optional(),
+    /** Only open orders waiting too long (the dashboard's "delayed" rule, ADR 0074). */
+    delayed: z.literal("true").optional(),
     from: boundedInstant.optional(),
     to: boundedInstant.optional(),
     q: z.string().trim().min(1).max(100).optional(),

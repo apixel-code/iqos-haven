@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { notificationDestination } from "../lib/links";
 import { useCallback, useEffect, useState } from "react";
 import {
   inboxResponseSchema,
@@ -103,21 +104,16 @@ export function NotificationBell({ onSignedOut }: { onSignedOut: () => void }) {
                       {item.body} · {when(item.createdAt)}
                     </small>
                     <span>
-                      {item.link?.startsWith("/orders/") && (
-                        <Link href="/workspace/orders" onClick={() => setOpen(false)}>
-                          Open orders
-                        </Link>
-                      )}
-                      {item.link?.startsWith("/inventory/") && (
-                        <Link href="/workspace/inventory" onClick={() => setOpen(false)}>
-                          Open inventory
-                        </Link>
-                      )}
-                      {item.link === "/reviews" && (
-                        <Link href="/workspace/reviews" onClick={() => setOpen(false)}>
-                          Open reviews
-                        </Link>
-                      )}{" "}
+                      {(() => {
+                        const target = notificationDestination(item.link);
+                        return (
+                          target && (
+                            <Link href={target.href} onClick={() => setOpen(false)}>
+                              {target.label}
+                            </Link>
+                          )
+                        );
+                      })()}{" "}
                       {!item.readAt && (
                         <button
                           type="button"

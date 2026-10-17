@@ -1,8 +1,11 @@
 "use client";
+import Link from "next/link";
 import { useState } from "react";
 import { adminCustomerResponseSchema, adminCustomersResponseSchema } from "@ih/contracts";
+import { isUuid, orderHref } from "../lib/links";
 import { COD_STATUS_LABELS, money, ORDER_STATUS_LABELS, when } from "../lib/orders";
 import { ResourceNotice, useManagementResource } from "./management-resource";
+import { useUrlQuery } from "./use-url-query";
 
 /**
  * Customers (roadmap step 90, ADR 0058). No accounts: a customer is a phone number and the
@@ -12,7 +15,11 @@ import { ResourceNotice, useManagementResource } from "./management-resource";
 export function CustomerManagement() {
   const [search, setSearch] = useState("");
   const [cursors, setCursors] = useState<string[]>([]);
-  const [selected, setSelected] = useState<string | null>(null);
+  // The open customer lives in the URL (`?customer=`, parity G-A2).
+  const { get, navigate } = useUrlQuery();
+  const urlCustomer = get("customer");
+  const selected = isUuid(urlCustomer) ? urlCustomer : null;
+  const setSelected = (id: string | null) => navigate({ customer: id }, true);
   const params = new URLSearchParams({ limit: "25" });
   if (search) params.set("q", search);
   const cursor = cursors.at(-1);
@@ -213,7 +220,9 @@ function CustomerDetail({ id, onBack }: { id: string; onBack: () => void }) {
                 <tbody>
                   {data.orders.map((order) => (
                     <tr key={order.id}>
-                      <td className="mono">{order.orderNumber}</td>
+                      <td className="mono">
+                        <Link href={orderHref(order.id)}>{order.orderNumber}</Link>
+                      </td>
                       <td>{when(order.createdAt)}</td>
                       <td>{money(order.totalFils)}</td>
                       <td>{COD_STATUS_LABELS[order.codStatus]}</td>

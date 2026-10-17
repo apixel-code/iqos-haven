@@ -59,6 +59,8 @@ export const inventoryItemSchema = z.strictObject({
 });
 export const inventoryQuerySchema = z.strictObject({
   productId: z.uuid().optional(),
+  /** One variant, e.g. from a low-stock notification (parity G-A2). */
+  variantId: z.uuid().optional(),
   state: stockStateSchema.optional(),
   /** SKU or product name, matched literally. */
   q: catalogueText(1, 100).optional(),

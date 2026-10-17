@@ -13,7 +13,8 @@ import { readSalesDays, type SalesDay } from "./daily-summary";
 
 export class DashboardForbiddenError extends Error {}
 
-const DELAYED = Prisma.sql`(
+/** An open order waiting too long (BI-14 defaults); the orders list filters by the same rule. */
+export const DELAYED_ORDER = Prisma.sql`(
   (o.status='pending'
     AND o.created_at < now() - make_interval(mins => ${DELAYED_AFTER_MINUTES.pending}::int))
   OR (o.status IN ('confirmed','processing')
@@ -29,7 +30,7 @@ interface OrderRow {
   customerName: string;
 }
 const ORDER_COLUMNS = Prisma.sql`o.id, o.order_number::text AS "orderNumber", o.status,
-  o.created_at AS "createdAt", ${DELAYED} AS delayed, o.total_fils AS "totalFils",
+  o.created_at AS "createdAt", ${DELAYED_ORDER} AS delayed, o.total_fils AS "totalFils",
   o.customer_name AS "customerName"`;
 
 /**
@@ -98,7 +99,7 @@ async function orderSection(tx: Tx, now: Date, today: string, names: boolean) {
       count(*) FILTER (WHERE o.status='confirmed')::int AS confirmed,
       count(*) FILTER (WHERE o.status='processing')::int AS processing,
       count(*) FILTER (WHERE o.status='out_for_delivery')::int AS "outForDelivery",
-      count(*) FILTER (WHERE ${DELAYED})::int AS delayed,
+      count(*) FILTER (WHERE ${DELAYED_ORDER})::int AS delayed,
       (SELECT count(*)::int FROM orders t WHERE t.created_at >= ${start}::timestamptz)
         AS "placedToday",
       (SELECT count(*)::int FROM orders y WHERE y.created_at >= ${yesterdayStart}::timestamptz
@@ -107,7 +108,7 @@ async function orderSection(tx: Tx, now: Date, today: string, names: boolean) {
     WHERE o.status IN ('pending','confirmed','processing','out_for_delivery')`);
   const attention = await tx.$queryRaw<OrderRow[]>(Prisma.sql`
     SELECT ${ORDER_COLUMNS} FROM orders o
-    WHERE o.status='pending' OR ${DELAYED}
+    WHERE o.status='pending' OR ${DELAYED_ORDER}
     ORDER BY o.created_at, o.id LIMIT 5`);
   const recent = await tx.$queryRaw<OrderRow[]>(Prisma.sql`
     SELECT ${ORDER_COLUMNS} FROM orders o ORDER BY o.created_at DESC, o.id DESC LIMIT 7`);

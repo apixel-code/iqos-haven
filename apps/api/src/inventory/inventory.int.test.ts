@@ -284,6 +284,9 @@ describe("stock ledger and inventory through the real API and PostgreSQL", () =>
       items: InventoryItem[];
     };
     expect(bySku.items.map((i) => i.variantId)).toEqual([plenty.id]);
+    // One variant, as a low-stock notification links to it (parity G-A2).
+    const one = (await (await call(`?variantId=${low.id}`)).json()) as { items: InventoryItem[] };
+    expect(one.items.map((i) => i.variantId)).toEqual([low.id]);
     const seen: string[] = [];
     let cursor: string | null = null;
     do {

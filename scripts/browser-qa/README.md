@@ -199,3 +199,17 @@ search (name, brand, SKU), and a sold-out or already added variant cannot be add
 order for the same number, typed with a leading 0, finds the returning customer, fills the name
 and the saved address, and lands on the same customer. The order edit then adds a variant from
 the picker. It also checks the 390px layout and that there are no page errors.
+
+## Admin deep links (parity G-A2)
+
+With `qa-server.cjs` and the admin running as above:
+
+```sh
+QA_PLAYWRIGHT_DIR=/tmp/ih-qa node scripts/browser-qa/deep-links.mjs <SCHEMA>
+```
+
+It seeds a delayed and a fresh pending order, a confirmed order, a low-stock line on a product
+on sale, and two notifications for the Owner. It then follows each link: an order URL (reload
+and Back included), the dashboard's pending, delayed, recent-order and low-stock links, the bell,
+the inbox, a customer's history and a product URL. Each must open that one record or a correctly
+filtered list. A malformed ID falls back to the list, and there must be no page errors.

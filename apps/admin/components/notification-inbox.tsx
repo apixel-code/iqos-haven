@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { notificationDestination } from "../lib/links";
 import { useCallback, useEffect, useState } from "react";
 import {
   inboxResponseSchema,
@@ -23,15 +24,6 @@ async function call<T>(
   });
   if (!response.ok) throw new Error(String(response.status));
   return schema.parse(await response.json());
-}
-
-/** Where a notification's link leads in this admin (the inbox stores API-side paths). */
-function destination(link: string | null): { href: string; label: string } | null {
-  if (link?.startsWith("/orders/")) return { href: "/workspace/orders", label: "Open orders" };
-  if (link?.startsWith("/inventory/"))
-    return { href: "/workspace/inventory", label: "Open inventory" };
-  if (link === "/reviews") return { href: "/workspace/reviews", label: "Open reviews" };
-  return null;
 }
 
 /**
@@ -121,7 +113,7 @@ export function NotificationInbox() {
       {items && items.length > 0 && (
         <ul className="record-list">
           {items.map((item) => {
-            const target = destination(item.link);
+            const target = notificationDestination(item.link);
             return (
               <li key={item.id} className="record-card">
                 <strong>

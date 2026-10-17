@@ -1,10 +1,12 @@
 "use client";
+import Link from "next/link";
 import { useState } from "react";
 import {
   adminReviewsResponseSchema,
   reviewModerationResponseSchema,
   type AdminReview,
 } from "@ih/contracts";
+import { orderHref, productHref } from "../lib/links";
 import { managementRequest } from "../lib/management";
 import { when } from "../lib/orders";
 import { ResourceNotice, useManagementResource } from "./management-resource";
@@ -28,7 +30,13 @@ const stars = (rating: number) => "★".repeat(rating) + "☆".repeat(5 - rating
  * hidden until approved; rejecting hides one, also after approval. There is no delete: a
  * review is kept as a record. Each decision is made on the version shown.
  */
-export function ReviewManagement({ canOpenOrders }: { canOpenOrders: boolean }) {
+export function ReviewManagement({
+  canOpenOrders,
+  canOpenProducts,
+}: {
+  canOpenOrders: boolean;
+  canOpenProducts: boolean;
+}) {
   const [tab, setTab] = useState<Tab>("pending");
   const [productId, setProductId] = useState("");
   const [rating, setRating] = useState("");
@@ -150,12 +158,19 @@ export function ReviewManagement({ canOpenOrders }: { canOpenOrders: boolean }) 
                   </header>
                   <p className="review-body">{review.body}</p>
                   <p className="muted small">
-                    {review.product.name} · {review.authorName} · {when(review.createdAt)}
+                    {canOpenProducts ? (
+                      <Link href={productHref(review.product.id)}>{review.product.name}</Link>
+                    ) : (
+                      review.product.name
+                    )}{" "}
+                    · {review.authorName} · {when(review.createdAt)}
                     {review.verified && " · ✓ Verified order"}
                     {canOpenOrders && review.order && (
                       <>
                         {" "}
-                        <span className="mono">{review.order.orderNumber}</span>
+                        <Link className="mono" href={orderHref(review.order.id)}>
+                          {review.order.orderNumber}
+                        </Link>
                       </>
                     )}
                   </p>

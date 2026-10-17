@@ -2221,3 +2221,17 @@ Not covered:
 
 - Real mobile touch and screen reader use of the picker list.
 - More than 30 matches: staff narrow the search, and there is no paging.
+
+## Parity G-A2 — admin deep links (2026-10-17, local)
+
+ADR 0081.
+
+| Item            | Evidence                                                                                                                                                                                                                                                                         |
+| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| API filters     | Integration: `admin-orders.int.test.ts` lists a pending order older than 2 h under `delayed=true` but not a 2.5 h confirmed one (3 h rule), combines it with `status`, and refuses `delayed=yes`; `inventory.int.test.ts` returns exactly the requested variant for `variantId`. |
+| Link mapping    | Unit (`lib/links.test.ts`): a notification path becomes the exact order or stock link; anything but a UUID, a nested path or an outside URL gives no exact link.                                                                                                                 |
+| Browser journey | `scripts/browser-qa/deep-links.mjs`: all 18 checks PASS: order URL, reload, Back; dashboard pending, delayed, recent order and low stock; bell; inbox; customer and their history; product URL; malformed ID. `order-picker.mjs` still all PASS.                                 |
+
+Not covered:
+
+- Review links in the browser: the markup is the same `Link` as elsewhere, and typecheck covers the IDs. The review fixtures live in `admin-reviews.mjs`.

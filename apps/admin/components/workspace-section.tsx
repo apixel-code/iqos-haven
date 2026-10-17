@@ -60,7 +60,10 @@ export function WorkspaceSection({ sectionKey }: { sectionKey: string }) {
       ) : sectionKey === "content" ? (
         <ContentManagement />
       ) : sectionKey === "reviews" ? (
-        <ReviewManagement canOpenOrders={session.permissions.includes("orders.read")} />
+        <ReviewManagement
+          canOpenOrders={session.permissions.includes("orders.read")}
+          canOpenProducts={session.permissions.includes("catalog.read")}
+        />
       ) : sectionKey === "settings" ? (
         <SettingsManagement />
       ) : sectionKey === "delivery" ? (
