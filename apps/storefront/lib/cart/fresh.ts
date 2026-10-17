@@ -70,6 +70,8 @@ export function useFreshCart() {
   return {
     cart,
     known,
+    /** The current image of each line the API still offers. */
+    images: new Map([...known].flatMap(([id, line]) => (line ? [[id, line.image] as const] : []))),
     view: cartView(cart, known),
     failed: outcome?.key === key && !outcome.ok,
     mounted,

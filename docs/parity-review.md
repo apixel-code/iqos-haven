@@ -54,7 +54,7 @@ Tiers are recommendations: **L** = before launch, **S** = should follow soon, **
 
 | ID    | Gap                                                                                                                                                              | Evidence                                           | Tier | Size |
 | ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------- | ---- | ---- |
-| G-S1  | No cart sheet after adding: only an inline "View cart" link. This is the main mobile purchase path.                                                              | `components/buy-box.tsx`; ADR 0031/0033            | L    | M    |
+| G-S1  | **DONE 2026-10-17 (ADR 0082).** No cart sheet after adding: only an inline "View cart" link. This is the main mobile purchase path.                              | `components/buy-box.tsx`; ADR 0031/0033            | L    | M    |
 | G-S2  | Listing pages (`/shop`, type, brand, category) lack the price, puff, nicotine, stock and sale facets and the Featured and Best-selling sorts that `/search` has. | `components/sort-form.tsx`, `lib/store/listing.ts` | S    | M    |
 | G-S3  | Mobile search is an inline dropdown, not a sheet. It has no brands or recently viewed when empty, and no "See all N" row.                                        | `components/search-box.tsx`                        | S    | M    |
 | G-S4  | No mobile menu sheet: the header wraps, and Compare, Help and WhatsApp are not in the header.                                                                    | `app/(shop)/layout.tsx`; ADR 0033                  | L    | M    |

@@ -213,3 +213,16 @@ on sale, and two notifications for the Owner. It then follows each link: an orde
 and Back included), the dashboard's pending, delayed, recent-order and low-stock links, the bell,
 the inbox, a customer's history and a product URL. Each must open that one record or a correctly
 filtered list. A malformed ID falls back to the list, and there must be no page errors.
+
+## Storefront cart sheet (parity G-S1)
+
+```sh
+pnpm build && node scripts/check-gate-e2e.cjs --serve --checkout-open &   # prints SERVING
+QA_PLAYWRIGHT_DIR=/tmp/ih-qa node scripts/browser-qa/cart-sheet.mjs <SERVING> /tmp/ih-qa/shots
+```
+
+At 360px it adds from the product page and checks the sheet: line, subtotal, the way on, focus
+inside, a full-width bottom sheet, no sideways scroll, the quantity control, Escape, Continue
+shopping, and View cart and checkout. At 1280px it adds through quick add (which hands over to
+the sheet) and checks the full-height side panel, removing the last line and closing by clicking
+outside. Neither size may have page errors.

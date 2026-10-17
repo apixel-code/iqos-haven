@@ -3,6 +3,7 @@
 import { useId, useState } from "react";
 import type { StoreProductResponse } from "@ih/contracts";
 import { CART_LIMITS } from "@/lib/cart/cart";
+import { openCartSheet } from "@/lib/cart/sheet";
 import { addToCart } from "@/lib/cart/store";
 import { discountPercent, displayAed } from "@/lib/store/listing";
 import {
@@ -24,9 +25,12 @@ type Feedback = { kind: "added" | "error"; text: string } | null;
 export function BuyBox({
   product,
   compact = false,
+  onAdded,
 }: {
   product: StoreProductResponse;
   compact?: boolean;
+  /** Called after a successful add, before the cart sheet opens (quick add closes itself). */
+  onAdded?: () => void;
 }) {
   const options = offeredOptions(product);
   const [chosen, setChosen] = useState<Record<string, string>>(() => impliedChoices(options));
@@ -85,6 +89,11 @@ export function BuyBox({
               : `Added to cart: ${result.quantity} in your cart.`,
           },
     );
+    // The cart sheet shows what is now in the cart and the way on (parity G-S1).
+    if (!result.full) {
+      onAdded?.();
+      openCartSheet();
+    }
   }
 
   const blocked =

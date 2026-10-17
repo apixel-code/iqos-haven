@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { CartLink } from "@/components/cart-link";
+import { CartSheet } from "@/components/cart-sheet";
 import { NavLinks } from "@/components/nav-links";
 import { SearchBox } from "@/components/search-box";
 import { WhatsAppLink } from "@/components/whatsapp-link";
@@ -52,6 +53,7 @@ export default async function ShopLayout({ children }: { children: ReactNode }) 
       <main id="content" className="mx-auto w-full max-w-7xl flex-1 px-4 pb-16 sm:px-8">
         {children}
       </main>
+      <CartSheet whatsappNumber={whatsappNumber} />
       <footer className="border-t border-line bg-surface">
         <div className="mx-auto grid w-full max-w-7xl gap-8 px-4 py-10 text-sm sm:grid-cols-2 sm:px-8 lg:grid-cols-4">
           <div className="flex flex-col gap-2">

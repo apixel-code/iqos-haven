@@ -386,13 +386,15 @@ check(
 );
 
 // Worker effects: the served stack runs the worker's relay, queue and consumers, so both
-// orders placed above reach the staff inbox and their email effect is completed.
+// orders placed above reach the staff inbox and their email effect is completed. Every consumer
+// of `order.created` (inbox, email and, since step 107, the analytics rollup) must complete.
 let done = false;
 for (let i = 0; i < 60 && !done; i++) {
   done =
     sql(
-      "SELECT count(*) FILTER (WHERE e.status='completed') || '/' || count(*) FROM consumer_effects e JOIN outbox_events o ON o.id=e.event_id WHERE o.event_type='order.created'",
-    ) === "4/4";
+      "SELECT string_agg(e.consumer || ':' || e.status, ',' ORDER BY e.consumer, e.event_id) FROM consumer_effects e JOIN outbox_events o ON o.id=e.event_id WHERE o.event_type='order.created'",
+    ) ===
+    "analytics_rollup:completed,analytics_rollup:completed,email:completed,email:completed,notification:completed,notification:completed";
   if (!done) await new Promise((wait) => setTimeout(wait, 500));
 }
 check(done, "the worker completed the inbox and email effects of both orders");
@@ -411,8 +413,11 @@ check(
 const end = await storage();
 check(
   Object.keys(end.session).length === 0 &&
-    Object.keys(end.local).every((key) => ["ih_cart_v1", "ih_lists_v1"].includes(key)),
-  "after checkout the device holds only the cart and the saved lists",
+    // The anonymous telemetry ID (step 104) is the only other key allowed.
+    Object.keys(end.local).every((key) =>
+      ["ih_cart_v1", "ih_lists_v1", "ih_anon_v1"].includes(key),
+    ),
+  "after checkout the device holds only the cart, the saved lists and the anonymous ID",
   JSON.stringify(Object.keys({ ...end.local, ...end.session })),
 );
 

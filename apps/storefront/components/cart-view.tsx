@@ -2,20 +2,14 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { CART_LIMITS, type CartViewLine } from "@/lib/cart/cart";
 import { useFreshCart } from "@/lib/cart/fresh";
-import { removeFromCart, setCartQuantity } from "@/lib/cart/store";
 import { rememberChoice, rememberedChoice } from "@/lib/checkout/memory";
 import { SITE } from "@/lib/site";
 import { displayAed } from "@/lib/store/listing";
 import { whatsappHref, WHATSAPP_MESSAGES } from "@/lib/whatsapp";
+import { CartLines } from "./cart-lines";
 import { CartQuote } from "./cart-quote";
 import { RecentlyViewed } from "./recently-viewed";
-
-const STATUS_TEXT: Partial<Record<CartViewLine["status"], string>> = {
-  sold_out: "Sold out. Remove it to continue, or check back later.",
-  unavailable: "No longer available. Remove it to continue.",
-};
 
 /**
  * The device cart (roadmap step 62, ADR 0031). Lines come from this device; their current
@@ -31,12 +25,9 @@ export function CartView({
   /** Whether the shop is taking orders; the API decides again when one is placed. */
   checkoutOpen: boolean;
 }) {
-  const { cart, known, view, failed, mounted, recheck } = useFreshCart();
+  const { cart, images, view, failed, mounted, recheck } = useFreshCart();
   // Whether the shopper holds an accepted, current server total (step 71).
   const [quoteReady, setQuoteReady] = useState(false);
-  const images = new Map(
-    [...known].flatMap(([id, line]) => (line ? [[id, line.image] as const] : [])),
-  );
 
   if (!mounted)
     return (
@@ -82,97 +73,7 @@ export function CartView({
                   ? "Checking prices and availability…"
                   : ""}
           </p>
-          <ul className="flex flex-col divide-y divide-line">
-            {view.lines.map((line) => {
-              const blocked = line.status === "sold_out" || line.status === "unavailable";
-              const image = images.get(line.variantId);
-              return (
-                <li key={line.variantId} className="flex gap-4 py-4">
-                  <div className="size-20 shrink-0 overflow-hidden rounded-sm bg-surface-2">
-                    {image && (
-                      // Signed link to a sanitized derivative; the Next image optimizer is not used.
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={image.urls.thumb}
-                        alt=""
-                        width={80}
-                        height={80}
-                        className={`size-full object-cover ${blocked ? "opacity-45 grayscale" : ""}`}
-                      />
-                    )}
-                  </div>
-                  <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-                    <p className="text-[11px] uppercase tracking-[0.1em] text-ink-3">
-                      {line.brand}
-                    </p>
-                    {line.status === "unavailable" ? (
-                      <span className="font-medium">{line.name}</span>
-                    ) : (
-                      <Link
-                        href={`/p/${line.productSlug}`}
-                        prefetch={false}
-                        className="font-medium hover:underline"
-                      >
-                        {line.name}
-                      </Link>
-                    )}
-                    {line.options && <p className="text-sm text-ink-2">{line.options}</p>}
-                    {blocked && (
-                      <p className="text-sm font-medium text-error">{STATUS_TEXT[line.status]}</p>
-                    )}
-                    {!blocked && line.previousUnitPriceFils !== null && (
-                      <p className="text-sm text-ink-2">
-                        Price changed from {displayAed(line.previousUnitPriceFils)} to{" "}
-                        {displayAed(line.unitPriceFils)} since you added it.
-                      </p>
-                    )}
-                    <div className="flex flex-wrap items-center gap-3 pt-1">
-                      <div
-                        role="group"
-                        aria-label={`Quantity for ${line.name}`}
-                        className="inline-flex h-10 items-center rounded-pill border-[1.5px] border-line bg-surface"
-                      >
-                        <button
-                          type="button"
-                          aria-label="Decrease"
-                          disabled={blocked || line.quantity <= 1}
-                          onClick={() => setCartQuantity(line.variantId, line.quantity - 1)}
-                          className="size-10 rounded-pill disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-focus"
-                        >
-                          −
-                        </button>
-                        <output aria-live="polite" className="w-7 text-center text-sm font-medium">
-                          {line.quantity}
-                        </output>
-                        <button
-                          type="button"
-                          aria-label="Increase"
-                          disabled={blocked || line.quantity >= CART_LIMITS.maxQuantity}
-                          onClick={() => setCartQuantity(line.variantId, line.quantity + 1)}
-                          className="size-10 rounded-pill disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-focus"
-                        >
-                          +
-                        </button>
-                      </div>
-                      <button
-                        type="button"
-                        aria-label={`Remove ${line.name}`}
-                        onClick={() => removeFromCart(line.variantId)}
-                        className="text-sm underline underline-offset-2 hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
-                      >
-                        Remove
-                      </button>
-                      <span
-                        className={`ml-auto text-base font-semibold ${blocked ? "text-ink-3 line-through" : ""}`}
-                      >
-                        {displayAed(line.lineTotalFils)}
-                      </span>
-                    </div>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
+          <CartLines lines={view.lines} images={images} />
           {/* Sends nothing: it opens WhatsApp with the cart written out for the shopper to send. */}
           {(() => {
             const buyable = view.lines.filter(

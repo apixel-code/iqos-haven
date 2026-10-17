@@ -72,7 +72,7 @@ export function QuickAdd({ slug, name }: { slug: string; name: string }) {
                 ×
               </button>
             </div>
-            <BuyBox product={product} compact />
+            <BuyBox product={product} compact onAdded={() => dialog.current?.close()} />
             <a href={`/p/${product.slug}`} className="text-sm underline underline-offset-2">
               View full details
             </a>

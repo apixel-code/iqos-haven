@@ -2235,3 +2235,17 @@ ADR 0081.
 Not covered:
 
 - Review links in the browser: the markup is the same `Link` as elsewhere, and typecheck covers the IDs. The review fixtures live in `admin-reviews.mjs`.
+
+## Parity G-S1 — storefront cart sheet (2026-10-17, local)
+
+ADR 0082.
+
+| Item                | Evidence                                                                                                                                                                                                                                                   |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Sheet behaviour     | `scripts/browser-qa/cart-sheet.mjs` on the served gate stack: all 14 checks PASS at 360px (bottom sheet, focus, quantity, Escape, continue, cart page) and 1280px (quick add hand-over, side panel, remove last line, outside click), with no page errors. |
+| Cart page unchanged | `checkout.mjs`: 49/49 PASS after the line list moved into `CartLines`. Two stale expectations were updated: the anonymous ID from step 104, and the `analytics_rollup` effect of step 107 (all 6 effects completed).                                       |
+| No payable total    | The sheet shows the buyable-lines subtotal only and leads to the cart page, where the server quote is accepted (ADR 0041).                                                                                                                                 |
+
+Not covered:
+
+- Real phones (touch, on-screen keyboard, iOS dialog quirks): step 120.
