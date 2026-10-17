@@ -9,6 +9,7 @@ import {
 } from "@ih/config";
 import {
   adminOrderResponseSchema,
+  adminOrderCountsResponseSchema,
   adminOrdersResponseSchema,
   errorEnvelopeSchema,
   orderEditResponseSchema,
@@ -216,6 +217,75 @@ describe("admin order list and snapshot detail through the real API and PostgreS
     );
     expect(confirmed.items.map((item) => item.id)).toEqual([second.orderId]);
     expect(confirmed.items[0]).toMatchObject({ itemCount: 1, customer: { name: "Seed Customer" } });
+  });
+
+  it("sorts by time or amount with a cursor per sort, and counts each status tab (parity G-A5)", async () => {
+    const all = async (sort: string) => {
+      const ids: string[] = [];
+      const totals: number[] = [];
+      let after: string | null = null;
+      do {
+        const response = await call(`?sort=${sort}&limit=2${after ? "&after=" + after : ""}`);
+        expect(response.status, sort).toBe(200);
+        const page = adminOrdersResponseSchema.parse(await response.json());
+        ids.push(...page.items.map((item) => item.id));
+        totals.push(...page.items.map((item) => item.totalFils));
+        after = page.nextCursor;
+      } while (after);
+      return { ids, totals };
+    };
+    const newest = await all("newest");
+    const oldest = await all("oldest");
+    expect(new Set(newest.ids).size).toBe(newest.ids.length);
+    expect(oldest.ids).toEqual([...newest.ids].reverse());
+    const high = await all("total_desc");
+    const low = await all("total_asc");
+    expect(new Set(high.ids)).toEqual(new Set(newest.ids));
+    expect(high.totals).toEqual([...high.totals].sort((a, b) => b - a));
+    expect(low.totals).toEqual([...low.totals].sort((a, b) => a - b));
+
+    // A cursor belongs to its sort; the two-part cursor of before still means newest.
+    const firstPage = adminOrdersResponseSchema.parse(
+      await (await call("?sort=newest&limit=1")).json(),
+    );
+    expect((await call(`?sort=total_desc&after=${firstPage.nextCursor}`)).status).toBe(400);
+    const [, key, id] = JSON.parse(
+      Buffer.from(firstPage.nextCursor!, "base64url").toString("utf8"),
+    ) as [string, string, string];
+    const legacy = Buffer.from(JSON.stringify([key, id])).toString("base64url");
+    expect((await call(`?after=${legacy}`)).status).toBe(200);
+    expect((await call("?sort=random")).status).toBe(400);
+
+    // Tab counts follow the other filters and agree with the list.
+    const countsOf = async (query = "") => {
+      const response = await call(`/counts${query}`);
+      expect(response.status).toBe(200);
+      return adminOrderCountsResponseSchema.parse(await response.json());
+    };
+    const counts = await countsOf();
+    expect(counts.all).toBe(newest.ids.length);
+    expect(
+      counts.pending +
+        counts.confirmed +
+        counts.processing +
+        counts.out_for_delivery +
+        counts.delivered +
+        counts.cancelled,
+    ).toBe(counts.all);
+    const pendingList = adminOrdersResponseSchema.parse(
+      await (await call("?status=pending&limit=100")).json(),
+    );
+    expect(counts.pending).toBe(pendingList.items.length);
+    const byNumber = await countsOf("?q=" + first.orderNumber);
+    expect(byNumber.all).toBe(1);
+    expect((await countsOf("?delayed=true")).all).toBeLessThanOrEqual(counts.all);
+    expect((await call("/counts?status=pending")).status).toBe(400);
+    await setStaffPermission("orders.read", false);
+    try {
+      expect((await call("/counts")).status).toBe(403);
+    } finally {
+      await setStaffPermission("orders.read", true);
+    }
   });
 
   it("lists only delayed open orders with the dashboard's rule (deep links, parity G-A2)", async () => {

@@ -60,6 +60,18 @@ async function scan(page, label) {
 }
 
 const seeded = await seedOrder(pool);
+// An unread notification, so the bell is checked with its count (step 120 missed that state).
+const owner = (await pool.query("SELECT id FROM staff_users WHERE email='owner.qa@iqoshaven.test'"))
+  .rows[0];
+const note = (
+  await pool.query(
+    "INSERT INTO notifications (source_event_id, type, title, body, link) VALUES (gen_random_uuid(), 'qa.a11y', 'QA notice', 'QA', '/reviews') RETURNING id",
+  )
+).rows[0];
+await pool.query("INSERT INTO notification_receipts (notification_id, user_id) VALUES ($1, $2)", [
+  note.id,
+  owner.id,
+]);
 const SECTIONS = [
   "orders",
   "products",

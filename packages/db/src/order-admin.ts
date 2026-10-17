@@ -1,8 +1,13 @@
 import {
+  adminOrderCountsQuerySchema,
+  adminOrderCountsResponseSchema,
   adminOrderResponseSchema,
   adminOrdersQuerySchema,
   adminOrdersResponseSchema,
+  type AdminOrderCountsQuery,
+  type AdminOrderCountsResponse,
   type AdminOrderResponse,
+  type AdminOrderSort,
   type AdminOrdersQuery,
 } from "@ih/contracts";
 import { formatOrderNumber, parseOrderNumber } from "@ih/domain";
@@ -51,34 +56,61 @@ async function actorAccess(db: Database | Tx, actorId: string): Promise<ActorAcc
 }
 
 const escapedLike = (value: string) => "%" + value.replace(/[\\%_]/g, (c) => "\\" + c) + "%";
-const encodeCursor = (row: OrderListRow) =>
-  Buffer.from(JSON.stringify([row.cursorCreatedAt, row.id])).toString("base64url");
+/**
+ * Keyset per sort (parity G-A5): the cursor names its sort and holds the sort key and the id,
+ * so a cursor from another sort is refused rather than misread. A two-part cursor from before
+ * the sorts existed is the newest-first one.
+ */
+const SORT_KEYS: Record<
+  AdminOrderSort,
+  { column: Prisma.Sql; cast: Prisma.Sql; direction: "ASC" | "DESC" }
+> = {
+  newest: { column: Prisma.sql`o.created_at`, cast: Prisma.sql`timestamptz`, direction: "DESC" },
+  oldest: { column: Prisma.sql`o.created_at`, cast: Prisma.sql`timestamptz`, direction: "ASC" },
+  total_desc: { column: Prisma.sql`o.total_fils`, cast: Prisma.sql`bigint`, direction: "DESC" },
+  total_asc: { column: Prisma.sql`o.total_fils`, cast: Prisma.sql`bigint`, direction: "ASC" },
+};
+const TIME_KEY = /^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d(?:\.\d{1,6})?\+00$/;
+const UUID_KEY = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const encodeCursor = (sort: AdminOrderSort, row: OrderListRow) =>
+  Buffer.from(
+    JSON.stringify([
+      sort,
+      sort.startsWith("total") ? String(row.totalFils) : row.cursorCreatedAt,
+      row.id,
+    ]),
+  ).toString("base64url");
 
-function decodeCursor(value: string): { createdAt: string; id: string } {
+function decodeCursor(value: string, sort: AdminOrderSort): { key: string; id: string } {
   try {
     const decoded = Buffer.from(value, "base64url");
     if (decoded.toString("base64url") !== value) throw new Error("non-canonical");
     const parsed: unknown = JSON.parse(decoded.toString("utf8"));
-    if (
-      !Array.isArray(parsed) ||
-      parsed.length !== 2 ||
-      typeof parsed[0] !== "string" ||
-      !/^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d(?:\.\d{1,6})?\+00$/.test(parsed[0]) ||
-      typeof parsed[1] !== "string" ||
-      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(parsed[1])
-    )
-      throw new Error("shape");
-    return { createdAt: parsed[0], id: parsed[1] };
+    if (!Array.isArray(parsed)) throw new Error("shape");
+    const [named, key, id] =
+      parsed.length === 2 ? ["newest", parsed[0], parsed[1]] : (parsed as unknown[]);
+    if (parsed.length !== 2 && parsed.length !== 3) throw new Error("shape");
+    if (named !== sort || typeof key !== "string" || typeof id !== "string")
+      throw new Error("sort");
+    const keyOk = sort.startsWith("total") ? /^\d{1,12}$/.test(key) : TIME_KEY.test(key);
+    if (!keyOk || !UUID_KEY.test(id)) throw new Error("shape");
+    return { key, id };
   } catch {
     throw new OrderCursorError();
   }
 }
 
-export async function listAdminOrders(db: Database, actorId: string, input: AdminOrdersQuery) {
-  const query = adminOrdersQuerySchema.parse(input);
-  const access = await actorAccess(db, actorId);
+/** The list's filters other than status and paging, shared by the list and the tab counts. */
+function orderFilters(
+  query: {
+    delayed?: "true" | undefined;
+    from?: string | undefined;
+    to?: string | undefined;
+    q?: string | undefined;
+  },
+  access: ActorAccess,
+): Prisma.Sql[] {
   const filters: Prisma.Sql[] = [];
-  if (query.status) filters.push(Prisma.sql`o.status=${query.status}`);
   if (query.delayed === "true") filters.push(DELAYED_ORDER);
   if (query.from) filters.push(Prisma.sql`o.created_at>=${new Date(query.from)}`);
   if (query.to) filters.push(Prisma.sql`o.created_at<${new Date(query.to)}`);
@@ -94,10 +126,21 @@ export async function listAdminOrders(db: Database, actorId: string, input: Admi
       Prisma.sql`(${orderNumber === null ? Prisma.sql`false` : Prisma.sql`o.order_number=${orderNumber}`} OR ${contact})`,
     );
   }
+  return filters;
+}
+
+export async function listAdminOrders(db: Database, actorId: string, input: AdminOrdersQuery) {
+  const query = adminOrdersQuerySchema.parse(input);
+  const access = await actorAccess(db, actorId);
+  const filters = orderFilters(query, access);
+  if (query.status) filters.push(Prisma.sql`o.status=${query.status}`);
+  const order = SORT_KEYS[query.sort];
   if (query.after) {
-    const after = decodeCursor(query.after);
+    const after = decodeCursor(query.after, query.sort);
     filters.push(
-      Prisma.sql`(o.created_at,o.id)<(${after.createdAt}::timestamptz,${after.id}::uuid)`,
+      order.direction === "DESC"
+        ? Prisma.sql`(${order.column},o.id)<(${after.key}::${order.cast},${after.id}::uuid)`
+        : Prisma.sql`(${order.column},o.id)>(${after.key}::${order.cast},${after.id}::uuid)`,
     );
   }
   const where = filters.length ? Prisma.sql`WHERE ${Prisma.join(filters, " AND ")}` : Prisma.empty;
@@ -112,7 +155,7 @@ export async function listAdminOrders(db: Database, actorId: string, input: Admi
       o.created_at AS "createdAt", o.created_at::text AS "cursorCreatedAt"
     FROM orders o
     ${where}
-    ORDER BY o.created_at DESC,o.id DESC
+    ORDER BY ${order.column} ${Prisma.raw(order.direction)},o.id ${Prisma.raw(order.direction)}
     LIMIT ${query.limit + 1}`);
   const page = rows.slice(0, query.limit);
   return adminOrdersResponseSchema.parse({
@@ -131,8 +174,33 @@ export async function listAdminOrders(db: Database, actorId: string, input: Admi
       version: row.version,
       createdAt: row.createdAt.toISOString(),
     })),
-    nextCursor: rows.length > query.limit && page.length ? encodeCursor(page.at(-1)!) : null,
+    nextCursor:
+      rows.length > query.limit && page.length ? encodeCursor(query.sort, page.at(-1)!) : null,
   });
+}
+
+/** Orders per status under the list's other filters (the tab counts, parity G-A5). */
+export async function countAdminOrders(
+  db: Database,
+  actorId: string,
+  input: AdminOrderCountsQuery,
+): Promise<AdminOrderCountsResponse> {
+  const query = adminOrderCountsQuerySchema.parse(input);
+  const access = await actorAccess(db, actorId);
+  const filters = orderFilters(query, access);
+  const where = filters.length ? Prisma.sql`WHERE ${Prisma.join(filters, " AND ")}` : Prisma.empty;
+  const [row] = await db.$queryRaw<
+    Array<Record<keyof AdminOrderCountsResponse, number>>
+  >(Prisma.sql`
+    SELECT count(*)::int AS "all",
+      count(*) FILTER (WHERE o.status='pending')::int AS pending,
+      count(*) FILTER (WHERE o.status='confirmed')::int AS confirmed,
+      count(*) FILTER (WHERE o.status='processing')::int AS processing,
+      count(*) FILTER (WHERE o.status='out_for_delivery')::int AS out_for_delivery,
+      count(*) FILTER (WHERE o.status='delivered')::int AS delivered,
+      count(*) FILTER (WHERE o.status='cancelled')::int AS cancelled
+    FROM orders o ${where}`);
+  return adminOrderCountsResponseSchema.parse(row);
 }
 
 export async function readAdminOrder(

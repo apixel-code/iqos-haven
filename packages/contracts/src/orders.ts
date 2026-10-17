@@ -265,9 +265,13 @@ export const orderCollectionResponseSchema = orderCollectionRecordSchema.extend(
 });
 
 const boundedInstant = z.iso.datetime({ offset: true });
+/** Orders list sorts (parity G-A5): placement time either way, or the order total. */
+export const ADMIN_ORDER_SORTS = ["newest", "oldest", "total_desc", "total_asc"] as const;
+export type AdminOrderSort = (typeof ADMIN_ORDER_SORTS)[number];
 export const adminOrdersQuerySchema = z
   .strictObject({
     status: adminOrderStatusSchema.optional(),
+    sort: z.enum(ADMIN_ORDER_SORTS).default("newest"),
     /** Only open orders waiting too long (the dashboard's "delayed" rule, ADR 0074). */
     delayed: z.literal("true").optional(),
     from: boundedInstant.optional(),
@@ -285,6 +289,34 @@ export const adminOrdersQuerySchema = z
     path: ["to"],
     message: "The end must be after the start",
   });
+
+/**
+ * `GET /v1/admin/orders/counts` (parity G-A5): how many orders each status tab holds under the
+ * list's other filters (search, dates, delayed), so the tabs and the list always agree.
+ */
+export const adminOrderCountsQuerySchema = z
+  .strictObject({
+    delayed: z.literal("true").optional(),
+    from: boundedInstant.optional(),
+    to: boundedInstant.optional(),
+    q: z.string().trim().min(1).max(100).optional(),
+  })
+  .refine((value) => !value.from || !value.to || Date.parse(value.from) < Date.parse(value.to), {
+    path: ["to"],
+    message: "The end must be after the start",
+  });
+const orderCount = z.number().int().min(0);
+export const adminOrderCountsResponseSchema = z.strictObject({
+  all: orderCount,
+  pending: orderCount,
+  confirmed: orderCount,
+  processing: orderCount,
+  out_for_delivery: orderCount,
+  delivered: orderCount,
+  cancelled: orderCount,
+});
+export type AdminOrderCountsQuery = z.infer<typeof adminOrderCountsQuerySchema>;
+export type AdminOrderCountsResponse = z.infer<typeof adminOrderCountsResponseSchema>;
 
 export const adminOrderContactSchema = z.strictObject({
   name: z.string().min(1).max(100),
@@ -404,7 +436,8 @@ export const adminOrderResponseSchema = z.strictObject({
   ),
 });
 
-export type AdminOrdersQuery = z.infer<typeof adminOrdersQuerySchema>;
+/** What a caller sends: `sort` and `limit` may be left out (defaults apply when parsed). */
+export type AdminOrdersQuery = z.input<typeof adminOrdersQuerySchema>;
 export type AdminOrderSummary = z.infer<typeof adminOrderSummarySchema>;
 export type AdminOrdersResponse = z.infer<typeof adminOrdersResponseSchema>;
 export type AdminOrderResponse = z.infer<typeof adminOrderResponseSchema>;
