@@ -5,7 +5,7 @@
 - Date: 2026-10-16
 - Milestone: M7 — transactional checkout and first complete order: all steps (73–82) done; gate evidence ready, awaiting Marina's decision. M6: all steps (65–72) done; gate evidence ready, awaiting Marina's decision. M5: PASSED 2026-10-11. M4 steps done, gate awaits Marina's decision (publishing unblocked); M3 gate not closed; M0 review and M1 staging/fixtures still open
 - Step: 118 (auth/privacy/gate/token/key regression) — done. M11 in progress (115–118 done). **All M10 steps (103–114) done; gate evidence ready, awaiting Marina's decision.** All M9 steps (93–102) done; gate evidence ready, awaiting Marina's decision. All M8 steps (83–92) done, gate awaiting Marina's decision.
-- Branch: `step/118-security-regression` (based on #91; PR to open after push)
+- Branch: `step/118-security-regression` (pushed; PR #92 based on #91)
 - See docs/verification.md for actual checks.
 
 ## Next action
@@ -208,7 +208,7 @@ Tests: `pnpm verify -- --integration` PASS (unit 636, age preview 2245, integrat
 Unfinished:
 
 - **Marina:** the M10 gate (and M4, M6–M9); which parity gaps to build before launch.
-- PRs #61 → … → #91 are stacked, and step 118's PR comes next.
+- PRs #61 → … → #91 are stacked, step 118 is PR #92.
 
 ## History (summary)
 
