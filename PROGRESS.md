@@ -5,7 +5,7 @@
 - Date: 2026-10-17
 - Milestone: M11 — full acceptance and release, in progress. Gates M0, M2–M10 PASSED (M0, M3, M4, M6–M10 on 2026-10-17, Marina); M1 open until staging/CI.
 - Step: launch parity gaps (Marina 2026-10-17): **G-S2 done** (ADR 0086, PR #101), **G-S3 done** (mobile search sheet, ADR 0087). Next: G-S5. Steps 115–119, 121 done; 120 local part done (real devices wait for staging).
-- Branch: `parity/g-s3-search-sheet` (from `parity/g-s2-listing-filters`, PR #101 not merged yet; PR to open on #101)
+- Branch: `parity/g-s3-search-sheet` (from `parity/g-s2-listing-filters`, PR #101 not merged yet; PR #102 on #101)
 - See docs/verification.md for actual checks.
 
 ## Next action
@@ -221,7 +221,7 @@ Tests: `pnpm verify` PASS (age preview 2245). `pnpm test:gate` PASS (2586). Brow
 
 Unfinished:
 
-- PR #101 (G-S2) awaits Marina's merge; push `parity/g-s3-search-sheet` and open its PR on #101's branch (retarget to `main` once #101 is merged).
+- PR #101 (G-S2) awaits Marina's merge; G-S3 is PR #102 on #101's branch (retarget to `main` once #101 is merged).
 - Next: G-S5 (sticky add-to-cart bar on the product page on phones).
 
 ## History (summary)
