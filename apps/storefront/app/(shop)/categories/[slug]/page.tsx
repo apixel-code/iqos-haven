@@ -45,7 +45,24 @@ export default async function CategoryPage({ params, searchParams }: Props) {
         { label: "Shop", href: "/shop" },
         { label: category.name },
       ]}
-      head={{ title: category.name }}
+      head={
+        category.image ? (
+          <header className="my-4 flex flex-wrap items-center gap-6">
+            {/* Signed link to a sanitized derivative; the Next image optimizer is not used. */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={category.image.urls.medium}
+              alt={category.image.alt}
+              width={category.image.width}
+              height={category.image.height}
+              className="size-24 rounded-lg object-cover"
+            />
+            <h1 className="text-4xl font-semibold tracking-tight">{category.name}</h1>
+          </header>
+        ) : (
+          { title: category.name }
+        )
+      }
       emptyBody="This category has no products available right now."
     />
   );

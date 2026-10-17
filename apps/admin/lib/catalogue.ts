@@ -37,6 +37,15 @@ function seo(data: FormData) {
     description: text(data, "seo.description") || null,
   };
 }
+/**
+ * The image field (parity G-A7): absent leaves the image as it is, empty clears it, otherwise it
+ * is the chosen catalogue image.
+ */
+function imageField(data: FormData): string | null | undefined {
+  const value = data.get("imageAssetId");
+  if (value === null) return undefined;
+  return String(value) || null;
+}
 export function brandCreateCommand(data: FormData, includeSeo: boolean): BrandCreateRequest {
   return validate(brandCreateRequestSchema, {
     name: text(data, "name"),
@@ -45,6 +54,7 @@ export function brandCreateCommand(data: FormData, includeSeo: boolean): BrandCr
     active: data.get("active") === "on",
     sortOrder: sortOrder(data),
     ...(includeSeo ? { seo: seo(data) } : {}),
+    ...(imageField(data) !== undefined ? { logoAssetId: imageField(data) } : {}),
   });
 }
 export function brandUpdateCommand(
@@ -60,6 +70,7 @@ export function brandUpdateCommand(
     active: data.get("active") === "on",
     sortOrder: sortOrder(data),
     ...(includeSeo ? { seo: seo(data) } : {}),
+    ...(imageField(data) !== undefined ? { logoAssetId: imageField(data) } : {}),
   });
 }
 export function categoryCreateCommand(data: FormData, includeSeo: boolean): CategoryCreateRequest {
@@ -69,6 +80,7 @@ export function categoryCreateCommand(data: FormData, includeSeo: boolean): Cate
     active: data.get("active") === "on",
     sortOrder: sortOrder(data),
     ...(includeSeo ? { seo: seo(data) } : {}),
+    ...(imageField(data) !== undefined ? { imageAssetId: imageField(data) } : {}),
   });
 }
 export function categoryUpdateCommand(
@@ -83,6 +95,7 @@ export function categoryUpdateCommand(
     active: data.get("active") === "on",
     sortOrder: sortOrder(data),
     ...(includeSeo ? { seo: seo(data) } : {}),
+    ...(imageField(data) !== undefined ? { imageAssetId: imageField(data) } : {}),
   });
 }
 export function plural(count: number, noun: string) {

@@ -81,13 +81,13 @@ const KINDS = {
   brand: {
     table: Prisma.raw("brands"),
     fk: Prisma.raw("brand_id"),
-    media: Prisma.raw("logo_key"),
+    media: Prisma.raw("logo_asset_id"),
     description: true,
   },
   category: {
     table: Prisma.raw("categories"),
     fk: Prisma.raw("category_id"),
-    media: Prisma.raw("image_key"),
+    media: Prisma.raw("image_asset_id"),
     description: false,
   },
 } as const;
@@ -154,8 +154,12 @@ function response<K extends Kind>(kind: K, row: ParentRow): ResponseOf[K] {
   // The one place the kind decides the shape; each branch is parsed by that kind's contract.
   return (
     kind === "brand"
-      ? brandResponseSchema.parse({ ...common, description: row.description, logoKey: row.media })
-      : categoryResponseSchema.parse({ ...common, imageKey: row.media })
+      ? brandResponseSchema.parse({
+          ...common,
+          description: row.description,
+          logoAssetId: row.media,
+        })
+      : categoryResponseSchema.parse({ ...common, imageAssetId: row.media })
   ) as ResponseOf[K];
 }
 
@@ -202,9 +206,13 @@ async function read<K extends Kind>(
 }
 
 function auditView(
-  row: Pick<ParentRow, "name" | "slug" | "active" | "sortOrder" | "deletedAt" | "version">,
+  row: Pick<
+    ParentRow,
+    "name" | "slug" | "active" | "sortOrder" | "deletedAt" | "version" | "media"
+  >,
 ) {
   return {
+    image: row.media,
     name: row.name,
     slug: row.slug,
     active: row.active,
@@ -241,13 +249,23 @@ async function record(
 }
 
 /** Unique violations → DUPLICATE; everything else (incl. CHECK failures) stays a loud error. */
+/** The PostgreSQL error code behind a driver error, if any. */
+function databaseCode(error: unknown): unknown {
+  if (!(error instanceof Prisma.PrismaClientKnownRequestError)) return undefined;
+  const meta = error.meta as
+    { code?: unknown; driverAdapterError?: { cause?: { originalCode?: unknown } } } | undefined;
+  return meta?.code ?? meta?.driverAdapterError?.cause?.originalCode;
+}
+
 export function mapCatalogueError(error: unknown): never {
-  if (error instanceof Prisma.PrismaClientKnownRequestError) {
-    const meta = error.meta as
-      { code?: unknown; driverAdapterError?: { cause?: { originalCode?: unknown } } } | undefined;
-    const code = meta?.code ?? meta?.driverAdapterError?.cause?.originalCode;
-    if (error.code === "P2002" || code === "23505") throw new CatalogueConflictError("DUPLICATE");
-  }
+  const code = databaseCode(error);
+  if (
+    (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") ||
+    code === "23505"
+  )
+    throw new CatalogueConflictError("DUPLICATE");
+  // A logo or image that is not a ready catalogue image (trigger, parity G-A7), or unknown.
+  if (code === "IH005" || code === "23503") throw new CatalogueConflictError("MEDIA_NOT_READY");
   throw error;
 }
 
@@ -268,6 +286,21 @@ interface ParentWrite {
   active: boolean;
   sortOrder: number;
   seo?: { title: string | null; description: string | null } | undefined;
+  /** The logo (brand) or image (category) asset; undefined leaves it unchanged. */
+  image?: string | null | undefined;
+}
+
+/**
+ * A replaced or cleared catalogue image that nothing else uses is released (parity G-A7): it
+ * leaves the image picker's world, and cleanup removes its private original later.
+ */
+async function releaseImage(tx: Tx, assetId: string | null) {
+  if (!assetId) return;
+  await tx.$executeRaw(Prisma.sql`
+    UPDATE media_assets SET state='removed', version=version+1, updated_at=statement_timestamp()
+    WHERE id=${assetId}::uuid AND purpose='catalogue' AND state='ready'
+      AND NOT EXISTS (SELECT 1 FROM brands WHERE logo_asset_id=${assetId}::uuid)
+      AND NOT EXISTS (SELECT 1 FROM categories WHERE image_asset_id=${assetId}::uuid)`);
 }
 
 async function create<K extends Kind>(
@@ -283,10 +316,11 @@ async function create<K extends Kind>(
       if (command.seo && !(await canWriteSeo(tx, actor))) throw new CatalogueForbiddenError();
       const [inserted] = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
         INSERT INTO ${k.table} (name, slug, ${k.description ? Prisma.sql`description,` : Prisma.empty}
-          active, sort_order, seo)
+          active, sort_order, seo, ${k.media})
         VALUES (${command.name}, ${command.slug},
           ${k.description ? Prisma.sql`${command.description ?? ""},` : Prisma.empty}
-          ${command.active}, ${command.sortOrder}, ${JSON.stringify(command.seo ?? {})}::jsonb)
+          ${command.active}, ${command.sortOrder}, ${JSON.stringify(command.seo ?? {})}::jsonb,
+          ${command.image ?? null}::uuid)
         RETURNING id`);
       const row = (await load(tx, kind, inserted!.id))!;
       await record(tx, context, kind, "created", null, auditView(row), row.id);
@@ -319,7 +353,9 @@ async function update<K extends Kind>(
       const description = k.description ? (command.description ?? "") : "";
       const seoChanged =
         command.seo !== undefined && !isDeepStrictEqual(storedSeo(row.seo), command.seo);
+      const imageChanged = command.image !== undefined && command.image !== row.media;
       const unchanged =
+        !imageChanged &&
         row.name === command.name &&
         row.slug === command.slug &&
         row.description === description &&
@@ -339,8 +375,10 @@ async function update<K extends Kind>(
           ${k.description ? Prisma.sql`description=${description},` : Prisma.empty}
           active=${command.active}, sort_order=${command.sortOrder},
           seo=${seoChanged ? Prisma.sql`${JSON.stringify(command.seo)}::jsonb` : Prisma.sql`seo`},
+          ${k.media}=${imageChanged ? Prisma.sql`${command.image ?? null}::uuid` : Prisma.sql`${k.media}`},
           version=version+1, updated_at=statement_timestamp()
         WHERE id=${id}::uuid`);
+      if (imageChanged) await releaseImage(tx, row.media);
       if (row.slug !== command.slug)
         await tx.$executeRaw(Prisma.sql`
           INSERT INTO slug_redirects (entity_type, old_slug, ${k.fk})
@@ -348,6 +386,7 @@ async function update<K extends Kind>(
       const updated = (await load(tx, kind, id))!;
       await record(tx, context, kind, "updated", auditView(row), auditView(updated), id, {
         seoChanged,
+        imageChanged,
       });
       return response(kind, updated);
     });
@@ -392,21 +431,67 @@ async function changeTrash<K extends Kind>(
   });
 }
 
+/**
+ * Owner-only permanent purge of a trashed brand or category that no product uses, trashed
+ * products included (parity G-A7, ADR 0091). Its redirects go with it and its image is released
+ * when nothing else uses it; the SECURITY DEFINER function is the only delete path.
+ */
+async function purge(
+  db: Database,
+  kind: Kind,
+  context: CommandContext,
+  id: string,
+  input: BrandStateRequest,
+): Promise<{ purged: true }> {
+  const command = brandStateRequestSchema.parse(input);
+  try {
+    return await withTransaction(db, async (tx) => {
+      await lockCatalogueActor(tx, context.actorId, ["catalog.purge"], true);
+      const row = await lockParent(tx, kind, id, command.version);
+      if (!row.deletedAt) throw new CatalogueConflictError("NOT_TRASHED");
+      await tx.$queryRaw(Prisma.sql`SELECT catalogue_purge_parent(${kind}, ${id}::uuid) AS image`);
+      await new PrismaAuditWriter().append(
+        tx,
+        toAuditEntry(context, {
+          action: `catalog.${kind}_purged`,
+          entity: { type: kind, id },
+          before: auditView(row),
+          after: { purged: true },
+          reveal: ["name"],
+        }),
+      );
+      await new PrismaOutboxWriter().publish(
+        tx,
+        defineEvent("catalog.changed", id, { entityType: kind, entityId: id }, row.version + 1),
+      );
+      return { purged: true as const };
+    });
+  } catch (error) {
+    const code = databaseCode(error);
+    // Products (trashed ones included) still use it.
+    if (code === "IH004" || code === "23503") throw new CatalogueInUseError();
+    if (code === "IH003") throw new CatalogueConflictError("NOT_TRASHED");
+    throw error;
+  }
+}
+
 // --- Brands (step 42) ---
 export const listBrands = (db: Database, actorId: string, input: BrandsQuery) =>
   list(db, "brand", actorId, input);
 export const readBrand = (db: Database, actorId: string, id: string) =>
   read(db, "brand", actorId, id);
-export const createBrand = (db: Database, context: CommandContext, input: BrandCreateRequest) =>
-  create(db, "brand", context, brandCreateRequestSchema.parse(input));
+export function createBrand(db: Database, context: CommandContext, input: BrandCreateRequest) {
+  const { logoAssetId, ...command } = brandCreateRequestSchema.parse(input);
+  return create(db, "brand", context, { ...command, image: logoAssetId });
+}
 export function updateBrand(
   db: Database,
   context: CommandContext,
   id: string,
   input: BrandUpdateRequest,
 ) {
-  const { version, ...command } = brandUpdateRequestSchema.parse(input);
-  return update(db, "brand", context, id, version, command);
+  const { version, logoAssetId, ...command } = brandUpdateRequestSchema.parse(input);
+  return update(db, "brand", context, id, version, { ...command, image: logoAssetId });
 }
 export const trashBrand = (
   db: Database,
@@ -421,24 +506,34 @@ export const restoreBrand = (
   input: BrandStateRequest,
 ) => changeTrash(db, "brand", context, id, input, false);
 
+export const purgeBrand = (
+  db: Database,
+  context: CommandContext,
+  id: string,
+  input: BrandStateRequest,
+) => purge(db, "brand", context, id, input);
+
 // --- Categories (step 43) ---
 export const listCategories = (db: Database, actorId: string, input: BrandsQuery) =>
   list(db, "category", actorId, input);
 export const readCategory = (db: Database, actorId: string, id: string) =>
   read(db, "category", actorId, id);
-export const createCategory = (
+export function createCategory(
   db: Database,
   context: CommandContext,
   input: CategoryCreateRequest,
-) => create(db, "category", context, categoryCreateRequestSchema.parse(input));
+) {
+  const { imageAssetId, ...command } = categoryCreateRequestSchema.parse(input);
+  return create(db, "category", context, { ...command, image: imageAssetId });
+}
 export function updateCategory(
   db: Database,
   context: CommandContext,
   id: string,
   input: CategoryUpdateRequest,
 ) {
-  const { version, ...command } = categoryUpdateRequestSchema.parse(input);
-  return update(db, "category", context, id, version, command);
+  const { version, imageAssetId, ...command } = categoryUpdateRequestSchema.parse(input);
+  return update(db, "category", context, id, version, { ...command, image: imageAssetId });
 }
 export const trashCategory = (
   db: Database,
@@ -452,3 +547,9 @@ export const restoreCategory = (
   id: string,
   input: BrandStateRequest,
 ) => changeTrash(db, "category", context, id, input, false);
+export const purgeCategory = (
+  db: Database,
+  context: CommandContext,
+  id: string,
+  input: BrandStateRequest,
+) => purge(db, "category", context, id, input);

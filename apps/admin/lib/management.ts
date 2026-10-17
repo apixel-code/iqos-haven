@@ -22,7 +22,7 @@ export async function managementRequest<T>(
   extraHeaders: Record<string, string> = {},
 ): Promise<T> {
   if (
-    !/^\/(settings|staff|delivery-areas|coupons|brands|categories|products|inventory|media|orders|customers|reviews|content)(?:[/?]|$)/.test(
+    !/^\/(settings|staff|delivery-areas|coupons|brands|categories|catalogue-images|products|inventory|media|orders|customers|reviews|content)(?:[/?]|$)/.test(
       path,
     ) ||
     path.includes("..") ||

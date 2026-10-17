@@ -39,6 +39,8 @@ export const storeBrandsResponseSchema = z.strictObject({
         productCount: z.number().int().min(0),
         /** Earlier slugs that now redirect here (step 101): the page sends them to `slug`. */
         formerSlugs: z.array(z.string()).max(20),
+        /** The brand's logo (parity G-A7), when one is set. */
+        logo: storeImageSchema.nullable(),
       }),
     )
     .max(500),
@@ -54,6 +56,8 @@ export const storeCategoriesResponseSchema = z.strictObject({
         productCount: z.number().int().min(0),
         /** Earlier slugs that now redirect here (step 101). */
         formerSlugs: z.array(z.string()).max(20),
+        /** The category's image (parity G-A7), when one is set. */
+        image: storeImageSchema.nullable(),
       }),
     )
     .max(500),
