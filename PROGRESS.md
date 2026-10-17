@@ -3,8 +3,8 @@
 ## Current position
 
 - Date: 2026-10-17
-- Milestone: M7 — transactional checkout and first complete order: all steps (73–82) done; gate evidence ready, awaiting Marina's decision. M6: all steps (65–72) done; gate evidence ready, awaiting Marina's decision. M5: PASSED 2026-10-11. M4 steps done, gate awaits Marina's decision (publishing unblocked); M3 gate not closed; M0 review and M1 staging/fixtures still open
-- Step: **121 — done** (load/query/payload test, ADR 0085, docs/load-report.md; scenario is Apixel's until BI-16). Step 120: local part done, real-device part waits for BI-15 + staging. All four tier-L parity gaps done (ADRs 0080–0083). M11 in progress (115–119, 121 done; 120 partial).
+- Milestone: M11 — full acceptance and release, in progress. Gates M0, M2–M10 PASSED (M0, M3, M4, M6–M10 on 2026-10-17, Marina); M1 open until staging/CI.
+- Step: **121 — done** (load/query/payload test, ADR 0085, docs/load-report.md; BI-16 answered: fewer than 200 shoppers at peak, covered). Step 120: local part done, real-device part waits for BI-15 + staging. All four tier-L parity gaps done (ADRs 0080–0083). M11 in progress (115–119, 121 done; 120 partial).
 - Branch: `step/121-load-testing` (from `step/120-accessibility`; PR #99 based on #98)
 - See docs/verification.md for actual checks.
 
@@ -16,12 +16,12 @@
 - Toolchain: prefix commands with `export PATH="/opt/homebrew/opt/node@24/bin:$HOME/.docker/bin:$PATH"`. If Docker is down, run `open -a Docker` and then `pnpm infra:up`.
 - Marina's answers (2026-10-12, ADR 0036, docs/business-inputs.md): prices are final as entered, no tax calculation (BI-02); delivery covers the seven emirates at one flat fee (BI-03); minimum age 18 as built (BI-04); Hostinger VPS (BI-06); catalogue, Owner and staff are entered through the admin (BI-10/11); retention defaults chosen by Apixel (BI-08). Still open: BI-01, BI-09 (demo values for now), BI-05 (indexing stays off).
 
-1. **Marina merges PR #61** (GitHub, "Create a merge commit"): it contains steps 77–87 and the age-gate fix, so #59 and #60 can then be closed unmerged. Afterwards `git checkout main && git pull --ff-only` and check the CI run on `main`. New migrations to apply on deployment: `20261013000100` through `20261014000200`.
-2. **From now on** branch each step from the latest pushed step branch (or `main` once #61 is merged), push it and open its PR after `/verify` and the commit.
-3. **Marina: decide the M6 gate (and M4).** Evidence and caveats: docs/verification.md "Step 72".
-4. **Marina: decide the M7 gate.** Evidence, item by item, and what is not covered: docs/verification.md "Step 82". Checkout stays switched off (`CHECKOUT_SUBMISSION_ENABLED=false`) whatever the decision, until deployment inputs exist (BI-07 sender domain, real Owner, delivery areas and fee).
-5. **Marina: decide the M8 gate.** Evidence: docs/verification.md "Step 92" (service-level journey from store order to collected cash, plus the HTTP suites for each route). Do not mark M8 passed without her decision.
-6. **Marina: decide the M9 gate.** Evidence: docs/verification.md "Step 102". Do not mark M9 passed without her decision.
+1. **Marina's decisions (2026-10-17), all recorded:** gates M0, M3, M4, M6, M7, M8, M9, M10 PASSED (see Gates passed); M1 stays open until staging and CI are proven; M11 in progress. Business inputs: none OPEN (BI-01, BI-07, BI-09 partly answered: logo/contact copy, sender-domain verification and the WhatsApp number follow).
+2. **Merge:** one PR from `step/121-load-testing` to `main` contains every stacked step (#60–#99 are then closed as merged through it). Marina merges on GitHub ("Create a merge commit") once CI is green; afterwards `git checkout main && git pull --ff-only`, and branch new work from `main`.
+3. **Work order (Marina, 2026-10-17):** merge → the nine chosen parity gaps → steps 124–127 → staging-dependent work (120 real devices, 121 rerun, 122, 128) on the Hostinger VPS (one VPS, staging first, later production).
+4. **Parity gaps to build before launch** (one branch, PR and commit each, from `main`): G-S2 listing filters, G-S3 mobile search sheet, G-S5 sticky add-to-cart, G-A5 orders list (counts, sort, select-all, mobile cards), G-A6 packing slip/print, G-A7 brand logo and category image upload (+ Owner purge), G-A8 products list (SKU search, stock filter/column, sort, thumbnail), G-A9 unsaved-changes guard, G-A11 Owner-sent staff reset and pending-invitation revoke. Not now: G-S8, G-A10 and every O-tier gap (after launch).
+5. **First Owner:** an Apixel account via `pnpm bootstrap:owner`, which invites the client as Owner and is then removed (the last-Owner guard keeps one Owner at all times).
+6. **At launch, Owner settings:** SEO policy `public_pages` (BI-05); WhatsApp number in Settings (BI-09); sender no-reply@iqoshaven.com once the domain is verified (BI-07), then `CHECKOUT_SUBMISSION_ENABLED=true`.
 7. **Next work: the four tier-L parity gaps** — Marina's decision (2026-10-17): build Apixel's recommended launch set from `docs/parity-review.md` before step 120. One branch, PR and commit each, in this order:
    1. ~~**G-A1**~~ — DONE 2026-10-17 (ADR 0080, PR #94).
    2. ~~**G-A2**~~ — DONE 2026-10-17 (ADR 0081, PR #95).
@@ -97,13 +97,14 @@
 
 ## Blockers
 
-BI-07: a verified sending domain and sender address are still needed before real email (the new-order email of step 78 is built and stays unsent until then). BI-01 and BI-09 (OPEN): contact copy and WhatsApp number/wording stay demo values. BI-05 (OPEN): indexing and previews stay off. BI-11: real Owner bootstrap needs an email at deployment. Real mobile interaction QA remains open. `scripts/browser-qa/qa.mjs` still expects the publish button to be disabled for its QA product; rerun and adjust it before relying on it.
+Before checkout is switched on: the sender domain verification (BI-07, Marina/Apixel) and the client's logo/contact copy (BI-01) and WhatsApp number (BI-09). Staging-dependent work waits for the Hostinger VPS (step 120 real devices, 122, 128).
 
 ## Gates passed
 
 - **M2 — PASSED 2026-10-09** (closed on Marina's approval). Gate: a synthetic event is written and processed by the worker; duplicate delivery and Redis job loss are recovered; tests send no real email. Evidence: `apps/worker/src/recovery.int.test.ts` "M2 gate" (queue obliterated → reconciler re-enqueue + duplicate original job → effect completed exactly once), `effects.int.test.ts` (5 concurrent duplicates apply once), real dev orphan recovered by the built worker (step 24 notes in docs/verification.md); email only to Mailpit/stubs. CI green on `main` at a2429f7 (run 37894960188) with all steps 18–26 merged. Not part of this gate: production queue Redis failover/restore drills (M11, after BI-06).
 - **M5 — PASSED 2026-10-11** (closed on Marina's decision). Gate: after age acceptance real products can be browsed, selected and added to the cart; before it no restricted product data is available. Evidence: `pnpm test:gate` (real API + storefront + gateway, 1803 checks) and the real-browser pass (14 checks) in docs/verification.md "Step 64". Accepted caveat: the products were seeded, because publishing through the admin waits for BI-02.
-- M0, M1, M3, M4 and M6–M11: not passed. M10: all steps (103–114) done; gate awaits Marina's decision. M7: all steps (73–82) done; gate awaits Marina's decision. M8: all steps (83–92) done; gate awaits Marina's decision. M6: all steps (65–72) done; gate awaits Marina's decision. M4: all steps (41–54) done; publishing is unblocked (ADR 0036), the gate awaits Marina's decision.
+- **M0, M3, M4, M6, M7, M8, M9, M10 — PASSED 2026-10-17** (Marina's decision on the recorded evidence: docs/verification.md steps 54, 72, 82, 92, 102, 114 and 118). Caveats carried: checkout stays off until BI-07; product indexing is not offered (BI-05: public pages only).
+- M1 (staging and CI proof) and M11 (in progress): not passed.
 
 ## Steps done
 
@@ -220,8 +221,8 @@ Tests: `pnpm verify` PASS (age preview 2245). `pnpm test:int` PASS (651). `pnpm 
 Unfinished:
 
 - PR #99 is open (based on #98).
-- The test database still holds 10 old `ih_test_*` schemas from earlier interrupted runs (not dropped: Marina or the next session may drop them with `node scripts/browser-qa/qa-server.cjs --drop <schema>`).
-- **Marina:** BI-15, BI-16; the M4 and M6–M10 gates; merging the stacked PRs #61 → #99.
+- The 10 old `ih_test_*` schemas left by interrupted runs were dropped (Marina, 2026-10-17).
+- Marina's 2026-10-17 decisions are recorded under Next action; she merges the single PR to `main`.
 
 ## History (summary)
 
