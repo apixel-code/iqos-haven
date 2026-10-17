@@ -100,4 +100,4 @@ Tiers are recommendations: **L** = before launch, **S** = should follow soon, **
 - The admin **Notifications** page (`components/notification-inbox.tsx`). Before this, the nav item opened the "being prepared" placeholder; every nav section now has a screen. It shows the full inbox newest first, an unread-only view, older pages, and mark read / mark all read, on the same API as the bell.
 - `docs/requirements.md`: delivery is UAE-wide (BI-03, ADR 0036), not "Dubai only".
 
-The tier column is Apixel's recommendation. **Which gaps to build before launch is Marina's decision.**
+The tier column is Apixel's recommendation. **Decision (Marina, 2026-10-17):** build the four tier-L gaps before launch, in the order G-A1, G-A2, G-S1, G-S4, before step 120. The S and O gaps stay open for a later decision.
