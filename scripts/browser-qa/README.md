@@ -285,3 +285,13 @@ QA_PLAYWRIGHT_DIR=/tmp/ih-qa node scripts/browser-qa/sticky-add.mjs <SERVING> /t
 ```
 
 At 360px the bar is hidden and inert while the main button is visible, and slides in at the bottom edge once it has scrolled away. It asks for an option and shows the price; it covers no footer text at the end of the page. With no choice it focuses the option and adds nothing; after a choice it shows option and price and adds, opening the cart sheet. At 1280px there is no bar.
+
+## Orders list (parity G-A5)
+
+With `qa-server.cjs` and the admin running as above:
+
+```sh
+QA_PLAYWRIGHT_DIR=/tmp/ih-qa node scripts/browser-qa/orders-list.mjs <SCHEMA>
+```
+
+It seeds pending and confirmed orders of different sizes. It then checks the tab counts and the header line, that "Highest amount" puts the largest order first, and that select-all chooses every pending order on the page and clears again. At 390px the cards replace the table without sideways scroll, and a tap opens the order.

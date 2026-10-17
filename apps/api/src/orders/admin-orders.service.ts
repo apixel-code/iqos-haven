@@ -7,6 +7,7 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import type {
+  AdminOrderCountsQuery,
   AdminOrdersQuery,
   OrderBulkConfirmRequest,
   OrderCancelRequest,
@@ -18,6 +19,7 @@ import type {
 import type { CommandContext } from "@ih/application";
 import { DeliveryUnavailableError, DeliveryUnconfiguredError } from "@ih/domain";
 import {
+  countAdminOrders,
   listAdminOrders,
   OrderCursorError,
   AdminOrderNotFoundError,
@@ -93,6 +95,11 @@ export class AdminOrdersService {
         throw new ConflictException({ code: "AREA_UNAVAILABLE" });
       throw error;
     }
+  }
+
+  /** Tab counts under the list's other filters (parity G-A5). */
+  counts(actorId: string, query: AdminOrderCountsQuery) {
+    return this.execute(() => countAdminOrders(this.db, actorId, query));
   }
 
   list(actorId: string, query: AdminOrdersQuery) {
