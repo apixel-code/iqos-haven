@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { CartLink } from "@/components/cart-link";
 import { CartSheet } from "@/components/cart-sheet";
 import { MenuSheet } from "@/components/menu-sheet";
+import { SearchSheet } from "@/components/search-sheet";
 import { NavLinks } from "@/components/nav-links";
 import { SearchBox } from "@/components/search-box";
 import { WhatsAppLink } from "@/components/whatsapp-link";
@@ -31,14 +32,15 @@ export default async function ShopLayout({ children }: { children: ReactNode }) 
       </a>
       {ticker && <PromoTicker messages={ticker.messages} />}
       <header className="border-b border-line bg-surface">
-        {/* Below `md` the header is the logo, Menu and Cart, with search on its own row; the
+        {/* Below `md` the header is the logo, Search, Menu and Cart (search in a sheet, parity G-S3); the
             sections, brands, saved items, compare, help and WhatsApp are in the menu sheet
             (parity G-S4). */}
         <div className="mx-auto flex w-full max-w-7xl flex-wrap items-center justify-between gap-x-6 gap-y-2 px-4 py-3 sm:px-8">
           <Link href="/" prefetch={false} className="text-lg font-semibold tracking-tight">
             {SITE.name}
           </Link>
-          <div className="order-last w-full md:order-none md:w-auto">
+          {/* Phones search in a sheet (parity G-S3); the inline box is for wider screens. */}
+          <div className="hidden md:block">
             <SearchBox />
           </div>
           <nav aria-label="Main" className="flex flex-wrap items-center gap-x-4 gap-y-2">
@@ -55,6 +57,9 @@ export default async function ShopLayout({ children }: { children: ReactNode }) 
                 <Link href="/help" prefetch={false} className="text-ink-2 hover:text-ink">
                   Help
                 </Link>
+              </li>
+              <li className="md:hidden">
+                <SearchSheet />
               </li>
               <li className="md:hidden">
                 <MenuSheet whatsappNumber={whatsappNumber} />

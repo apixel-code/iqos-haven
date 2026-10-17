@@ -3,15 +3,11 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { storeBrandsResponseSchema, type StoreBrandsResponse } from "@ih/contracts";
 import { useDeviceLists } from "@/lib/device/store";
+import { useStoreBrands } from "@/lib/store/client-hooks";
 import { POLICY_PAGES, PRIMARY_NAV, SITE } from "@/lib/site";
 import { WHATSAPP_MESSAGES } from "@/lib/whatsapp";
 import { WhatsAppLink } from "./whatsapp-link";
-
-type Brands =
-  | { state: "idle" | "loading" | "failed" }
-  | { state: "ready"; items: StoreBrandsResponse["items"] };
 
 const HELP_LINKS = [
   { href: "/help#help-delivery", label: "Delivery information" },
@@ -31,7 +27,7 @@ const row =
 export function MenuSheet({ whatsappNumber }: { whatsappNumber: string | null }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const [open, setOpen] = useState(false);
-  const [brands, setBrands] = useState<Brands>({ state: "idle" });
+  const { brands, load: loadBrands, ensure: ensureBrands } = useStoreBrands();
   const lists = useDeviceLists();
   const pathname = usePathname();
 
@@ -42,21 +38,7 @@ export function MenuSheet({ whatsappNumber }: { whatsappNumber: string | null })
   function show() {
     dialog.current?.showModal();
     setOpen(true);
-    if (brands.state === "idle" || brands.state === "failed") loadBrands();
-  }
-  function loadBrands() {
-    setBrands({ state: "loading" });
-    fetch("/api/v1/store/brands", { credentials: "same-origin", cache: "no-store" })
-      .then((response) => (response.ok ? response.json() : Promise.reject(new Error("brands"))))
-      .then((body: unknown) => {
-        const parsed = storeBrandsResponseSchema.safeParse(body);
-        if (!parsed.success) throw new Error("contract");
-        setBrands({
-          state: "ready",
-          items: parsed.data.items.filter((brand) => brand.productCount > 0),
-        });
-      })
-      .catch(() => setBrands({ state: "failed" }));
+    ensureBrands();
   }
 
   return (
