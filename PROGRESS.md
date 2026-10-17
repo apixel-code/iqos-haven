@@ -5,7 +5,7 @@
 - Date: 2026-10-16
 - Milestone: M7 — transactional checkout and first complete order: all steps (73–82) done; gate evidence ready, awaiting Marina's decision. M6: all steps (65–72) done; gate evidence ready, awaiting Marina's decision. M5: PASSED 2026-10-11. M4 steps done, gate awaits Marina's decision (publishing unblocked); M3 gate not closed; M0 review and M1 staging/fixtures still open
 - Step: 119 (selected-profile cache/limiter/replica verification) — done. M11 in progress (115–119 done). **All M10 steps (103–114) done; gate evidence ready, awaiting Marina's decision.** All M9 steps (93–102) done; gate evidence ready, awaiting Marina's decision. All M8 steps (83–92) done, gate awaiting Marina's decision.
-- Branch: `step/119-profile-verification` (based on #92; PR to open after push)
+- Branch: `step/119-profile-verification` (pushed; PR #93 based on #92)
 - See docs/verification.md for actual checks.
 
 ## Next action
@@ -211,7 +211,7 @@ Tests: `pnpm verify` PASS (unit 637, age preview 2245). `pnpm test:int` PASS (64
 Unfinished:
 
 - **Marina:** the M10 gate (and M4, M6–M9); which parity gaps to build before launch.
-- PRs #61 → … → #92 are stacked, and step 119's PR comes next.
+- PRs #61 → … → #92 are stacked, step 119 is PR #93.
 - Steps 120 onwards largely need a staging host, real devices and provider inputs (BI-06 is answered; BI-07 and the real Owner are still needed).
 
 ## History (summary)
