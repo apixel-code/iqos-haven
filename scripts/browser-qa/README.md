@@ -276,3 +276,12 @@ QA_PLAYWRIGHT_DIR=/tmp/ih-qa node scripts/browser-qa/search-sheet.mjs <SERVING> 
 ```
 
 At 360px it checks that the header has no inline box and the sheet fills the screen with the field focused. Before typing it offers brands and the recently viewed product. Typing suggests the product and links to every result. Enter searches and closes the sheet, Escape returns focus, and a brand opens its page. At 1280px the inline box stays and there is no sheet button.
+
+## Sticky add-to-cart bar (parity G-S5)
+
+```sh
+pnpm build && node scripts/check-gate-e2e.cjs --serve &   # prints SERVING
+QA_PLAYWRIGHT_DIR=/tmp/ih-qa node scripts/browser-qa/sticky-add.mjs <SERVING> /tmp/ih-qa/shots
+```
+
+At 360px the bar is hidden and inert while the main button is visible, and slides in at the bottom edge once it has scrolled away. It asks for an option and shows the price; it covers no footer text at the end of the page. With no choice it focuses the option and adds nothing; after a choice it shows option and price and adds, opening the cart sheet. At 1280px there is no bar.

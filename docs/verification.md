@@ -2318,3 +2318,12 @@ ADR 0087.
 | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Sheet         | `search-sheet.mjs`: all checks PASS (twice) at 360px (focus, full screen, brands and recently viewed before typing, suggestions and the all-results link, Enter, Escape, brand link) and 1280px. |
 | No regression | `menu-sheet.mjs` and `a11y-storefront.mjs` all PASS with the new header.                                                                                                                         |
+
+## Parity G-S5 — sticky add-to-cart bar on phones (2026-10-17, local)
+
+ADR 0088.
+
+| Item          | Evidence                                                                                                                                                                                               |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Bar           | `sticky-add.mjs`: all checks PASS (hidden and inert, slides in after scrolling, bottom edge, no footer covered, no silent default, chosen option and price, add opens the cart sheet, none at 1280px). |
+| No regression | `cart-sheet`, `menu-sheet`, `search-sheet` (its recently-viewed wait made deterministic), `listing-filters`, `a11y-storefront` all PASS; `checkout.mjs` 49/49.                                         |

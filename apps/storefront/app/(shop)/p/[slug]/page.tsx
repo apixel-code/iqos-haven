@@ -14,7 +14,7 @@ import { SITE } from "@/lib/site";
 import { TYPE_PAGES } from "@/lib/store/listing";
 import { StoreApiError } from "@/lib/store/api";
 import { storeInfo, storeRead } from "@/lib/store/server";
-import { WHATSAPP_MESSAGES } from "@/lib/whatsapp";
+import { WHATSAPP_MESSAGES, whatsappHref } from "@/lib/whatsapp";
 
 type Props = { params: Promise<{ slug: string }> };
 const SLUG = /^[a-z0-9]+(-[a-z0-9]+)*$/;
@@ -120,7 +120,18 @@ export default async function ProductPage({ params }: Props) {
             <RatingLink rating={product.rating} />
           </div>
           {/* Keyed by product so choices never carry over to another product. */}
-          <BuyBox key={product.slug} product={product} />
+          <BuyBox
+            key={product.slug}
+            product={product}
+            whatsappHref={whatsappHref(
+              whatsappNumber,
+              WHATSAPP_MESSAGES.product(SITE.name, {
+                name: product.name,
+                priceFromFils: Math.min(...product.variants.map((variant) => variant.priceFils)),
+                soldOut: product.soldOut,
+              }),
+            )}
+          />
           <SaveButton slug={product.slug} name={product.name} variant="page" />
           {product.type === "kit" && <CompareToggle slug={product.slug} />}
           <WhatsAppLink
