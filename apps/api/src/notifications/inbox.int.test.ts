@@ -8,7 +8,7 @@ import {
   loadLocalEnvFile,
 } from "@ih/config";
 import { inboxResponseSchema, notificationReadResponseSchema } from "@ih/contracts";
-import { createDatabase, createPool } from "@ih/db";
+import { changeStaffRole, createDatabase, createPool, deactivateStaff } from "@ih/db";
 import { applyMigrations } from "@ih/db/testing";
 import { Argon2PasswordHasher } from "@ih/platform";
 import type { INestApplication } from "@nestjs/common";
@@ -320,5 +320,61 @@ describe("staff inbox and event stream through the real API and PostgreSQL", () 
     const again = [await openStream(staff), await openStream(staff), await openStream(staff)];
     for (const one of again) await one.until((text) => text.includes("event: ready"));
     for (const one of again) await one.stop();
+  });
+
+  // Step 118: the real commands, not a direct revocation, end an open stream.
+  async function signedIn(email: string) {
+    const role = await db.role.findUniqueOrThrow({ where: { key: "staff" } });
+    const user = await db.staffUser.create({
+      data: {
+        email,
+        name: "Stream Staff",
+        roleId: role.id,
+        passwordHash: await hasher.hash(PASSWORD),
+      },
+    });
+    const response = await fetch(`${base}/v1/auth/login`, {
+      method: "POST",
+      headers: {
+        origin: ADMIN,
+        "content-type": "application/json",
+        "x-ih-client-ip": "192.0.2.215",
+      },
+      body: JSON.stringify({ email, password: PASSWORD }),
+    });
+    expect(response.status).toBe(200);
+    return { id: user.id, cookie: response.headers.get("set-cookie")!.split(";")[0]! };
+  }
+  const owners = () => ({ requestId: randomUUID(), actorId: ownerId });
+
+  it("ends the stream when the Owner deactivates the staff member", async () => {
+    const member = await signedIn("stream-deactivated@iqoshaven.test");
+    const stream = await openStream(member.cookie);
+    await stream.until((text) => text.includes("event: ready"));
+    const { version } = await db.staffUser.findUniqueOrThrow({ where: { id: member.id } });
+    await deactivateStaff(db, owners(), member.id, version);
+    await stream.until((text) => text.includes("event: signed-out"));
+    await stream.until(() => stream.ended());
+    await stream.stop();
+    // And the same cookie opens no new one.
+    expect(
+      (await fetch(`${base}/v1/admin/events/stream`, { headers: { cookie: member.cookie } }))
+        .status,
+    ).toBe(401);
+  });
+
+  it("ends the stream when the Owner changes the staff member's role", async () => {
+    const member = await signedIn("stream-promoted@iqoshaven.test");
+    const stream = await openStream(member.cookie);
+    await stream.until((text) => text.includes("event: ready"));
+    const { version } = await db.staffUser.findUniqueOrThrow({ where: { id: member.id } });
+    await changeStaffRole(db, owners(), member.id, { version, role: "owner" });
+    await stream.until((text) => text.includes("event: signed-out"));
+    await stream.until(() => stream.ended());
+    await stream.stop();
+    expect(
+      (await fetch(`${base}/v1/admin/events/stream`, { headers: { cookie: member.cookie } }))
+        .status,
+    ).toBe(401);
   });
 });

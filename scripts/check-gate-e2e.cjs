@@ -77,6 +77,8 @@ async function main() {
       await pool.end();
     });
     const role = await db.role.findUniqueOrThrow({ where: { key: "owner" } });
+    // Random per run and never printed: section 7 signs in with it through the admin gateway.
+    const staffPassword = randomBytes(24).toString("base64url");
     const staff = await db.staffUser.create({
       data: {
         email: "gate-check@iqoshaven.test",
@@ -86,10 +88,7 @@ async function main() {
           memoryKib: 19456,
           timeCost: 2,
           parallelism: 1,
-        })
-          // Random per run: the API listens on all interfaces for the gateway container, and
-          // nobody, including this script, ever signs in as this account.
-          .hash(randomBytes(24).toString("base64url")),
+        }).hash(staffPassword),
       },
     });
     const brand = await db.brand.create({
@@ -186,7 +185,8 @@ async function main() {
     const pair = generateKeyPairSync("ed25519");
     const signer = ageTicketSigner("gate", rawKey(pair.privateKey, "pkcs8"));
     const publicKeys = `gate:${rawKey(pair.publicKey, "spki")}`;
-    const [apiPort, storePort, gatewayPort] = [
+    const [apiPort, storePort, gatewayPort, adminGatewayPort] = [
+      await freePort(),
       await freePort(),
       await freePort(),
       await freePort(),
@@ -209,6 +209,8 @@ async function main() {
       // The store origins a browser would send with the quote POST: the nominal one used by
       // these checks, and the local gateway address for a manual browser pass (`--serve`).
       STOREFRONT_ORIGINS: `${ORIGIN},http://127.0.0.1:${gatewayPort}`,
+      // The admin surface of the same gateway (section 7: a real admin-origin sign-in).
+      ADMIN_ORIGINS: `http://127.0.0.1:${adminGatewayPort}`,
       // Orders stay off for the checks (they prove that). A manual browser pass of the
       // checkout form asks for them with `--serve --checkout-open`.
       CHECKOUT_SUBMISSION_ENABLED: String(
@@ -264,6 +266,8 @@ async function main() {
       "host.docker.internal:host-gateway",
       "-p",
       `127.0.0.1:${gatewayPort}:8080`,
+      "-p",
+      `127.0.0.1:${adminGatewayPort}:8081`,
       "-v",
       `${root}/infra/gateway/Caddyfile:/etc/caddy/Caddyfile:ro`,
       "-e",
@@ -738,6 +742,54 @@ async function main() {
       "a rejected browser is sent to the restricted page",
       `${afterReject.status} ${afterReject.headers.get("location")}`,
     );
+    // 7. Staff sign in on the admin origin, through the same gateway (step 118, AUTH-01).
+    const adminBase = `http://127.0.0.1:${adminGatewayPort}`;
+    const signIn = (target, origin) =>
+      fetch(target + "/api/v1/auth/login", {
+        method: "POST",
+        redirect: "manual",
+        headers: { "content-type": "application/json", origin },
+        body: JSON.stringify({ email: "gate-check@iqoshaven.test", password: staffPassword }),
+      });
+    const signedIn = await signIn(adminBase, adminBase);
+    const sessionCookie = signedIn.headers
+      .getSetCookie()
+      .find((value) => value.startsWith("__Host-ih_admin="));
+    check(
+      signedIn.status === 200 && Boolean(sessionCookie),
+      "staff sign in through the admin gateway",
+      String(signedIn.status),
+    );
+    check(
+      /^__Host-ih_admin=[^;]+; .*Path=\/.*; Secure; HttpOnly; SameSite=Strict/.test(
+        sessionCookie ?? "",
+      ) && !/Domain=/i.test(sessionCookie ?? ""),
+      "the admin cookie is host-only, Secure, HttpOnly and SameSite=Strict through the gateway",
+      // Attributes only: the token itself never reaches the log, even on failure.
+      (sessionCookie ?? "").split(";").slice(1).join(";"),
+    );
+    const session = { cookie: (sessionCookie ?? "").split(";")[0] };
+    const me = await fetch(adminBase + "/api/v1/auth/me", { headers: session });
+    check(me.status === 200, "the session works on the admin origin", String(me.status));
+    // The storefront origin offers no sign-in, and the session opens nothing for shoppers.
+    check(
+      (await signIn(base, ORIGIN)).status === 404,
+      "the storefront origin has no sign-in route",
+    );
+    await refused("an admin session on the storefront", session);
+    // A shopper's age ticket opens nothing on the admin origin.
+    const asShopper = await fetch(adminBase + "/api/v1/auth/me", { headers: verified });
+    check(
+      asShopper.status === 401,
+      "an age ticket is no staff session on the admin origin",
+      String(asShopper.status),
+    );
+    // A sign-in claiming another origin is refused.
+    check(
+      (await signIn(adminBase, ORIGIN)).status === 403,
+      "a sign-in from the storefront origin is refused",
+    );
+
     exitCode = failures ? 1 : 0;
     // On failure, the storefront's own log usually names the cause.
     if (failures) console.error("storefront log (tail):\n" + storeLog.slice(-1500));

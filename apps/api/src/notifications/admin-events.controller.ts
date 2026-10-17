@@ -141,9 +141,14 @@ export class AdminEventsController implements BeforeApplicationShutdown {
             // A client that stopped reading must not make the server hold its backlog.
             if (raw.writableLength > 64 * 1024) close();
           })
-          // The user lost the inbox permission, or the database is down: end; the browser
-          // reconnects and is authenticated again.
-          .catch(() => close("reconnect"))
+          // The read failed. A user who was signed out meanwhile (deactivated, role changed,
+          // session revoked) is told so; otherwise (inbox right lost, database down) the
+          // browser reconnects and is authenticated again.
+          .catch(() =>
+            sessionStillValid(this.db, staff.sessionId)
+              .then((valid) => close(valid ? "reconnect" : "signed-out"))
+              .catch(() => close("reconnect")),
+          )
           .finally(() => {
             polling = false;
           });

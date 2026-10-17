@@ -229,7 +229,32 @@ describe("report CSV downloads through the real API and PostgreSQL", () => {
       from: today(),
       to: today(),
     });
-    expect(header).toContain("Phone");
+    // PRIV-01 (step 118): exactly these columns; personal data is the name, phone and area only.
+    expect(header).toEqual([
+      "Order",
+      "Placed at (Dubai)",
+      "Status now",
+      "Source",
+      "Customer",
+      "Phone",
+      "Area",
+      "Emirate",
+      "Product (as sold)",
+      "Brand (as sold)",
+      "Category (as sold)",
+      "SKU",
+      "Quantity",
+      "Unit price (AED)",
+      "Line discount (AED)",
+      "Line total (AED)",
+      "Order merchandise (AED)",
+      "Order discount (AED)",
+      "Delivery fee (AED)",
+      "Order total (AED)",
+      "Coupon",
+      "Payment",
+      "Cash",
+    ]);
     expect(rows).toHaveLength(2);
     const customer = header.indexOf("Customer");
     const phone = header.indexOf("Phone");
@@ -258,6 +283,20 @@ describe("report CSV downloads through the real API and PostgreSQL", () => {
     expect(inventory.header.at(-1)).toBe("Snapshot at (Dubai)");
     expect(inventory.rows.every((row) => row[7] === "Out of stock")).toBe(true);
     const customers = await csvOf(owner, { type: "customers" });
+    expect(customers.header).toEqual([
+      "Customer",
+      "Phone",
+      "Orders placed",
+      "Orders cancelled",
+      "Booked spend (AED, not cancelled)",
+      "Delivered spend (AED)",
+      "First order (Dubai)",
+      "Last order (Dubai)",
+      "Areas",
+      "Snapshot at (Dubai)",
+    ]);
+    // No address, notes, Makani or staff email in any customer-data export.
+    expect(customers.raw).not.toMatch(/building|villa|makani|notes|@iqoshaven/i);
     expect(customers.rows).toHaveLength(2);
     expect(customers.rows.map((row) => row[0])).toContain("'" + ATTACK);
     expect(customers.rows.map((row) => row[5]).sort()).toEqual(["0.00", "115.00"]);

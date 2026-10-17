@@ -186,6 +186,24 @@ describe("API age gate (real API, Ed25519 tickets)", () => {
     expect((await get({ cookie: `${session}; ${AGE_COOKIE}=${good}` })).status).toBe(200);
   });
 
+  it("never lets a shopper's age ticket stand in for a staff session (step 118)", async () => {
+    const good = ticket();
+    for (const path of [
+      "/v1/auth/me",
+      "/v1/admin/dashboard",
+      "/v1/admin/orders",
+      "/v1/admin/customers",
+      "/v1/admin/reports",
+      "/v1/admin/events/stream",
+    ]) {
+      const response = await fetch(`${base}${path}`, {
+        headers: { cookie: `${AGE_COOKIE}=${good}`, origin: ADMIN, "x-ih-client-ip": "192.0.2.9" },
+      });
+      expect(response.status, path).toBe(401);
+      expect(response.headers.get("set-cookie"), path).toBeNull();
+    }
+  });
+
   it("fails closed when no verification key is configured", async () => {
     const closed = await createApp(
       apiEnvSchema.parse({ ...baseEnv, AGE_TICKET_PUBLIC_KEYS: "" }),

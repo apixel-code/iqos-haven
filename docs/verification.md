@@ -2155,3 +2155,36 @@ Not covered: load at volume (step 121); worker and queue failure (step 117).
 **Step 116 fix:** under full-suite load the idempotency race was won by the 2-unit payload, while the test expected the 1-unit one. The test now asserts one order and one sale, stock reduced by the winner's quantity, and conflicts or in-progress answers for the rest. The product behaviour was already right.
 
 Not covered: a real Redis failover and a production restore (steps 122–126, provider-dependent).
+
+## Step 118 — auth, privacy, gate, token and key regression (2026-10-17, local)
+
+`pnpm verify -- --integration`: exit 0 (unit 636, age preview 2245, integration 645, gateway 29, gate 2586). After the reviewer's fix, `pnpm test:gate` was run again: 2586.
+
+**Coverage.** A read-only inventory mapped each condition and scenario to existing tests:
+
+- **Owner guard** (including simultaneous attempts): `staff-administration` and `staff-role`.
+- **Reset and invite reuse, concurrency, expiry and revocation:** `password-reset` and `staff-invitation`.
+- **Logout, deactivation, role change, idle and absolute expiry:** `auth`, `access` and `staff-*`.
+- **Cookie attributes:** `auth`, `session-cookie` and `age-gate`.
+- **Key rotation and revocation; wrong, expired or tampered tickets:** `age-ticket.test.ts` and `age.int.test.ts`.
+- **No product data, warm cache, previews:** `check-age-preview` and `check-gate-e2e`.
+- **No checkout data on the device:** browser `checkout.mjs`.
+- **RBAC-01/02:** `access` and `m10-acceptance`; report downloads.
+
+**Gaps closed in this step:**
+
+| Gap                                        | New evidence                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| SSE on a real deactivation and role change | `inbox.int.test.ts`: the real `deactivateStaff` / `changeStaffRole` end an open stream with `signed-out`, and the cookie then opens no new one (401). **Product fix:** the stream used to end with `reconnect` (its inbox poll failed first), so the browser was not told to sign out. On a failed poll the stream now checks the session and says `signed-out` when it is invalid. The rest of the suite is unchanged (losing the inbox right still gives `reconnect`); 3 runs, 7/7 each. |
+| Age ticket on admin routes                 | `age.int.test.ts`: a valid ticket alone on `/v1/auth/me`, dashboard, orders, customers, reports and the event stream → 401, with no cookie set.                                                                                                                                                                                                                                                                                                                                            |
+| Legacy `co`/`lastOrder`                    | `lib/device/legacy.test.ts`: both storages lose exactly those keys (with planted name and phone) and keep the cart and lists; a blocked storage or a refusing one does not stop the rest.                                                                                                                                                                                                                                                                                                  |
+| Logger                                     | `index.test.ts`: `authorization` and a response `set-cookie` never reach the output.                                                                                                                                                                                                                                                                                                                                                                                                       |
+| AUTH-01 through the real gateway           | `check-gate-e2e.cjs` §7, on the admin surface published on loopback: <ul><li>the sign-in sets `__Host-ih_admin` with `Path=/; Secure; HttpOnly; SameSite=Strict` and no `Domain`;</li><li>the session works for `/auth/me`;</li><li>the storefront origin has no sign-in (404);</li><li>the admin session opens nothing on the storefront;</li><li>an age ticket is 401 on the admin origin;</li><li>a sign-in from the storefront origin is refused (403).</li></ul>                      |
+| PRIV-01 exports                            | `report-downloads.int.test.ts`: the exact column lists of the orders and customers exports. Personal data is the name, phone and area only; no address, notes, Makani or staff email.                                                                                                                                                                                                                                                                                                      |
+
+`invariant-reviewer`: one low finding, fixed. On failure, the gate check would have printed the session token; it now prints only the cookie's attributes.
+
+Not covered:
+
+- Traces (no tracing backend yet; step 125).
+- A WhatsApp user agent in the preview list (platform tests are step 120).

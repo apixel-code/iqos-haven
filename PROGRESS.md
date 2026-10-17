@@ -4,8 +4,8 @@
 
 - Date: 2026-10-16
 - Milestone: M7 — transactional checkout and first complete order: all steps (73–82) done; gate evidence ready, awaiting Marina's decision. M6: all steps (65–72) done; gate evidence ready, awaiting Marina's decision. M5: PASSED 2026-10-11. M4 steps done, gate awaits Marina's decision (publishing unblocked); M3 gate not closed; M0 review and M1 staging/fixtures still open
-- Step: 117 (worker crash / Redis-loss recovery drill) — done. M11 in progress (115–117 done). **All M10 steps (103–114) done; gate evidence ready, awaiting Marina's decision.** All M9 steps (93–102) done; gate evidence ready, awaiting Marina's decision. All M8 steps (83–92) done, gate awaiting Marina's decision.
-- Branch: `step/117-recovery-drill` (pushed; PR #91 based on #90)
+- Step: 118 (auth/privacy/gate/token/key regression) — done. M11 in progress (115–118 done). **All M10 steps (103–114) done; gate evidence ready, awaiting Marina's decision.** All M9 steps (93–102) done; gate evidence ready, awaiting Marina's decision. All M8 steps (83–92) done, gate awaiting Marina's decision.
+- Branch: `step/118-security-regression` (based on #91; PR to open after push)
 - See docs/verification.md for actual checks.
 
 ## Next action
@@ -22,8 +22,9 @@
 4. **Marina: decide the M7 gate.** Evidence, item by item, and what is not covered: docs/verification.md "Step 82". Checkout stays switched off (`CHECKOUT_SUBMISSION_ENABLED=false`) whatever the decision, until deployment inputs exist (BI-07 sender domain, real Owner, delivery areas and fee).
 5. **Marina: decide the M8 gate.** Evidence: docs/verification.md "Step 92" (service-level journey from store order to collected cash, plus the HTTP suites for each route). Do not mark M8 passed without her decision.
 6. **Marina: decide the M9 gate.** Evidence: docs/verification.md "Step 102". Do not mark M9 passed without her decision.
-7. **Marina: decide the M10 gate** (docs/verification.md "Step 114") **and which parity gaps to build before launch** (`docs/parity-review.md`: 26 gaps, Apixel recommends the four tier-L ones — G-S1 cart sheet, G-S4 mobile menu, G-A1 product picker and phone lookup in manual order/edit, G-A2 deep links and order-list URL filters). Build the chosen gaps as their own commits before or alongside M11. Otherwise next: **`/step 118`** (auth/privacy/gate/token/key regression): `rg -n "^| 118 " docs/roadmap.md`; reuse the auth, security and age suites and add what is missing. New migrations on deployment: `20261016000300_daily_summary_slot`, `20261016000400_report_jobs`, `20261016000500_seo_policy`.
+7. **Marina: decide the M10 gate** (docs/verification.md "Step 114") **and which parity gaps to build before launch** (`docs/parity-review.md`: 26 gaps, Apixel recommends the four tier-L ones — G-S1 cart sheet, G-S4 mobile menu, G-A1 product picker and phone lookup in manual order/edit, G-A2 deep links and order-list URL filters). Build the chosen gaps as their own commits before or alongside M11. Otherwise next: **`/step 119`** (selected-profile cache/limiter/replica verification): `rg -n "^| 119 " docs/roadmap.md`. The hosting profile is a Hostinger VPS (BI-06), so the budget profile applies: bounded API LRU and local limiter, no second Redis. New migrations on deployment: `20261016000300_daily_summary_slot`, `20261016000400_report_jobs`, `20261016000500_seo_policy`.
 8. **Rules that carry forward:**
+   - Event stream (step 118): when the inbox poll fails, the stream checks the session first and ends with `signed-out` if it is no longer valid, otherwise `reconnect`. The gate script (`pnpm test:gate`) now also signs in through the gateway's admin surface; never print the session token (only cookie attributes) in its checks.
    - SEO policy (ADR 0079): `seo` settings row, `closed` by default or `public_pages` (only /responsible-use, /terms, /privacy). Written only by `PUT /v1/admin/seo/policy` (`seo.write`, expected version); read by the storefront through `GET /v1/public/seo` and held `SEO_POLICY_CACHE_SECONDS` (60); any failure = closed. robots.ts, sitemap.ts (public, empty when closed), the `(policy)` layout's robots meta and the proxy's header follow it; the static `X-Robots-Tag` excludes only those three paths. Product indexing, previews and JSON-LD are never switches (BI-05). Browser pass: `scripts/browser-qa/seo.mjs`; storefront side in `pnpm test:age-preview`.
    - Report files (ADR 0078): `report_builder` (external, 5 attempts) claims, re-checks the requester's rights, builds in one snapshot, uploads to `reports/<job id>.csv` outside any transaction, completes only while `running`. A failed or given-up job never keeps an object. File download = own job + rights + completed + live → audit → 5-minute signed link via 303 (`no-store`, `no-referrer`). `reports.upkeep` every 15 min. API request logs keep only the response status; the logger redacts `Location`. Browser pass: `scripts/browser-qa/reports.mjs` (qa-server now also runs `report_builder`).
    - CSV reports (ADR 0077): encode only through `csvField`/`csvLine` (formula prefixes `= + - @ tab CR` get `'`; numbers only as `CsvNumber`/integers; amounts via `aedAmount` from fils; Dubai times). Generators `reportRows` page by keyset; a timestamp cursor must be microsecond text (`exactTime`), never a JS `Date`. Orders and customers reports hold names and phones → both need `customers.export`. `GET /v1/admin/reports/:id/download` streams a `ready` stream job: own only (404), rights re-checked (403), expired or file → 409 `REPORT_NOT_AVAILABLE`, >20,000 rows → 409 `REPORT_TOO_LARGE`, audit `report.downloaded` committed before sending.
@@ -141,6 +142,7 @@ BI-07: a verified sending domain and sender address are still needed before real
 - 104 — storefront telemetry queue (batches of 20, one retry, pause on overload, drop when full or on quiet pages), events from search/product page/cart/saved list, rotating anonymous ID, browser QA script (ADR 0070) — `step(104)` commit on `step/104-client-telemetry`
 - 105 — financial metric definitions (booked/delivered/collected, AOV, cancellation, status mix; Dubai days, AED fils, tax note) and the Owner's snapshot summary query (ADR 0071) — `step(105)` commit on `step/105-financial-metrics`
 - 106 — `sales_daily`, `product_sales_daily` (snapshot brand), `search_daily`, `wishlist_daily`; idempotent per-day rollup sharing the step 105 definitions; `analytics_rollup` consumer on order events (ADR 0072) — `step(106)` commit on `step/106-daily-rollups`
+- 118 — security regression: coverage mapped for every step 118 condition and AGE/AUTH/RBAC/PRIV scenario; gaps closed (SSE ends with signed-out on real deactivation and role change — product fix in the stream —, age ticket refused on admin routes, legacy `co`/`lastOrder` cleanup unit-tested, logger redacts authorization and set-cookie, real admin sign-in through the gateway, exact export columns) — `step(118)` commit on `step/118-security-regression`
 - 117 — recovery drill on a real `order.created` (inbox, email, analytics): relay dies before enqueue, Redis loses every job, crash after provider acceptance, lease lost mid-send, dead effect and audited replay, duplicate deliveries — the shop hears once — `step(117)` commit on `step/117-recovery-drill`
 - 116 — cross-command concurrency regression suite (last units vs damage and count; cancel/edit/transition at one version; double cancel; last coupon use vs an edit; collection and corrections; one checkout key) with a whole-database invariant sweep — `step(116)` commit on `step/116-concurrency-regression`
 - 115 — prototype parity review of the 19 areas with shared states and a tiered gap register (`docs/parity-review.md`); admin Notifications inbox page (the nav item opened a placeholder); requirements updated to UAE-wide delivery — `step(115)` commit on `step/115-parity-review`
@@ -181,32 +183,36 @@ BI-07: a verified sending domain and sender address are still needed before real
 - Event `consumers` lists only implemented consumers (now `system_probe`, `email`, `notification`, `media_processor`, `storefront_revalidate`); planned ones are documented with roadmap steps and move in with a backfill decision (architecture §8: adding a consumer must not redefine old completions).
 - `audit_log` migration revokes UPDATE/DELETE/TRUNCATE only from a role named `ih_app`; other runtime role names must be revoked at provisioning (trigger blocks mutations regardless).
 
-## Last session handoff (2026-10-16, step 117)
+## Last session handoff (2026-10-17, step 118)
 
 Done:
 
-- **Step 117:** `apps/worker/src/recovery-drill.int.test.ts` (5 tests, real PostgreSQL and queue Redis, the real relay, reconciler, runners and consumers). On real `order.created` events, the drill injects:
-  - the relay dying after its claim and before enqueue;
-  - Redis losing every job, plus late copies of the original job IDs;
-  - a crash after the email provider accepted;
-  - a lease lost mid-send;
-  - a permanent failure, then the Owner's audited replay;
-  - duplicate deliveries of every effect.
+- **Step 118:** a read-only inventory mapped every condition (Owner guard, reset and invite reuse, session revoke/SSE, cookie leakage, key rotation and revocation, no `co` persistence) and the AGE-01–06, AUTH-01–05, RBAC-01–02 and PRIV-01 scenarios to existing tests. Most were covered. The gaps were closed:
+  - **SSE on a real deactivation or role change** (`inbox.int.test.ts`). This found a product issue: the stream ended with `reconnect` instead of `signed-out`, because the inbox poll failed before the session check ran. It is fixed in `admin-events.controller.ts`: on a failed poll the session is checked, and an invalid session gets `signed-out`. Nothing leaked before; the stream already closed, but the browser was not told to sign out.
+  - **Age ticket alone on 6 admin routes** → 401 with no cookie set (`age.int.test.ts`).
+  - **Legacy `co`/`lastOrder` cleanup**: extracted to `lib/device/legacy.ts`, with unit tests (both storages; blocked storage).
+  - **Logger** redacts `authorization` and `set-cookie`.
+  - **Real admin sign-in through the gateway** (`check-gate-e2e.cjs` section 7):
+    - The cookie keeps its attributes.
+    - The session works on the admin origin, and the storefront origin has no sign-in.
+    - An admin session opens nothing for shoppers, and an age ticket is no session.
+    - A sign-in from the wrong origin is refused.
+  - **Exact column allowlists** for the orders and customers exports (PRIV-01).
+- **`invariant-reviewer`:** one low finding, fixed. The gate check would have printed the session token on failure; it now prints only the attributes.
+- The gate log shows one API "request failed" error line. It also appears with the script from before this step, so it comes from an existing deliberate case.
 
-  The shop gets one inbox notification and one email per order, and the analytics day counts the order once. The email stub honours the delivery key as Resend does (`apps/worker/src/email.ts` sends it as `Idempotency-Key`). It ran 3 times in a row, 5/5 each time.
+Files: `apps/api/src/notifications/{admin-events.controller.ts,inbox.int.test.ts}`, `apps/api/src/auth/age.int.test.ts`, `apps/api/src/reports/report-downloads.int.test.ts`, `apps/storefront/{lib/device/legacy.ts,lib/device/legacy.test.ts,components/legacy-cleanup.tsx}`, `packages/logger/src/index.test.ts`, `scripts/check-gate-e2e.cjs`, `docs/verification.md`
 
-- **Step 116 test fix:** under full-suite load the idempotency race let the 2-unit payload claim the key first. The test assumed the 1-unit payload would win. It now checks that one order and one sale exist, that the stock falls by the winner's quantity, and that every refusal is a conflict or in-progress. This was a test assumption, not a product bug.
-
-Files: `apps/worker/src/recovery-drill.int.test.ts`, `apps/api/src/orders/concurrency-regression.int.test.ts`, `docs/verification.md`, `PROGRESS.md`
-
-Tests: `pnpm verify` PASS (unit 634, age preview 2245). `pnpm test:int` PASS (642). No product code changed.
+Tests: `pnpm verify -- --integration` PASS (unit 636, age preview 2245, integration 645, gateway 29, gate 2586). After the reviewer fix, `pnpm test:gate` was run again: 2586.
 
 Unfinished:
 
 - **Marina:** the M10 gate (and M4, M6–M9); which parity gaps to build before launch.
-- PRs #61 → … → #90 are stacked, step 117 is PR #91.
+- PRs #61 → … → #91 are stacked, and step 118's PR comes next.
 
 ## History (summary)
+
+- 2026-10-16 step 117: recovery drill on a real order, step 116 test assumption fixed (PR #91); integration 642.
 
 - 2026-10-16 step 116: cross-command concurrency regression with a whole-database invariant sweep (PR #90); integration 637.
 
