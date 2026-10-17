@@ -5,7 +5,7 @@
 - Date: 2026-10-17
 - Milestone: M7 — transactional checkout and first complete order: all steps (73–82) done; gate evidence ready, awaiting Marina's decision. M6: all steps (65–72) done; gate evidence ready, awaiting Marina's decision. M5: PASSED 2026-10-11. M4 steps done, gate awaits Marina's decision (publishing unblocked); M3 gate not closed; M0 review and M1 staging/fixtures still open
 - Step: **121 — done** (load/query/payload test, ADR 0085, docs/load-report.md; scenario is Apixel's until BI-16). Step 120: local part done, real-device part waits for BI-15 + staging. All four tier-L parity gaps done (ADRs 0080–0083). M11 in progress (115–119, 121 done; 120 partial).
-- Branch: `step/121-load-testing` (from `step/120-accessibility`; PR to open, based on #98)
+- Branch: `step/121-load-testing` (from `step/120-accessibility`; PR #99 based on #98)
 - See docs/verification.md for actual checks.
 
 ## Next action
@@ -219,7 +219,7 @@ Tests: `pnpm verify` PASS (age preview 2245). `pnpm test:int` PASS (651). `pnpm 
 
 Unfinished:
 
-- Push `step/121-load-testing` and open its PR on #98.
+- PR #99 is open (based on #98).
 - The test database still holds 10 old `ih_test_*` schemas from earlier interrupted runs (not dropped: Marina or the next session may drop them with `node scripts/browser-qa/qa-server.cjs --drop <schema>`).
 - **Marina:** BI-15, BI-16; the M4 and M6–M10 gates; merging the stacked PRs #61 → #99.
 
