@@ -226,3 +226,16 @@ inside, a full-width bottom sheet, no sideways scroll, the quantity control, Esc
 shopping, and View cart and checkout. At 1280px it adds through quick add (which hands over to
 the sheet) and checks the full-height side panel, removing the last line and closing by clicking
 outside. Neither size may have page errors.
+
+## Storefront mobile menu (parity G-S4)
+
+```sh
+pnpm build && node scripts/check-gate-e2e.cjs --serve --checkout-open &   # prints SERVING
+QA_PLAYWRIGHT_DIR=/tmp/ih-qa node scripts/browser-qa/menu-sheet.mjs <SERVING> /tmp/ih-qa/shots
+```
+
+At 360px it checks the compact header (Menu button, no section links, no sideways scroll) and
+the menu: focus inside, a full-height sheet from the left, every section, the saved count, brands
+loaded on opening, and that a brand or help link closes the menu. It also checks that WhatsApp
+is only a wa.me link, that Escape returns focus to the button, and that an outside click
+closes it. At 1280px there is no Menu button, and the sections and Help stay in the header.

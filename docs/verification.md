@@ -2249,3 +2249,16 @@ ADR 0082.
 Not covered:
 
 - Real phones (touch, on-screen keyboard, iOS dialog quirks): step 120.
+
+## Parity G-S4 — storefront mobile menu sheet (2026-10-17, local)
+
+ADR 0083.
+
+| Item            | Evidence                                                                                                                                                                                                                                             |
+| --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Menu and header | `scripts/browser-qa/menu-sheet.mjs` on the served gate stack: all checks PASS at 360px (compact header, every section, saved count, brands on demand, link closes, Escape returns focus, outside click) and 1280px (full header with Help, no Menu). |
+| No regression   | `cart-sheet.mjs` all PASS and `checkout.mjs` 49/49 on the same stack after the header change.                                                                                                                                                        |
+
+Not covered:
+
+- Real phones and screen readers (step 120).

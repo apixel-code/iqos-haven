@@ -4,8 +4,8 @@
 
 - Date: 2026-10-17
 - Milestone: M7 — transactional checkout and first complete order: all steps (73–82) done; gate evidence ready, awaiting Marina's decision. M6: all steps (65–72) done; gate evidence ready, awaiting Marina's decision. M5: PASSED 2026-10-11. M4 steps done, gate awaits Marina's decision (publishing unblocked); M3 gate not closed; M0 review and M1 staging/fixtures still open
-- Step: parity gaps **G-A1** (ADR 0080), **G-A2** (ADR 0081) and **G-S1** (storefront cart sheet, ADR 0082) — done, after step 119 (done). Next: G-S4.
-- Branch: `parity/g-s1-cart-sheet` (from `parity/g-a2-deep-links`; PR #96 based on #95)
+- Step: all four tier-L parity gaps done 2026-10-17: **G-A1** (ADR 0080), **G-A2** (0081), **G-S1** (0082), **G-S4** (mobile menu sheet, 0083). Step 119 done; next roadmap step 120.
+- Branch: `parity/g-s4-menu-sheet` (from `parity/g-s1-cart-sheet`; PR to open, based on #96)
 - See docs/verification.md for actual checks.
 
 ## Next action
@@ -25,8 +25,8 @@
 7. **Next work: the four tier-L parity gaps** — Marina's decision (2026-10-17): build Apixel's recommended launch set from `docs/parity-review.md` before step 120. One branch, PR and commit each, in this order:
    1. ~~**G-A1**~~ — DONE 2026-10-17 (ADR 0080, PR #94).
    2. ~~**G-A2**~~ — DONE 2026-10-17 (ADR 0081, PR #95).
-   3. ~~**G-S1**~~ — DONE 2026-10-17 (ADR 0082, branch `parity/g-s1-cart-sheet`). **Next: G-S4** on `parity/g-s4-menu-sheet`, branched from `parity/g-s1-cart-sheet`; then step 120.
-   4. **G-S4** — storefront mobile menu sheet with brands, saved items, compare, help and WhatsApp (ADR 0033).
+   3. ~~**G-S1**~~ — DONE 2026-10-17 (ADR 0082, PR #96).
+   4. ~~**G-S4**~~ — DONE 2026-10-17 (ADR 0083, branch `parity/g-s4-menu-sheet`). **All four done. Next: step 120** (link-preview and browser/mobile accessibility check): it needs staging devices and platforms, so confirm with Marina what can run locally before starting. The S and O parity gaps stay open for her decision.
       Each: look up the prototype symbols in `docs/prototype-map.md` (or the `prototype-reader` subagent), add or extend a browser pass in `scripts/browser-qa/`, `/verify`, then mark the gap DONE in `docs/parity-review.md`. Branch names `parity/g-a1-order-picker` etc., each from the latest pushed branch.
       Still waiting on Marina: the M10 gate (docs/verification.md "Step 114") and M4, M6–M9. After the four gaps: **`/step 120`**. New migrations on deployment: `20261016000300_daily_summary_slot`, `20261016000400_report_jobs`, `20261016000500_seo_policy`.
 8. **Rules that carry forward:**
@@ -149,6 +149,7 @@ BI-07: a verified sending domain and sender address are still needed before real
 - 104 — storefront telemetry queue (batches of 20, one retry, pause on overload, drop when full or on quiet pages), events from search/product page/cart/saved list, rotating anonymous ID, browser QA script (ADR 0070) — `step(104)` commit on `step/104-client-telemetry`
 - 105 — financial metric definitions (booked/delivered/collected, AOV, cancellation, status mix; Dubai days, AED fils, tax note) and the Owner's snapshot summary query (ADR 0071) — `step(105)` commit on `step/105-financial-metrics`
 - 106 — `sales_daily`, `product_sales_daily` (snapshot brand), `search_daily`, `wishlist_daily`; idempotent per-day rollup sharing the step 105 definitions; `analytics_rollup` consumer on order events (ADR 0072) — `step(106)` commit on `step/106-daily-rollups`
+- G-S4 — storefront mobile menu sheet: compact phone header (logo, Menu, Cart, search row), `MenuSheet` dialog from the left with sections, brands loaded on opening, saved/compare counts, help and WhatsApp; Help link on wide screens; browser pass `menu-sheet.mjs` (ADR 0083) — parity/g-s4-menu-sheet
 - G-S1 — storefront cart sheet after adding (`CartSheet` modal dialog: bottom sheet on a phone, side panel from 640px; lines, quantity, remove, subtotal, View cart and checkout, WhatsApp; quick add hands over; no payable total), shared `CartLines`, browser pass `cart-sheet.mjs`, two stale `checkout.mjs` expectations updated (ADR 0082) — parity/g-s1-cart-sheet
 - G-A2 — admin deep links: URL-held view state (`useUrlQuery`; orders `order`/`status`/`delayed`, products `product`, inventory `variant`/`state`, customers `customer`), `delayed=true` orders filter on the shared `DELAYED_ORDER` rule, inventory `variantId`, links from bell, inbox, dashboard, customer history and reviews, browser pass `deep-links.mjs` (ADR 0081) — parity/g-a2-deep-links
 - G-A1 — order item picker (`GET /v1/admin/orders/item-choices`, `orders.create` or `orders.edit` via new `@RequireAnyPermission`), returning-customer lookup by phone in the manual order (customer addresses carry `areaId`), fixed manual-order submission (stray top-level `areaId`), browser pass `order-picker.mjs` (ADR 0080) — parity/g-a1-order-picker
@@ -194,26 +195,29 @@ BI-07: a verified sending domain and sender address are still needed before real
 - Event `consumers` lists only implemented consumers (now `system_probe`, `email`, `notification`, `media_processor`, `storefront_revalidate`); planned ones are documented with roadmap steps and move in with a backfill decision (architecture §8: adding a consumer must not redefine old completions).
 - `audit_log` migration revokes UPDATE/DELETE/TRUNCATE only from a role named `ih_app`; other runtime role names must be revoked at provisioning (trigger blocks mutations regardless).
 
-## Last session handoff (2026-10-17, parity G-S1)
+## Last session handoff (2026-10-17, parity G-S4)
 
 Done:
 
-- **G-S1 (ADR 0082):** after a successful add, `apps/storefront/components/cart-sheet.tsx` opens. It is mounted once in the shop layout and opened through `lib/cart/sheet.ts`.
-  - **Layout:** a native modal dialog; a bottom sheet at 360px, a full-height side panel from 640px.
-  - **Contents:** lines from `useFreshCart` (current API prices) through the new shared `CartLines` (the cart page uses it too), quantity, remove and the subtotal. "View cart and checkout" goes to `/cart`, where the server quote is accepted; there is no payable total in the sheet. Continue shopping, and WhatsApp when a number is set.
-  - **Quick add** closes its own dialog first (`BuyBox` `onAdded`).
-- **Stale test fixed:** `scripts/browser-qa/checkout.mjs` had two expectations from before steps 104 and 107 (the `ih_anon_v1` key, and `analytics_rollup` as a third `order.created` consumer). Both updated; 49/49 PASS.
+- **G-S4 (ADR 0083):**
+  - **Phone header (below `md`):** the logo, a Menu button and Cart, with search on its own row. The section links and Saved are hidden there; wide screens keep them and gain a Help link.
+  - **`apps/storefront/components/menu-sheet.tsx`:** a modal dialog from the left with Home, the sections, Brands (a disclosure, loaded from `/api/v1/store/brands` on the first open, with loading, failure and retry states), Saved items and Compare kits (device counts), Help & info (help sections and policy pages) and Chat on WhatsApp (only when a number is set).
+  - **Closing:** a link, a route change, Escape (focus back to Menu) or an outside click.
+- **All four tier-L parity gaps are now done** (G-A1 PR #94, G-A2 #95, G-S1 #96, G-S4 this branch).
 
-Files: `apps/storefront/components/{cart-sheet.tsx,cart-lines.tsx,cart-view.tsx,buy-box.tsx,quick-add.tsx}`, `apps/storefront/lib/cart/{sheet.ts,fresh.ts}`, `apps/storefront/app/(shop)/layout.tsx`, `scripts/browser-qa/{cart-sheet.mjs,checkout.mjs,README.md}`, `docs/decisions/0082-storefront-cart-sheet.md`, `docs/parity-review.md`, `docs/verification.md`
+Files: `apps/storefront/components/menu-sheet.tsx`, `apps/storefront/app/(shop)/layout.tsx`, `scripts/browser-qa/{menu-sheet.mjs,README.md}`, `docs/decisions/0083-storefront-mobile-menu.md`, `docs/parity-review.md`, `docs/verification.md`
 
-Tests: `pnpm verify` PASS (storefront unit 133, age preview 2245). `pnpm test:gate` PASS (2586). Browser: `cart-sheet.mjs` all PASS, `checkout.mjs` 49/49. `pnpm test:int` not rerun (no API or database change since G-A2: 651 PASS).
+Tests: `pnpm verify` PASS (age preview 2245). `pnpm test:gate` PASS (2586). Browser: `menu-sheet.mjs` all PASS, `cart-sheet.mjs` all PASS, `checkout.mjs` 49/49 (schema dropped). `pnpm test:int` not rerun (no API change since G-A2: 651).
 
 Unfinished:
 
-- PR #96 is open (based on #95). Next: G-S4 (storefront mobile menu sheet), then step 120.
-- **Marina:** the M4 and M6–M10 gates; merging the stacked PRs #61 → #95.
+- Push `parity/g-s4-menu-sheet` and open its PR on #96.
+- **Marina:** the M4 and M6–M10 gates; merging the stacked PRs #61 → #97; whether any S/O parity gap goes in before launch.
+- Step 120 onwards need a staging host, real devices and provider inputs.
 
 ## History (summary)
+
+- 2026-10-17 parity G-S1: storefront cart sheet, shared `CartLines`, two stale `checkout.mjs` expectations fixed (PR #96).
 
 - 2026-10-17 parity G-A2: admin deep links, `delayed` and `variantId` filters (PR #95); integration 651.
 
