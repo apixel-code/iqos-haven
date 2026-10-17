@@ -926,3 +926,10 @@ ul.dashboard-list {
     flex-wrap: wrap;
   }
 }
+/* Order status tabs with the "Delayed only" toggle beside them (step 120). */
+.order-filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}

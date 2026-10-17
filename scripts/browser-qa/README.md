@@ -239,3 +239,22 @@ the menu: focus inside, a full-height sheet from the left, every section, the sa
 loaded on opening, and that a brand or help link closes the menu. It also checks that WhatsApp
 is only a wa.me link, that Escape returns focus to the button, and that an outside click
 closes it. At 1280px there is no Menu button, and the sections and Help stay in the header.
+
+## Accessibility (step 120, local part)
+
+Install axe-core next to playwright-core (`npm i axe-core@4` in `QA_PLAYWRIGHT_DIR`). Storefront, on the served gate stack:
+
+```sh
+pnpm build && node scripts/check-gate-e2e.cjs --serve --checkout-open &   # prints SERVING
+QA_PLAYWRIGHT_DIR=/tmp/ih-qa node scripts/browser-qa/a11y-storefront.mjs <SERVING> /tmp/ih-qa/shots
+```
+
+Admin, with `qa-server.cjs` and the admin running as above:
+
+```sh
+QA_PLAYWRIGHT_DIR=/tmp/ih-qa node scripts/browser-qa/a11y-admin.mjs <SCHEMA>
+```
+
+Both run axe-core with the WCAG 2.1 A/AA rules on every page at a phone and a desktop width (the
+admin also in its dark theme). Serious and critical violations fail; lesser ones are printed as
+notes. They then walk keyboard-only journeys through the dialogs, sheets and form errors.

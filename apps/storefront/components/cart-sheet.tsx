@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef } from "react";
 import { useFreshCart } from "@/lib/cart/fresh";
-import { closeCartSheet, useCartSheetOpen } from "@/lib/cart/sheet";
+import { closeCartSheet, useCartSheet } from "@/lib/cart/sheet";
 import { SITE } from "@/lib/site";
 import { displayAed } from "@/lib/store/listing";
 import { whatsappHref, WHATSAPP_MESSAGES } from "@/lib/whatsapp";
@@ -16,20 +16,21 @@ import { CartLines } from "./cart-lines";
  * server quote checkout needs; the sheet never shows a payable total.
  */
 export function CartSheet({ whatsappNumber }: { whatsappNumber: string | null }) {
-  const open = useCartSheetOpen();
+  const { open, revision } = useCartSheet();
   const dialog = useRef<HTMLDialogElement>(null);
   useEffect(() => {
     const element = dialog.current;
     if (!element) return;
     if (open && !element.open) element.showModal();
     if (!open && element.open) element.close();
-  }, [open]);
+  }, [open, revision]);
 
   return (
     <dialog
       ref={dialog}
       aria-labelledby="cart-sheet-title"
-      onClose={closeCartSheet}
+      // The close event arrives after the dialog closed; a new add may have reopened it since.
+      onClose={() => !dialog.current?.open && closeCartSheet()}
       // A click on the backdrop (outside the panel) closes the sheet.
       onClick={(event) => event.target === event.currentTarget && closeCartSheet()}
       className="fixed inset-x-0 top-auto bottom-0 m-0 max-h-[85dvh] w-full max-w-none overflow-hidden rounded-t-lg bg-surface p-0 text-ink shadow-3 backdrop:bg-ink/40 sm:inset-y-0 sm:right-0 sm:left-auto sm:h-dvh sm:max-h-dvh sm:w-[26rem] sm:rounded-none"

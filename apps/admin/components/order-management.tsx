@@ -204,22 +204,25 @@ export function OrderManagement({
           <span className="badge">Live order operations</span>
         )}
       </header>
-      <div className="tab-list" role="tablist" aria-label="Order status">
-        {STATUSES.map((value) => (
-          <button
-            key={value}
-            type="button"
-            role="tab"
-            className="secondary-button"
-            aria-selected={status === value}
-            onClick={() => {
-              setStatus(value);
-              resetPage();
-            }}
-          >
-            {value === "all" ? "All" : ORDER_STATUS_LABELS[value]}
-          </button>
-        ))}
+      {/* The status tabs are a tablist; the delayed filter is a separate toggle beside it. */}
+      <div className="order-filter-row">
+        <div className="tab-list" role="tablist" aria-label="Order status">
+          {STATUSES.map((value) => (
+            <button
+              key={value}
+              type="button"
+              role="tab"
+              className="secondary-button"
+              aria-selected={status === value}
+              onClick={() => {
+                setStatus(value);
+                resetPage();
+              }}
+            >
+              {value === "all" ? "All" : ORDER_STATUS_LABELS[value]}
+            </button>
+          ))}
+        </div>
         <button
           type="button"
           className="secondary-button"

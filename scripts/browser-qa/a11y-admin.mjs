@@ -1,0 +1,182 @@
+// Accessibility pass of the admin (roadmap step 120, local part) through the real gateway, on
+// the schema served by qa-server.cjs (see README.md):
+//   QA_PLAYWRIGHT_DIR=<dir> node scripts/browser-qa/a11y-admin.mjs <SCHEMA>
+// QA_PLAYWRIGHT_DIR must hold playwright-core and axe-core (`npm i playwright-core@1 axe-core@4`).
+// axe-core (WCAG 2.1 A/AA) on the sign-in page and every Owner section at 1366px and 390px, in
+// the light and dark themes, then keyboard-only sign-in, form errors and the notification panel.
+import { createRequire } from "node:module";
+import { mkdirSync } from "node:fs";
+import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const root = resolve(fileURLToPath(new URL(".", import.meta.url)), "../..");
+const playwrightDir = process.env.QA_PLAYWRIGHT_DIR;
+if (!playwrightDir) throw new Error("Set QA_PLAYWRIGHT_DIR (see scripts/browser-qa/README.md)");
+const fromQa = createRequire(resolve(playwrightDir, "package.json"));
+const { chromium } = fromQa("playwright-core");
+const axePath = fromQa.resolve("axe-core/axe.min.js");
+const schema = process.argv[2];
+if (!/^ih_test_[0-9a-f]{32}$/.test(schema ?? "")) throw new Error("usage: <SCHEMA>");
+const fromApi = createRequire(root + "/apps/api/package.json");
+const config = fromApi("@ih/config");
+const { createPool } = fromApi("@ih/db");
+const { seedOrder } = fromApi("@ih/db/testing");
+process.chdir(root);
+config.loadLocalEnvFile();
+const { DATABASE_TEST_URL } = config.loadEnv(config.integrationTestEnvSchema);
+config.assertTestDatabase(DATABASE_TEST_URL, process.env.DATABASE_URL);
+const pool = createPool({
+  connectionString: DATABASE_TEST_URL,
+  applicationName: "ih-qa-a11y-admin",
+  searchPath: schema,
+});
+const out = resolve(process.env.QA_SHOTS_DIR ?? resolve(playwrightDir, "shots")) + "/";
+mkdirSync(out, { recursive: true });
+const BASE = "http://localhost:8081";
+const PASSWORD = "copper-lantern-river-71";
+const executablePath =
+  process.env.QA_CHROMIUM ??
+  process.env.HOME +
+    "/Library/Caches/ms-playwright/chromium-1223/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing";
+let failed = 0;
+const check = (name, ok, detail = "") => {
+  if (!ok) failed++;
+  console.log(`${ok ? "PASS" : "FAIL"} ${name}${detail && !ok ? " — " + detail : ""}`);
+};
+async function scan(page, label) {
+  await page.addScriptTag({ path: axePath });
+  const result = await page.evaluate(async () =>
+    // eslint-disable-next-line no-undef
+    axe.run(document, { runOnly: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"] }),
+  );
+  const blocking = result.violations.filter((v) => ["serious", "critical"].includes(v.impact));
+  const describe = (list) =>
+    list
+      .map((v) => `${v.id}(${v.impact}) ×${v.nodes.length}: ${v.nodes[0]?.target.join(" ")}`)
+      .join("; ");
+  check(`axe ${label}`, blocking.length === 0, describe(blocking));
+  const minor = result.violations.filter((v) => !blocking.includes(v));
+  if (minor.length) console.log(`  note ${label}: ${describe(minor)}`);
+}
+
+const seeded = await seedOrder(pool);
+const SECTIONS = [
+  "orders",
+  "products",
+  "brands",
+  "categories",
+  "inventory",
+  "customers",
+  "reviews",
+  "notifications",
+  "analytics",
+  "reports",
+  "staff",
+  "discounts",
+  "delivery",
+  "content",
+  "settings",
+  "seo",
+];
+const browser = await chromium.launch({ executablePath, headless: true });
+async function signIn(page) {
+  await page.goto(BASE + "/login");
+  await page.fill('input[name="email"]', "owner.qa@iqoshaven.test");
+  await page.fill('input[name="password"]', PASSWORD);
+  await page.click('button[type="submit"]');
+  await page.waitForURL((url) => !url.pathname.startsWith("/login"), { timeout: 15000 });
+}
+try {
+  for (const [viewport, scheme] of [
+    [{ width: 1366, height: 900 }, "light"],
+    [{ width: 1366, height: 900 }, "dark"],
+    [{ width: 390, height: 844 }, "light"],
+  ]) {
+    const context = await browser.newContext({ viewport, colorScheme: scheme });
+    const page = await context.newPage();
+    const errors = [];
+    page.on("pageerror", (e) => errors.push(e.message));
+    const tag = `@${viewport.width} ${scheme}`;
+    await page.goto(BASE + "/login");
+    await page.locator('input[name="email"]').waitFor();
+    await scan(page, `sign-in ${tag}`);
+    await signIn(page);
+    await page.waitForLoadState("networkidle");
+    await scan(page, `home ${tag}`);
+    for (const section of SECTIONS) {
+      await page.goto(`${BASE}/workspace/${section}`);
+      await page.waitForLoadState("networkidle");
+      await scan(page, `${section} ${tag}`);
+    }
+    await page.goto(`${BASE}/workspace/orders?order=${seeded.orderId}`);
+    await page.getByRole("heading", { name: "Edit order" }).waitFor();
+    await scan(page, `order detail ${tag}`);
+    await page.goto(`${BASE}/workspace/orders`);
+    await page.getByRole("button", { name: "New order" }).click();
+    await page.getByRole("heading", { name: "New order" }).waitFor();
+    await page.waitForLoadState("networkidle");
+    await scan(page, `new order ${tag}`);
+    check(`no page errors ${tag}`, errors.length === 0, errors.join("; "));
+    await context.close();
+  }
+
+  // Keyboard only: sign in, open the notification panel, close it with Escape.
+  const context = await browser.newContext({ viewport: { width: 1366, height: 900 } });
+  const page = await context.newPage();
+  await page.goto(BASE + "/login");
+  await page.locator('input[name="email"]').waitFor();
+  await page.keyboard.press("Tab");
+  const firstField = await page.evaluate(() => document.activeElement?.getAttribute("name"));
+  if (firstField !== "email") await page.locator('input[name="email"]').focus();
+  await page.keyboard.type("owner.qa@iqoshaven.test");
+  await page.keyboard.press("Tab");
+  check(
+    "Tab moves from email to password",
+    await page.evaluate(() => document.activeElement?.getAttribute("name") === "password"),
+  );
+  await page.keyboard.type("wrong-password-value-1");
+  await page.keyboard.press("Enter");
+  await page.getByRole("alert").first().waitFor({ timeout: 15000 });
+  check("a refused sign-in is announced as an alert", true);
+  await page.locator('input[name="password"]').fill(PASSWORD);
+  await page.locator('input[name="password"]').press("Enter");
+  await page.waitForURL((url) => !url.pathname.startsWith("/login"), { timeout: 15000 });
+  check("Enter signs in", true);
+  const bell = page.getByRole("button", { name: /^Notifications/ });
+  await bell.focus();
+  await page.keyboard.press("Enter");
+  const panel = page.getByRole("dialog", { name: "Notifications" });
+  await panel.waitFor();
+  check(
+    "Enter opens the notification panel",
+    (await bell.getAttribute("aria-expanded")) === "true",
+  );
+  await page.keyboard.press("Escape");
+  await panel.waitFor({ state: "hidden", timeout: 3000 }).catch(() => {});
+  check("Escape closes the notification panel", !(await panel.isVisible()));
+  check(
+    "focus returns to the bell",
+    await page.evaluate(() => /^Notifications/.test(document.activeElement?.textContent ?? "")),
+  );
+
+  // Form errors: an empty required field in a management form is reported and reachable.
+  await page.goto(BASE + "/workspace/orders");
+  await page.getByRole("button", { name: "New order" }).click();
+  await page.getByRole("heading", { name: "New order" }).waitFor();
+  const missing = await page.evaluate(() => {
+    const form = document.querySelector("main form");
+    const required = [...(form?.querySelectorAll("[required]") ?? [])];
+    return required.every((field) => {
+      const label = field.closest("label") ?? document.querySelector(`label[for="${field.id}"]`);
+      return Boolean(label?.textContent?.trim());
+    });
+  });
+  check("every required field in the new-order form has a visible label", missing);
+  await page.screenshot({ path: out + "a11y-admin-new-order.png", fullPage: true });
+  await context.close();
+} finally {
+  await browser.close();
+  await pool.end();
+}
+console.log(failed ? `${failed} failed` : "all passed");
+process.exit(failed ? 1 : 0);

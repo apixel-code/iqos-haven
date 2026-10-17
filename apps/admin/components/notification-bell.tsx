@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { notificationDestination } from "../lib/links";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   inboxResponseSchema,
   notificationReadResponseSchema,
@@ -35,6 +35,7 @@ async function call<T>(
 export function NotificationBell({ onSignedOut }: { onSignedOut: () => void }) {
   const [inbox, setInbox] = useState<InboxResponse | null>(null);
   const [open, setOpen] = useState(false);
+  const bell = useRef<HTMLButtonElement>(null);
   const [failed, setFailed] = useState(false);
   const refresh = useCallback(() => {
     call("?limit=20", inboxResponseSchema)
@@ -80,8 +81,18 @@ export function NotificationBell({ onSignedOut }: { onSignedOut: () => void }) {
 
   const unread = inbox?.unreadCount ?? 0;
   return (
-    <div className="notification-bell">
+    <div
+      className="notification-bell"
+      // Escape closes the panel from the bell or from inside it, and focus goes back to the bell.
+      onKeyDown={(event) => {
+        if (event.key !== "Escape" || !open) return;
+        event.stopPropagation();
+        setOpen(false);
+        bell.current?.focus();
+      }}
+    >
       <button
+        ref={bell}
         type="button"
         className="secondary-button"
         aria-expanded={open}

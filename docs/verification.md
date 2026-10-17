@@ -2262,3 +2262,23 @@ ADR 0083.
 Not covered:
 
 - Real phones and screen readers (step 120).
+
+## Step 120 — link-preview and browser/mobile accessibility check: LOCAL PART (2026-10-17)
+
+ADR 0084. **Not done yet:** the real-device and live-preview part waits for BI-15 (the agreed devices and platforms) and a staging URL.
+
+| Item                   | Evidence                                                                                                                                                                                                                                                                                                                    |
+| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Storefront WCAG 2.1 AA | `a11y-storefront.mjs`: axe on 13 pages + cart sheet + menu sheet at 360px and 1280px, and the unverified age check. No serious or critical violations (after the fixes below). 51 checks PASS.                                                                                                                              |
+| Storefront keyboard    | Option, add, sheet focus kept inside the dialog (with the browser toolbar as the only other stop), Escape returns focus, an immediate re-add reopens, the sheet's link reaches the cart; checkout errors: an alert summary with links to each invalid field, each `aria-invalid` with its error text; the menu by keyboard. |
+| Admin WCAG 2.1 AA      | `a11y-admin.mjs`: axe on sign-in, home, 16 sections, an order detail and the new-order form at 1366px light, 1366px dark and 390px. 70 checks PASS.                                                                                                                                                                         |
+| Admin keyboard         | Sign-in by keyboard, a refused sign-in announced, the notification panel opened with Enter and closed with Escape (focus back to the bell), labelled required fields.                                                                                                                                                       |
+| Previews               | Local proof unchanged: `pnpm test:age-preview` (2245) and `pnpm test:gate` (2586) PASS: preview user agents and unverified visitors get generic previews only.                                                                                                                                                              |
+| Fixed                  | Storefront `--ink-3` contrast; Cart link accessible name; dialog reopen race (cart sheet and menu); admin tab list holding a non-tab; notification panel Escape.                                                                                                                                                            |
+| No regression          | `cart-sheet.mjs`, `menu-sheet.mjs`, `deep-links.mjs` all PASS after the fixes.                                                                                                                                                                                                                                              |
+
+Not covered (needs BI-15 and staging):
+
+- Real iOS and Android devices, VoiceOver and TalkBack, Safari and Firefox.
+- Live preview fetchers (WhatsApp, iMessage, Facebook/Instagram, Telegram, X) on a public URL.
+- Manual review of reading order and wording with a screen reader.

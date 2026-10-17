@@ -73,7 +73,8 @@ export function MenuSheet({ whatsappNumber }: { whatsappNumber: string | null })
       <dialog
         ref={dialog}
         aria-label="Menu"
-        onClose={() => setOpen(false)}
+        // The close event arrives after the dialog closed; it may have been reopened since.
+        onClose={() => !dialog.current?.open && setOpen(false)}
         // A click on the backdrop (outside the panel) closes the menu.
         onClick={(event) => event.target === event.currentTarget && close()}
         className="fixed inset-y-0 left-0 m-0 h-dvh max-h-dvh w-[min(86vw,22rem)] max-w-none bg-surface p-0 text-ink shadow-3 backdrop:bg-ink/40"
