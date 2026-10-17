@@ -327,6 +327,7 @@ const securitySafety = (
     STOREFRONT_ORIGINS: string[];
     RATE_LIMIT_PROFILE: "budget" | "replicated";
     RATE_LIMIT_KEY_SECRET?: string | undefined;
+    RATE_LIMIT_MAX_REPLICAS: number;
     CACHE_REDIS_URL?: string | undefined;
   },
   ctx: z.RefinementCtx,
@@ -341,6 +342,15 @@ const securitySafety = (
       code: "custom",
       path: ["ADMIN_ORIGINS"],
       message: "admin and storefront origins must differ",
+    });
+  // Budget (step 119, BI-06): the catalogue cache and the limiters live inside one API process.
+  // A second process would have its own cache (local invalidation only) and its own limits, so
+  // more replicas need the replicated profile and a shared cache Redis (architecture §9).
+  if (value.RATE_LIMIT_PROFILE === "budget" && value.RATE_LIMIT_MAX_REPLICAS !== 1)
+    ctx.addIssue({
+      code: "custom",
+      path: ["RATE_LIMIT_MAX_REPLICAS"],
+      message: "the budget profile runs one API process; use the replicated profile for more",
     });
   if (value.RATE_LIMIT_PROFILE === "replicated") {
     if (!value.CACHE_REDIS_URL)

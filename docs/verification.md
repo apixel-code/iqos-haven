@@ -2188,3 +2188,20 @@ Not covered:
 
 - Traces (no tracing backend yet; step 125).
 - A WhatsApp user agent in the preview list (platform tests are step 120).
+
+## Step 119 — selected-profile cache, limiter and replica verification (2026-10-17, local)
+
+Profile: budget (BI-06, one Hostinger VPS): one API process, an in-process catalogue cache, local limiters and no cache Redis. `pnpm verify`: exit 0 (unit 637, age preview 2245). `pnpm test:int`: exit 0 (649).
+
+| Item                               | Evidence                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| TTL and invalidation               | Unit (`cache.test.ts`): TTL capped at 60 s; expiry frees bytes; a load that began before an invalidation is never stored or served. Integration (`revalidate.int.test.ts`): local invalidation after a committed admin change and on a signed worker call. **New** (`budget-profile.int.test.ts`, production profile settings, TTL 1 s): a change made behind the API is served from memory within the TTL and fresh after it with no signal; a restarted API starts cold and current. |
+| Bounds                             | Unit: entry and byte bounds, an oversized value not cached, bounded concurrent and queued misses. Config: TTL ≤ 60, bounded entries, bytes and misses.                                                                                                                                                                                                                                                                                                                                 |
+| Checkout limiter fallback          | Unit (`rate-limit.test.ts`): bounded local fallback for checkout with a per-process ceiling; authentication fails closed; key caps with a shared overflow ceiling. On budget the local limiter is the authority. **New:** with no Redis at all, one address gets exactly 240 catalogue reads a minute and then 429 with Retry-After, another address is unaffected, and the 11th sign-in per identity and network is refused.                                                          |
+| Per-instance ceilings              | `limit-policies.ts` divides fallback budgets by `RATE_LIMIT_MAX_REPLICAS`. **New:** the budget profile refuses any value other than 1 (`index.test.ts`), so a second process cannot silently run with its own cache and limits; more replicas require the replicated profile with `CACHE_REDIS_URL` and `RATE_LIMIT_KEY_SECRET` (already enforced).                                                                                                                                    |
+| Identical cache rules for replicas | Budget: there is one replica by configuration. The storefront keeps no second cache (ESLint rule: every server fetch uses `cache: "no-store"`). Cache keys carry `CATALOGUE_CACHE_VERSION`. Replicated (not selected): shared entries, cluster-wide invalidation and outage fallback are unit-tested.                                                                                                                                                                                  |
+
+Not covered:
+
+- The VPS itself: memory headroom, a container restart under load (steps 121–122).
+- An edge or CDN layer.

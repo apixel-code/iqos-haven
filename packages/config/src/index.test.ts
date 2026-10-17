@@ -402,6 +402,22 @@ describe("browser origins and rate-limit profile", () => {
     ).toThrow(/ADMIN_ORIGINS/);
   });
 
+  it("keeps the budget profile to one API process (step 119)", () => {
+    expect(loadEnv(apiEnvSchema, base).RATE_LIMIT_MAX_REPLICAS).toBe(1);
+    expect(() => loadEnv(apiEnvSchema, { ...base, RATE_LIMIT_MAX_REPLICAS: "2" })).toThrow(
+      /RATE_LIMIT_MAX_REPLICAS/,
+    );
+    // More replicas are the replicated profile's business, with its shared cache.
+    const replicated = loadEnv(apiEnvSchema, {
+      ...base,
+      RATE_LIMIT_PROFILE: "replicated",
+      RATE_LIMIT_MAX_REPLICAS: "3",
+      CACHE_REDIS_URL: "redis://cache:6379",
+      RATE_LIMIT_KEY_SECRET: "s".repeat(32),
+    });
+    expect(replicated.RATE_LIMIT_MAX_REPLICAS).toBe(3);
+  });
+
   it("requires a cache Redis and a key secret for the replicated profile", () => {
     const run = () => loadEnv(apiEnvSchema, { ...base, RATE_LIMIT_PROFILE: "replicated" });
     expect(run).toThrow(/CACHE_REDIS_URL/);
