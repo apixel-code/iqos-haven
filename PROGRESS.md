@@ -5,7 +5,7 @@
 - Date: 2026-10-18
 - Milestone: M11 — full acceptance and release, in progress. Gates M0, M2–M10 PASSED (M0, M3, M4, M6–M10 on 2026-10-17, Marina); M1 open until staging/CI.
 - Step: launch parity gaps (Marina 2026-10-17): G-S2 (#101), G-S3 (#102), G-S5 (#103), G-A5 (#104), G-A6 (#105), G-A7 (#106), G-A8 (#107), G-A9 (#108), all merged to `main` 2026-10-18; G-A11 (#109), all merged to `main` 2026-10-18 — every launch parity gap is built. **Step 124** (launch readiness check instead of import, ADR 0095) done. Next: step 125. Steps 115–119, 121 done; 120 local part done (real devices wait for staging).
-- Branch: `step/124-launch-check` (from `main` 2c6ad5e). No migration.
+- Branch: `step/124-launch-check` (from `main` 2c6ad5e; PR #110). No migration.
 - See docs/verification.md for actual checks.
 
 ## Next action
@@ -229,7 +229,7 @@ Tests: `pnpm verify` PASS (age preview 2247). `pnpm test:int` PASS (664). `pnpm 
 
 Unfinished:
 
-- Step 124's PR waits for merge (Claude merges only when Marina asks).
+- PR #110 (step 124) waits for merge (Claude merges only when Marina asks).
 - Next: step 125 (monitoring, synthetic checks, alerts, recipient verification), then 126 (backup/restore drill), 127 (runbooks: several already exist in `docs/runbooks/`; check what step 127 still needs).
 - Running `launch:check` on staging/production happens with the VPS (staging-dependent work).
 
