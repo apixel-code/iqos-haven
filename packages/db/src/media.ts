@@ -146,10 +146,12 @@ export interface ObservedUpload {
 }
 
 /** Product images need the catalogue rights; content images (step 97) the content right. */
-export type MediaPurpose = "product" | "content";
+export type MediaPurpose = "product" | "content" | "catalogue";
 const UPLOAD_PERMISSIONS = {
   product: ["catalog.write", "media.upload"],
   content: ["content.manage"],
+  /** Brand logos and category images (parity G-A7): whoever edits brands and categories. */
+  catalogue: ["catalog.write", "media.upload"],
 } as const;
 
 export async function readMediaAssetForCompletion(
@@ -244,18 +246,21 @@ export const MAX_OPEN_CONTENT_UPLOADS = 10;
  * processing and derivatives as product images, but no product. `content.manage` only. A
  * transaction-scoped advisory lock serializes the open-upload limit.
  */
-export async function authorizeContentImageUpload(
+async function authorizeLooseImageUpload(
   db: Database,
   context: CommandContext,
   input: MediaUploadRequest,
+  purpose: "content" | "catalogue",
 ): Promise<{ asset: MediaAsset; key: string }> {
   const command = mediaUploadRequestSchema.parse(input);
   return withTransaction(db, async (tx) => {
-    const actor = await lockCatalogueActor(tx, context.actorId, UPLOAD_PERMISSIONS.content, true);
-    await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtext('ih.content_images'))`);
+    const actor = await lockCatalogueActor(tx, context.actorId, UPLOAD_PERMISSIONS[purpose], true);
+    await tx.$executeRaw(
+      Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${"ih." + purpose + "_images"}))`,
+    );
     const [count] = await tx.$queryRaw<Array<{ n: number }>>(Prisma.sql`
       SELECT count(*)::int AS n FROM media_assets
-      WHERE purpose='content' AND (state IN ('uploaded','processing')
+      WHERE purpose=${purpose} AND (state IN ('uploaded','processing')
         OR (state='pending' AND upload_expires_at > statement_timestamp()))`);
     if ((count?.n ?? 0) >= MAX_OPEN_CONTENT_UPLOADS)
       throw new CatalogueConflictError("IMAGE_LIMIT");
@@ -265,11 +270,11 @@ export async function authorizeContentImageUpload(
     await tx.$executeRaw(Prisma.sql`
       INSERT INTO media_assets (id, purpose, uploaded_by, quarantine_key, declared_type,
         declared_bytes, upload_expires_at)
-      VALUES (${id}::uuid, 'content', ${actor}::uuid, ${"uploads/" + id},
+      VALUES (${id}::uuid, ${purpose}, ${actor}::uuid, ${"uploads/" + id},
         ${command.contentType}, ${command.bytes},
         statement_timestamp() + make_interval(secs => ${UPLOAD_AUTHORIZATION_SECONDS}))`);
     const [row] = await tx.$queryRaw<AssetRow[]>(
-      Prisma.sql`${SELECT} WHERE id=${id}::uuid AND purpose='content'`,
+      Prisma.sql`${SELECT} WHERE id=${id}::uuid AND purpose=${purpose}`,
     );
     await new PrismaAuditWriter().append(
       tx,
@@ -277,7 +282,7 @@ export async function authorizeContentImageUpload(
         action: "media.upload_authorized",
         entity: { type: "media_asset", id },
         after: {
-          purpose: "content",
+          purpose,
           declaredType: command.contentType,
           declaredBytes: command.bytes,
           state: "pending",
@@ -286,6 +291,37 @@ export async function authorizeContentImageUpload(
     );
     return { asset: asset(row!), key: row!.quarantineKey };
   });
+}
+
+export const authorizeContentImageUpload = (
+  db: Database,
+  context: CommandContext,
+  input: MediaUploadRequest,
+) => authorizeLooseImageUpload(db, context, input, "content");
+
+/**
+ * Authorizes a brand logo or category image upload (parity G-A7, ADR 0091): the same quarantine,
+ * policy, processing and derivatives, no product; `catalog.write` and `media.upload`.
+ */
+export const authorizeCatalogueImageUpload = (
+  db: Database,
+  context: CommandContext,
+  input: MediaUploadRequest,
+) => authorizeLooseImageUpload(db, context, input, "catalogue");
+
+/** One catalogue image's state and derivatives, for the editor's preview while it processes. */
+export async function readCatalogueImage(
+  db: Database,
+  actorId: string,
+  id: string,
+): Promise<ContentImageRow | null> {
+  await lockCatalogueActor(db, actorId, ["catalog.read"], false);
+  const [row] = await db.$queryRaw<ContentImageRow[]>(Prisma.sql`
+    SELECT id, CASE WHEN state='pending' AND upload_expires_at <= statement_timestamp()
+        THEN 'expired' ELSE state END AS state,
+      width, height, error, derivative_keys AS "derivativeKeys", created_at AS "createdAt"
+    FROM media_assets WHERE id=${id}::uuid AND purpose='catalogue'`);
+  return row ?? null;
 }
 
 export interface ContentImageRow {

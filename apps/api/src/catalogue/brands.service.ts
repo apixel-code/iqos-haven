@@ -20,6 +20,7 @@ import {
   createBrand,
   listBrands,
   readBrand,
+  purgeBrand,
   restoreBrand,
   trashBrand,
   updateBrand,
@@ -60,5 +61,9 @@ export class BrandsService {
   }
   restore(context: CommandContext, id: string, input: BrandStateRequest) {
     return this.execute(() => restoreBrand(this.db, context, id, input));
+  }
+  /** Owner-only permanent purge (parity G-A7, ADR 0091). */
+  purge(context: CommandContext, id: string, input: BrandStateRequest) {
+    return this.execute(() => purgeBrand(this.db, context, id, input));
   }
 }

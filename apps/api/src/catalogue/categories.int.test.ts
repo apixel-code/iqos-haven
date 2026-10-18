@@ -133,7 +133,7 @@ describe("category administration through the real API and PostgreSQL", () => {
 
   it("lets Staff create and edit categories with atomic audit and catalog.changed", async () => {
     const category = await create({}, cookies.staff);
-    expect(category).toMatchObject({ version: 1, imageKey: null, publishedProductCount: 0 });
+    expect(category).toMatchObject({ version: 1, imageAssetId: null, publishedProductCount: 0 });
     expect(category).not.toHaveProperty("seo");
     expect(category).not.toHaveProperty("description");
     const response = await call(

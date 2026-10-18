@@ -140,38 +140,38 @@ model RolePermission {
 /// Admin users. Never deleted (deactivate). Email stored normalized (trimmed, lower case).
 model StaffUser {
   orderCancellations   OrderCancellation[]
-  settingsUpdates     Setting[]
-  deliveryAreaUpdates DeliveryArea[]
-  couponUpdates       Coupon[]
+  settingsUpdates      Setting[]
+  deliveryAreaUpdates  DeliveryArea[]
+  couponUpdates        Coupon[]
   notificationReceipts NotificationReceipt[]
-  ordersCreated       Order[]              @relation("OrderCreatedBy")
-  ordersCollected     Order[]              @relation("OrderCollectedBy")
-  orderStatusChanges  OrderStatusHistory[]
-  orderEdits          OrderEditHistory[]
-  stockMovements      StockMovement[]
-  mediaUploads        MediaAsset[]
-  id                  String                 @id @default(dbgenerated("uuidv7()")) @db.Uuid
-  collectionRecords   OrderCollectionRecord[]
-  email               String                 @unique @db.VarChar(254)
-  passwordHash        String                 @map("password_hash") @db.VarChar(255)
-  name                String                 @db.VarChar(100)
-  roleId              String                 @map("role_id") @db.Uuid
-  role                Role                   @relation(fields: [roleId], references: [id], onDelete: Restrict, onUpdate: Restrict)
-  active              Boolean                @default(true)
+  ordersCreated        Order[]                 @relation("OrderCreatedBy")
+  ordersCollected      Order[]                 @relation("OrderCollectedBy")
+  orderStatusChanges   OrderStatusHistory[]
+  orderEdits           OrderEditHistory[]
+  stockMovements       StockMovement[]
+  mediaUploads         MediaAsset[]
+  id                   String                  @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  collectionRecords    OrderCollectionRecord[]
+  email                String                  @unique @db.VarChar(254)
+  passwordHash         String                  @map("password_hash") @db.VarChar(255)
+  name                 String                  @db.VarChar(100)
+  roleId               String                  @map("role_id") @db.Uuid
+  role                 Role                    @relation(fields: [roleId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  active               Boolean                 @default(true)
   /// Deferred MFA: encrypted TOTP secret only, never plaintext.
-  totpSecretEncrypted Bytes?                 @map("totp_secret_encrypted")
-  lastActiveAt        DateTime?              @map("last_active_at") @db.Timestamptz(6)
-  createdAt           DateTime               @default(dbgenerated("statement_timestamp()")) @map("created_at") @db.Timestamptz(6)
-  updatedAt           DateTime               @default(dbgenerated("statement_timestamp()")) @map("updated_at") @db.Timestamptz(6)
-  version             Int                    @default(1)
-  sessions            Session[]
-  passwordResets      PasswordResetToken[]
-  invitationsSent     StaffInvitationToken[] @relation("Inviter")
-  reviewProofsIssued ReviewProof[]
-  reviewsModerated   Review[]
-  reportJobs         ReportJob[]
-  contentDrafts      ContentSection[] @relation("ContentDraftUpdater")
-  contentPublished   ContentSection[] @relation("ContentPublisher")
+  totpSecretEncrypted  Bytes?                  @map("totp_secret_encrypted")
+  lastActiveAt         DateTime?               @map("last_active_at") @db.Timestamptz(6)
+  createdAt            DateTime                @default(dbgenerated("statement_timestamp()")) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime                @default(dbgenerated("statement_timestamp()")) @map("updated_at") @db.Timestamptz(6)
+  version              Int                     @default(1)
+  sessions             Session[]
+  passwordResets       PasswordResetToken[]
+  invitationsSent      StaffInvitationToken[]  @relation("Inviter")
+  reviewProofsIssued   ReviewProof[]
+  reviewsModerated     Review[]
+  reportJobs           ReportJob[]
+  contentDrafts        ContentSection[]        @relation("ContentDraftUpdater")
+  contentPublished     ContentSection[]        @relation("ContentPublisher")
 
   @@index([roleId])
   @@map("staff_users")
@@ -248,15 +248,15 @@ model Setting {
 }
 
 model DeliveryArea {
-  id        String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
-  code      String    @unique @db.VarChar(64)
-  name      String    @db.VarChar(100)
-  emirate   String    @default("dubai") @db.VarChar(16)
-  active    Boolean   @default(false)
-  version   Int       @default(1)
-  updatedBy String    @map("updated_by") @db.Uuid
-  updater   StaffUser @relation(fields: [updatedBy], references: [id], onDelete: Restrict, onUpdate: Restrict)
-  updatedAt DateTime  @default(dbgenerated("statement_timestamp()")) @map("updated_at") @db.Timestamptz(6)
+  id        String            @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  code      String            @unique @db.VarChar(64)
+  name      String            @db.VarChar(100)
+  emirate   String            @default("dubai") @db.VarChar(16)
+  active    Boolean           @default(false)
+  version   Int               @default(1)
+  updatedBy String            @map("updated_by") @db.Uuid
+  updater   StaffUser         @relation(fields: [updatedBy], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  updatedAt DateTime          @default(dbgenerated("statement_timestamp()")) @map("updated_at") @db.Timestamptz(6)
   addresses CustomerAddress[]
   orders    Order[]
 
@@ -343,7 +343,9 @@ model Brand {
   id          String         @id @default(dbgenerated("uuidv7()")) @db.Uuid
   name        String         @db.VarChar(150)
   slug        String         @unique @db.VarChar(150)
-  logoKey     String?        @map("logo_key") @db.VarChar(512)
+  /// A ready catalogue image (parity G-A7, ADR 0091).
+  logoAssetId String?        @map("logo_asset_id") @db.Uuid
+  logo        MediaAsset?    @relation("BrandLogo", fields: [logoAssetId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   description String         @default("")
   active      Boolean        @default(false)
   sortOrder   Int            @default(0) @map("sort_order")
@@ -359,19 +361,21 @@ model Brand {
 }
 
 model Category {
-  id        String         @id @default(dbgenerated("uuidv7()")) @db.Uuid
-  name      String         @db.VarChar(150)
-  slug      String         @unique @db.VarChar(150)
-  imageKey  String?        @map("image_key") @db.VarChar(512)
-  active    Boolean        @default(false)
-  sortOrder Int            @default(0) @map("sort_order")
-  seo       Json           @default("{}")
-  version   Int            @default(1)
-  deletedAt DateTime?      @map("deleted_at") @db.Timestamptz(6)
-  createdAt DateTime       @default(dbgenerated("statement_timestamp()")) @map("created_at") @db.Timestamptz(6)
-  updatedAt DateTime       @default(dbgenerated("statement_timestamp()")) @map("updated_at") @db.Timestamptz(6)
-  products  Product[]
-  redirects SlugRedirect[]
+  id           String         @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  name         String         @db.VarChar(150)
+  slug         String         @unique @db.VarChar(150)
+  /// A ready catalogue image (parity G-A7, ADR 0091).
+  imageAssetId String?        @map("image_asset_id") @db.Uuid
+  image        MediaAsset?    @relation("CategoryImage", fields: [imageAssetId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  active       Boolean        @default(false)
+  sortOrder    Int            @default(0) @map("sort_order")
+  seo          Json           @default("{}")
+  version      Int            @default(1)
+  deletedAt    DateTime?      @map("deleted_at") @db.Timestamptz(6)
+  createdAt    DateTime       @default(dbgenerated("statement_timestamp()")) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime       @default(dbgenerated("statement_timestamp()")) @map("updated_at") @db.Timestamptz(6)
+  products     Product[]
+  redirects    SlugRedirect[]
 
   @@map("categories")
 }
@@ -400,20 +404,20 @@ model Product {
   createdAt           DateTime  @default(dbgenerated("statement_timestamp()")) @map("created_at") @db.Timestamptz(6)
   updatedAt           DateTime  @default(dbgenerated("statement_timestamp()")) @map("updated_at") @db.Timestamptz(6)
 
-  options   ProductOption[]
-  variants  Variant[]
-  media     MediaAsset[]
-  images    ProductImage[]
-  orderItems OrderItem[]
-  redirects SlugRedirect[]
-  search    ProductSearch?
-  reviews    Review[]
+  options       ProductOption[]
+  variants      Variant[]
+  media         MediaAsset[]
+  images        ProductImage[]
+  orderItems    OrderItem[]
+  redirects     SlugRedirect[]
+  search        ProductSearch?
+  reviews       Review[]
+  salesDaily    ProductSalesDaily[]
+  wishlistDaily WishlistDaily[]
 
   @@index([brandId], map: "products_brand")
   @@index([categoryId], map: "products_category")
   @@map("products")
-  salesDaily     ProductSalesDaily[]
-  wishlistDaily  WishlistDaily[]
 }
 
 model ProductOption {
@@ -432,22 +436,22 @@ model ProductOption {
 }
 
 model Variant {
-  returnItems  OrderReturnItem[]
-  id                String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
-  productId         String   @map("product_id") @db.Uuid
-  product           Product  @relation(fields: [productId], references: [id], onDelete: Restrict, onUpdate: Restrict)
-  sku               String   @unique @db.VarChar(64)
-  attributes        Json     @default("{}")
+  returnItems       OrderReturnItem[]
+  id                String            @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  productId         String            @map("product_id") @db.Uuid
+  product           Product           @relation(fields: [productId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  sku               String            @unique @db.VarChar(64)
+  attributes        Json              @default("{}")
   /// Generated by PostgreSQL from normalized attributes; callers cannot supply it.
-  optionSignature   String   @default(dbgenerated()) @map("option_signature")
-  priceOverrideFils BigInt?  @map("price_override_fils")
-  stockOnHand       Int      @default(0) @map("stock_on_hand")
-  lowStockThreshold Int      @default(0) @map("low_stock_threshold")
-  active            Boolean  @default(false)
-  isDefault         Boolean  @default(false) @map("is_default")
-  version           Int      @default(1)
-  createdAt         DateTime @default(dbgenerated("statement_timestamp()")) @map("created_at") @db.Timestamptz(6)
-  updatedAt         DateTime @default(dbgenerated("statement_timestamp()")) @map("updated_at") @db.Timestamptz(6)
+  optionSignature   String            @default(dbgenerated()) @map("option_signature")
+  priceOverrideFils BigInt?           @map("price_override_fils")
+  stockOnHand       Int               @default(0) @map("stock_on_hand")
+  lowStockThreshold Int               @default(0) @map("low_stock_threshold")
+  active            Boolean           @default(false)
+  isDefault         Boolean           @default(false) @map("is_default")
+  version           Int               @default(1)
+  createdAt         DateTime          @default(dbgenerated("statement_timestamp()")) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime          @default(dbgenerated("statement_timestamp()")) @map("updated_at") @db.Timestamptz(6)
 
   stockMovements StockMovement[]
   orderItems     OrderItem[]
@@ -542,31 +546,34 @@ model SlugRedirect {
 /// Quarantine upload record (step 48). Bytes are untrusted until processing (step 49) marks the
 /// asset `ready`; only ready assets may become product images.
 model MediaAsset {
-  id                 String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
-  productId          String?   @map("product_id") @db.Uuid
-  product            Product?  @relation(fields: [productId], references: [id], onDelete: Restrict, onUpdate: Restrict)
-  /// `product` (gallery) or `content` (home sections, no product). Step 96.
-  purpose            String    @default("product") @db.VarChar(16)
-  uploadedBy         String    @map("uploaded_by") @db.Uuid
-  uploader           StaffUser @relation(fields: [uploadedBy], references: [id], onDelete: Restrict, onUpdate: Restrict)
-  quarantineKey      String    @unique @map("quarantine_key") @db.VarChar(512)
-  declaredType       String    @map("declared_type") @db.VarChar(32)
-  declaredBytes      Int       @map("declared_bytes")
-  state              String    @default("pending") @db.VarChar(16)
-  observedBytes      Int?      @map("observed_bytes")
-  observedType       String?   @map("observed_type") @db.VarChar(32)
-  observedEtag       String?   @map("observed_etag") @db.VarChar(128)
+  id                 String     @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  productId          String?    @map("product_id") @db.Uuid
+  product            Product?   @relation(fields: [productId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  /// `product` (gallery), `content` (home sections) or `catalogue` (brand logos and category
+  /// images); only `product` has a product. Steps 96 and parity G-A7.
+  purpose            String     @default("product") @db.VarChar(16)
+  uploadedBy         String     @map("uploaded_by") @db.Uuid
+  uploader           StaffUser  @relation(fields: [uploadedBy], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  quarantineKey      String     @unique @map("quarantine_key") @db.VarChar(512)
+  declaredType       String     @map("declared_type") @db.VarChar(32)
+  declaredBytes      Int        @map("declared_bytes")
+  state              String     @default("pending") @db.VarChar(16)
+  observedBytes      Int?       @map("observed_bytes")
+  observedType       String?    @map("observed_type") @db.VarChar(32)
+  observedEtag       String?    @map("observed_etag") @db.VarChar(128)
   width              Int?
   height             Int?
-  sha256             String?   @db.Char(64)
-  derivativeKeys     Json      @default("{}") @map("derivative_keys")
-  error              String?   @db.VarChar(64)
-  uploadExpiresAt    DateTime  @map("upload_expires_at") @db.Timestamptz(6)
+  sha256             String?    @db.Char(64)
+  derivativeKeys     Json       @default("{}") @map("derivative_keys")
+  error              String?    @db.VarChar(64)
+  uploadExpiresAt    DateTime   @map("upload_expires_at") @db.Timestamptz(6)
   /// When the private quarantine original was deleted (cleanup, step 49).
-  quarantinePurgedAt DateTime? @map("quarantine_purged_at") @db.Timestamptz(6)
-  version            Int       @default(1)
-  createdAt          DateTime  @default(dbgenerated("statement_timestamp()")) @map("created_at") @db.Timestamptz(6)
-  updatedAt          DateTime  @default(dbgenerated("statement_timestamp()")) @map("updated_at") @db.Timestamptz(6)
+  quarantinePurgedAt DateTime?  @map("quarantine_purged_at") @db.Timestamptz(6)
+  version            Int        @default(1)
+  createdAt          DateTime   @default(dbgenerated("statement_timestamp()")) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime   @default(dbgenerated("statement_timestamp()")) @map("updated_at") @db.Timestamptz(6)
+  brandLogos         Brand[]    @relation("BrandLogo")
+  categoryImages     Category[] @relation("CategoryImage")
 
   image ProductImage?
 
@@ -578,67 +585,67 @@ model MediaAsset {
 /// Never deleted; contents are fixed once processing starts.
 model Order {
   cancellation                 OrderCancellation?
-  id                           String               @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  id                           String                  @id @default(dbgenerated("uuidv7()")) @db.Uuid
   collectionRecords            OrderCollectionRecord[]
   /// Sequential display number assigned by the database; gaps are normal.
-  orderNumber                  BigInt               @unique @default(autoincrement()) @map("order_number")
-  customerId                   String               @map("customer_id") @db.Uuid
-  customer                     Customer             @relation(fields: [customerId], references: [id], onDelete: Restrict, onUpdate: Restrict)
-  status                       String               @default("pending") @db.VarChar(20)
-  source                       String               @db.VarChar(16)
-  createdBy                    String?              @map("created_by") @db.Uuid
-  creator                      StaffUser?           @relation("OrderCreatedBy", fields: [createdBy], references: [id], onDelete: Restrict, onUpdate: Restrict)
-  customerName                 String               @map("customer_name") @db.VarChar(100)
-  customerPhoneE164            String               @map("customer_phone_e164") @db.VarChar(16)
-  areaId                       String               @map("area_id") @db.Uuid
-  area                         DeliveryArea         @relation(fields: [areaId], references: [id], onDelete: Restrict, onUpdate: Restrict)
-  areaCode                     String               @map("area_code") @db.VarChar(64)
-  areaName                     String               @map("area_name") @db.VarChar(100)
-  areaEmirate                  String               @map("area_emirate") @db.VarChar(16)
-  addressType                  String               @map("address_type") @db.VarChar(16)
-  addressBuilding              String               @map("address_building") @db.VarChar(150)
-  addressUnit                  String?              @map("address_unit") @db.VarChar(50)
-  addressStreet                String?              @map("address_street") @db.VarChar(150)
-  addressMakani                String?              @map("address_makani") @db.VarChar(10)
-  addressNotes                 String?              @map("address_notes") @db.VarChar(500)
-  merchandiseSubtotalFils      BigInt               @map("merchandise_subtotal_fils")
-  discountFils                 BigInt               @default(0) @map("discount_fils")
-  deliveryFeeFils              BigInt               @map("delivery_fee_fils")
-  totalFils                    BigInt               @map("total_fils")
-  couponCode                   String?              @map("coupon_code") @db.VarChar(32)
-  couponPercentBps             Int?                 @map("coupon_percent_bps")
-  deliveryEtaText              String               @map("delivery_eta_text") @db.VarChar(500)
-  areaVersion                  Int                  @map("area_version")
-  deliveryConfigurationVersion Int                  @map("delivery_configuration_version")
-  quoteFingerprint             String               @map("quote_fingerprint") @db.VarChar(64)
-  ageConfirmedAt               DateTime             @map("age_confirmed_at") @db.Timestamptz(6)
-  agePolicyVersion             String               @map("age_policy_version") @db.VarChar(64)
-  codStatus                    String               @default("pending") @map("cod_status") @db.VarChar(16)
-  collectedAmountFils          BigInt?              @map("collected_amount_fils")
-  collectedAt                  DateTime?            @map("collected_at") @db.Timestamptz(6)
-  collectedBy                  String?              @map("collected_by") @db.Uuid
-  collector                    StaffUser?           @relation("OrderCollectedBy", fields: [collectedBy], references: [id], onDelete: Restrict, onUpdate: Restrict)
-  collectionReference          String?              @map("collection_reference") @db.VarChar(100)
-  cancelReason                 String?              @map("cancel_reason") @db.VarChar(500)
-  dispatchedAt                 DateTime?            @map("dispatched_at") @db.Timestamptz(6)
-  deliveredAt                  DateTime?            @map("delivered_at") @db.Timestamptz(6)
-  cancelledAt                  DateTime?            @map("cancelled_at") @db.Timestamptz(6)
-  returnedAt                   DateTime?            @map("returned_at") @db.Timestamptz(6)
-  creationScope                String               @map("creation_scope") @db.VarChar(64)
-  creationKeyHash              Bytes                @map("creation_key_hash")
-  creationPayloadHash          Bytes                @map("creation_payload_hash")
-  confirmationHash             Bytes?               @map("confirmation_hash")
-  confirmationExpiresAt        DateTime?            @map("confirmation_expires_at") @db.Timestamptz(6)
-  version                      Int                  @default(1)
-  createdAt                    DateTime             @default(dbgenerated("statement_timestamp()")) @map("created_at") @db.Timestamptz(6)
-  updatedAt                    DateTime             @default(dbgenerated("statement_timestamp()")) @map("updated_at") @db.Timestamptz(6)
+  orderNumber                  BigInt                  @unique @default(autoincrement()) @map("order_number")
+  customerId                   String                  @map("customer_id") @db.Uuid
+  customer                     Customer                @relation(fields: [customerId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  status                       String                  @default("pending") @db.VarChar(20)
+  source                       String                  @db.VarChar(16)
+  createdBy                    String?                 @map("created_by") @db.Uuid
+  creator                      StaffUser?              @relation("OrderCreatedBy", fields: [createdBy], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  customerName                 String                  @map("customer_name") @db.VarChar(100)
+  customerPhoneE164            String                  @map("customer_phone_e164") @db.VarChar(16)
+  areaId                       String                  @map("area_id") @db.Uuid
+  area                         DeliveryArea            @relation(fields: [areaId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  areaCode                     String                  @map("area_code") @db.VarChar(64)
+  areaName                     String                  @map("area_name") @db.VarChar(100)
+  areaEmirate                  String                  @map("area_emirate") @db.VarChar(16)
+  addressType                  String                  @map("address_type") @db.VarChar(16)
+  addressBuilding              String                  @map("address_building") @db.VarChar(150)
+  addressUnit                  String?                 @map("address_unit") @db.VarChar(50)
+  addressStreet                String?                 @map("address_street") @db.VarChar(150)
+  addressMakani                String?                 @map("address_makani") @db.VarChar(10)
+  addressNotes                 String?                 @map("address_notes") @db.VarChar(500)
+  merchandiseSubtotalFils      BigInt                  @map("merchandise_subtotal_fils")
+  discountFils                 BigInt                  @default(0) @map("discount_fils")
+  deliveryFeeFils              BigInt                  @map("delivery_fee_fils")
+  totalFils                    BigInt                  @map("total_fils")
+  couponCode                   String?                 @map("coupon_code") @db.VarChar(32)
+  couponPercentBps             Int?                    @map("coupon_percent_bps")
+  deliveryEtaText              String                  @map("delivery_eta_text") @db.VarChar(500)
+  areaVersion                  Int                     @map("area_version")
+  deliveryConfigurationVersion Int                     @map("delivery_configuration_version")
+  quoteFingerprint             String                  @map("quote_fingerprint") @db.VarChar(64)
+  ageConfirmedAt               DateTime                @map("age_confirmed_at") @db.Timestamptz(6)
+  agePolicyVersion             String                  @map("age_policy_version") @db.VarChar(64)
+  codStatus                    String                  @default("pending") @map("cod_status") @db.VarChar(16)
+  collectedAmountFils          BigInt?                 @map("collected_amount_fils")
+  collectedAt                  DateTime?               @map("collected_at") @db.Timestamptz(6)
+  collectedBy                  String?                 @map("collected_by") @db.Uuid
+  collector                    StaffUser?              @relation("OrderCollectedBy", fields: [collectedBy], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  collectionReference          String?                 @map("collection_reference") @db.VarChar(100)
+  cancelReason                 String?                 @map("cancel_reason") @db.VarChar(500)
+  dispatchedAt                 DateTime?               @map("dispatched_at") @db.Timestamptz(6)
+  deliveredAt                  DateTime?               @map("delivered_at") @db.Timestamptz(6)
+  cancelledAt                  DateTime?               @map("cancelled_at") @db.Timestamptz(6)
+  returnedAt                   DateTime?               @map("returned_at") @db.Timestamptz(6)
+  creationScope                String                  @map("creation_scope") @db.VarChar(64)
+  creationKeyHash              Bytes                   @map("creation_key_hash")
+  creationPayloadHash          Bytes                   @map("creation_payload_hash")
+  confirmationHash             Bytes?                  @map("confirmation_hash")
+  confirmationExpiresAt        DateTime?               @map("confirmation_expires_at") @db.Timestamptz(6)
+  version                      Int                     @default(1)
+  createdAt                    DateTime                @default(dbgenerated("statement_timestamp()")) @map("created_at") @db.Timestamptz(6)
+  updatedAt                    DateTime                @default(dbgenerated("statement_timestamp()")) @map("updated_at") @db.Timestamptz(6)
   items                        OrderItem[]
   history                      OrderStatusHistory[]
   couponRedemptions            CouponRedemption[]
   stockMovements               StockMovement[]
   edits                        OrderEditHistory[]
-  reviewProofs ReviewProof[]
-  reviews      Review[]
+  reviewProofs                 ReviewProof[]
+  reviews                      Review[]
 
   @@unique([creationScope, creationKeyHash], map: "orders_creation_key")
   @@index([createdAt(sort: Desc), id(sort: Desc)], map: "orders_created")
@@ -733,7 +740,6 @@ model IdempotencyRecord {
   @@index([expiresAt], map: "idempotency_records_expiry")
   @@map("idempotency_records")
 }
-
 
 /// Staff notification content, written once per source event and type (step 78). Immutable.
 model Notification {

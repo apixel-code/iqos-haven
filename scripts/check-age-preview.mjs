@@ -112,6 +112,16 @@ const CATALOGUE = {
         description: "Synthetic brand story.",
         productCount: 2,
         formerSlugs: ["orbe-old"],
+        logo: {
+          alt: "Orbe",
+          width: 200,
+          height: 200,
+          urls: {
+            thumb: "https://media.preview-check.test/orbe-thumb.webp",
+            medium: "https://media.preview-check.test/orbe-medium.webp",
+            large: "https://media.preview-check.test/orbe-large.webp",
+          },
+        },
       },
       {
         name: "Empty Brand",
@@ -119,6 +129,7 @@ const CATALOGUE = {
         description: "",
         productCount: 0,
         formerSlugs: [],
+        logo: null,
       },
     ],
   },
@@ -129,6 +140,7 @@ const CATALOGUE = {
         slug: "disposables",
         productCount: 2,
         formerSlugs: ["disposables-old"],
+        image: null,
       },
     ],
   },
@@ -574,7 +586,15 @@ try {
     "brands index lists brands with products",
   );
   check(!brandsPage.includes("Empty Brand"), "brands index hides a brand with nothing to show");
+  check(
+    brandsPage.includes("https://media.preview-check.test/orbe-thumb.webp"),
+    "brands index shows a brand's logo (parity G-A7)",
+  );
   const brandPage = await page("/brands/orbe");
+  check(
+    brandPage.includes("https://media.preview-check.test/orbe-medium.webp"),
+    "brand page shows the brand's logo (parity G-A7)",
+  );
   check(
     brandPage.includes("Synthetic brand story.") &&
       brandPage.includes("<title>Orbe · Iqos Haven</title>"),

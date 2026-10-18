@@ -23,7 +23,7 @@ const brand: BrandResponse = {
   description: "",
   active: true,
   sortOrder: 0,
-  logoKey: null,
+  logoAssetId: null,
   publishedProductCount: 0,
   version: 3,
   trashedAt: null,
@@ -92,6 +92,26 @@ describe("brand form commands", () => {
   it("pluralizes counts", () => {
     expect(plural(1, "product")).toBe("1 product");
     expect(plural(0, "product")).toBe("0 products");
+  });
+});
+
+describe("brand logo and category image in the commands (parity G-A7)", () => {
+  const image = "0199c0de-0000-7000-8000-0000000000aa";
+  it("leaves the image unchanged when the form has no image field", () => {
+    expect(brandCreateCommand(data({ name: "Nova", slug: "nova" }), false)).not.toHaveProperty(
+      "logoAssetId",
+    );
+  });
+  it("sends the chosen image, or null when it was removed", () => {
+    expect(
+      brandUpdateCommand(brand, data({ name: "Nova", slug: "nova", imageAssetId: image }), false),
+    ).toMatchObject({ logoAssetId: image });
+    expect(
+      brandUpdateCommand(brand, data({ name: "Nova", slug: "nova", imageAssetId: "" }), false),
+    ).toMatchObject({ logoAssetId: null });
+    expect(
+      categoryCreateCommand(data({ name: "Pods", slug: "pods", imageAssetId: image }), false),
+    ).toMatchObject({ imageAssetId: image });
   });
 });
 

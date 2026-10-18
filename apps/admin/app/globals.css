@@ -1111,3 +1111,26 @@ ul.dashboard-list {
     background: #fff;
   }
 }
+
+/* Brand logo / category image field (parity G-A7). */
+.parent-image {
+  display: grid;
+  gap: 10px;
+}
+.parent-image-preview {
+  width: 120px;
+  height: 120px;
+  object-fit: contain;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--surface-2);
+}
+/* The visually hidden file input must stay 1px: the card's input rule would stretch it. */
+.parent-image label {
+  position: relative;
+}
+.management-card .parent-image input[type="file"] {
+  width: 1px;
+  padding: 0;
+  border: 0;
+}

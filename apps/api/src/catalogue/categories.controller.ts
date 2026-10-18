@@ -25,6 +25,7 @@ import {
   type CategoriesQuery,
   type CategoryStateRequest,
   type CategoryUpdateRequest,
+  parentPurgeResponseSchema,
 } from "@ih/contracts";
 import { defineFieldPolicy } from "@ih/domain";
 import type { FastifyReply } from "fastify";
@@ -154,6 +155,24 @@ export class CategoriesController {
     @Res({ passthrough: true }) reply: FastifyReply,
   ) {
     return this.categories.restore(
+      await this.mutation(request, reply),
+      params.id,
+      body as unknown as CategoryStateRequest,
+    );
+  }
+
+  /** Owner-only: a trashed category that no product uses, gone for good (parity G-A7). */
+  @Post(":id/purge")
+  @HttpCode(200)
+  @RequirePermission("catalog.purge")
+  @Serialize(parentPurgeResponseSchema)
+  async purge(
+    @Param() params: ParamsDto,
+    @Body() body: StateDto,
+    @Req() request: AuthenticatedRequest,
+    @Res({ passthrough: true }) reply: FastifyReply,
+  ) {
+    return this.categories.purge(
       await this.mutation(request, reply),
       params.id,
       body as unknown as CategoryStateRequest,

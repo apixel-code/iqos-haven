@@ -103,3 +103,13 @@ export type ProductGalleryResponse = z.infer<typeof productGalleryResponseSchema
 export type GalleryAttachRequest = z.input<typeof galleryAttachRequestSchema>;
 export type GalleryUpdateRequest = z.infer<typeof galleryUpdateRequestSchema>;
 export type GalleryReorderRequest = z.infer<typeof galleryReorderRequestSchema>;
+
+// --- Brand logos and category images (parity G-A7, ADR 0091) ---
+/** Upload status of a catalogue image, with a short-lived preview link once processed. */
+export const catalogueImageResponseSchema = z.strictObject({
+  id: z.uuid(),
+  state: z.enum(MEDIA_STATES),
+  error: z.string().nullable(),
+  url: z.url().nullable(),
+});
+export type CatalogueImageResponse = z.infer<typeof catalogueImageResponseSchema>;

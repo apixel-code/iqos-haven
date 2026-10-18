@@ -20,6 +20,7 @@ import {
   createCategory,
   listCategories,
   readCategory,
+  purgeCategory,
   restoreCategory,
   trashCategory,
   updateCategory,
@@ -60,5 +61,9 @@ export class CategoriesService {
   }
   restore(context: CommandContext, id: string, input: CategoryStateRequest) {
     return this.execute(() => restoreCategory(this.db, context, id, input));
+  }
+  /** Owner-only permanent purge (parity G-A7, ADR 0091). */
+  purge(context: CommandContext, id: string, input: CategoryStateRequest) {
+    return this.execute(() => purgeCategory(this.db, context, id, input));
   }
 }
