@@ -5,6 +5,7 @@ import {
   contentSchema,
   ContentSchemaError,
   CURRENT_CONTENT_SCHEMA,
+  upgradeContent,
 } from "./content";
 
 const A = "0199e0a0-0000-7000-8000-000000000001";
@@ -27,7 +28,38 @@ describe("content section schemas (step 96)", () => {
     ]);
     for (const key of CONTENT_SECTION_KEYS)
       expect(() => contentSchema(key, CURRENT_CONTENT_SCHEMA[key])).not.toThrow();
-    expect(() => contentSchema("hero", 2)).toThrow(ContentSchemaError);
+    expect(() => contentSchema("hero", 3)).toThrow(ContentSchemaError);
+  });
+
+  it("holds one to three hero slides and reads a v1 hero as one navy slide (ADR 0097)", () => {
+    const slide = {
+      style: "lilac",
+      eyebrow: null,
+      title: "New in",
+      subtitle: null,
+      cta: { label: "Shop", link: { kind: "shop" } },
+      secondaryCta: null,
+      image: null,
+    };
+    const v2 = contentSchema("hero", 2);
+    expect(v2.safeParse({ slides: [slide] }).success).toBe(true);
+    expect(v2.safeParse({ slides: [] }).success).toBe(false);
+    expect(v2.safeParse({ slides: [slide, slide, slide, slide] }).success).toBe(false);
+    expect(v2.safeParse({ slides: [{ ...slide, style: "dark" }] }).success).toBe(false);
+    const v1 = {
+      eyebrow: "Old",
+      title: "One hero",
+      subtitle: null,
+      cta: null,
+      image: null,
+    };
+    expect(upgradeContent("hero", 1, v1)).toEqual({
+      slides: [{ style: "navy", ...v1, secondaryCta: null }],
+    });
+    expect(v2.safeParse(upgradeContent("hero", 1, v1)).success).toBe(true);
+    // Other sections and current versions pass through unchanged.
+    expect(upgradeContent("hero", 2, { slides: [slide] })).toEqual({ slides: [slide] });
+    expect(upgradeContent("brands", 1, { brandIds: [] })).toEqual({ brandIds: [] });
   });
 
   it("keeps text plain: trimmed, one line, no markup or hidden characters", () => {

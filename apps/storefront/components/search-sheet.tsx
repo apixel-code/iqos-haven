@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { useDeviceLists } from "@/lib/device/store";
 import { useProductCards } from "@/lib/device/use-cards";
 import { Icon } from "@/components/icons";
@@ -22,6 +22,12 @@ const row =
  * suggested brands and products and a link to every result. It is the same plain GET form to
  * /search, so Enter always searches. Brands load when the sheet first opens.
  */
+const OPEN_SEARCH = "ih:open-search";
+/** Opens the search sheet from elsewhere on the page (the home hero's search button). */
+export function openSearchSheet() {
+  window.dispatchEvent(new Event(OPEN_SEARCH));
+}
+
 export function SearchSheet() {
   const dialog = useRef<HTMLDialogElement>(null);
   const [open, setOpen] = useState(false);
@@ -31,6 +37,16 @@ export function SearchSheet() {
   // A followed link closes the sheet, including Back and Forward.
   useEffect(() => close(), [pathname]);
   const { brands, load: loadBrands, ensure: ensureBrands } = useStoreBrands();
+  const show = useCallback(() => {
+    if (dialog.current?.open) return;
+    dialog.current?.showModal();
+    setOpen(true);
+    ensureBrands();
+  }, [ensureBrands]);
+  useEffect(() => {
+    window.addEventListener(OPEN_SEARCH, show);
+    return () => window.removeEventListener(OPEN_SEARCH, show);
+  }, [show]);
 
   return (
     <>
@@ -38,11 +54,7 @@ export function SearchSheet() {
         type="button"
         aria-haspopup="dialog"
         aria-expanded={open}
-        onClick={() => {
-          dialog.current?.showModal();
-          setOpen(true);
-          ensureBrands();
-        }}
+        onClick={show}
         // The prototype's search button (`ibtn not-lg`): below the width of the header search bar.
         className="ibtn not-lg"
         aria-label="Search"

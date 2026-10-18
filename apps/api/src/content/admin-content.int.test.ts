@@ -74,13 +74,20 @@ const envelope = async (response: Response) =>
   errorEnvelopeSchema.parse(await response.json()).error;
 const one = async <T>(sql: string, params: unknown[] = []) =>
   (await pool.query(sql, params)).rows[0] as T;
+/** A hero at the current version (v2, ADR 0097): one slide; `extra` changes that slide. */
 const hero = (extra: Record<string, unknown> = {}) => ({
-  eyebrow: null,
-  title: "Every brand, one place",
-  subtitle: "Delivered across the UAE",
-  cta: { label: "Shop now", link: { kind: "shop" } },
-  image: null,
-  ...extra,
+  slides: [
+    {
+      style: "navy",
+      eyebrow: null,
+      title: "Every brand, one place",
+      subtitle: "Delivered across the UAE",
+      cta: { label: "Shop now", link: { kind: "shop" } },
+      secondaryCta: null,
+      image: null,
+      ...extra,
+    },
+  ],
 });
 
 /** A product a shopper can see. */
@@ -182,7 +189,7 @@ describe("storefront content editor API (real API, PostgreSQL and MinIO)", () =>
     const invalid = await envelope(
       await call("/hero/draft", "PUT", { expectedVersion: 0, content: hero({ title: "" }) }),
     );
-    expect(invalid.fields).toEqual([{ path: "content.title", message: "Invalid field" }]);
+    expect(invalid.fields).toEqual([{ path: "content.slides.0.title", message: "Invalid field" }]);
     expect(await one("SELECT count(*)::int AS n FROM content_sections")).toEqual({ n: 0 });
   });
 

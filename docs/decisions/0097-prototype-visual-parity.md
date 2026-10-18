@@ -52,6 +52,40 @@ Step 115 and the nine launch gaps compared features. A side-by-side screenshot a
 - "Dubai only" copy (BI-03; the footer says the UAE);
 - placeholder legal lines (BI-01).
 
+## V-S2 (home), 2026-10-18
+
+**Marina's decisions:**
+
+- The hero is the prototype's carousel of one to three slides.
+- Campaign banners show no coupon code, so BI-13 still holds for codes.
+
+**Hero content model:**
+
+- Hero schema **v2** is `{ slides: [...] }`. Each slide has:
+  - a `style` (`navy`, `lilac` or `coral`: the prototype's `s1`–`s3` looks);
+  - an eyebrow, title and subtitle;
+  - a button and an optional second button;
+  - an image.
+- `upgradeContent` reads a v1 hero (published before this change) as one navy slide. The store and the editor both use it, so nothing needs migrating.
+- The store home answers `heroSlides`.
+
+**Store home:**
+
+- **Hero carousel:**
+  - swipe, dots and arrows;
+  - moves on every 5 s, pausing on hover or focus and with a pause button (WCAG 2.2.2);
+  - never moves on its own with reduced motion;
+  - one slide shows no controls;
+  - until a hero is published, a default slide (UAE wording).
+- **Trust line:** focusable on phones, where it scrolls sideways.
+- **Category tiles:** four tiles with counts from the termless search facets, and a product photo where one exists.
+- **Product sections:** "Popular right now" with the segmented toggle, the prototype card, and rails for the product rows.
+- **Shop by brand:** brand logos (G-A7) when set.
+- **Campaign banners:** without codes.
+- **Puff counts:** "Disposables by puff count" (G-S13), linking to `/disposable-vapes` with `minPuffs`/`maxPuffs`. The storefront search now keeps `maxPuffs`.
+
+**Admin:** the hero editor lists the slides. Each has a look, two buttons and an image, and can be added (up to three), moved or removed.
+
 ## Consequences
 
 - The look comes from the approved source instead of being re-imagined in utilities, so later screens are mostly markup work.

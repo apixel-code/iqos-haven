@@ -122,6 +122,10 @@ export function SearchFilters({
       {facets.puffCounts.length > 0 && (
         <fieldset className={group}>
           <legend className={legend}>Puff count · disposables</legend>
+          {/* A home-page puff range keeps its upper bound while other filters change. */}
+          {state.maxPuffs !== undefined && (
+            <input type="hidden" name="maxPuffs" value={state.maxPuffs} />
+          )}
           <label className={option}>
             <span className="flex items-center gap-2">
               <input type="radio" name="minPuffs" value="" defaultChecked={!state.minPuffs} /> Any

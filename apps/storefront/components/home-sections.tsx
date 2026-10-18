@@ -1,24 +1,13 @@
 import Link from "next/link";
-import type { StoreHomeResponse, StoreImage } from "@ih/contracts";
-import { ProductGrid } from "./product-card";
+import type { ReactNode } from "react";
+import type { StoreBrandsResponse, StoreHomeResponse, StoreImage } from "@ih/contracts";
+import { Icon } from "@/components/icons";
+import { ProductRail } from "./product-card";
 
-type Hero = NonNullable<StoreHomeResponse["hero"]>;
 type Banner = StoreHomeResponse["banners"][number];
 
-const sectionHead = "text-[clamp(21px,3.6vw,28px)] font-semibold tracking-tight";
-const focus = "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus";
-
 /** A sanitized content image (signed derivative link); the image optimizer is not used. */
-function ContentImage({
-  image,
-  className,
-  priority = false,
-}: {
-  image: StoreImage;
-  className: string;
-  /** The hero image is the page's largest element: fetch it first. */
-  priority?: boolean;
-}) {
+function ContentImage({ image }: { image: StoreImage }) {
   return (
     // eslint-disable-next-line @next/next/no-img-element
     <img
@@ -26,70 +15,24 @@ function ContentImage({
       alt={image.alt}
       width={image.width}
       height={image.height}
+      loading="lazy"
       decoding="async"
-      fetchPriority={priority ? "high" : "auto"}
-      className={className}
     />
   );
 }
 
-/**
- * Hero (roadmap step 99; prototype `heroBanner`, one slide). Text and button come from
- * published content as plain text; the button only ever points inside the store. Without a
- * published hero the generic store hero is shown.
- */
-export function HomeHero({ hero, storeName }: { hero: Hero | null; storeName: string }) {
-  const title = hero?.title ?? storeName;
-  const subtitle = hero
-    ? hero.subtitle
-    : "Disposable vapes and vape kits for adults. Pay cash when your order arrives.";
-  const cta = hero ? hero.cta : { label: "Shop all products", href: "/shop" };
+/** The prototype's "more" link (`moreLink`). */
+export function MoreLink({ href, children }: { href: string; children: ReactNode }) {
   return (
-    <section
-      aria-labelledby="home-title"
-      className="relative isolate -mx-4 min-h-[300px] overflow-hidden bg-chrome px-5 pb-12 pt-6 text-chrome-ink sm:-mx-8 sm:px-11 sm:pb-16 sm:pt-9 md:min-h-[360px]"
-    >
-      <span
-        aria-hidden="true"
-        className="absolute -bottom-40 -right-28 -z-10 size-[300px] rounded-full bg-accent opacity-90 md:-right-24 md:-top-20 md:bottom-auto md:size-[420px]"
-      />
-      <div className="relative flex flex-col items-start gap-2.5 md:max-w-[52%] md:gap-4">
-        {hero?.eyebrow && (
-          <span className="inline-flex h-7 items-center rounded-pill bg-white/15 px-3 text-xs font-semibold uppercase tracking-[0.06em]">
-            {hero.eyebrow}
-          </span>
-        )}
-        <h1
-          id="home-title"
-          className={`${hero?.image ? "max-w-[62%]" : "max-w-[85%]"} text-[26px] font-semibold leading-[1.05] tracking-[-0.035em] text-balance sm:max-w-none sm:text-[clamp(30px,5vw,50px)]`}
-        >
-          {title}
-        </h1>
-        {subtitle && (
-          <p className="hidden max-w-[40ch] text-[15px] leading-normal opacity-[0.82] sm:block">
-            {subtitle}
-          </p>
-        )}
-        {cta && (
-          <Link
-            href={cta.href}
-            prefetch={false}
-            className={`mt-1 inline-flex h-12 items-center gap-2 rounded-pill bg-surface px-6 text-base font-medium text-ink hover:bg-surface-2 ${focus}`}
-          >
-            {cta.label} <span aria-hidden="true">→</span>
-          </Link>
-        )}
-      </div>
-      {hero?.image && (
-        <div className="pointer-events-none absolute bottom-0 right-0 h-[62%] w-[56%] md:inset-y-0 md:h-full md:w-[46%]">
-          <ContentImage image={hero.image} className="size-full object-cover" priority />
-        </div>
-      )}
-    </section>
+    <Link href={href} prefetch={false} className="more">
+      {children}
+      <Icon name="arrow-r" />
+    </Link>
   );
 }
 
-function SectionHead({
+/** The prototype's section heading (`secHead`): title, optional line below, optional link. */
+export function SectionHead({
   id,
   title,
   sub,
@@ -101,93 +44,134 @@ function SectionHead({
   more?: { label: string; href: string };
 }) {
   return (
-    <div className="flex flex-wrap items-end justify-between gap-4">
+    <div className="sec-head">
       <div>
-        <h2 id={id} className={sectionHead}>
+        <h2 className="h2" id={id}>
           {title}
         </h2>
-        {sub && <p className="mt-1.5 text-sm text-ink-3">{sub}</p>}
+        {sub && <p className="sub">{sub}</p>}
       </div>
-      {more && (
-        <Link href={more.href} prefetch={false} className="text-sm font-medium hover:underline">
-          {more.label} <span aria-hidden="true">→</span>
-        </Link>
-      )}
+      {more && <MoreLink href={more.href}>{more.label}</MoreLink>}
     </div>
   );
 }
 
-/** "Shop by brand" (prototype `brandTile`): a rail on phones, 3 then 6 columns. */
-export function HomeBrands({ brands }: { brands: StoreHomeResponse["brands"] }) {
-  if (!brands.length) return null;
+const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? "" : "s"}`;
+
+/** "Shop by category" (prototype `catTiles`): four tiles with their product counts. */
+export function CategoryTiles({
+  tiles,
+}: {
+  tiles: ReadonlyArray<{
+    title: string;
+    href: string;
+    count: number | null;
+    tone: string;
+    /** A product photo for the tile (the prototype draws product art there). */
+    image: StoreImage | null;
+  }>;
+}) {
   return (
-    <section aria-labelledby="home-brands" className="flex flex-col gap-5">
-      <SectionHead
-        id="home-brands"
-        title="Shop by brand"
-        sub="Every brand we stock, in one place."
-        more={{ label: "All brands", href: "/brands" }}
-      />
-      <ul className="-mx-4 flex snap-x gap-2.5 overflow-x-auto px-4 pb-1 sm:mx-0 sm:grid sm:grid-cols-3 sm:gap-3.5 sm:overflow-visible sm:px-0 xl:grid-cols-6">
-        {brands.map((brand) => (
-          <li key={brand.slug} className="min-w-[118px] basis-[32%] snap-start sm:min-w-0">
-            <Link
-              href={`/brands/${brand.slug}`}
-              prefetch={false}
-              className={`flex min-h-[92px] flex-col justify-center gap-1 rounded-md border border-line bg-surface px-3.5 py-3 transition-transform hover:-translate-y-0.5 hover:border-ink ${focus}`}
-            >
-              <span className="text-[17px] font-semibold">{brand.name}</span>
-              <span className="font-mono text-[10.5px] text-ink-2">
-                {brand.productCount} {brand.productCount === 1 ? "product" : "products"}
-              </span>
-            </Link>
-          </li>
+    <section className="sec" aria-labelledby="cat-h">
+      <SectionHead id="cat-h" title="Shop by category" />
+      <div className="cat4">
+        {tiles.map((tile) => (
+          <Link key={tile.href} href={tile.href} prefetch={false} className="c4">
+            <span className="c4-img" style={{ background: tile.tone }} aria-hidden="true">
+              {tile.image && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={tile.image.urls.medium} alt="" loading="lazy" decoding="async" />
+              )}
+            </span>
+            <span className="c4-t">{tile.title}</span>
+            <span className="c4-n">
+              {tile.count === null ? "See what's new" : plural(tile.count, "product")}
+            </span>
+          </Link>
         ))}
-      </ul>
+      </div>
     </section>
   );
 }
 
-/** Campaign banners (prototype `campaign`), copy first, image beside it from 720px up. */
+/** "Shop by brand" (prototype `brandTile`): the logo when the Owner set one, else the name. */
+export function HomeBrands({
+  brands,
+  logos,
+}: {
+  brands: StoreHomeResponse["brands"];
+  logos: StoreBrandsResponse["items"];
+}) {
+  if (!brands.length) return null;
+  return (
+    <section className="sec" style={{ paddingTop: 0 }} aria-labelledby="br-h">
+      <SectionHead
+        id="br-h"
+        title="Shop by brand"
+        sub="Every brand we stock, in one place."
+        more={{ label: "All brands", href: "/brands" }}
+      />
+      <div className="brands">
+        {brands.map((brand) => {
+          const logo = logos.find((item) => item.slug === brand.slug)?.logo ?? null;
+          return (
+            <Link
+              key={brand.slug}
+              href={`/brands/${brand.slug}`}
+              prefetch={false}
+              className="brand"
+            >
+              <span className="stripe" aria-hidden="true" />
+              {logo ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img className="bw-logo" src={logo.urls.thumb} alt={brand.name} />
+              ) : (
+                <span className="bw">{brand.name}</span>
+              )}
+              <span>
+                <span className="bc">{plural(brand.productCount, "product")}</span>
+              </span>
+            </Link>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+/** Campaign banners (prototype `campaign`); never a coupon code (BI-13, Marina 2026-10-18). */
 export function HomeBanners({ banners }: { banners: readonly Banner[] }) {
   if (!banners.length) return null;
   return (
-    <div className="flex flex-col gap-4">
+    <>
       {banners.map((banner, index) => (
         <section
           key={index}
-          aria-labelledby={`home-banner-${index}`}
-          className={`grid overflow-hidden rounded-lg bg-ink text-surface ${banner.image ? "md:grid-cols-[1.2fr_1fr]" : ""}`}
+          className="sec"
+          style={{ paddingTop: 0 }}
+          aria-labelledby={`camp-h-${index}`}
         >
-          <div className="flex flex-col items-start gap-3.5 px-[22px] py-7 md:p-11">
-            <h2
-              id={`home-banner-${index}`}
-              className="text-[clamp(26px,5vw,40px)] font-semibold leading-[1.08] tracking-[-0.03em]"
-            >
-              {banner.title}
-            </h2>
-            {banner.subtitle && <p className="max-w-[40ch] text-surface/80">{banner.subtitle}</p>}
-            {banner.cta && (
-              <Link
-                href={banner.cta.href}
-                prefetch={false}
-                className={`inline-flex h-12 items-center rounded-pill bg-surface px-6 font-medium text-ink hover:bg-surface-2 ${focus}`}
-              >
-                {banner.cta.label}
-              </Link>
+          <div className="camp">
+            <div className="camp-copy">
+              <h2 id={`camp-h-${index}`}>{banner.title}</h2>
+              {banner.subtitle && <p>{banner.subtitle}</p>}
+              {banner.cta && (
+                <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+                  <Link href={banner.cta.href} prefetch={false} className="btn btn-primary">
+                    {banner.cta.label}
+                  </Link>
+                </div>
+              )}
+            </div>
+            {banner.image && (
+              <div className="camp-art">
+                <ContentImage image={banner.image} />
+              </div>
             )}
           </div>
-          {banner.image && (
-            <div className="relative min-h-[220px] bg-accent">
-              <ContentImage
-                image={banner.image}
-                className="absolute inset-0 size-full object-cover"
-              />
-            </div>
-          )}
         </section>
       ))}
-    </div>
+    </>
   );
 }
 
@@ -195,13 +179,56 @@ export function HomeBanners({ banners }: { banners: readonly Banner[] }) {
 export function HomeOffers({ offers }: { offers: StoreHomeResponse["offers"] }) {
   if (!offers || !offers.products.length) return null;
   return (
-    <section aria-labelledby="home-offers" className="flex flex-col gap-5">
+    <section className="sec" style={{ paddingTop: 0 }} aria-labelledby="deal-h">
       <SectionHead
-        id="home-offers"
+        id="deal-h"
         title={offers.title}
+        sub={`${plural(offers.products.length, "product")} with a reduced price`}
         more={{ label: "View all offers", href: "/offers" }}
       />
-      <ProductGrid products={offers.products} />
+      <ProductRail products={offers.products.slice(0, 4)} />
+    </section>
+  );
+}
+
+/** The prototype's puff-count bands (`PUFF`): up to 6,000, 6,000–12,000 and over 12,000. */
+export const PUFF_BANDS = [
+  { label: "≤6K", min: undefined, max: 6000 },
+  { label: "6–12K", min: 6000, max: 12000 },
+  { label: "12K+", min: 12001, max: undefined },
+] as const;
+
+/** "Disposables by puff count" (prototype home, parity G-S13): three bands with counts. */
+export function PuffCounts({
+  bands,
+}: {
+  bands: ReadonlyArray<{ label: string; href: string; count: number }>;
+}) {
+  if (!bands.some((band) => band.count > 0)) return null;
+  return (
+    <section className="sec" style={{ paddingTop: 0 }} aria-labelledby="puff-h">
+      <SectionHead
+        id="puff-h"
+        title="Disposables by puff count"
+        sub="A quick way to choose how long a device lasts."
+      />
+      <div className="puffs">
+        {bands.map((band, index) => (
+          <Link key={band.href} href={band.href} prefetch={false} className="puff">
+            <span className="bars" aria-hidden="true">
+              {[0, 1, 2, 3, 4, 5].map((bar) => (
+                <i
+                  key={bar}
+                  className={bar <= index * 2 + 1 ? "on" : undefined}
+                  style={{ height: 8 + bar * 3.4 }}
+                />
+              ))}
+            </span>
+            <span className="n">{band.label}</span>
+            <span className="l">{plural(band.count, "product")}</span>
+          </Link>
+        ))}
+      </div>
     </section>
   );
 }

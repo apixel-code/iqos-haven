@@ -66,7 +66,7 @@ const tickerV1 = z.strictObject({
     .min(TICKER_MESSAGES.min)
     .max(TICKER_MESSAGES.max),
 });
-/** One hero (the admin prototype's model); the storefront prototype's carousel is not kept. */
+/** Version 1: one hero (before ADR 0097). Still read for copies saved or published at v1. */
 const heroV1 = z.strictObject({
   eyebrow: optionalText(40),
   title: text(1, 60),
@@ -74,6 +74,24 @@ const heroV1 = z.strictObject({
   cta: ctaSchema.nullable(),
   image: contentImageSchema.nullable(),
 });
+/**
+ * Version 2 (ADR 0097, Marina 2026-10-18): the storefront prototype's carousel, one to three
+ * slides, each in one of the prototype's three looks (navy, lilac, coral), with an optional
+ * second button; one slide shows no dots or arrows.
+ */
+export const HERO_SLIDES_MAX = 3;
+/** The prototype's slide looks: navy and coral carry light text, lilac dark text. */
+export const HERO_STYLES = ["navy", "lilac", "coral"] as const;
+export const heroSlideSchema = z.strictObject({
+  style: z.enum(HERO_STYLES),
+  eyebrow: optionalText(40),
+  title: text(1, 60),
+  subtitle: optionalText(160),
+  cta: ctaSchema.nullable(),
+  secondaryCta: ctaSchema.nullable(),
+  image: contentImageSchema.nullable(),
+});
+const heroV2 = z.strictObject({ slides: z.array(heroSlideSchema).min(1).max(HERO_SLIDES_MAX) });
 export const FEATURED_MAX = 8;
 const featuredV1 = z.strictObject({ productIds: ids(FEATURED_MAX) });
 export const BEST_SELLERS_COUNT = 8;
@@ -108,7 +126,7 @@ const offersV1 = z.strictObject({
 /** Every schema version of every section. Add a version; never change a released one. */
 export const CONTENT_SCHEMAS = {
   ticker: { 1: tickerV1 },
-  hero: { 1: heroV1 },
+  hero: { 1: heroV1, 2: heroV2 },
   featured: { 1: featuredV1 },
   best_sellers: { 1: bestSellersV1 },
   brands: { 1: brandsV1 },
@@ -116,19 +134,36 @@ export const CONTENT_SCHEMAS = {
   offers: { 1: offersV1 },
 } as const satisfies Record<ContentSectionKey, Record<number, z.ZodType>>;
 /** The version a new draft is written at. */
-export const CURRENT_CONTENT_SCHEMA: Record<ContentSectionKey, number> = {
+export const CURRENT_CONTENT_SCHEMA = {
   ticker: 1,
-  hero: 1,
+  hero: 2,
   featured: 1,
   best_sellers: 1,
   brands: 1,
   campaign_banner: 1,
   offers: 1,
+} as const satisfies Record<ContentSectionKey, number>;
+type CurrentSchemas = {
+  [K in ContentSectionKey]: (typeof CONTENT_SCHEMAS)[K][(typeof CURRENT_CONTENT_SCHEMA)[K] &
+    keyof (typeof CONTENT_SCHEMAS)[K]];
 };
-export type ContentOf<K extends ContentSectionKey> = z.output<(typeof CONTENT_SCHEMAS)[K][1]>;
+/** A section's document at the current version. */
+export type ContentOf<K extends ContentSectionKey> = z.output<CurrentSchemas[K]>;
 export type SectionContent = { [K in ContentSectionKey]: ContentOf<K> }[ContentSectionKey];
 
 export class ContentSchemaError extends Error {}
+
+/**
+ * A validated document read at its stored version, in the current version's shape: what the
+ * editor shows and the store renders. Hero v1 becomes one navy slide without a second button.
+ */
+export function upgradeContent(key: ContentSectionKey, version: number, content: unknown): unknown {
+  if (key === "hero" && version === 1) {
+    const hero = content as z.output<typeof heroV1>;
+    return { slides: [{ style: "navy", ...hero, secondaryCta: null }] };
+  }
+  return content;
+}
 /** The schema for a stored or submitted document, or an error for an unknown version. */
 export function contentSchema(key: ContentSectionKey, version: number): z.ZodType<SectionContent> {
   const schema = (CONTENT_SCHEMAS[key] as Record<number, z.ZodType<SectionContent> | undefined>)[

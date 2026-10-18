@@ -840,13 +840,26 @@ try {
   // curated rows, banners and offers. Without it (above) the catalogue sections fill in.
   CATALOGUE["/v1/store/content/home"] = {
     ticker: { messages: ["Synthetic ticker one", "Synthetic ticker two"] },
-    hero: {
-      eyebrow: "Synthetic eyebrow",
-      title: "Synthetic hero title",
-      subtitle: "Synthetic hero subtitle",
-      cta: { label: "Synthetic hero button", href: "/brands/orbe" },
-      image: null,
-    },
+    heroSlides: [
+      {
+        style: "navy",
+        eyebrow: "Synthetic eyebrow",
+        title: "Synthetic hero title",
+        subtitle: "Synthetic hero subtitle",
+        cta: { label: "Synthetic hero button", href: "/brands/orbe" },
+        secondaryCta: { label: "Synthetic second button", href: "/shop" },
+        image: null,
+      },
+      {
+        style: "lilac",
+        eyebrow: null,
+        title: "Synthetic second slide",
+        subtitle: null,
+        cta: null,
+        secondaryCta: null,
+        image: null,
+      },
+    ],
     featured: [card("Synthetic Featured Pick")],
     bestSellers: [card("Synthetic Best Seller")],
     brands: [{ name: "Orbe", slug: "orbe", productCount: 2 }],
@@ -867,6 +880,9 @@ try {
       "Synthetic hero title",
       "Synthetic hero subtitle",
       "Synthetic eyebrow",
+      "Synthetic second button",
+      "Synthetic second slide",
+      "Pause slides",
       "Popular right now",
       "Synthetic Best Seller",
       "Synthetic banner title",

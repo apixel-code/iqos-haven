@@ -24,6 +24,8 @@ export interface SearchState {
   minPrice?: number;
   maxPrice?: number;
   minPuffs?: number;
+  /** Upper puff bound, from the home page's puff-count links (ADR 0097). */
+  maxPuffs?: number;
   nicotine: string[];
   inStock: boolean;
   onSale: boolean;
@@ -51,6 +53,7 @@ export function parseSearch(raw: RawParams): SearchState {
   const minPrice = wholeNumber(first(raw.minPrice), MAX_AED);
   const maxPrice = wholeNumber(first(raw.maxPrice), MAX_AED);
   const minPuffs = wholeNumber(first(raw.minPuffs), 1_000_000);
+  const maxPuffs = wholeNumber(first(raw.maxPuffs), 1_000_000);
   // A range typed the wrong way round is ignored rather than sent as an error.
   const validRange = minPrice === undefined || maxPrice === undefined || minPrice <= maxPrice;
   return {
@@ -65,6 +68,8 @@ export function parseSearch(raw: RawParams): SearchState {
     ...(validRange && minPrice !== undefined ? { minPrice } : {}),
     ...(validRange && maxPrice !== undefined ? { maxPrice } : {}),
     ...(minPuffs ? { minPuffs } : {}),
+    // A puff range typed the wrong way round is ignored, like a price range.
+    ...(maxPuffs && (!minPuffs || minPuffs <= maxPuffs) ? { maxPuffs } : {}),
     nicotine: [...new Set(many(raw.nicotine).map((value) => value.trim()))]
       .filter((value) => value.length >= 1 && value.length <= 40)
       .slice(0, 6),
@@ -87,6 +92,7 @@ export function searchApiParams(state: SearchState, limit?: number): Array<[stri
   if (state.minPrice !== undefined) params.push(["minPriceFils", String(state.minPrice * 100)]);
   if (state.maxPrice !== undefined) params.push(["maxPriceFils", String(state.maxPrice * 100)]);
   if (state.minPuffs !== undefined) params.push(["minPuffs", String(state.minPuffs)]);
+  if (state.maxPuffs !== undefined) params.push(["maxPuffs", String(state.maxPuffs)]);
   for (const value of state.nicotine) params.push(["nicotine", value]);
   if (state.inStock) params.push(["inStock", "true"]);
   if (state.onSale) params.push(["onSale", "true"]);
@@ -109,6 +115,7 @@ export function searchHref(state: Partial<SearchState>, path = "/search"): strin
   if (state.minPrice !== undefined) query.set("minPrice", String(state.minPrice));
   if (state.maxPrice !== undefined) query.set("maxPrice", String(state.maxPrice));
   if (state.minPuffs !== undefined) query.set("minPuffs", String(state.minPuffs));
+  if (state.maxPuffs !== undefined) query.set("maxPuffs", String(state.maxPuffs));
   for (const value of state.nicotine ?? []) query.append("nicotine", value);
   if (state.inStock) query.set("inStock", "true");
   if (state.onSale) query.set("onSale", "true");
@@ -123,7 +130,7 @@ export function activeFilterCount(state: SearchState): number {
     (state.type ? 1 : 0) +
     state.brands.length +
     (state.minPrice !== undefined || state.maxPrice !== undefined ? 1 : 0) +
-    (state.minPuffs !== undefined ? 1 : 0) +
+    (state.minPuffs !== undefined || state.maxPuffs !== undefined ? 1 : 0) +
     state.nicotine.length +
     (state.inStock ? 1 : 0) +
     (state.onSale ? 1 : 0)

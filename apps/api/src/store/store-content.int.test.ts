@@ -152,7 +152,7 @@ describe("published home content through the real API and PostgreSQL", () => {
   it("shows nothing before anything is published, and never a draft", async () => {
     expect(await homeData()).toEqual({
       ticker: null,
-      hero: null,
+      heroSlides: [],
       featured: [],
       bestSellers: [],
       brands: [],
@@ -185,11 +185,26 @@ describe("published home content through the real API and PostgreSQL", () => {
     const kit = await visibleProduct("Kit Home");
     await stock(halo.variantId, 5);
     await publish("hero", {
-      eyebrow: "New",
-      title: "Every brand, one place",
-      subtitle: null,
-      cta: { label: "Shop the brand", link: { kind: "brand", brandId: halo.brandId } },
-      image: null,
+      slides: [
+        {
+          style: "navy",
+          eyebrow: "New",
+          title: "Every brand, one place",
+          subtitle: null,
+          cta: { label: "Shop the brand", link: { kind: "brand", brandId: halo.brandId } },
+          secondaryCta: { label: "All products", link: { kind: "shop" } },
+          image: null,
+        },
+        {
+          style: "lilac",
+          eyebrow: null,
+          title: "Pod kits for every day",
+          subtitle: "Refillable and easy to carry",
+          cta: { label: "See the kit", link: { kind: "product", productId: kit.id } },
+          secondaryCta: null,
+          image: null,
+        },
+      ],
     });
     await publish("featured", { productIds: [kit.id, halo.id] });
     await publish("brands", { brandIds: [halo.brandId, kit.brandId] });
@@ -211,13 +226,26 @@ describe("published home content through the real API and PostgreSQL", () => {
     const brandSlug = (
       await one<{ slug: string }>("SELECT slug FROM brands WHERE id=$1", [halo.brandId])
     ).slug;
-    expect(page.hero).toEqual({
-      eyebrow: "New",
-      title: "Every brand, one place",
-      subtitle: null,
-      cta: { label: "Shop the brand", href: `/brands/${brandSlug}` },
-      image: null,
-    });
+    expect(page.heroSlides).toEqual([
+      {
+        style: "navy",
+        eyebrow: "New",
+        title: "Every brand, one place",
+        subtitle: null,
+        cta: { label: "Shop the brand", href: `/brands/${brandSlug}` },
+        secondaryCta: { label: "All products", href: "/shop" },
+        image: null,
+      },
+      {
+        style: "lilac",
+        eyebrow: null,
+        title: "Pod kits for every day",
+        subtitle: "Refillable and easy to carry",
+        cta: { label: "See the kit", href: `/p/${kit.slug}` },
+        secondaryCta: null,
+        image: null,
+      },
+    ]);
     expect(page.featured.map((card) => card.name)).toEqual(["Kit Home", "Halo Home"]);
     expect(page.brands.map((brand) => brand.slug)).toHaveLength(2);
     expect(page.banners).toEqual([
@@ -248,9 +276,53 @@ describe("published home content through the real API and PostgreSQL", () => {
     await pool.query("UPDATE brands SET active=false WHERE id=$1", [halo.brandId]);
     await revalidate();
     const hidden = await homeData();
-    expect(hidden.hero?.cta).toBeNull();
+    expect(hidden.heroSlides[0]?.cta).toBeNull();
     expect(hidden.featured).toEqual([]);
     await pool.query("UPDATE brands SET active=true WHERE id=$1", [halo.brandId]);
+  });
+
+  it("reads a hero published before the carousel (v1) as one dark slide", async () => {
+    await publish("hero", {
+      slides: [
+        {
+          style: "lilac",
+          eyebrow: null,
+          title: "Replaced below",
+          subtitle: null,
+          cta: null,
+          secondaryCta: null,
+          image: null,
+        },
+      ],
+    });
+    // A copy saved and published by the previous release, at schema version 1.
+    await pool.query(
+      `UPDATE content_sections SET draft = $1::jsonb, schema_version = 1,
+          published = $1::jsonb, published_schema_version = 1, version = version + 1,
+          published_at = published_at + interval '1 second'
+        WHERE key = 'hero'`,
+      [
+        JSON.stringify({
+          eyebrow: "Old",
+          title: "One hero",
+          subtitle: "From version 1",
+          cta: { label: "Shop now", link: { kind: "shop" } },
+          image: null,
+        }),
+      ],
+    );
+    await revalidate();
+    expect((await homeData()).heroSlides).toEqual([
+      {
+        style: "navy",
+        eyebrow: "Old",
+        title: "One hero",
+        subtitle: "From version 1",
+        cta: { label: "Shop now", href: "/shop" },
+        secondaryCta: null,
+        image: null,
+      },
+    ]);
   });
 
   it("works out automatic best sellers from recent, uncancelled orders, in stock only", async () => {

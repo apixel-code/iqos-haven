@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import { recordProductView, useDeviceLists } from "@/lib/device/store";
 import { track } from "@/lib/telemetry/client";
 import { useProductCards } from "@/lib/device/use-cards";
-import { ProductGrid } from "./product-card";
+import { ProductRail } from "./product-card";
 
 /** Remembers that this product was opened, on this device only. Renders nothing. */
 export function RecordView({ slug }: { slug: string }) {
@@ -26,11 +26,16 @@ export function RecentlyViewed({ exclude }: { exclude?: string }) {
   const cards = useProductCards(recent);
   if (cards.status !== "ready" || cards.cards.length === 0) return null;
   return (
-    <section aria-labelledby="recent" className="flex flex-col gap-5 pt-12">
-      <h2 id="recent" className="text-xl font-semibold tracking-tight">
-        Recently viewed
-      </h2>
-      <ProductGrid products={cards.cards.filter((card) => card.slug !== exclude)} />
+    <section className="sec" aria-labelledby="rec-h">
+      <div className="sec-head">
+        <div>
+          <h2 className="h2" id="rec-h">
+            Recently viewed
+          </h2>
+          <p className="sub">Saved on this device</p>
+        </div>
+      </div>
+      <ProductRail products={cards.cards.filter((card) => card.slug !== exclude)} />
     </section>
   );
 }

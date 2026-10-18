@@ -42,13 +42,26 @@ export const CONTENT_TABS: ReadonlyArray<{ key: ContentSectionKey; label: string
     },
   ];
 
+/** A new hero slide (ADR 0097). Blank text is filled in before saving. */
+export function emptyHeroSlide(): Record<string, unknown> {
+  return {
+    style: "navy",
+    eyebrow: null,
+    title: "",
+    subtitle: null,
+    cta: null,
+    secondaryCta: null,
+    image: null,
+  };
+}
+
 /** A starting document for a section never saved. Blank text is filled in before saving. */
 export function emptyContent(key: ContentSectionKey): Record<string, unknown> {
   switch (key) {
     case "ticker":
       return { enabled: false, messages: ["", ""] };
     case "hero":
-      return { eyebrow: null, title: "", subtitle: null, cta: null, image: null };
+      return { slides: [emptyHeroSlide()] };
     case "featured":
       return { productIds: [] };
     case "best_sellers":

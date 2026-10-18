@@ -5056,4 +5056,97 @@
     outline: 3px solid var(--focus);
     outline-offset: 2px;
   }
+
+  /* store: real product photos in the card tile (the prototype draws SVG art). */
+  ul.pgrid,
+  ul.rail {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  .card .art {
+    background: var(--surface-2);
+  }
+  .card .art img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    transition: transform 0.45s var(--ease);
+  }
+  .card:hover .art img {
+    transform: translateY(-5px) scale(1.025);
+  }
+  .card.oos .art img {
+    opacity: 0.45;
+    filter: grayscale(0.6);
+  }
+  .card .art-empty {
+    display: grid;
+    place-items: center;
+    height: 100%;
+    padding: 12px;
+    text-align: center;
+    font-size: 12px;
+    color: var(--ink-3);
+  }
+  /* store: the card's heart and button stay above the card-wide name link. */
+  .card .wish,
+  .card .qadd,
+  .card .badges {
+    z-index: 1;
+  }
+
+  /* store: the hero's pause button (WCAG 2.2.2) sits beside the arrows on every width. */
+  .hb-actions {
+    display: flex;
+    gap: 8px;
+    margin-left: auto;
+    pointer-events: auto;
+  }
+  .hb-main.paused .hb-dot.on i::after,
+  .hb-main.paused .hb-dot.on i {
+    animation-play-state: paused;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .hb-dot.on i::after {
+      animation: none;
+      transform: scaleX(1);
+    }
+  }
+  .hb-art img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+  }
+
+  /* store: a brand's own logo (parity G-A7) takes the wordmark's place; no demo hue stripe. */
+  .brand .stripe {
+    background: var(--line-2);
+  }
+  .brand .bw-logo {
+    display: block;
+    max-height: 30px;
+    max-width: 100%;
+    width: auto;
+    object-fit: contain;
+  }
+  .camp-art img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  /* store: a product photo in the category tile, like the prototype's art. */
+  .c4-img img {
+    position: absolute;
+    inset: 12%;
+    width: 76%;
+    height: 76%;
+    object-fit: contain;
+    transition: transform 0.3s var(--ease);
+  }
+  .c4:hover .c4-img img {
+    transform: translateY(-4px) scale(1.04);
+  }
 }
