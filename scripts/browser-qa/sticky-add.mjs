@@ -107,7 +107,7 @@ try {
   await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
   await page.waitForTimeout(500);
   check(
-    /AED 49 · grape/.test(await bar.innerText()),
+    /AED\s*49\s*·\s*grape/.test(await bar.innerText()),
     "the bar shows the chosen option and its price",
   );
   await bar.getByRole("button", { name: "Add to cart" }).click();

@@ -4,9 +4,9 @@ import { EMIRATE_NAMES } from "@ih/contracts";
 import { Breadcrumbs, PageHead } from "@/components/listing";
 import { WhatsAppLink } from "@/components/whatsapp-link";
 import { POLICY_PAGES, SITE } from "@/lib/site";
-import { displayAed } from "@/lib/store/listing";
 import { storeInfo, storeRead } from "@/lib/store/server";
 import { WHATSAPP_MESSAGES } from "@/lib/whatsapp";
+import { Money } from "@/components/money";
 
 export const metadata: Metadata = { title: `Help · ${SITE.name}` };
 
@@ -60,11 +60,15 @@ export default async function HelpPage() {
             <div>
               <dt className="font-medium">Fee</dt>
               <dd className="text-ink-2">
-                {delivery.feeFils === null
-                  ? "Shown with your total before you order."
-                  : delivery.feeFils === 0
-                    ? "Included in your total"
-                    : `${displayAed(delivery.feeFils)} per order`}
+                {delivery.feeFils === null ? (
+                  "Shown with your total before you order."
+                ) : delivery.feeFils === 0 ? (
+                  "Included in your total"
+                ) : (
+                  <>
+                    <Money fils={delivery.feeFils} /> per order
+                  </>
+                )}
               </dd>
             </div>
             {delivery.etaText && (

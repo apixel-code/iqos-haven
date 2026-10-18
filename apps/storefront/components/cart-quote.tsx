@@ -23,6 +23,7 @@ import {
 import type { QuoteChoice } from "@/lib/checkout/memory";
 import { freeDeliveryProgress } from "@/lib/cart/free-delivery";
 import { displayAed } from "@/lib/store/listing";
+import { Money } from "@/components/money";
 
 interface Line {
   variantId: string;
@@ -348,16 +349,22 @@ export function CartQuote({
                     Remove
                   </button>
                 </dt>
-                <dd className="whitespace-nowrap">−{displayAed(current.discountFils)}</dd>
+                <dd className="whitespace-nowrap">
+                  −<Money fils={current.discountFils} />
+                </dd>
               </div>
             )}
             <div className="flex justify-between gap-4">
               <dt>Delivery to {current.delivery.areaName}</dt>
-              <dd>{displayAed(current.deliveryFeeFils)}</dd>
+              <dd>
+                <Money fils={current.deliveryFeeFils} />
+              </dd>
             </div>
             <div className="flex justify-between gap-4 border-t border-line pt-2 text-base font-semibold">
               <dt>Total</dt>
-              <dd>{displayAed(current.totalFils)}</dd>
+              <dd>
+                <Money fils={current.totalFils} />
+              </dd>
             </div>
           </dl>
           <p className="text-xs text-ink-3">{current.delivery.etaText}</p>
@@ -408,7 +415,11 @@ function FreeDelivery({
           "Your order qualifies for free delivery."
         ) : (
           <>
-            Add <b>{displayAed(progress.remainingFils)}</b> more for free delivery.
+            Add{" "}
+            <b>
+              <Money fils={progress.remainingFils} />
+            </b>{" "}
+            more for free delivery.
           </>
         )}
       </span>

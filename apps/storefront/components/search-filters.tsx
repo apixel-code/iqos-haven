@@ -1,6 +1,6 @@
 import type { StoreSearchResponse } from "@ih/contracts";
-import { displayAed } from "@/lib/store/listing";
 import { SEARCH_SORT_LABELS, type SearchState } from "@/lib/store/search";
+import { Money } from "@/components/money";
 
 const group = "flex flex-col gap-2 border-t border-line pt-4 first:border-t-0 first:pt-0";
 const legend = "text-xs font-semibold uppercase tracking-[0.08em] text-ink-2";
@@ -115,7 +115,7 @@ export function SearchFilters({
         </div>
         {facets.price && (
           <p className="text-xs text-ink-3">
-            {displayAed(facets.price.minFils)} to {displayAed(facets.price.maxFils)}
+            <Money fils={facets.price.minFils} /> to <Money fils={facets.price.maxFils} />
           </p>
         )}
       </fieldset>

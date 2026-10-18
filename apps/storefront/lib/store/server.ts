@@ -58,6 +58,7 @@ export async function restartOnStaleCursor<T>(
  * when the layout and the page both ask. If it cannot be read the shell simply has no WhatsApp
  * links; an optional extra must never take a page down or send the shopper anywhere.
  */
+const NO_SOCIAL = { instagram: null, tiktok: null, facebook: null };
 export const storeInfo = cache(async (): Promise<StoreInfoResponse> => {
   api ??= createStoreApi({ baseUrl: storefrontEnv().API_INTERNAL_URL });
   try {
@@ -65,7 +66,22 @@ export const storeInfo = cache(async (): Promise<StoreInfoResponse> => {
   } catch (error) {
     // Never redirect from the shell: a page that needs catalogue data decides that itself.
     if (error instanceof StoreApiError || error instanceof AgeRequiredError)
-      return { whatsappNumber: null, checkoutOpen: false };
+      return { whatsappNumber: null, checkoutOpen: false, social: NO_SOCIAL };
+    throw error;
+  }
+});
+
+/**
+ * Brands with products for the footer (ADR 0097). An optional extra like `storeInfo`: if they
+ * cannot be read the footer simply lists none.
+ */
+export const shellBrands = cache(async () => {
+  api ??= createStoreApi({ baseUrl: storefrontEnv().API_INTERNAL_URL });
+  try {
+    const { items } = await api.brands(await shopper());
+    return items.filter((brand) => brand.productCount > 0).slice(0, 8);
+  } catch (error) {
+    if (error instanceof StoreApiError || error instanceof AgeRequiredError) return [];
     throw error;
   }
 });

@@ -1,137 +1,206 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { CartLink } from "@/components/cart-link";
 import { CartSheet } from "@/components/cart-sheet";
-import { MenuSheet } from "@/components/menu-sheet";
-import { SearchSheet } from "@/components/search-sheet";
-import { NavLinks } from "@/components/nav-links";
-import { SearchBox } from "@/components/search-box";
-import { WhatsAppLink } from "@/components/whatsapp-link";
-import { AGE_COPY } from "@/lib/age/copy";
-import { POLICY_PAGES, PRIMARY_NAV, SITE } from "@/lib/site";
+import { IconSprite } from "@/components/icons";
 import { PromoTicker } from "@/components/promo-ticker";
-import { storeHome, storeInfo } from "@/lib/store/server";
-import { WHATSAPP_MESSAGES } from "@/lib/whatsapp";
-
-const footerLink = "text-ink-2 hover:text-ink hover:underline";
+import { SiteHeader } from "@/components/site-header";
+import { StoreOverlays } from "@/components/store-overlays";
+import { AGE_COPY } from "@/lib/age/copy";
+import { POLICY_PAGES, SITE } from "@/lib/site";
+import { shellBrands, storeHome, storeInfo } from "@/lib/store/server";
 
 /**
- * Store shell (roadmap step 64): the published promotional bar (step 99), header with navigation,
- * search, saved items and cart, and the footer. Every route under it is restricted by the
- * routing gate. The footer copy marked below awaits the client's approved wording (BI-01, BI-04).
+ * Store shell (roadmap step 64; the prototype's look since ADR 0097): promotional bar, header,
+ * the page, the footer, and the fixed overlays (phone bottom navigation, WhatsApp button, cart
+ * sheet). Every route under it is restricted by the routing gate. Footer copy marked below awaits
+ * the client's approved wording (BI-01, BI-04).
  */
 export default async function ShopLayout({ children }: { children: ReactNode }) {
-  const [{ whatsappNumber }, { ticker }] = await Promise.all([storeInfo(), storeHome()]);
+  const [{ whatsappNumber, social }, { ticker }, brands] = await Promise.all([
+    storeInfo(),
+    storeHome(),
+    shellBrands(),
+  ]);
   return (
-    <div className="flex min-h-dvh flex-col">
+    <>
+      <IconSprite />
       <a
-        href="#content"
-        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-20 focus:rounded-pill focus:bg-primary focus:px-4 focus:py-2 focus:text-sm focus:text-on-primary"
+        href="#main"
+        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-pill focus:bg-primary focus:px-4 focus:py-2 focus:text-sm focus:text-on-primary"
       >
         Skip to content
       </a>
       {ticker && <PromoTicker messages={ticker.messages} />}
-      <header className="border-b border-line bg-surface">
-        {/* Below `md` the header is the logo, Search, Menu and Cart (search in a sheet, parity G-S3); the
-            sections, brands, saved items, compare, help and WhatsApp are in the menu sheet
-            (parity G-S4). */}
-        <div className="mx-auto flex w-full max-w-7xl flex-wrap items-center justify-between gap-x-6 gap-y-2 px-4 py-3 sm:px-8">
-          <Link href="/" prefetch={false} className="text-lg font-semibold tracking-tight">
-            {SITE.name}
-          </Link>
-          {/* Phones search in a sheet (parity G-S3); the inline box is for wider screens. */}
-          <div className="hidden md:block">
-            <SearchBox />
-          </div>
-          <nav aria-label="Main" className="flex flex-wrap items-center gap-x-4 gap-y-2">
-            <div className="hidden md:block">
-              <NavLinks />
-            </div>
-            <ul className="flex items-center gap-x-3 text-sm">
-              <li className="hidden md:list-item">
-                <Link href="/wishlist" prefetch={false} className="text-ink-2 hover:text-ink">
-                  Saved
-                </Link>
-              </li>
-              <li className="hidden md:list-item">
-                <Link href="/help" prefetch={false} className="text-ink-2 hover:text-ink">
-                  Help
-                </Link>
-              </li>
-              <li className="md:hidden">
-                <SearchSheet />
-              </li>
-              <li className="md:hidden">
-                <MenuSheet whatsappNumber={whatsappNumber} />
-              </li>
-              <li>
-                <CartLink />
-              </li>
-            </ul>
-          </nav>
-        </div>
-      </header>
-      <main id="content" className="mx-auto w-full max-w-7xl flex-1 px-4 pb-16 sm:px-8">
+      <SiteHeader whatsappNumber={whatsappNumber} belowPromo={Boolean(ticker)} />
+      <main id="main" className="wrap">
         {children}
       </main>
-      <CartSheet whatsappNumber={whatsappNumber} />
-      <footer className="border-t border-line bg-surface">
-        <div className="mx-auto grid w-full max-w-7xl gap-8 px-4 py-10 text-sm sm:grid-cols-2 sm:px-8 lg:grid-cols-4">
-          <div className="flex flex-col gap-2">
-            <p className="text-lg font-semibold tracking-tight">{SITE.name}</p>
-            <p className="text-ink-2">{SITE.description}</p>
-            <span className="w-fit rounded-pill bg-accent-soft px-3 py-1 text-xs font-medium">
-              {AGE_COPY.badge}
-            </span>
-          </div>
-          <nav aria-label="Shop" className="flex flex-col gap-2">
-            <h2 className="font-semibold">Shop</h2>
-            <ul className="flex flex-col gap-1.5">
-              {PRIMARY_NAV.map((item) => (
-                <li key={item.href}>
-                  <Link href={item.href} prefetch={false} className={footerLink}>
-                    {item.label}
+      <footer className="foot foot-pad">
+        <div className="wrap">
+          <div className="foot-grid">
+            <div className="foot-brand">
+              <span className="wm" style={{ color: "#fff" }}>
+                Iqos <span>Haven</span>
+              </span>
+              {/* Prototype wording adapted to UAE-wide delivery (BI-03); final copy is BI-01. */}
+              <p>
+                An online store for disposable vapes and pod kits from established brands,
+                delivering across the UAE. Order online and pay cash on delivery.
+              </p>
+            </div>
+            <nav aria-label="Shop">
+              <h4>Shop</h4>
+              <ul>
+                <li>
+                  <Link href="/shop" prefetch={false}>
+                    All products
                   </Link>
                 </li>
-              ))}
-            </ul>
-          </nav>
-          <nav aria-label="Help and legal" className="flex flex-col gap-2">
-            <h2 className="font-semibold">Help &amp; legal</h2>
-            <ul className="flex flex-col gap-1.5">
-              <li>
-                <Link href="/help" prefetch={false} className={footerLink}>
-                  Help &amp; delivery
-                </Link>
-              </li>
-              {POLICY_PAGES.map((page) => (
-                <li key={page.path}>
-                  <a href={page.path} className={footerLink}>
-                    {page.title}
-                  </a>
+                <li>
+                  <Link href="/disposable-vapes" prefetch={false}>
+                    Disposable vapes
+                  </Link>
                 </li>
-              ))}
-            </ul>
-          </nav>
-          <div className="flex flex-col gap-2">
-            <h2 className="font-semibold">Payment</h2>
-            <p className="text-ink-2">Cash on delivery. No account needed.</p>
-            <WhatsAppLink number={whatsappNumber} message={WHATSAPP_MESSAGES.general(SITE.name)}>
-              Chat on WhatsApp
-            </WhatsAppLink>
+                <li>
+                  <Link href="/vape-kits" prefetch={false}>
+                    Vape kits &amp; devices
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/offers" prefetch={false}>
+                    Offers
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/compare" prefetch={false}>
+                    Compare kits
+                  </Link>
+                </li>
+              </ul>
+            </nav>
+            {brands.length > 0 && (
+              <nav aria-label="Brands">
+                <h4>Brands</h4>
+                <ul>
+                  {brands.map((brand) => (
+                    <li key={brand.slug}>
+                      <Link href={`/brands/${brand.slug}`} prefetch={false}>
+                        {brand.name}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </nav>
+            )}
+            <nav aria-label="Help">
+              <h4>Help</h4>
+              <ul>
+                <li>
+                  <Link href="/help#help-delivery" prefetch={false}>
+                    Delivery information
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/help#help-faq" prefetch={false}>
+                    FAQ
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/help#help-contact" prefetch={false}>
+                    Contact us
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/wishlist" prefetch={false}>
+                    Saved items
+                  </Link>
+                </li>
+              </ul>
+            </nav>
+            <div>
+              <nav aria-label="Legal">
+                <h4>Legal</h4>
+                <ul>
+                  {POLICY_PAGES.map((page) => (
+                    <li key={page.path}>
+                      <a href={page.path}>{page.title}</a>
+                    </li>
+                  ))}
+                </ul>
+              </nav>
+              {(social.facebook || social.instagram) && (
+                <>
+                  <h4 style={{ marginTop: 22 }}>Follow us</h4>
+                  <div className="social">
+                    {social.facebook && (
+                      <a
+                        href={social.facebook}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        aria-label={`${SITE.name} on Facebook`}
+                        className="so-fb"
+                      >
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                          <circle cx="12" cy="12" r="11.5" fill="#fff" />
+                          <path
+                            fill="#1877F2"
+                            d="M24 12.07C24 5.41 18.63 0 12 0S0 5.4 0 12.07C0 18.1 4.39 23.1 10.13 24v-8.44H7.08v-3.49h3.05V9.41c0-3.02 1.79-4.7 4.53-4.7 1.31 0 2.68.24 2.68.24v2.97h-1.51c-1.49 0-1.96.93-1.96 1.89v2.26h3.33l-.53 3.49h-2.8V24C19.61 23.1 24 18.1 24 12.07z"
+                          />
+                        </svg>
+                      </a>
+                    )}
+                    {social.instagram && (
+                      <a
+                        href={social.instagram}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        aria-label={`${SITE.name} on Instagram`}
+                        className="so-ig"
+                      >
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                          <rect
+                            x="3.2"
+                            y="3.2"
+                            width="17.6"
+                            height="17.6"
+                            rx="5.2"
+                            fill="none"
+                            stroke="#fff"
+                            strokeWidth="2"
+                          />
+                          <circle
+                            cx="12"
+                            cy="12"
+                            r="4.1"
+                            fill="none"
+                            stroke="#fff"
+                            strokeWidth="2"
+                          />
+                          <circle cx="17.3" cy="6.7" r="1.25" fill="#fff" />
+                        </svg>
+                      </a>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
           </div>
-        </div>
-        <div className="border-t border-line">
-          <div className="mx-auto flex w-full max-w-7xl flex-col gap-2 px-4 py-5 text-xs text-ink-2 sm:px-8">
-            {/* Prototype wording; the required health warning text is pending (BI-04). */}
-            <p>
-              These products contain nicotine, which is addictive, and are not intended for
-              non-smokers, pregnant or breastfeeding women.
-            </p>
-            <p>{AGE_COPY.footer}</p>
+          {/* Prototype wording; the required health warning text is pending (BI-04). */}
+          <p className="foot-warn">
+            These products contain nicotine, which is addictive, and are not intended for
+            non-smokers, pregnant or breastfeeding women.
+          </p>
+          <div className="foot-bottom">
+            <span>
+              © {new Date().getFullYear()} {SITE.name}. All rights reserved.
+            </span>
+            <span>{AGE_COPY.footer}</span>
+            <span>Payment: Cash on delivery</span>
           </div>
         </div>
       </footer>
-    </div>
+      <StoreOverlays whatsappNumber={whatsappNumber} />
+      <CartSheet whatsappNumber={whatsappNumber} />
+    </>
   );
 }

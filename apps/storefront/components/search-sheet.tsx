@@ -5,8 +5,9 @@ import { usePathname } from "next/navigation";
 import { useEffect, useId, useRef, useState } from "react";
 import { useDeviceLists } from "@/lib/device/store";
 import { useProductCards } from "@/lib/device/use-cards";
+import { Icon } from "@/components/icons";
 import { useStoreBrands, useSuggestions } from "@/lib/store/client-hooks";
-import { displayAed } from "@/lib/store/listing";
+import { Money } from "@/components/money";
 
 const chip =
   "inline-flex h-9 items-center rounded-pill border border-line bg-surface px-3 text-sm font-medium hover:border-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus";
@@ -42,9 +43,11 @@ export function SearchSheet() {
           setOpen(true);
           ensureBrands();
         }}
-        className="inline-flex h-10 items-center rounded-pill border border-line-2 bg-surface px-4 text-sm font-medium hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus md:hidden"
+        // The prototype's search button (`ibtn not-lg`): below the width of the header search bar.
+        className="ibtn not-lg"
+        aria-label="Search"
       >
-        Search
+        <Icon name="search" />
       </button>
       <dialog
         ref={dialog}
@@ -237,7 +240,7 @@ function SheetBody({
                       >
                         <span className="font-medium">{card.name}</span>
                         <span className="text-xs text-ink-3">
-                          {card.brand.name} · {displayAed(card.priceFromFils)}
+                          {card.brand.name} · <Money fils={card.priceFromFils} />
                           {card.soldOut ? " · Sold out" : ""}
                         </span>
                       </Link>

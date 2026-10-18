@@ -268,8 +268,9 @@ check(
 );
 // The confirmation page (step 81): the API's snapshot, read with the cookie.
 check(
+  // Prices carry the dirham sign with a screen-reader "AED", so compare without spaces.
   ["Pay in cash on delivery", "AED 64", "What happens next", "Probe Tower", "Total to pay"].every(
-    (text) => placedText.includes(text),
+    (text) => placedText.replace(/\s+/g, "").includes(text.replace(/\s+/g, "")),
   ),
   "the confirmation shows the total, the next steps and the delivery address",
   placedText.slice(0, 400),
@@ -307,7 +308,7 @@ await page
   .waitFor({ timeout: 15000 });
 const expiredText = await page.locator("main").innerText();
 check(
-  !/IH-\d{6}|Probe Tower|AED 64/.test(expiredText),
+  !/IH-\d{6}|Probe Tower|AED\s*64/.test(expiredText),
   "without the cookie no order detail is shown",
 );
 await page.screenshot({ path: join(shots, "confirmation-expired-360.png"), fullPage: true });
@@ -372,7 +373,7 @@ await page.getByRole("button", { name: "Place order · AED 66" }).click();
 await page.waitForURL("**/order-confirmation", { timeout: 15000 });
 await page.getByRole("heading", { name: "Order placed. Thank you." }).waitFor({ timeout: 15000 });
 check(
-  (await page.locator("main").innerText()).includes("AED 66"),
+  /AED\s*66/.test(await page.locator("main").innerText()),
   "the second order is placed at the accepted new total",
 );
 check(orders() === 2, "two journeys made exactly two orders");

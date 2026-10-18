@@ -100,7 +100,7 @@ try {
   await page.keyboard.press("Escape");
   await sheet.waitFor({ state: "hidden" });
   check(
-    await page.evaluate(() => document.activeElement?.textContent?.trim() === "Search"),
+    await page.evaluate(() => document.activeElement?.getAttribute("aria-label") === "Search"),
     "Escape closes the sheet and returns focus to its button",
   );
   await button.click();

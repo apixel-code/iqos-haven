@@ -1,8 +1,9 @@
 import Link from "next/link";
 import type { StoreProductCard } from "@ih/contracts";
-import { cardBadges, cardMeta, displayAed } from "@/lib/store/listing";
+import { cardBadges, cardMeta } from "@/lib/store/listing";
 import { QuickAdd } from "./quick-add";
 import { SaveButton } from "./save-button";
+import { Money } from "@/components/money";
 
 const BADGE_STYLES = {
   soldOut: "bg-ink text-white",
@@ -74,12 +75,12 @@ export function ProductCard({ product }: { product: StoreProductCard }) {
           <p className="flex flex-wrap items-baseline gap-x-2">
             <span className={`text-base font-semibold ${onSale ? "text-coral" : ""}`}>
               {product.variantCount > 1 && <span className="sr-only">From </span>}
-              {displayAed(product.priceFromFils)}
+              <Money fils={product.priceFromFils} />
             </span>
             {product.compareAtPriceFils !== null && (
               <span className="text-[13.5px] text-ink-3 line-through">
                 <span className="sr-only">Was </span>
-                {displayAed(product.compareAtPriceFils)}
+                <Money fils={product.compareAtPriceFils} />
               </span>
             )}
           </p>

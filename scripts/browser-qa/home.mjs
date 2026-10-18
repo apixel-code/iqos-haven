@@ -137,7 +137,7 @@ try {
       .locator(".promo-track")
       .evaluate((node) => getComputedStyle(node).animationName);
     check(
-      motion === "reduce" ? moving === "none" : moving === "promo-ticker",
+      motion === "reduce" ? moving === "none" : moving === "ticker",
       `${label}: ticker motion follows the preference`,
       moving,
     );

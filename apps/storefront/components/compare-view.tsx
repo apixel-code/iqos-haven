@@ -1,10 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
 import { storeProductResponseSchema, type StoreProductResponse } from "@ih/contracts";
 import { applyRenames, removeFromList, useDeviceLists } from "@/lib/device/store";
-import { displayAed } from "@/lib/store/listing";
+import { Money } from "@/components/money";
 
 type Loaded = { key: string; products: StoreProductResponse[]; missing: string[]; failed: boolean };
 
@@ -16,16 +16,20 @@ const spec = (product: StoreProductResponse, key: string) =>
 /** Rows of the comparison; `score` marks the best value in a row (higher is better). */
 const ROWS: Array<{
   label: string;
-  text: (product: StoreProductResponse) => string;
+  text: (product: StoreProductResponse) => ReactNode;
   score?: (product: StoreProductResponse) => number | null;
 }> = [
   {
     label: "Price",
-    text: (product) =>
-      (product.variants.length > 1 &&
-      new Set(product.variants.map((variant) => variant.priceFils)).size > 1
-        ? "From "
-        : "") + displayAed(lowestPrice(product)),
+    text: (product) => (
+      <>
+        {product.variants.length > 1 &&
+        new Set(product.variants.map((variant) => variant.priceFils)).size > 1
+          ? "From "
+          : ""}
+        <Money fils={lowestPrice(product)} />
+      </>
+    ),
     score: (product) => -lowestPrice(product),
   },
   {

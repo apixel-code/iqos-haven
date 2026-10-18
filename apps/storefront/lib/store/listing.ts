@@ -25,11 +25,16 @@ export type ProductType = keyof typeof TYPE_PAGES;
  * Integer arithmetic only. The server quote, not this text, decides what is charged.
  */
 export function displayAed(fils: number): string {
+  return `AED ${displayAmount(fils)}`;
+}
+
+/** The number part of a price ("49", "1,250.50"), shown after the dirham sign (ADR 0097). */
+export function displayAmount(fils: number): string {
   // The contract only carries non-negative integers; anything else is a bug, not a price.
   if (!Number.isSafeInteger(fils) || fils < 0) throw new RangeError("Invalid fils amount");
   const whole = Math.trunc(fils / 100).toLocaleString("en-US");
   const cents = fils % 100;
-  return cents === 0 ? `AED ${whole}` : `AED ${whole}.${String(cents).padStart(2, "0")}`;
+  return cents === 0 ? whole : `${whole}.${String(cents).padStart(2, "0")}`;
 }
 
 /** Whole-percent saving for the sale badge, or null when there is nothing to show. */
