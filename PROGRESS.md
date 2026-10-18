@@ -4,8 +4,8 @@
 
 - Date: 2026-10-18
 - Milestone: M11 — full acceptance and release, in progress. Gates M0, M2–M10 PASSED (M0, M3, M4, M6–M10 on 2026-10-17, Marina); M1 open until staging/CI.
-- Step: launch parity gaps (Marina 2026-10-17): G-S2 (#101), G-S3 (#102), G-S5 (#103), G-A5 (#104), G-A6 (#105), G-A7 (#106), G-A8 (#107), G-A9 (#108), all merged to `main` 2026-10-18; G-A11 (#109), all merged to `main` 2026-10-18 — every launch parity gap is built. Steps 124 (#110) and 125 (#111) merged. **Marina (2026-10-18): the UI must match the prototypes before launch** (ADR 0097; storefront V-S1…V-S6, then admin V-A*; all deferred gaps included). V-S1 (storefront shell, #112) merged; V-S2 (home, #113) merged; **V-S3** (listing and search, ADR 0097) done. Next: V-S4 (product page). Steps 126–127 follow the visual work unless Marina reorders. Steps 115–119, 121 done; 120 local part done (real devices wait for staging).
-- Branch: `parity/v-s3-store-listing` (from `main` 9089b34; PR #114). Storefront only.
+- Step: launch parity gaps (Marina 2026-10-17): G-S2 (#101), G-S3 (#102), G-S5 (#103), G-A5 (#104), G-A6 (#105), G-A7 (#106), G-A8 (#107), G-A9 (#108), all merged to `main` 2026-10-18; G-A11 (#109), all merged to `main` 2026-10-18 — every launch parity gap is built. Steps 124 (#110) and 125 (#111) merged. **Marina (2026-10-18): the UI must match the prototypes before launch** (ADR 0097; storefront V-S1…V-S6, then admin V-A*; all deferred gaps included). V-S1 (storefront shell, #112) merged; V-S1 (#112), V-S2 (#113) and V-S3 (#114) merged to `main` (f419aed, CI green). **Next: V-S4 (product page).** Steps 126–127 follow the visual work unless Marina reorders. Steps 115–119, 121 done; 120 local part done (real devices wait for staging).
+- Branch: `parity/v-s4-store-pdp` (from `main` f419aed; handoff commit only so far).
 - See docs/verification.md for actual checks.
 
 ## Next action
@@ -234,7 +234,7 @@ Tests: `pnpm verify` PASS (age preview 2250). `pnpm test:gate` PASS (2586). All 
 
 Unfinished:
 
-- PR #114 (V-S3) waits for merge.
+- PR #114 (V-S3) merged 2026-10-18; `main` at f419aed, CI green. Nothing is waiting for merge.
 - **Next, V-S4 product page:** prototype `pdp` 7893, `rerenderPdp`, `reviews` 8007; gallery swipe and zoom (G-S12); the buy box, options, specs and reviews in the prototype markup.
 
 ## History (summary)
