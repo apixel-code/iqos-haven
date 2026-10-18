@@ -5,9 +5,9 @@ import { useEffect, useRef } from "react";
 import { useFreshCart } from "@/lib/cart/fresh";
 import { closeCartSheet, useCartSheet } from "@/lib/cart/sheet";
 import { SITE } from "@/lib/site";
-import { displayAed } from "@/lib/store/listing";
 import { whatsappHref, WHATSAPP_MESSAGES } from "@/lib/whatsapp";
 import { CartLines } from "./cart-lines";
+import { Money } from "@/components/money";
 
 /**
  * Cart sheet after adding (parity G-S1, ADR 0082): a bottom sheet on a phone, a side panel on a
@@ -101,7 +101,9 @@ function SheetBody({ whatsappNumber }: { whatsappNumber: string | null }) {
             <dt>
               Subtotal ({view.itemCount} {view.itemCount === 1 ? "item" : "items"})
             </dt>
-            <dd className="font-semibold">{displayAed(view.subtotalFils)}</dd>
+            <dd className="font-semibold">
+              <Money fils={view.subtotalFils} />
+            </dd>
           </dl>
           <p className="text-xs text-ink-3">
             Delivery and any discount are added in your cart. Cash on delivery.

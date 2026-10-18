@@ -13,9 +13,9 @@ import {
   type ConfirmationView,
 } from "@/lib/checkout/confirmation";
 import { SITE } from "@/lib/site";
-import { displayAed } from "@/lib/store/listing";
 import { WHATSAPP_MESSAGES } from "@/lib/whatsapp";
 import { WhatsAppLink } from "./whatsapp-link";
+import { Money } from "@/components/money";
 
 const PANEL = "flex flex-col gap-4 rounded-lg border border-line bg-surface p-5 sm:p-6";
 const PRIMARY =
@@ -121,8 +121,8 @@ export function OrderConfirmation({ whatsappNumber }: { whatsappNumber: string |
         {known ? (
           <p className="text-sm text-ink-2">
             Order <b className="font-mono font-semibold text-ink">{known.orderNumber}</b> ·{" "}
-            {displayAed(known.totalFils)} cash on delivery. We can&apos;t show its details on this
-            device right now, but the order is not affected.
+            <Money fils={known.totalFils} /> cash on delivery. We can&apos;t show its details on
+            this device right now, but the order is not affected.
           </p>
         ) : (
           <p className="text-sm text-ink-2">
@@ -155,7 +155,9 @@ export function OrderConfirmation({ whatsappNumber }: { whatsappNumber: string |
       </div>
       <div className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-ink px-5 py-[18px] text-surface">
         <span className="text-sm">Pay in cash on delivery</span>
-        <b className="text-2xl font-semibold">{displayAed(order.totalFils)}</b>
+        <b className="text-2xl font-semibold">
+          <Money fils={order.totalFils} />
+        </b>
       </div>
       {order.status !== "cancelled" && (
         <section className={PANEL}>
@@ -187,7 +189,7 @@ export function OrderConfirmation({ whatsappNumber }: { whatsappNumber: string |
                 <span className="block text-xs text-ink-3">{optionText(item.attributes)}</span>
               </span>
               <span className="whitespace-nowrap text-ink-2">
-                {item.quantity} × {displayAed(item.unitPriceFils)}
+                {item.quantity} × <Money fils={item.unitPriceFils} />
               </span>
             </li>
           ))}
@@ -195,21 +197,29 @@ export function OrderConfirmation({ whatsappNumber }: { whatsappNumber: string |
         <dl className="flex flex-col gap-2 border-t border-line pt-3 text-sm">
           <div className="flex justify-between gap-4">
             <dt>Subtotal</dt>
-            <dd>{displayAed(subtotalFils(order))}</dd>
+            <dd>
+              <Money fils={subtotalFils(order)} />
+            </dd>
           </div>
           {order.discountFils > 0 && (
             <div className="flex justify-between gap-4 text-success">
               <dt>Discount</dt>
-              <dd>−{displayAed(order.discountFils)}</dd>
+              <dd>
+                −<Money fils={order.discountFils} />
+              </dd>
             </div>
           )}
           <div className="flex justify-between gap-4">
             <dt>Delivery</dt>
-            <dd>{displayAed(order.deliveryFeeFils)}</dd>
+            <dd>
+              <Money fils={order.deliveryFeeFils} />
+            </dd>
           </div>
           <div className="flex justify-between gap-4 border-t border-line pt-2 text-lg font-semibold">
             <dt>Total to pay</dt>
-            <dd>{displayAed(order.totalFils)}</dd>
+            <dd>
+              <Money fils={order.totalFils} />
+            </dd>
           </div>
         </dl>
       </section>

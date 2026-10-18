@@ -20,8 +20,8 @@ import {
   type FormErrors,
   type FormField,
 } from "@/lib/checkout/order";
-import { displayAed } from "@/lib/store/listing";
 import { CartQuote, type AcceptedOrderQuote } from "./cart-quote";
+import { Money } from "@/components/money";
 
 const INPUT =
   "min-h-12 w-full rounded-md border border-line-2 bg-surface px-3.5 py-3 text-base hover:border-ink-3 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus aria-[invalid=true]:border-error aria-[invalid=true]:bg-error-soft";
@@ -272,7 +272,7 @@ export function CheckoutView() {
           {order && (
             <>
               : <b className="font-mono font-semibold text-ink">{order.orderNumber}</b> ·{" "}
-              {displayAed(order.totalFils)} cash on delivery
+              <Money fils={order.totalFils} /> cash on delivery
             </>
           )}
           . Opening your confirmation…
@@ -339,7 +339,7 @@ export function CheckoutView() {
     name,
   }));
   const kind = TYPES.find((item) => item.type === form.type)!;
-  const total = accepted ? displayAed(accepted.totalFils) : null;
+  const total = accepted ? <Money fils={accepted.totalFils} /> : null;
   return (
     <div className="grid gap-5 pb-14 lg:grid-cols-[1.35fr_1fr] lg:items-start lg:gap-10">
       <div className="flex flex-col gap-4">
@@ -507,9 +507,11 @@ export function CheckoutView() {
           <div className="rounded-md border-[1.5px] border-ink bg-bg p-4 text-sm">
             <b className="font-semibold">Cash on delivery</b>
             <p className="text-ink-2">
-              {total
-                ? `Pay ${total} in cash when your order arrives. Exact change helps.`
-                : "Pay in cash when your order arrives. Exact change helps."}
+              {total ? (
+                <>Pay {total} in cash when your order arrives. Exact change helps.</>
+              ) : (
+                "Pay in cash when your order arrives. Exact change helps."
+              )}
             </p>
           </div>
           <div className="flex flex-col gap-1.5">
@@ -543,7 +545,7 @@ export function CheckoutView() {
             </p>
           )}
           <button type="submit" form="checkout-form" disabled={busy} className={PRIMARY}>
-            {busy ? "Placing your order…" : total ? `Place order · ${total}` : "Place order"}
+            {busy ? "Placing your order…" : total ? <>Place order · {total}</> : "Place order"}
           </button>
           <p role="status" aria-live="polite" className="text-center text-xs text-ink-3">
             {busy
@@ -575,7 +577,9 @@ export function CheckoutView() {
                   {[line.options, `Qty ${line.quantity}`].filter(Boolean).join(" · ")}
                 </span>
               </span>
-              <span className="whitespace-nowrap">{displayAed(line.lineTotalFils)}</span>
+              <span className="whitespace-nowrap">
+                <Money fils={line.lineTotalFils} />
+              </span>
             </li>
           ))}
         </ul>
@@ -583,7 +587,9 @@ export function CheckoutView() {
           <span>
             Subtotal ({view.itemCount} {view.itemCount === 1 ? "item" : "items"})
           </span>
-          <span className="font-semibold">{displayAed(view.subtotalFils)}</span>
+          <span className="font-semibold">
+            <Money fils={view.subtotalFils} />
+          </span>
         </div>
         <Link href="/cart" prefetch={false} className="text-sm underline underline-offset-2">
           Edit cart

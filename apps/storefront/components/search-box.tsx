@@ -2,6 +2,7 @@
 
 import { usePathname, useSearchParams } from "next/navigation";
 import { useId, useState } from "react";
+import { Icon } from "@/components/icons";
 import { useSuggestions } from "@/lib/store/client-hooks";
 
 /**
@@ -24,7 +25,8 @@ export function SearchBox() {
       method="get"
       action="/search"
       role="search"
-      className="relative w-full sm:max-w-xs"
+      // The prototype's header search bar (wide screens; phones use the search sheet).
+      className="searchbar only-lg relative"
       onBlur={(event) => {
         if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false);
       }}
@@ -35,30 +37,25 @@ export function SearchBox() {
       <label className="sr-only" htmlFor={`${listId}-input`}>
         Search products
       </label>
-      <div className="flex gap-2">
-        <input
-          id={`${listId}-input`}
-          type="search"
-          name="q"
-          value={value}
-          maxLength={200}
-          autoComplete="off"
-          placeholder="Search brands, flavours, puffs"
-          aria-controls={hasSuggestions ? listId : undefined}
-          onChange={(event) => {
-            setValue(event.target.value);
-            setOpen(true);
-          }}
-          onFocus={() => setOpen(true)}
-          className="h-10 min-w-0 flex-1 rounded-pill border-[1.5px] border-line bg-surface px-4 text-sm text-ink placeholder:text-ink-3 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
-        />
-        <button
-          type="submit"
-          className="h-10 rounded-pill bg-primary px-4 text-sm font-medium text-on-primary hover:bg-primary-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
-        >
-          Search
-        </button>
-      </div>
+      <Icon name="search" />
+      <input
+        id={`${listId}-input`}
+        type="search"
+        name="q"
+        value={value}
+        maxLength={200}
+        autoComplete="off"
+        placeholder="Search vapes, brands, flavours"
+        aria-controls={hasSuggestions ? listId : undefined}
+        onChange={(event) => {
+          setValue(event.target.value);
+          setOpen(true);
+        }}
+        onFocus={() => setOpen(true)}
+      />
+      <button type="submit" className="sr">
+        Search
+      </button>
       {hasSuggestions && (
         <div
           id={listId}

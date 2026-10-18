@@ -584,7 +584,8 @@ async function main() {
       homeHtml.includes(`https://wa.me/${WHATSAPP.slice(1)}?text=`),
       "a verified shopper's footer has the WhatsApp link with the configured number",
     );
-    await page("/shop", 200, NAMES[0], "AED 49", "7K puffs · 2 options");
+    // The price shows the dirham sign, with "AED" for screen readers (ADR 0097).
+    await page("/shop", 200, NAMES[0], "AED </span></span>49", "7K puffs · 2 options");
     await page("/brands/gatebrand", 200, NAMES[0]);
     await page("/search?q=gatecheck", 200, NAMES[0], "1</b> product");
     await page("/p/gatecheck-halo", 200, NAMES[0], "choose one", "grape", "mint", "Add to cart");
@@ -607,8 +608,13 @@ async function main() {
     };
     const infoText = await apiJson("/api/v1/store/info");
     check(
-      infoText === JSON.stringify({ whatsappNumber: WHATSAPP, checkoutOpen: false }),
-      "store info is exactly the WhatsApp number and the closed checkout",
+      infoText ===
+        JSON.stringify({
+          whatsappNumber: WHATSAPP,
+          checkoutOpen: false,
+          social: { instagram: null, tiktok: null, facebook: null },
+        }),
+      "store info is exactly the WhatsApp number, the closed checkout and no social links",
       infoText,
     );
     check(

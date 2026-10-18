@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @import "@ih/tokens/storefront.theme.css";
+@import "./prototype.css";
 @source "../../../packages/ui-core/src";
 
 html {
@@ -9,73 +10,8 @@ body {
   @apply bg-bg text-ink font-sans antialiased;
 }
 
-/* Promotional bar (step 99, prototype `promoBar`): a looping track of two identical lists. */
-.promo {
-  position: relative;
-  display: flex;
-  align-items: center;
-  height: 36px;
-  background: var(--color-ink);
-  color: var(--color-surface);
-  font-size: 12.5px;
-}
-.promo-viewport {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent);
-}
-.promo-track {
-  display: flex;
-  width: max-content;
-  animation: promo-ticker 42s linear infinite;
-}
-.promo:hover .promo-track,
-.promo:focus-within .promo-track,
-.promo.is-paused .promo-track {
-  animation-play-state: paused;
-}
-.promo-list {
-  display: flex;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.promo-list li {
-  display: flex;
-  align-items: center;
-  padding: 0 28px;
-  white-space: nowrap;
-}
-.promo-list li::after {
-  content: "";
-  width: 5px;
-  height: 5px;
-  margin-left: 28px;
-  border-radius: 999px;
-  background: var(--color-accent);
-}
-.promo-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 36px;
-  height: 36px;
-  border: 0;
-  background: transparent;
-  color: inherit;
-  font-size: 10px;
-  cursor: pointer;
-}
-.promo-btn:focus-visible {
-  outline: 2px solid var(--color-focus);
-  outline-offset: -4px;
-}
-@keyframes promo-ticker {
-  to {
-    transform: translateX(-50%);
-  }
-}
+/* Promotional bar: the prototype's rules are in prototype.css; with reduced motion it does not
+   move and the messages wrap (WCAG 2.2.2, step 99). */
 @media (prefers-reduced-motion: reduce) {
   .promo {
     height: auto;

@@ -56,7 +56,7 @@ try {
   await page.goto(base + "/p/gatecheck-halo");
   await page.getByRole("button", { name: /^Save/ }).first().click();
   await page.goto(base + "/shop");
-  const menuButton = header(page).getByRole("button", { name: "Menu" });
+  const menuButton = header(page).getByRole("button", { name: "Open menu" });
   check(await menuButton.isVisible(), "the phone header has a Menu button");
   check(
     !(await header(page).getByRole("link", { name: "Disposables" }).isVisible()),
@@ -120,7 +120,7 @@ try {
   await page.keyboard.press("Escape");
   await menu.waitFor({ state: "hidden" });
   check(
-    await page.evaluate(() => document.activeElement?.textContent?.trim() === "Menu"),
+    await page.evaluate(() => document.activeElement?.getAttribute("aria-label") === "Open menu"),
     "Escape closes the menu and returns focus to its button",
   );
   await menuButton.click();
@@ -134,13 +134,15 @@ try {
   const wide = await shopper({ width: 1280, height: 800 });
   await wide.page.goto(base + "/shop");
   check(
-    !(await header(wide.page).getByRole("button", { name: "Menu" }).isVisible()),
+    !(await header(wide.page).getByRole("button", { name: "Open menu" }).isVisible()),
     "a wide screen has no Menu button",
   );
   check(
-    (await header(wide.page).getByRole("link", { name: "Disposables" }).isVisible()) &&
-      (await header(wide.page).getByRole("link", { name: "Help" }).isVisible()),
-    "a wide screen keeps the sections and gains Help in the header",
+    (await header(wide.page).getByRole("link", { name: "Disposable Vapes" }).isVisible()) &&
+      (await header(wide.page)
+        .getByRole("link", { name: /Saved items/ })
+        .isVisible()),
+    "a wide screen keeps the sections and the saved-items button in the header",
   );
   await wide.page.screenshot({ path: join(shots, "menu-header-1280.png") });
   check(wide.errors.length === 0, "no page errors on a wide screen", wide.errors.join("; "));

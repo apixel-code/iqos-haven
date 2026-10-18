@@ -715,11 +715,13 @@ describe("gated store catalogue reads (real API, PostgreSQL, Ed25519 ticket)", (
     expect(await unverified.text()).not.toContain("Saved One");
   });
 
-  it("gives the shell only the configured WhatsApp number, behind the age ticket", async () => {
+  it("gives the shell only the WhatsApp number and social links, behind the age ticket", async () => {
     await cache.invalidate();
+    const noSocial = { instagram: null, tiktok: null, facebook: null };
     expect(await json<StoreInfoResponse>("/info")).toEqual({
       whatsappNumber: null,
       checkoutOpen: false,
+      social: noSocial,
     });
     await db.setting.create({
       data: {
@@ -745,12 +747,43 @@ describe("gated store catalogue reads (real API, PostgreSQL, Ed25519 ticket)", (
         },
       },
     });
+    // The footer's social links (ADR 0097); the rest of Contact stays private to the admin.
+    await db.setting.create({
+      data: {
+        key: "contact",
+        updatedBy: staffId,
+        value: {
+          email: "private-contact@iqoshaven.test",
+          phone: "+971509999999",
+          address: "Private address",
+          openingHours: null,
+          footerNote: null,
+          social: {
+            instagram: "https://www.instagram.com/iqoshaven",
+            tiktok: null,
+            facebook: null,
+          },
+        },
+      },
+    });
     await cache.invalidate();
     const response = await get("/info");
     const text = await response.text();
-    expect(JSON.parse(text)).toEqual({ whatsappNumber: "+971501234567", checkoutOpen: false });
+    expect(JSON.parse(text)).toEqual({
+      whatsappNumber: "+971501234567",
+      checkoutOpen: false,
+      social: { ...noSocial, instagram: "https://www.instagram.com/iqoshaven" },
+    });
     expect(response.headers.get("cache-control")).toBe("private, no-store");
-    for (const secret of ["Private template", "owner@iqoshaven.test", "templates", "recipients"])
+    for (const secret of [
+      "Private template",
+      "owner@iqoshaven.test",
+      "templates",
+      "recipients",
+      "private-contact@iqoshaven.test",
+      "+971509999999",
+      "Private address",
+    ])
       expect(text).not.toContain(secret);
     const unverified = await get("/info", {});
     expect(unverified.status).toBe(403);
@@ -759,10 +792,15 @@ describe("gated store catalogue reads (real API, PostgreSQL, Ed25519 ticket)", (
     await pool.query(
       `UPDATE settings SET value='{"number":"call me"}'::jsonb WHERE key='whatsapp'`,
     );
+    // So is a social link that is not https.
+    await pool.query(
+      `UPDATE settings SET value=jsonb_set(value, '{social,instagram}', '"javascript:alert(1)"') WHERE key='contact'`,
+    );
     await cache.invalidate();
     expect(await json<StoreInfoResponse>("/info")).toEqual({
       whatsappNumber: null,
       checkoutOpen: false,
+      social: noSocial,
     });
   });
 

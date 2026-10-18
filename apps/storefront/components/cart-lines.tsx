@@ -4,7 +4,7 @@ import Link from "next/link";
 import type { StoreCartLine } from "@ih/contracts";
 import { CART_LIMITS, type CartViewLine } from "@/lib/cart/cart";
 import { removeFromCart, setCartQuantity } from "@/lib/cart/store";
-import { displayAed } from "@/lib/store/listing";
+import { Money } from "@/components/money";
 
 const STATUS_TEXT: Partial<Record<CartViewLine["status"], string>> = {
   sold_out: "Sold out. Remove it to continue, or check back later.",
@@ -66,8 +66,8 @@ export function CartLines({
               )}
               {!blocked && line.previousUnitPriceFils !== null && (
                 <p className="text-sm text-ink-2">
-                  Price changed from {displayAed(line.previousUnitPriceFils)} to{" "}
-                  {displayAed(line.unitPriceFils)} since you added it.
+                  Price changed from <Money fils={line.previousUnitPriceFils} /> to{" "}
+                  <Money fils={line.unitPriceFils} /> since you added it.
                 </p>
               )}
               <div className="flex flex-wrap items-center gap-3 pt-1">
@@ -109,7 +109,7 @@ export function CartLines({
                 <span
                   className={`ml-auto text-base font-semibold ${blocked ? "text-ink-3 line-through" : ""}`}
                 >
-                  {displayAed(line.lineTotalFils)}
+                  <Money fils={line.lineTotalFils} />
                 </span>
               </div>
             </div>

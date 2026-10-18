@@ -305,6 +305,12 @@ export const storeInfoResponseSchema = z.strictObject({
     .nullable(),
   /** Whether orders are being taken (step 80). The order route decides again on every order. */
   checkoutOpen: z.boolean(),
+  /** The Owner's public social links for the footer (ADR 0097); null when not set. */
+  social: z.strictObject({
+    instagram: z.url().max(500).nullable(),
+    tiktok: z.url().max(500).nullable(),
+    facebook: z.url().max(500).nullable(),
+  }),
 });
 export type StoreInfoResponse = z.infer<typeof storeInfoResponseSchema>;
 

@@ -5,11 +5,11 @@ import { useState } from "react";
 import { useFreshCart } from "@/lib/cart/fresh";
 import { rememberChoice, rememberedChoice } from "@/lib/checkout/memory";
 import { SITE } from "@/lib/site";
-import { displayAed } from "@/lib/store/listing";
 import { whatsappHref, WHATSAPP_MESSAGES } from "@/lib/whatsapp";
 import { CartLines } from "./cart-lines";
 import { CartQuote } from "./cart-quote";
 import { RecentlyViewed } from "./recently-viewed";
+import { Money } from "@/components/money";
 
 /**
  * The device cart (roadmap step 62, ADR 0031). Lines come from this device; their current
@@ -104,7 +104,9 @@ export function CartView({
               <dt>
                 Subtotal ({view.itemCount} {view.itemCount === 1 ? "item" : "items"})
               </dt>
-              <dd className="font-semibold">{displayAed(view.subtotalFils)}</dd>
+              <dd className="font-semibold">
+                <Money fils={view.subtotalFils} />
+              </dd>
             </div>
           </dl>
           <CartQuote

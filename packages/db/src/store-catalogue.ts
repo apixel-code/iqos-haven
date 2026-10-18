@@ -438,13 +438,36 @@ export async function readStoreProductCards(
 }
 
 /**
- * Owner settings shown to shoppers (roadmap step 64). Only the WhatsApp number is read; nothing
- * else in `settings` (recipients, templates, legal name) leaves the database through this.
+ * Owner settings shown to shoppers (roadmap step 64): the WhatsApp number and, for the footer
+ * (ADR 0097), the public social links. Nothing else in `settings` (recipients, templates, legal
+ * name) leaves the database through this.
  */
-export async function readStoreInfo(db: Database): Promise<{ whatsappNumber: string | null }> {
-  const [row] = await db.$queryRaw<Array<{ number: string | null }>>(Prisma.sql`
-    SELECT value->>'number' AS number FROM settings WHERE key='whatsapp'`);
+export async function readStoreInfo(db: Database): Promise<{
+  whatsappNumber: string | null;
+  social: { instagram: string | null; tiktok: string | null; facebook: string | null };
+}> {
+  const [row] = await db.$queryRaw<
+    Array<{
+      number: string | null;
+      instagram: string | null;
+      tiktok: string | null;
+      facebook: string | null;
+    }>
+  >(Prisma.sql`
+    SELECT (SELECT value->>'number' FROM settings WHERE key='whatsapp') AS number,
+      (SELECT value->'social'->>'instagram' FROM settings WHERE key='contact') AS instagram,
+      (SELECT value->'social'->>'tiktok' FROM settings WHERE key='contact') AS tiktok,
+      (SELECT value->'social'->>'facebook' FROM settings WHERE key='contact') AS facebook`);
   const number = row?.number ?? null;
   // Written through a validated contract; anything else is treated as not configured.
-  return { whatsappNumber: number && /^\+[1-9]\d{7,14}$/.test(number) ? number : null };
+  const link = (value: string | null | undefined) =>
+    value && value.length <= 500 && /^https:\/\/[^\s@]+$/.test(value) ? value : null;
+  return {
+    whatsappNumber: number && /^\+[1-9]\d{7,14}$/.test(number) ? number : null,
+    social: {
+      instagram: link(row?.instagram),
+      tiktok: link(row?.tiktok),
+      facebook: link(row?.facebook),
+    },
+  };
 }

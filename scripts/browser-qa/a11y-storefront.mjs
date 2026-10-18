@@ -111,7 +111,7 @@ try {
     }
     if (viewport.width === 360) {
       await page.goto(base + "/shop");
-      await page.getByRole("button", { name: "Menu" }).click();
+      await page.getByRole("button", { name: "Open menu" }).click();
       await page.getByRole("dialog", { name: "Menu" }).waitFor();
       await scan(page, "menu sheet @360");
     }
@@ -252,8 +252,11 @@ try {
   const small = await shopper({ width: 360, height: 780 });
   await small.page.goto(base + "/shop");
   check(
-    await tabTo(small.page, () => document.activeElement?.textContent?.trim() === "Menu"),
-    "Tab reaches the Menu button",
+    await tabTo(
+      small.page,
+      () => document.activeElement?.getAttribute("aria-label") === "Open menu",
+    ),
+    "Tab reaches the Open menu button",
   );
   await small.page.keyboard.press("Enter");
   await small.page.getByRole("dialog", { name: "Menu" }).waitFor();
@@ -279,7 +282,9 @@ try {
   );
   await small.page.keyboard.press("Escape");
   check(
-    await small.page.evaluate(() => document.activeElement?.textContent?.trim() === "Menu"),
+    await small.page.evaluate(
+      () => document.activeElement?.getAttribute("aria-label") === "Open menu",
+    ),
     "Escape returns focus to Menu",
   );
   await small.context.close();

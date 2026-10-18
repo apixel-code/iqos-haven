@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Icon } from "@/components/icons";
 
 /**
  * Promotional bar (roadmap step 99; prototype `promoBar`). Plain-text messages from published
@@ -17,7 +18,7 @@ export function PromoTicker({ messages }: { messages: readonly string[] }) {
     </ul>
   );
   return (
-    <section aria-label="Current offers" className={`promo ${paused ? "is-paused" : ""}`}>
+    <section aria-label="Current offers" className={paused ? "promo paused" : "promo"}>
       <div className="promo-viewport">
         <div className="promo-track">
           {list(false)}
@@ -31,7 +32,7 @@ export function PromoTicker({ messages }: { messages: readonly string[] }) {
         aria-label={paused ? "Play offers ticker" : "Pause offers ticker"}
         onClick={() => setPaused((value) => !value)}
       >
-        <span aria-hidden="true">{paused ? "▶" : "❚❚"}</span>
+        <Icon name={paused ? "play" : "pause"} />
       </button>
     </section>
   );

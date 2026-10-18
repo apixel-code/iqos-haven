@@ -14,6 +14,9 @@ import { createServer } from "node:net";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+const NO_SOCIAL = { instagram: null, tiktok: null, facebook: null };
+/** A price as the store renders it: the dirham sign with "AED" for screen readers (ADR 0097). */
+const aed = (amount) => `AED </span></span>${amount}`;
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const ORIGIN = "https://shop.preview-check.test";
 const RESTRICTED = [
@@ -103,7 +106,7 @@ const card = (name, overrides = {}) => ({
   ...overrides,
 });
 const CATALOGUE = {
-  "/v1/store/info": { whatsappNumber: "+971501234567", checkoutOpen: false },
+  "/v1/store/info": { whatsappNumber: "+971501234567", checkoutOpen: false, social: NO_SOCIAL },
   "/v1/store/brands": {
     items: [
       {
@@ -529,9 +532,9 @@ try {
     "All products",
     "Orbe Halo Grape",
     "Orbe Halo Mint",
-    "AED 45",
-    "AED 59",
-    "AED 49.50",
+    aed("45"),
+    aed("59"),
+    aed("49.50"),
     "Sold out",
     "−24%",
     "New",
@@ -638,7 +641,12 @@ try {
     "Verified purchase",
   ])
     check(pdp.includes(text), `product page shows "${text}"`);
-  check(/From <\/span>AED 45/.test(pdp), "price says From the lowest option until one is chosen");
+  check(
+    /From (?:<\/span>)?(?:<!-- -->)?<span[^>]*><span class="dh">.{0,300}?AED <\/span><\/span>45/s.test(
+      pdp,
+    ),
+    "price says From the lowest option until one is chosen",
+  );
   check(
     pdp.includes("<title>Orbe Halo 7K · Iqos Haven</title>"),
     "product page title names the product (verified only)",
@@ -675,9 +683,17 @@ try {
       checkoutClosed.includes("Checkout is not open yet."),
     "checkout page says it is closed while the API is not taking orders",
   );
-  CATALOGUE["/v1/store/info"] = { whatsappNumber: "+971501234567", checkoutOpen: true };
+  CATALOGUE["/v1/store/info"] = {
+    whatsappNumber: "+971501234567",
+    checkoutOpen: true,
+    social: NO_SOCIAL,
+  };
   const checkoutOpen = await page("/checkout");
-  CATALOGUE["/v1/store/info"] = { whatsappNumber: "+971501234567", checkoutOpen: false };
+  CATALOGUE["/v1/store/info"] = {
+    whatsappNumber: "+971501234567",
+    checkoutOpen: false,
+    social: NO_SOCIAL,
+  };
   check(
     checkoutOpen.includes("Loading checkout") &&
       !checkoutOpen.includes("Checkout is not open yet."),
@@ -753,7 +769,7 @@ try {
     "Orbe Halo Grape",
     "Shop by brand",
     "Skip to content",
-    "Help &amp; legal",
+    "Delivery information",
     "Cash on delivery",
     "contain nicotine",
   ])
@@ -809,7 +825,7 @@ try {
   );
   const help = await page("/help");
   for (const text of [
-    "AED 15 per order",
+    `${aed("15")}</span> per order`,
     "Synthetic delivery time",
     "Dubai, Sharjah",
     "Cash on delivery",
@@ -875,10 +891,18 @@ try {
   } finally {
     delete CATALOGUE["/v1/store/content/home"];
   }
-  CATALOGUE["/v1/store/info"] = { whatsappNumber: null, checkoutOpen: false };
+  CATALOGUE["/v1/store/info"] = {
+    whatsappNumber: null,
+    checkoutOpen: false,
+    social: { instagram: null, tiktok: null, facebook: null },
+  };
   const noNumber = await page("/");
   check(!noNumber.includes("wa.me"), "no WhatsApp link without a configured number");
-  CATALOGUE["/v1/store/info"] = { whatsappNumber: "+971501234567", checkoutOpen: false };
+  CATALOGUE["/v1/store/info"] = {
+    whatsappNumber: "+971501234567",
+    checkoutOpen: false,
+    social: NO_SOCIAL,
+  };
 
   // Search: term, filters and the similar-results notice; only contract parameters reach the API.
   const found = await page(

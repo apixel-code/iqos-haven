@@ -8,6 +8,7 @@ import { useStoreBrands } from "@/lib/store/client-hooks";
 import { POLICY_PAGES, PRIMARY_NAV, SITE } from "@/lib/site";
 import { WHATSAPP_MESSAGES } from "@/lib/whatsapp";
 import { WhatsAppLink } from "./whatsapp-link";
+import { Icon } from "@/components/icons";
 
 const HELP_LINKS = [
   { href: "/help#help-delivery", label: "Delivery information" },
@@ -48,9 +49,10 @@ export function MenuSheet({ whatsappNumber }: { whatsappNumber: string | null })
         aria-haspopup="dialog"
         aria-expanded={open}
         onClick={show}
-        className="inline-flex h-10 items-center rounded-pill border border-line-2 bg-surface px-4 text-sm font-medium hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus md:hidden"
+        className="ibtn only-sm"
+        aria-label="Open menu"
       >
-        Menu
+        <Icon name="menu" />
       </button>
       <dialog
         ref={dialog}

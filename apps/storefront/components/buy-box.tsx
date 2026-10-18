@@ -5,7 +5,7 @@ import type { StoreProductResponse } from "@ih/contracts";
 import { CART_LIMITS } from "@/lib/cart/cart";
 import { openCartSheet } from "@/lib/cart/sheet";
 import { addToCart } from "@/lib/cart/store";
-import { discountPercent, displayAed } from "@/lib/store/listing";
+import { discountPercent } from "@/lib/store/listing";
 import {
   impliedChoices,
   offeredOptions,
@@ -14,6 +14,7 @@ import {
   valueState,
   variantLabel,
 } from "@/lib/store/selection";
+import { Money } from "@/components/money";
 
 type Feedback = { kind: "added" | "error"; text: string } | null;
 
@@ -140,12 +141,12 @@ export function BuyBox({
             className={`font-semibold ${compact ? "text-xl" : "text-3xl"} ${saving ? "text-coral" : ""}`}
           >
             {varies && <span className="text-base font-medium text-ink-2">From </span>}
-            {displayAed(priceFils)}
+            <Money fils={priceFils} />
           </span>
           {compareAt !== null && (
             <span className="text-sm text-ink-3 line-through">
               <span className="sr-only">Was </span>
-              {displayAed(compareAt)}
+              <Money fils={compareAt} />
             </span>
           )}
           {saving !== null && (
@@ -285,7 +286,8 @@ export function BuyBox({
             <b className="truncate text-sm font-semibold">{product.name}</b>
             <span className="truncate text-xs text-ink-2">
               {/* The price first, so it is never the part cut off. */}
-              {`${varies ? "From " : ""}${displayAed(priceFils)}`}
+              {varies ? "From " : ""}
+              <Money fils={priceFils} />
               {variant
                 ? variantLabel(product, variant.attributes) &&
                   ` · ${variantLabel(product, variant.attributes)}`
