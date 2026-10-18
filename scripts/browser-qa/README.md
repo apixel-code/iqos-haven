@@ -267,3 +267,12 @@ QA_PLAYWRIGHT_DIR=/tmp/ih-qa node scripts/browser-qa/listing-filters.mjs <SERVIN
 ```
 
 It checks that `/shop` offers every filter with counts, and that type, brand and offers pages hide the filter they fix. A filter submits to the page's own path, and a filter that matches nothing has a way back. Old `?brand=&sort=` links still work, a malformed cursor is ignored, and the 360px filter block opens with a count when a filter is active.
+
+## Mobile search sheet (parity G-S3)
+
+```sh
+pnpm build && node scripts/check-gate-e2e.cjs --serve &   # prints SERVING
+QA_PLAYWRIGHT_DIR=/tmp/ih-qa node scripts/browser-qa/search-sheet.mjs <SERVING> /tmp/ih-qa/shots
+```
+
+At 360px it checks that the header has no inline box and the sheet fills the screen with the field focused. Before typing it offers brands and the recently viewed product. Typing suggests the product and links to every result. Enter searches and closes the sheet, Escape returns focus, and a brand opens its page. At 1280px the inline box stays and there is no sheet button.
