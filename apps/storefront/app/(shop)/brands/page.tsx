@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { BrandTile } from "@/components/home-sections";
+import { Icon } from "@/components/icons";
 import { Breadcrumbs, EmptyState, PageHead } from "@/components/listing";
 import { TYPE_PAGES } from "@/lib/store/listing";
 import { SITE } from "@/lib/site";
@@ -24,59 +26,40 @@ export default async function BrandsPage() {
           body="Brands will appear here as soon as their products are available."
         />
       ) : (
-        <ul className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+        // The prototype's brand rail as a grid (`brandsPage`).
+        <div className="brands brands-grid">
           {brands.map((brand) => (
-            <li key={brand.slug}>
-              <Link
-                href={`/brands/${brand.slug}`}
-                prefetch={false}
-                className="flex min-h-[92px] flex-col justify-between gap-2 rounded-md border border-line bg-surface px-3.5 py-3 transition-[transform,box-shadow,border-color] duration-150 ease-brand hover:-translate-y-0.5 hover:border-ink hover:shadow-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
-              >
-                {brand.logo ? (
-                  // Signed link to a sanitized derivative; the Next image optimizer is not used.
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={brand.logo.urls.thumb}
-                    alt=""
-                    width={brand.logo.width}
-                    height={brand.logo.height}
-                    className="h-8 w-auto max-w-24 object-contain object-left"
-                  />
-                ) : (
-                  <span aria-hidden="true" className="h-[3px] w-[22px] rounded-pill bg-accent" />
-                )}
-                <span className="text-[17px] font-semibold leading-tight">{brand.name}</span>
-                <span className="font-mono text-[10.5px] text-ink-2">
-                  {brand.productCount} {brand.productCount === 1 ? "product" : "products"}
-                </span>
-              </Link>
-            </li>
+            <BrandTile key={brand.slug} brand={brand} logo={brand.logo} />
           ))}
-        </ul>
+        </div>
       )}
-      <section aria-labelledby="by-type" className="flex flex-col gap-4 pt-10">
-        <h2 id="by-type" className="text-xl font-semibold tracking-tight">
+      <section className="sec" aria-labelledby="by-type">
+        <h2 className="h2 type-h" id="by-type">
           Shop by type
         </h2>
-        <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div className="cats">
           {(
             [
-              [TYPE_PAGES.disposable, "bg-coral-soft"],
-              [TYPE_PAGES.kit, "bg-lagoon-soft"],
+              [TYPE_PAGES.disposable, "var(--coral-soft)"],
+              [TYPE_PAGES.kit, "var(--lagoon-soft)"],
             ] as const
           ).map(([page, tone]) => (
-            <li key={page.path}>
-              <Link
-                href={page.path}
-                prefetch={false}
-                className={`flex min-h-[140px] items-end justify-between gap-3 rounded-md p-5 text-lg font-semibold ${tone} focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus`}
-              >
-                {page.title}
-                <span aria-hidden="true">→</span>
-              </Link>
-            </li>
+            <Link
+              key={page.path}
+              href={page.path}
+              prefetch={false}
+              className="cat type-cat"
+              style={{ background: tone }}
+            >
+              <div>
+                <h3>{page.title}</h3>
+              </div>
+              <span className="go" aria-hidden="true">
+                <Icon name="arrow-r" />
+              </span>
+            </Link>
           ))}
-        </ul>
+        </div>
       </section>
     </>
   );

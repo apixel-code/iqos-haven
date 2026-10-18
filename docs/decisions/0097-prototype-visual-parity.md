@@ -167,6 +167,27 @@ V-S6 is split in two PRs: V-S6a (this section) and V-S6b, which covers the saved
 - **Compare tray (G-S11):** the prototype's `ctray` with the kits' thumbnails, "N of 3 kits", Compare, and "Clear compare". It is hidden on the compare, checkout, product and confirmation pages, and while it shows the WhatsApp button moves up (`wafab up`).
 - **Not built:** the prototype's WhatsApp sheet with a message preview. WhatsApp links still open WhatsApp directly with the prepared message.
 
+## V-S6b (saved, compare, help, brands and the gate), 2026-10-18
+
+With V-S6b the storefront part of the parity programme is done: every shopper page uses the prototype's markup.
+
+- **Saved items:** the prototype's `wishlist`. The page head notes "Saved on this device" with the phone icon (a new `leadIcon` option on `PageHead`). An empty list shows the `.empty` state with the heart. Products the store no longer offers are listed in a `notice` with a way to remove them.
+- **Compare:**
+  - The prototype's `comparePage`: a `cmp-wrap`/`cmp` table with a picture, brand, link and Remove per kit, the best value in a row marked `best`, and a last row of "Add to cart" buttons (quick add) or a "Sold out" badge.
+  - Fewer than two kits shows the `.empty` state with the prototype's copy.
+  - With fewer than three kits, "Add a kit" lists up to four other kits from the API, each with "Add to compare". The section is optional and left out if the API can't be read.
+- **Help:**
+  - The prototype's `help`, as one page: the topic `tabs` are chips that jump to Delivery, FAQ and Contact or open a policy page. The menu's `/help#help-*` links keep working.
+  - The sections use `prose` markup and the questions the `faq` markup.
+  - The delivery facts still come from the Owner's settings (fee, time, emirates served). The prototype's Dubai-only placeholders are not copied.
+  - Contact has the prototype's "WhatsApp <number>" button and "Copy number" (`CopyButton`, which confirms with a "Copied" toast).
+- **Brands:** the prototype's brand tiles (`BrandTile`, now shared with the home page), shown on the brands page as a grid of 2, 3 or 4 columns, then the two type tiles (`cats`).
+- **Brand page:** the prototype's `bhero` header with the logo, name, description and product count. The prototype's "from" price is left out: the brand read carries no lowest price.
+- **Age gate:**
+  - The prototype's `gateShell`: the arcs, the wordmark with the adults-only badge, the `gate-card` with the `18+` seal (a lock on the restricted page), the `gate-actions` pair and the fine print.
+  - The foot keeps the address and policy links. The prototype's trade-licence placeholder waits for client copy.
+  - The answers are still the two plain form posts, so they work without JavaScript, and the gate renders no catalogue data. `pnpm test:age-preview` and `pnpm test:gate` both pass.
+
 ## Consequences
 
 - The look comes from the approved source instead of being re-imagined in utilities, so later screens are mostly markup work.

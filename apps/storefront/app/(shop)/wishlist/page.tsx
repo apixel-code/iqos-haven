@@ -10,7 +10,11 @@ export default function WishlistPage() {
   return (
     <>
       <Breadcrumbs trail={[{ label: "Home", href: "/" }, { label: "Saved items" }]} />
-      <PageHead title="Saved items" lead="Saved on this device. No account needed." />
+      <PageHead
+        title="Saved items"
+        lead="Saved on this device. No account needed."
+        leadIcon="phone"
+      />
       <SavedView />
     </>
   );

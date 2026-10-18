@@ -13,7 +13,16 @@ import { Icon } from "@/components/icons";
  * the same option chooser as the product page, so a variant is only ever added by an explicit
  * choice. If the product cannot be loaded here, the shopper is taken to its page instead.
  */
-export function QuickAdd({ slug, name }: { slug: string; name: string }) {
+export function QuickAdd({
+  slug,
+  name,
+  variant = "card",
+}: {
+  slug: string;
+  name: string;
+  /** `card`: the card's round plus; `button`: a small "Add to cart" button (compare table). */
+  variant?: "card" | "button";
+}) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [product, setProduct] = useState<StoreProductResponse | null>(null);
@@ -48,10 +57,18 @@ export function QuickAdd({ slug, name }: { slug: string; name: string }) {
         disabled={loading}
         onClick={() => void load()}
         // The prototype's card button (`qadd`): a plus, and "Add" on wide screens.
-        className="qadd"
+        className={variant === "card" ? "qadd" : "btn btn-primary btn-sm"}
       >
-        <Icon name="plus" size="sm" />
-        <span>{loading ? "…" : "Add"}</span>
+        {variant === "card" ? (
+          <>
+            <Icon name="plus" size="sm" />
+            <span>{loading ? "…" : "Add"}</span>
+          </>
+        ) : loading ? (
+          "Loading…"
+        ) : (
+          "Add to cart"
+        )}
       </button>
       {/* The prototype's `quickSheet`: a bottom sheet on a phone, a centred one from 720 px. */}
       <Sheet open={open} onClose={() => setOpen(false)} title="Quick add" side="bottom">

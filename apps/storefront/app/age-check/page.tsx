@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { Button } from "@ih/ui-core";
 import { AGE_COPY } from "@/lib/age/copy";
 import { safeReturnPath } from "@/lib/age/policy";
 import { ageGate } from "@/lib/age/runtime";
@@ -23,30 +22,28 @@ export default async function AgeCheckPage({
   const days = Math.round(ageGate().runtime.ticketTtlSeconds / 86_400);
   return (
     <GateShell labelledBy="gate-q">
-      <div className="flex flex-col gap-3">
-        <h1 id="gate-q" className="text-3xl font-semibold tracking-tight">
-          {AGE_COPY.question}
-        </h1>
-        <p className="text-base text-ink-2">{AGE_COPY.lead}</p>
+      <div className="gate-seal" aria-hidden="true">
+        18+
       </div>
-      <div
-        role="group"
-        aria-label="Confirm your age"
-        className="flex flex-col gap-3 sm:flex-row sm:justify-center"
-      >
-        <form id="age-accept" method="post" action="/api/age/accept" className="contents">
+      <div className="gate-text">
+        <h1 id="gate-q">{AGE_COPY.question}</h1>
+        <p className="lead">{AGE_COPY.lead}</p>
+      </div>
+      {/* Two plain form posts: they work without JavaScript and set or clear the cookie. */}
+      <div className="gate-actions" role="group" aria-label="Confirm your age">
+        <form id="age-accept" method="post" action="/api/age/accept">
           <input type="hidden" name="return" value={target} />
-          <Button type="submit" size="lg" className="w-full sm:w-auto">
+          <button type="submit" className="btn btn-primary">
             {AGE_COPY.accept}
-          </Button>
+          </button>
         </form>
-        <form method="post" action="/api/age/reject" className="contents">
-          <Button type="submit" size="lg" variant="secondary" className="w-full sm:w-auto">
+        <form method="post" action="/api/age/reject">
+          <button type="submit" className="btn btn-outline">
             {AGE_COPY.reject}
-          </Button>
+          </button>
         </form>
       </div>
-      <p className="text-xs text-ink-2">{AGE_COPY.fine(days)}</p>
+      <p className="gate-fine">{AGE_COPY.fine(days)}</p>
       <KeepFragment formId="age-accept" />
     </GateShell>
   );

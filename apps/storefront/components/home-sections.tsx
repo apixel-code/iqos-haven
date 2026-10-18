@@ -94,6 +94,30 @@ export function CategoryTiles({
   );
 }
 
+/** One brand (prototype `brandTile`): its logo when the Owner set one, else the name. */
+export function BrandTile({
+  brand,
+  logo,
+}: {
+  brand: { name: string; slug: string; productCount: number };
+  logo: StoreBrandsResponse["items"][number]["logo"];
+}) {
+  return (
+    <Link href={`/brands/${brand.slug}`} prefetch={false} className="brand">
+      <span className="stripe" aria-hidden="true" />
+      {logo ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img className="bw-logo" src={logo.urls.thumb} alt={brand.name} />
+      ) : (
+        <span className="bw">{brand.name}</span>
+      )}
+      <span>
+        <span className="bc">{plural(brand.productCount, "product")}</span>
+      </span>
+    </Link>
+  );
+}
+
 /** "Shop by brand" (prototype `brandTile`): the logo when the Owner set one, else the name. */
 export function HomeBrands({
   brands,
@@ -112,28 +136,13 @@ export function HomeBrands({
         more={{ label: "All brands", href: "/brands" }}
       />
       <div className="brands">
-        {brands.map((brand) => {
-          const logo = logos.find((item) => item.slug === brand.slug)?.logo ?? null;
-          return (
-            <Link
-              key={brand.slug}
-              href={`/brands/${brand.slug}`}
-              prefetch={false}
-              className="brand"
-            >
-              <span className="stripe" aria-hidden="true" />
-              {logo ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img className="bw-logo" src={logo.urls.thumb} alt={brand.name} />
-              ) : (
-                <span className="bw">{brand.name}</span>
-              )}
-              <span>
-                <span className="bc">{plural(brand.productCount, "product")}</span>
-              </span>
-            </Link>
-          );
-        })}
+        {brands.map((brand) => (
+          <BrandTile
+            key={brand.slug}
+            brand={brand}
+            logo={logos.find((item) => item.slug === brand.slug)?.logo ?? null}
+          />
+        ))}
       </div>
     </section>
   );

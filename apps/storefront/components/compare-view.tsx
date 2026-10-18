@@ -2,8 +2,23 @@
 
 import Link from "next/link";
 import { useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
-import { storeProductResponseSchema, type StoreProductResponse } from "@ih/contracts";
-import { applyRenames, removeFromList, useDeviceLists } from "@/lib/device/store";
+import {
+  storeProductResponseSchema,
+  storeProductsResponseSchema,
+  type StoreProductCard,
+  type StoreProductResponse,
+} from "@ih/contracts";
+import { LIST_LIMITS } from "@/lib/device/lists";
+import {
+  applyRenames,
+  removeFromList,
+  toggleCompareProduct,
+  useDeviceLists,
+} from "@/lib/device/store";
+import { toast } from "@/lib/ui/toast";
+import { ProductCard } from "./product-card";
+import { QuickAdd } from "./quick-add";
+import { Icon } from "@/components/icons";
 import { Money } from "@/components/money";
 
 type Loaded = { key: string; products: StoreProductResponse[]; missing: string[]; failed: boolean };
@@ -141,84 +156,65 @@ export function CompareView() {
   const current = loaded?.key === key ? loaded : null;
   if (!mounted || (key && !current))
     return (
-      <p role="status" className="py-9 text-sm text-ink-2">
+      <p role="status" className="small muted list-wait">
         Loading your comparison…
       </p>
     );
   if (current?.failed)
     return (
-      <p role="alert" className="py-9 text-sm text-ink-2">
+      <p role="alert" className="muted list-wait">
         We couldn&apos;t load the comparison just now. Please try again in a moment.
       </p>
     );
   const products = current?.products ?? [];
   return (
-    <div className="flex flex-col gap-6 pb-12">
+    <div className="list-page">
       {current && current.missing.length > 0 && (
-        <div className="flex flex-col gap-2 rounded-md bg-accent-soft px-4 py-3 text-sm">
+        <div className="notice">
           <p>
             {current.missing.length} selected {current.missing.length === 1 ? "kit is" : "kits are"}{" "}
             no longer available.
           </p>
           <button
             type="button"
+            className="link"
             onClick={() => current.missing.forEach((slug) => removeFromList("compare", slug))}
-            className="w-fit font-medium underline underline-offset-2"
           >
             Remove from the comparison
           </button>
         </div>
       )}
-      {products.length < 2 ? (
-        <div className="flex flex-col items-center gap-3.5 rounded-lg border border-dashed border-line-2 bg-surface px-5 py-14 text-center">
-          <h2 className="text-lg font-semibold">
-            {products.length ? "Add one more kit" : "Choose kits to compare"}
-          </h2>
-          <p className="max-w-md text-sm text-ink-2">
-            Compare is available for vape kits, where battery, output and pod size differ. Tick
-            &ldquo;Compare with other kits&rdquo; on a kit&apos;s page.
-          </p>
-          <Link
-            href="/vape-kits"
-            prefetch={false}
-            className="inline-flex h-10 items-center rounded-pill bg-primary px-4 text-sm font-medium text-on-primary hover:bg-primary-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
-          >
-            Browse vape kits
-          </Link>
-        </div>
-      ) : null}
-      {products.length > 0 && (
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[480px] border-collapse text-sm">
+      {products.length >= 2 ? (
+        // The prototype's comparison table: best value in a row highlighted.
+        <div className="cmp-wrap">
+          <table className="cmp">
             <thead>
               <tr>
-                <th scope="col" className="w-32 text-left">
-                  <span className="sr-only">Specification</span>
+                <th scope="col">
+                  <span className="sr">Specification</span>
                 </th>
                 {products.map((product) => (
-                  <th
-                    key={product.slug}
-                    scope="col"
-                    className="p-3 text-left align-top font-normal"
-                  >
-                    <span className="block text-[11px] uppercase tracking-[0.1em] text-ink-3">
-                      {product.brand.name}
-                    </span>
-                    <Link
-                      href={`/p/${product.slug}`}
-                      prefetch={false}
-                      className="font-medium hover:underline"
-                    >
-                      {product.name}
-                    </Link>
-                    <button
-                      type="button"
-                      aria-label={`Remove ${product.name} from the comparison`}
-                      onClick={() => removeFromList("compare", product.slug)}
-                      className="mt-1 block text-xs text-ink-2 underline underline-offset-2"
-                    >
-                      Remove
-                    </button>
+                  <th key={product.slug} scope="col" className="ch-col">
+                    <div className="ch">
+                      <span className="th">
+                        {product.images[0] && (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={product.images[0].urls.thumb} alt="" width={150} height={150} />
+                        )}
+                      </span>
+                      <span className="eyebrow">{product.brand.name}</span>
+                      <Link href={`/p/${product.slug}`} prefetch={false} className="link">
+                        {product.name}
+                      </Link>
+                      <button
+                        type="button"
+                        className="rm small muted"
+                        aria-label={`Remove ${product.name} from the comparison`}
+                        onClick={() => removeFromList("compare", product.slug)}
+                      >
+                        Remove
+                      </button>
+                    </div>
                   </th>
                 ))}
               </tr>
@@ -231,28 +227,103 @@ export function CompareView() {
                 const best =
                   numbers.length >= 2 && new Set(numbers).size > 1 ? Math.max(...numbers) : null;
                 return (
-                  <tr key={row.label} className="border-t border-line">
-                    <th scope="row" className="py-2.5 pr-3 text-left font-normal text-ink-2">
-                      {row.label}
-                    </th>
-                    {products.map((product, index) => (
-                      <td
-                        key={product.slug}
-                        className={`p-3 ${best !== null && scores[index] === best ? "bg-accent-soft font-semibold" : ""}`}
-                      >
-                        {row.text(product)}
-                        {best !== null && scores[index] === best && (
-                          <span className="sr-only"> (best)</span>
-                        )}
-                      </td>
-                    ))}
+                  <tr key={row.label}>
+                    <th scope="row">{row.label}</th>
+                    {products.map((product, index) => {
+                      const top = best !== null && scores[index] === best;
+                      return (
+                        <td key={product.slug} className={top ? "best" : undefined}>
+                          {row.text(product)}
+                          {top && <span className="sr"> (best)</span>}
+                        </td>
+                      );
+                    })}
                   </tr>
                 );
               })}
+              <tr>
+                <th scope="row">
+                  <span className="sr">Add to cart</span>
+                </th>
+                {products.map((product) => (
+                  <td key={product.slug} className="cmp-add">
+                    {product.soldOut ? (
+                      <span className="badge badge-oos">Sold out</span>
+                    ) : (
+                      <QuickAdd slug={product.slug} name={product.name} variant="button" />
+                    )}
+                  </td>
+                ))}
+              </tr>
             </tbody>
           </table>
         </div>
+      ) : (
+        <div className="empty">
+          <span className="ic">
+            <Icon name="compare" size="lg" />
+          </span>
+          <h2 className="h3">{products.length ? "Add one more kit" : "Choose kits to compare"}</h2>
+          <p>
+            Compare is available for vape kits, where battery, output and pod size differ.
+            Disposables are compared by puff count in the shop filters instead.
+          </p>
+        </div>
       )}
+      {products.length < 3 && <AddKits exclude={compare} />}
     </div>
+  );
+}
+
+/** The prototype's "Add a kit": kits not yet compared, each with "Add to compare". */
+function AddKits({ exclude }: { exclude: readonly string[] }) {
+  const [kits, setKits] = useState<StoreProductCard[] | null>(null);
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch("/api/v1/store/products?type=kit&limit=12", {
+      credentials: "same-origin",
+      cache: "no-store",
+      signal: controller.signal,
+    })
+      .then((response) => (response.ok ? response.json() : Promise.reject(new Error("kits"))))
+      .then((body: unknown) => {
+        const parsed = storeProductsResponseSchema.safeParse(body);
+        setKits(parsed.success ? parsed.data.items : []);
+      })
+      // Optional: without it the page still compares.
+      .catch(() => {
+        if (!controller.signal.aborted) setKits([]);
+      });
+    return () => controller.abort();
+  }, []);
+  const offered = (kits ?? []).filter((kit) => !exclude.includes(kit.slug)).slice(0, 4);
+  if (offered.length === 0) return null;
+  return (
+    <section aria-labelledby="add-kit-h" className="add-kits">
+      <h2 className="h3" id="add-kit-h">
+        Add a kit
+      </h2>
+      <ul className="pgrid">
+        {offered.map((kit) => (
+          <li key={kit.slug} className="add-kit">
+            <ProductCard product={kit} />
+            <button
+              type="button"
+              className="btn btn-outline btn-sm"
+              onClick={() => {
+                const result = toggleCompareProduct(kit.slug);
+                if (result.full)
+                  toast({
+                    title: `Compare holds up to ${LIST_LIMITS.compare} kits`,
+                    sub: "Remove one to add another",
+                  });
+              }}
+            >
+              <Icon name="plus" size="sm" /> Add to compare
+            </button>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
