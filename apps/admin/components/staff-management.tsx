@@ -53,6 +53,7 @@ export function StaffManagement() {
               provisioning.
             </p>
             <form
+              data-unsaved="this invitation"
               onSubmit={(e) => {
                 e.preventDefault();
                 void invite(new FormData(e.currentTarget), e.currentTarget);
@@ -165,6 +166,7 @@ export function StaffManagement() {
                         : "No activity recorded"}
                     </p>
                     <form
+                      data-unsaved={staff.name}
                       onSubmit={(e) => {
                         e.preventDefault();
                         const data = new FormData(e.currentTarget);
@@ -223,6 +225,7 @@ export function StaffManagement() {
                       </fieldset>
                     </form>
                     <form
+                      data-unsaved={staff.name}
                       onSubmit={(e) => {
                         e.preventDefault();
                         const data = new FormData(e.currentTarget);

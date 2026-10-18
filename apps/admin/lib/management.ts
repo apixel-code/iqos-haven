@@ -4,6 +4,7 @@ import {
   type SettingsWriteRequest,
 } from "@ih/contracts";
 import { ApiError } from "./auth";
+import { announceSaved } from "./unsaved";
 export type ResponseContract<T> = { parse: (input: unknown) => T };
 export const emptyResponse: ResponseContract<undefined> = {
   parse(value) {
@@ -57,7 +58,9 @@ export async function managementRequest<T>(
       code,
     );
   }
-  return schema.parse(response.status === 204 ? undefined : await response.json());
+  const parsed = schema.parse(response.status === 204 ? undefined : await response.json());
+  if (method !== "GET") announceSaved();
+  return parsed;
 }
 export class FormValidationError extends Error {}
 export function validate<T>(

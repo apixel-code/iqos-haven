@@ -66,6 +66,7 @@ export function DeliveryManagement() {
         <ResourceNotice resource={configuration} />
         {row && (
           <form
+            data-unsaved="the delivery charge"
             key={row.version}
             onSubmit={(e) => {
               e.preventDefault();
@@ -132,6 +133,7 @@ export function DeliveryManagement() {
             <details>
               <summary>Add area</summary>
               <form
+                data-unsaved="this new area"
                 onSubmit={(e) => {
                   e.preventDefault();
                   void create(new FormData(e.currentTarget), e.currentTarget);
@@ -174,6 +176,7 @@ export function DeliveryManagement() {
             <div className="record-list">
               {areas.data.items.map((area) => (
                 <form
+                  data-unsaved="this delivery area"
                   className="record-card"
                   key={`${area.id}-${area.version}`}
                   onSubmit={async (e) => {

@@ -235,6 +235,7 @@ function ImageCard({
 }) {
   return (
     <form
+      data-unsaved="this image's alt text"
       className="record-card"
       onSubmit={(e) => {
         e.preventDefault();

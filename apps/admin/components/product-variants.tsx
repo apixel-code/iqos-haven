@@ -66,6 +66,7 @@ export function ProductVariants({
       {view && (
         <fieldset disabled={resource.disabled || !canWrite}>
           <form
+            data-unsaved="this product's options"
             onSubmit={(e) => {
               e.preventDefault();
               const data = new FormData(e.currentTarget);
@@ -183,6 +184,7 @@ function VariantCard({
   const [makeDefault, setMakeDefault] = useState(variant.isDefault);
   return (
     <form
+      data-unsaved={`option ${variant.sku}`}
       className="record-card"
       onSubmit={(e) => {
         e.preventDefault();

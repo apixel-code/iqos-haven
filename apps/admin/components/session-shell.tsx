@@ -6,6 +6,7 @@ import type { MeResponse } from "@ih/contracts";
 import { ApiError, authRequest, currentSession } from "../lib/auth";
 import { visibleSections } from "../lib/navigation";
 import { NotificationBell } from "./notification-bell";
+import { UnsavedChangesGuard } from "./unsaved-guard";
 const SessionContext = createContext<MeResponse | null>(null);
 const SessionCheckingContext = createContext(false);
 export function useSessionChecking() {
@@ -123,7 +124,7 @@ export function SessionShell({ children }: { children: ReactNode }) {
               >
                 {dark ? "Light theme" : "Dark theme"}
               </button>
-              <button className="text-button" onClick={logout} disabled={signingOut}>
+              <button className="text-button" onClick={logout} disabled={signingOut} data-leave>
                 {signingOut ? "Signing out…" : "Sign out"}
               </button>
             </div>
@@ -141,6 +142,7 @@ export function SessionShell({ children }: { children: ReactNode }) {
             </header>
             {children}
           </div>
+          <UnsavedChangesGuard />
         </div>
       </SessionCheckingContext.Provider>
     </SessionContext.Provider>
