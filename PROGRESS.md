@@ -5,7 +5,7 @@
 - Date: 2026-10-18
 - Milestone: M11 — full acceptance and release, in progress. Gates M0, M2–M10 PASSED (M0, M3, M4, M6–M10 on 2026-10-17, Marina); M1 open until staging/CI.
 - Step: launch parity gaps (Marina 2026-10-17): G-S2 (#101), G-S3 (#102), G-S5 (#103), G-A5 (#104), G-A6 (#105), G-A7 (#106), G-A8 (#107), G-A9 (#108), all merged to `main` 2026-10-18; G-A11 (#109), all merged to `main` 2026-10-18 — every launch parity gap is built. Step 124 (#110, merged). **Step 125** (ops monitor, email alerts, optional Sentry, ADR 0096) done. Next: step 126. Steps 115–119, 121 done; 120 local part done (real devices wait for staging).
-- Branch: `step/125-monitoring` (from `main` cd826ea). New migration `20261018000100_ops_alerts`.
+- Branch: `step/125-monitoring` (from `main` cd826ea; PR #111). New migration `20261018000100_ops_alerts`.
 - See docs/verification.md for actual checks.
 
 ## Next action
@@ -235,7 +235,7 @@ Tests: `pnpm verify` PASS (age preview 2247). `pnpm test:int` PASS (667). `pnpm 
 
 Unfinished:
 
-- Step 125's PR waits for merge (Claude merges only when Marina asks).
+- PR #111 (step 125) waits for merge (Claude merges only when Marina asks).
 - **On the VPS:** set the real recipient, run `ops:test-alert`, set the synthetic URLs, and add an external uptime pinger (staging-dependent).
 - Next: step 126 (backup configuration and a measured isolated restore drill), then 127 (runbooks).
 
