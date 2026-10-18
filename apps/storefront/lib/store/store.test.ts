@@ -1,7 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { AgeRequiredError, StoreApiError, createStoreApi } from "./api";
 import { cardBadges, cardMeta, discountPercent, displayAed, displayAmount } from "./listing";
-import { activeFilterCount, parseSearch, searchApiParams, searchHref } from "./search";
+import {
+  activeFilterCount,
+  bandOf,
+  parseSearch,
+  PRICE_BANDS,
+  PUFF_BANDS,
+  searchApiParams,
+  searchHref,
+} from "./search";
 
 describe("listing pages share the search filters (parity G-S2)", () => {
   it("reads a category slug and keeps it in API params and links to a listing path", () => {
@@ -31,6 +39,21 @@ describe("listing pages share the search filters (parity G-S2)", () => {
     // The type and the puff range (one filter, however many bounds).
     expect(activeFilterCount(state)).toBe(2);
     expect(parseSearch({ minPuffs: "12000", maxPuffs: "6000" }).maxPuffs).toBeUndefined();
+  });
+
+  it("reads the prototype's filter bands and category checkboxes (ADR 0097)", () => {
+    expect(parseSearch({ price: "50-100", puffs: "o12" })).toMatchObject({
+      minPrice: 50,
+      maxPrice: 100,
+      minPuffs: 12001,
+    });
+    expect(parseSearch({ price: "u50" })).toMatchObject({ maxPrice: 50 });
+    expect(parseSearch({ price: "bogus" }).minPrice).toBeUndefined();
+    expect(bandOf(PRICE_BANDS, 100, 200)?.key).toBe("100-200");
+    expect(bandOf(PUFF_BANDS, 6000, 12000)?.key).toBe("6-12");
+    expect(bandOf(PRICE_BANDS, 10, 20)).toBeUndefined();
+    expect(parseSearch({ type: ["kit"] }).type).toBe("kit");
+    expect(parseSearch({ type: ["kit", "disposable"] }).type).toBeUndefined();
   });
 
   it("drops a malformed category", () => {

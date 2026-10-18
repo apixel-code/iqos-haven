@@ -5149,4 +5149,28 @@
   .c4:hover .c4-img img {
     transform: translateY(-4px) scale(1.04);
   }
+
+  /* store: a sheet's host is a modal dialog filling the viewport (the prototype's #sheet-host). */
+  dialog.sheet-host {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    max-width: none;
+    max-height: none;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    overflow: hidden;
+  }
+  dialog.sheet-host::backdrop {
+    background: transparent;
+  }
+  /* store: filter forms work without JavaScript; this button only appears then. */
+  .shop-side noscript .btn,
+  .sh-body noscript .btn {
+    margin-top: 6px;
+  }
 }
