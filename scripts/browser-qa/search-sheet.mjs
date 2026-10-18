@@ -48,6 +48,10 @@ try {
   const { context, page, errors } = await shopper({ width: 360, height: 780 });
   // Remember one product as recently viewed.
   await page.goto(base + "/p/gatecheck-halo");
+  // The view is saved on the device after hydration.
+  await page.waitForFunction(() =>
+    (localStorage.getItem("ih_lists_v1") ?? "").includes("gatecheck-halo"),
+  );
   await page.goto(base + "/shop");
   check(
     !(await header(page).getByRole("search").isVisible()),

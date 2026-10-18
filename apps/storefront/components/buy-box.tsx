@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import type { StoreProductResponse } from "@ih/contracts";
 import { CART_LIMITS } from "@/lib/cart/cart";
 import { openCartSheet } from "@/lib/cart/sheet";
@@ -26,9 +26,12 @@ export function BuyBox({
   product,
   compact = false,
   onAdded,
+  whatsappHref,
 }: {
   product: StoreProductResponse;
   compact?: boolean;
+  /** WhatsApp link for the sticky bar on phones (product page only). */
+  whatsappHref?: string | null;
   /** Called after a successful add, before the cart sheet opens (quick add closes itself). */
   onAdded?: () => void;
 }) {
@@ -37,6 +40,24 @@ export function BuyBox({
   const [quantity, setQuantity] = useState(1);
   const [feedback, setFeedback] = useState<Feedback>(null);
   const formId = useId();
+  const mainAdd = useRef<HTMLButtonElement>(null);
+  const root = useRef<HTMLDivElement>(null);
+  // Sticky bar on phones (parity G-S5): only once the main button has scrolled up out of view.
+  const [sticky, setSticky] = useState(false);
+  useEffect(() => {
+    const button = mainAdd.current;
+    if (compact || !button) return;
+    const observer = new IntersectionObserver(([entry]) =>
+      setSticky(!entry!.isIntersecting && entry!.boundingClientRect.top < 80),
+    );
+    observer.observe(button);
+    // Room below the page on phones, so the bar never covers the footer's last lines.
+    document.body.classList.add("has-sticky-buy");
+    return () => {
+      observer.disconnect();
+      document.body.classList.remove("has-sticky-buy");
+    };
+  }, [compact]);
   const selection = resolveSelection(product, chosen);
   const variant = "variant" in selection ? selection.variant : null;
   const prices = product.variants.map((item) => item.priceFils);
@@ -56,6 +77,19 @@ export function BuyBox({
           : product.soldOut
             ? { tone: "no", text: "Sold out" }
             : null;
+
+  /** From the sticky bar: an incomplete choice takes the shopper back to the options. */
+  function addFromBar() {
+    if (selection.status === "incomplete") {
+      const missing = selection.missing[0];
+      const fieldset = root.current?.querySelector<HTMLElement>(
+        `[data-option="${CSS.escape(missing ?? "")}"]`,
+      );
+      fieldset?.scrollIntoView({ behavior: "smooth", block: "center" });
+      fieldset?.querySelector<HTMLInputElement>("input")?.focus({ preventScroll: true });
+    }
+    add();
+  }
 
   function add() {
     if (selection.status === "incomplete") {
@@ -99,7 +133,7 @@ export function BuyBox({
   const blocked =
     selection.status === "sold_out" || selection.status === "unavailable" || product.soldOut;
   return (
-    <div className="flex flex-col gap-5">
+    <div ref={root} className="flex flex-col gap-5">
       <div className="flex flex-col gap-1.5">
         <p className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
           <span
@@ -132,7 +166,7 @@ export function BuyBox({
       {options
         .filter((option) => option.values.length > 1)
         .map((option) => (
-          <fieldset key={option.name} className="flex flex-col gap-2">
+          <fieldset key={option.name} data-option={option.name} className="flex flex-col gap-2">
             <legend className="text-sm font-medium">
               {optionLabel(option.name)}
               {chosen[option.name] ? (
@@ -208,6 +242,7 @@ export function BuyBox({
           </button>
         </div>
         <button
+          ref={mainAdd}
           type="button"
           disabled={blocked}
           onClick={add}
@@ -235,6 +270,70 @@ export function BuyBox({
           </>
         )}
       </p>
+      {!compact && (
+        // Phones only (parity G-S5, ADR 0088). Off-screen and inert until the main button has
+        // scrolled up out of view, so it is never focusable twice.
+        <div
+          aria-label="Add to cart"
+          role="region"
+          inert={!sticky}
+          className={`fixed inset-x-0 bottom-0 z-20 flex items-center gap-3 border-t border-line bg-surface px-4 pt-2.5 pb-[calc(10px+env(safe-area-inset-bottom))] shadow-3 transition-transform duration-300 ease-brand motion-reduce:transition-none md:hidden ${
+            sticky ? "translate-y-0" : "translate-y-[110%]"
+          }`}
+        >
+          <div className="flex min-w-0 flex-1 flex-col">
+            <b className="truncate text-sm font-semibold">{product.name}</b>
+            <span className="truncate text-xs text-ink-2">
+              {/* The price first, so it is never the part cut off. */}
+              {`${varies ? "From " : ""}${displayAed(priceFils)}`}
+              {variant
+                ? variantLabel(product, variant.attributes) &&
+                  ` · ${variantLabel(product, variant.attributes)}`
+                : options.length > 0 && " · Choose an option"}
+            </span>
+          </div>
+          {/* Controls only while shown: with the main button on screen there is one Add to cart. */}
+          {sticky && (
+            <>
+              {whatsappHref && (
+                <a
+                  href={whatsappHref}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="Ask on WhatsApp"
+                  className="inline-flex size-12 shrink-0 items-center justify-center rounded-pill border-[1.5px] border-line text-sm font-semibold text-wa hover:border-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+                >
+                  <svg
+                    aria-hidden="true"
+                    viewBox="0 0 24 24"
+                    className="size-5"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  >
+                    <path
+                      d="M21 12a8.5 8.5 0 0 1-12.6 7.4L3 21l1.6-5.2A8.5 8.5 0 1 1 21 12Z"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </a>
+              )}
+              <button
+                type="button"
+                disabled={blocked}
+                onClick={addFromBar}
+                className="inline-flex h-12 shrink-0 items-center justify-center rounded-pill bg-primary px-5 text-sm font-medium text-on-primary hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+              >
+                {selection.status === "sold_out" || product.soldOut
+                  ? "Sold out"
+                  : selection.status === "unavailable"
+                    ? "Not available"
+                    : "Add to cart"}
+              </button>
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }

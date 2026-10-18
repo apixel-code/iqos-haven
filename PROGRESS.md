@@ -4,8 +4,8 @@
 
 - Date: 2026-10-17
 - Milestone: M11 — full acceptance and release, in progress. Gates M0, M2–M10 PASSED (M0, M3, M4, M6–M10 on 2026-10-17, Marina); M1 open until staging/CI.
-- Step: launch parity gaps (Marina 2026-10-17): **G-S2 done** (ADR 0086, PR #101), **G-S3 done** (mobile search sheet, ADR 0087). Next: G-S5. Steps 115–119, 121 done; 120 local part done (real devices wait for staging).
-- Branch: `parity/g-s3-search-sheet` (from `parity/g-s2-listing-filters`, PR #101 not merged yet; PR #102 on #101)
+- Step: launch parity gaps (Marina 2026-10-17): **G-S2** (ADR 0086, PR #101), **G-S3** (ADR 0087, PR #102) and **G-S5** (sticky add-to-cart, ADR 0088) done. Next: G-A5. Steps 115–119, 121 done; 120 local part done (real devices wait for staging).
+- Branch: `parity/g-s5-sticky-add` (stacked on #102 → #101; PR #103)
 - See docs/verification.md for actual checks.
 
 ## Next action
@@ -19,7 +19,7 @@
 1. **Marina's decisions (2026-10-17), all recorded:** gates M0, M3, M4, M6, M7, M8, M9, M10 PASSED (see Gates passed); M1 stays open until staging and CI are proven; M11 in progress. Business inputs: none OPEN (BI-01, BI-07, BI-09 partly answered: logo/contact copy, sender-domain verification and the WhatsApp number follow).
 2. **Merged 2026-10-17:** PR #100 brought every stacked step into `main` (f049897); #60–#99 closed (68 and 73 as superseded). Branch every new piece of work from `main`.
 3. **Work order (Marina, 2026-10-17):** merge → the nine chosen parity gaps → steps 124–127 → staging-dependent work (120 real devices, 121 rerun, 122, 128) on the Hostinger VPS (one VPS, staging first, later production).
-4. **Parity gaps to build before launch** (one branch, PR and commit each, from `main`): ~~G-S2 listing filters~~ (DONE, ADR 0086, PR #101), ~~G-S3 mobile search sheet~~ (DONE, ADR 0087), **G-S5 sticky add-to-cart (next)**, G-A5 orders list (counts, sort, select-all, mobile cards), G-A6 packing slip/print, G-A7 brand logo and category image upload (+ Owner purge), G-A8 products list (SKU search, stock filter/column, sort, thumbnail), G-A9 unsaved-changes guard, G-A11 Owner-sent staff reset and pending-invitation revoke. Not now: G-S8, G-A10 and every O-tier gap (after launch).
+4. **Parity gaps to build before launch** (one branch, PR and commit each, from `main`): ~~G-S2 listing filters~~ (DONE, ADR 0086, PR #101), ~~G-S3 mobile search sheet~~ (DONE, ADR 0087, PR #102), ~~G-S5 sticky add-to-cart~~ (DONE, ADR 0088), **G-A5 orders list (next)** (counts, sort, select-all, mobile cards), G-A6 packing slip/print, G-A7 brand logo and category image upload (+ Owner purge), G-A8 products list (SKU search, stock filter/column, sort, thumbnail), G-A9 unsaved-changes guard, G-A11 Owner-sent staff reset and pending-invitation revoke. Not now: G-S8, G-A10 and every O-tier gap (after launch).
 5. **First Owner:** an Apixel account via `pnpm bootstrap:owner`, which invites the client as Owner and is then removed (the last-Owner guard keeps one Owner at all times).
 6. **At launch, Owner settings:** SEO policy `public_pages` (BI-05); WhatsApp number in Settings (BI-09); sender no-reply@iqoshaven.com once the domain is verified (BI-07), then `CHECKOUT_SUBMISSION_ENABLED=true`.
 7. **Next work: the four tier-L parity gaps** — Marina's decision (2026-10-17): build Apixel's recommended launch set from `docs/parity-review.md` before step 120. One branch, PR and commit each, in this order:
@@ -153,6 +153,7 @@ Before checkout is switched on: the sender domain verification (BI-07, Marina/Ap
 - 104 — storefront telemetry queue (batches of 20, one retry, pause on overload, drop when full or on quiet pages), events from search/product page/cart/saved list, rotating anonymous ID, browser QA script (ADR 0070) — `step(104)` commit on `step/104-client-telemetry`
 - 105 — financial metric definitions (booked/delivered/collected, AOV, cancellation, status mix; Dubai days, AED fils, tax note) and the Owner's snapshot summary query (ADR 0071) — `step(105)` commit on `step/105-financial-metrics`
 - 106 — `sales_daily`, `product_sales_daily` (snapshot brand), `search_daily`, `wishlist_daily`; idempotent per-day rollup sharing the step 105 definitions; `analytics_rollup` consumer on order events (ADR 0072) — `step(106)` commit on `step/106-daily-rollups`
+- G-S5 — sticky add-to-cart bar on phones inside `BuyBox` (after the main button scrolls away; inert and control-less while hidden; no silent default option; page padding so the footer stays readable); `sticky-add.mjs` (ADR 0088) — parity/g-s5-sticky-add
 - G-S3 — mobile search sheet: phone header Search button, full-screen sheet with brands and recently viewed before typing, suggestions and see-all while typing; shared `useSuggestions`/`useStoreBrands` hooks; `search-sheet.mjs` (ADR 0087) — parity/g-s3-search-sheet
 - G-S2 — listing pages use termless search (catalogue budget and cache) with the full filter panel; `category` search scope; old listing controls removed; `listing-filters.mjs`; age-preview stub answers termless search (ADR 0086) — 948781e
 - 121 — `pnpm load:test` (`scripts/load/`): launch-sized dataset, 50/150 shoppers + staff, contention, queue outage; read p95 32 ms, checkout p95 62 ms, no pool waits; admin orders list fixed (52 → 2 ms at 51,788 orders); gate harness cleanup fixed (Nest hooks, storefront group, gateway); BI-16 added (ADR 0085) — step/121-load-testing
@@ -203,28 +204,30 @@ Before checkout is switched on: the sender domain verification (BI-07, Marina/Ap
 - Event `consumers` lists only implemented consumers (now `system_probe`, `email`, `notification`, `media_processor`, `storefront_revalidate`); planned ones are documented with roadmap steps and move in with a backfill decision (architecture §8: adding a consumer must not redefine old completions).
 - `audit_log` migration revokes UPDATE/DELETE/TRUNCATE only from a role named `ih_app`; other runtime role names must be revoked at provisioning (trigger blocks mutations regardless).
 
-## Last session handoff (2026-10-17, parity G-S3)
+## Last session handoff (2026-10-17, parity G-S5)
 
 Done:
 
-- **G-S3 (ADR 0087):**
-  - **Phone header:** a Search button below `md`; the inline box stays on wider screens.
-  - **`apps/storefront/components/search-sheet.tsx`:** a full-screen modal dialog, focused on the field and a GET form to `/search`.
-    - Before typing: brands (loaded on open) and up to three recently viewed products, read fresh.
-    - While typing: suggested brands and products and "See all results".
-  - **No "Popular searches":** the prototype's list is demo copy.
-  - **Shared hooks:** `useSuggestions` and `useStoreBrands` in `lib/store/client-hooks.ts`, used by the search box, menu sheet and search sheet.
+- **G-S5 (ADR 0088):** the sticky add-to-cart bar on phones lives in `apps/storefront/components/buy-box.tsx`, on the product page only.
+  - **When it shows:** once the main button has scrolled up out of view (IntersectionObserver).
+  - **Contents:** name, price first, then the option or "Choose an option"; WhatsApp (product message); Add to cart, Sold out or Not available.
+  - **With no choice**, it focuses the first unchosen option and adds nothing.
+  - **While hidden** it is inert and its controls are not rendered, so with the main button on screen the page has a single Add to cart.
+  - **Page padding:** `body.has-sticky-buy` gives bottom padding on phones, so the footer's nicotine warning is never covered.
+- **`search-sheet.mjs`:** now waits for the product view to be saved (it was timing-dependent).
 
-Files: `apps/storefront/components/{search-sheet.tsx,search-box.tsx,menu-sheet.tsx}`, `apps/storefront/lib/store/client-hooks.ts`, `apps/storefront/app/(shop)/layout.tsx`, `scripts/browser-qa/{search-sheet.mjs,README.md}`, `docs/decisions/0087-mobile-search-sheet.md`, `docs/parity-review.md`, `docs/verification.md`
+Files: `apps/storefront/components/buy-box.tsx`, `apps/storefront/app/(shop)/p/[slug]/page.tsx`, `apps/storefront/app/globals.css`, `scripts/browser-qa/{sticky-add.mjs,search-sheet.mjs,README.md}`, `docs/decisions/0088-sticky-add-to-cart.md`, `docs/parity-review.md`, `docs/verification.md`
 
-Tests: `pnpm verify` PASS (age preview 2245). `pnpm test:gate` PASS (2586). Browser: `search-sheet.mjs` (twice), `menu-sheet.mjs`, `a11y-storefront.mjs` all PASS. No API change (integration last 652 PASS on #101).
+Tests: `pnpm verify` PASS (age preview 2245). `pnpm test:gate` PASS (2586). Browser: `sticky-add`, `cart-sheet`, `menu-sheet`, `search-sheet` (twice), `listing-filters`, `a11y-storefront` all PASS; `checkout.mjs` 49/49.
 
 Unfinished:
 
-- PR #101 (G-S2) awaits Marina's merge; G-S3 is PR #102 on #101's branch (retarget to `main` once #101 is merged).
-- Next: G-S5 (sticky add-to-cart bar on the product page on phones).
+- PRs waiting for Marina's merge, in order: #101 (G-S2) → #102 (G-S3) → #103 (G-S5). Retarget each to `main` after the one below it is merged.
+- Next: G-A5 (admin orders list: tab counts, sort, select-all, mobile cards).
 
 ## History (summary)
+
+- 2026-10-17 parity G-S3: mobile search sheet, shared client hooks (PR #102).
 
 - 2026-10-17 parity G-S2: listing filters through browsing search (catalogue budget and cache), category scope (PR #101).
 

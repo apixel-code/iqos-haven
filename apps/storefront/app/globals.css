@@ -94,3 +94,10 @@ body {
     display: none;
   }
 }
+
+/* Product page on phones: room for the sticky add-to-cart bar (parity G-S5). */
+@media (max-width: 767px) {
+  body.has-sticky-buy {
+    padding-bottom: calc(72px + env(safe-area-inset-bottom));
+  }
+}
