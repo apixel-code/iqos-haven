@@ -97,33 +97,61 @@ export const productResponseSchema = z.strictObject({
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime(),
 });
-export const productSummarySchema = productResponseSchema.pick({
-  id: true,
-  name: true,
-  slug: true,
-  brand: true,
-  category: true,
-  type: true,
-  status: true,
-  basePriceFils: true,
-  isNew: true,
-  version: true,
-  trashedAt: true,
-  updatedAt: true,
-});
+/** Products list sorts (parity G-A8): newest first, name, or base price either way. */
+export const PRODUCT_SORTS = ["newest", "name", "price_asc", "price_desc"] as const;
+export type ProductSort = (typeof PRODUCT_SORTS)[number];
+/**
+ * A product's stock at a glance (parity G-A8), over its active options: `out` when none is in
+ * stock, `low` when one is out or at or below its alert level, otherwise `in_stock`.
+ */
+export const PRODUCT_STOCK_STATES = ["in_stock", "low", "out"] as const;
+export const productSummarySchema = productResponseSchema
+  .pick({
+    id: true,
+    name: true,
+    slug: true,
+    brand: true,
+    category: true,
+    type: true,
+    status: true,
+    basePriceFils: true,
+    isNew: true,
+    version: true,
+    trashedAt: true,
+    updatedAt: true,
+  })
+  .extend({
+    /** Only for callers holding `inventory.read` (stripped by the route's field policy). */
+    stock: z
+      .strictObject({
+        onHand: z.number().int().min(0),
+        state: z.enum(PRODUCT_STOCK_STATES),
+      })
+      .optional(),
+    /** Short-lived signed link to the main image's thumbnail, or none. */
+    thumbnailUrl: z.url().nullable(),
+  });
 export const productsQuerySchema = z.strictObject({
   status: z.enum(["all", "draft", "published", "trashed"]).default("all"),
   brandId: z.uuid().optional(),
   categoryId: z.uuid().optional(),
+  /** Product name or option SKU. */
   q: z.string().trim().min(1).max(100).optional(),
+  stock: z.enum(PRODUCT_STOCK_STATES).optional(),
+  sort: z.enum(PRODUCT_SORTS).default("newest"),
   limit: z.coerce.number().int().min(1).max(100).default(25),
-  /** Keyset over id descending (UUIDv7: newest first). */
-  after: z.uuid().optional(),
+  /** Opaque keyset position for the chosen sort (a bare id is a newest-first one). */
+  after: z
+    .string()
+    .min(1)
+    .max(300)
+    .regex(/^[A-Za-z0-9_-]+$/)
+    .optional(),
 });
 export const productParamsSchema = z.strictObject({ id: z.uuid() });
 export const productsResponseSchema = z.strictObject({
   items: z.array(productSummarySchema).max(100),
-  nextCursor: z.uuid().nullable(),
+  nextCursor: z.string().max(300).nullable(),
 });
 
 export type DisposableSpecs = z.infer<typeof disposableSpecsSchema>;

@@ -1,4 +1,5 @@
 import {
+  ForbiddenException,
   Body,
   Controller,
   Get,
@@ -47,6 +48,8 @@ class ParamsDto extends createZodDto(productParamsSchema) {
 
 /** SEO fields are Owner-only (architecture §11): stripped for callers without `seo.write`. */
 const PRODUCT_FIELDS = defineFieldPolicy({ seo: "seo.write" });
+/** Stock levels belong to `inventory.read` (parity G-A8): stripped, and not filterable, without it. */
+const LIST_FIELDS = defineFieldPolicy({ items: { stock: "inventory.read" } });
 
 /** Admin product create/edit/detail/list (step 44). Publication and trash are step 51. */
 @UseInterceptors(CatalogueInvalidationInterceptor)
@@ -74,14 +77,17 @@ export class ProductsController {
 
   @Get()
   @RequirePermission("catalog.read")
-  @Serialize(productsResponseSchema)
+  @Serialize(productsResponseSchema, LIST_FIELDS)
   list(
     @Query() query: QueryDto,
     @Req() request: AuthenticatedRequest,
     @Res({ passthrough: true }) reply: FastifyReply,
   ) {
     reply.header("Cache-Control", "no-store");
-    return this.products.list(request.staff!.userId, query as unknown as ProductsQuery);
+    const parsed = query as unknown as ProductsQuery;
+    if (parsed.stock && !request.staff!.permissions.includes("inventory.read"))
+      throw new ForbiddenException();
+    return this.products.list(request.staff!.userId, parsed);
   }
 
   @Get(":id")

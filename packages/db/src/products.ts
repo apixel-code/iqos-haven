@@ -4,10 +4,10 @@ import {
   productCreateRequestSchema,
   productResponseSchema,
   productsQuerySchema,
-  productSummarySchema,
   productUpdateRequestSchema,
   type ProductCreateRequest,
   type ProductResponse,
+  type ProductSort,
   type ProductsQuery,
   type ProductUpdateRequest,
 } from "@ih/contracts";
@@ -106,6 +106,56 @@ function response(row: ProductRow): ProductResponse {
 /** `%`, `_` and `\` in a search term are matched literally. */
 const like = (term: string) => "%" + term.replace(/[\\%_]/g, (c) => "\\" + c) + "%";
 
+/** Keyset per sort (parity G-A8): the cursor names its sort, so another sort's is refused. */
+const PRODUCT_ORDER: Record<
+  ProductSort,
+  { key: Prisma.Sql; cast: Prisma.Sql; dir: "ASC" | "DESC" }
+> = {
+  newest: { key: Prisma.sql`p.id::text`, cast: Prisma.sql`text`, dir: "DESC" },
+  name: { key: Prisma.sql`lower(p.name)`, cast: Prisma.sql`text`, dir: "ASC" },
+  price_asc: { key: Prisma.sql`p.base_price_fils`, cast: Prisma.sql`bigint`, dir: "ASC" },
+  price_desc: { key: Prisma.sql`p.base_price_fils`, cast: Prisma.sql`bigint`, dir: "DESC" },
+};
+const UUID_TEXT = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+function decodeProductCursor(value: string, sort: ProductSort): { key: string; id: string } {
+  // A bare id is the cursor of before the sorts (newest first).
+  if (UUID_TEXT.test(value)) {
+    if (sort !== "newest") throw new ProductCursorError();
+    return { key: value.toLowerCase(), id: value };
+  }
+  try {
+    const parsed: unknown = JSON.parse(Buffer.from(value, "base64url").toString("utf8"));
+    if (
+      !Array.isArray(parsed) ||
+      parsed.length !== 3 ||
+      parsed[0] !== sort ||
+      typeof parsed[1] !== "string" ||
+      parsed[1].length > 200 ||
+      typeof parsed[2] !== "string" ||
+      !UUID_TEXT.test(parsed[2]) ||
+      (sort.startsWith("price") && !/^\d{1,12}$/.test(parsed[1]))
+    )
+      throw new Error("shape");
+    return { key: parsed[1], id: parsed[2] };
+  } catch {
+    throw new ProductCursorError();
+  }
+}
+/** A cursor that does not belong to the request (another sort, malformed). */
+export class ProductCursorError extends Error {}
+
+interface ProductListRow extends ProductRow {
+  sortKey: string;
+  onHand: number;
+  stockState: "in_stock" | "low" | "out";
+  thumbnailKey: string | null;
+}
+
+/**
+ * The admin products list (step 44; parity G-A8): name or SKU search, stock state, four sorts.
+ * Stock is computed over active options; the thumbnail is the main image's derivative key, which
+ * the route signs.
+ */
 export async function listProducts(db: Database, actorId: string, input: ProductsQuery) {
   const query = productsQuerySchema.parse(input);
   await lockCatalogueActor(db, actorId, ["catalog.read"], false);
@@ -118,14 +168,47 @@ export async function listProducts(db: Database, actorId: string, input: Product
     filters.push(Prisma.sql`p.status=${query.status}`);
   if (query.brandId) filters.push(Prisma.sql`p.brand_id=${query.brandId}::uuid`);
   if (query.categoryId) filters.push(Prisma.sql`p.category_id=${query.categoryId}::uuid`);
-  if (query.q) filters.push(Prisma.sql`p.name ILIKE ${like(query.q)}`);
-  if (query.after) filters.push(Prisma.sql`p.id < ${query.after}::uuid`);
-  const rows = await db.$queryRaw<ProductRow[]>(Prisma.sql`
-    ${SELECT} WHERE ${Prisma.join(filters, " AND ")}
-    ORDER BY p.id DESC LIMIT ${query.limit + 1}`);
-  const items = rows.slice(0, query.limit).map((row) => {
+  if (query.q)
+    filters.push(Prisma.sql`(p.name ILIKE ${like(query.q)}
+      OR EXISTS (SELECT 1 FROM variants sv WHERE sv.product_id=p.id
+        AND sv.sku ILIKE ${like(query.q)}))`);
+  if (query.stock) filters.push(Prisma.sql`s.state=${query.stock}`);
+  const order = PRODUCT_ORDER[query.sort];
+  if (query.after) {
+    const after = decodeProductCursor(query.after, query.sort);
+    filters.push(
+      order.dir === "DESC"
+        ? Prisma.sql`(${order.key},p.id)<(${after.key}::${order.cast},${after.id}::uuid)`
+        : Prisma.sql`(${order.key},p.id)>(${after.key}::${order.cast},${after.id}::uuid)`,
+    );
+  }
+  const rows = await db.$queryRaw<ProductListRow[]>(Prisma.sql`
+    SELECT x.* FROM (
+      SELECT p.id, p.name, p.slug, p.brand_id AS "brandId", b.name AS "brandName",
+        p.category_id AS "categoryId", c.name AS "categoryName", p.type, p.puff_count AS "puffCount",
+        p.status, p.base_price_fils AS "basePriceFils", p.compare_at_price_fils AS "compareAtPriceFils",
+        p.tax_treatment_ref AS "taxTreatmentRef", p.tax_treatment_version AS "taxTreatmentVersion",
+        p.specs, p.description, p.is_new AS "isNew", p.seo, p.version, p.deleted_at AS "deletedAt",
+        p.created_at AS "createdAt", p.updated_at AS "updatedAt",
+        (${order.key})::text AS "sortKey", s.on_hand AS "onHand", s.state AS "stockState",
+        (SELECT a.derivative_keys->>'thumb' FROM product_images i
+          JOIN media_assets a ON a.id=i.media_asset_id
+          WHERE i.product_id=p.id ORDER BY i.is_primary DESC, i.sort_order, i.id LIMIT 1)
+          AS "thumbnailKey"
+      FROM products p JOIN brands b ON b.id=p.brand_id JOIN categories c ON c.id=p.category_id
+      CROSS JOIN LATERAL (
+        SELECT coalesce(sum(v.stock_on_hand), 0)::int AS on_hand,
+          CASE WHEN NOT coalesce(bool_or(v.stock_on_hand > 0), false) THEN 'out'
+            WHEN bool_or(v.stock_on_hand <= v.low_stock_threshold) THEN 'low'
+            ELSE 'in_stock' END AS state
+        FROM variants v WHERE v.product_id=p.id AND v.active) s
+      WHERE ${Prisma.join(filters, " AND ")}
+      ORDER BY ${order.key} ${Prisma.raw(order.dir)}, p.id ${Prisma.raw(order.dir)}
+      LIMIT ${query.limit + 1}) x`);
+  const page = rows.slice(0, query.limit);
+  const items = page.map((row) => {
     const full = response(row);
-    return productSummarySchema.parse({
+    return {
       id: full.id,
       name: full.name,
       slug: full.slug,
@@ -138,11 +221,17 @@ export async function listProducts(db: Database, actorId: string, input: Product
       version: full.version,
       trashedAt: full.trashedAt,
       updatedAt: full.updatedAt,
-    });
+      stock: { onHand: row.onHand, state: row.stockState },
+      thumbnailKey: row.thumbnailKey,
+    };
   });
+  const last = page.at(-1);
   return {
     items,
-    nextCursor: rows.length > query.limit ? (items.at(-1)?.id ?? null) : null,
+    nextCursor:
+      rows.length > query.limit && last
+        ? Buffer.from(JSON.stringify([query.sort, last.sortKey, last.id])).toString("base64url")
+        : null,
   };
 }
 

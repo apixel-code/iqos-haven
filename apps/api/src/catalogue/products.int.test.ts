@@ -6,9 +6,16 @@ import {
   integrationTestEnvSchema,
   loadEnv,
   loadLocalEnvFile,
+  storageIntegrationTestEnvSchema,
 } from "@ih/config";
 import type { ProductResponse, ProductSummary } from "@ih/contracts";
-import { createDatabase, createPool, updateProduct, CatalogueConflictError } from "@ih/db";
+import {
+  attachGalleryImage,
+  createDatabase,
+  createPool,
+  updateProduct,
+  CatalogueConflictError,
+} from "@ih/db";
 import { applyMigrations } from "@ih/db/testing";
 import { Argon2PasswordHasher } from "@ih/platform";
 import type { INestApplication } from "@nestjs/common";
@@ -18,6 +25,7 @@ import { createApp } from "../bootstrap";
 loadLocalEnvFile();
 const { DATABASE_TEST_URL } = loadEnv(integrationTestEnvSchema);
 assertTestDatabase(DATABASE_TEST_URL, process.env.DATABASE_URL);
+const storageEnv = loadEnv(storageIntegrationTestEnvSchema);
 const namespace = "ih_test_" + randomUUID().replaceAll("-", "");
 const pool = createPool({
   connectionString: DATABASE_TEST_URL,
@@ -36,6 +44,8 @@ const env = apiEnvSchema.parse({
   QUEUE_REDIS_URL: process.env.QUEUE_REDIS_URL ?? "redis://localhost:6379",
   ARGON2_MEMORY_KIB: 19456,
   ARGON2_TIME_COST: 2,
+  ...storageEnv,
+  S3_FORCE_PATH_STYLE: "true",
 });
 
 let app: INestApplication;
@@ -424,6 +434,108 @@ describe("product administration through the real API and PostgreSQL", () => {
     expect(new Set(seen).size).toBe(seen.length);
     for (const bad of ["?limit=101", "?status=archived", "?q=" + "x".repeat(101), "?after=1"])
       expect((await call(bad)).status).toBe(400);
+  });
+
+  it("searches option SKUs, reports stock, filters by it, sorts and thumbnails (G-A8)", async () => {
+    const tag = "Gamma" + seq++;
+    const option = async (productId: string, stock: number, threshold = 0, active = true) => {
+      const variant = await db.variant.create({
+        data: {
+          productId,
+          sku: `${tag}-${randomUUID().slice(0, 8)}`.toUpperCase(),
+          attributes: { flavour: randomUUID().slice(0, 6) },
+          active,
+          lowStockThreshold: threshold,
+        },
+      });
+      if (stock)
+        await pool.query(
+          "INSERT INTO stock_movements (variant_id, delta, balance_after, reason, command_id) VALUES ($1, $2, $2, 'INITIAL_STOCK', $3)",
+          [variant.id, stock, randomUUID()],
+        );
+      return variant;
+    };
+    const plenty = await create({ name: `${tag} b plenty`, basePriceFils: 3000 });
+    const low = await create({ name: `${tag} a low`, basePriceFils: 1000 });
+    const out = await create({ name: `${tag} c out`, basePriceFils: 2000 });
+    const sku = await option(plenty.id, 20, 5);
+    await option(plenty.id, 0, 0, false); // inactive options do not count
+    await option(low.id, 3, 5);
+    await option(out.id, 0);
+    const list = async (query: string, cookie = cookies.owner) => {
+      const response = await call("?" + query, "GET", undefined, cookie);
+      expect(response.status).toBe(200);
+      return (await response.json()) as { items: ProductSummary[]; nextCursor: string | null };
+    };
+    // SKU search, case-insensitive; the stock summary covers active options only.
+    const found = await list("q=" + sku.sku.toLowerCase());
+    expect(found.items.map((item) => [item.id, item.stock])).toEqual([
+      [plenty.id, { onHand: 20, state: "in_stock" }],
+    ]);
+    expect((await list("q=" + tag + "&stock=low")).items.map((item) => item.id)).toEqual([low.id]);
+    expect((await list("q=" + tag + "&stock=out")).items.map((item) => item.id)).toEqual([out.id]);
+    // Sorts, walked one at a time so every cursor carries its sort.
+    const walk = async (sort: string) => {
+      const ids: string[] = [];
+      let cursor: string | null = null;
+      do {
+        const page = await list(
+          `q=${tag}&limit=1&sort=${sort}` + (cursor ? "&after=" + cursor : ""),
+        );
+        ids.push(...page.items.map((item) => item.id));
+        cursor = page.nextCursor;
+      } while (cursor);
+      return ids;
+    };
+    expect(await walk("name")).toEqual([low.id, plenty.id, out.id]);
+    expect(await walk("price_asc")).toEqual([low.id, out.id, plenty.id]);
+    expect(await walk("price_desc")).toEqual([plenty.id, out.id, low.id]);
+    expect(await walk("newest")).toEqual([out.id, low.id, plenty.id]);
+    // A cursor belongs to its sort; a bare id still works for newest (the earlier format).
+    const byName = await list(`q=${tag}&limit=1&sort=name`);
+    expect((await call(`?q=${tag}&sort=price_asc&after=${byName.nextCursor}`)).status).toBe(400);
+    expect((await call(`?q=${tag}&sort=name&after=${plenty.id}`)).status).toBe(400);
+    expect((await list(`q=${tag}&after=${out.id}`)).items.map((item) => item.id)).toEqual([
+      low.id,
+      plenty.id,
+    ]);
+    expect((await call("?sort=popular")).status).toBe(400);
+    expect((await call("?stock=some")).status).toBe(400);
+
+    // The main image's thumbnail is signed; a product without one has none.
+    const assetId = randomUUID();
+    const keys = Object.fromEntries(
+      ["large", "medium", "thumb"].map((n) => [n, `products/${low.id}/${assetId}/${n}.webp`]),
+    );
+    await pool.query(
+      `INSERT INTO media_assets (id, product_id, uploaded_by, quarantine_key, declared_type,
+         declared_bytes, state, observed_bytes, width, height, sha256, derivative_keys,
+         upload_expires_at)
+       VALUES ($1::uuid, $2, $3, 'uploads/' || $1::text, 'image/jpeg', 10, 'ready', 10, 1200, 1200,
+         repeat('a', 64), $4::jsonb, statement_timestamp())`,
+      [assetId, low.id, ownerId, JSON.stringify(keys)],
+    );
+    await attachGalleryImage(db, { actorId: ownerId, requestId: randomUUID() }, low.id, {
+      mediaAssetId: assetId,
+    });
+    const pictured = await list("q=" + tag + "&sort=name");
+    expect(new URL(pictured.items[0]!.thumbnailUrl!).pathname).toContain(keys.thumb);
+    expect(pictured.items[1]!.thumbnailUrl).toBeNull();
+
+    // Without inventory.read the stock is stripped and cannot be filtered on.
+    const role = await db.role.findUniqueOrThrow({ where: { key: "staff" } });
+    const permission = await db.permission.findUniqueOrThrow({ where: { key: "inventory.read" } });
+    const grant = { roleId: role.id, permissionId: permission.id };
+    expect((await list("q=" + tag, cookies.staff)).items[0]).toHaveProperty("stock");
+    await db.rolePermission.delete({ where: { roleId_permissionId: grant } });
+    try {
+      const plain = await list("q=" + tag, cookies.staff);
+      expect(plain.items).toHaveLength(3);
+      for (const item of plain.items) expect(item).not.toHaveProperty("stock");
+      expect((await call("?stock=low", "GET", undefined, cookies.staff)).status).toBe(403);
+    } finally {
+      await db.rolePermission.create({ data: grant });
+    }
   });
 
   it("denies a role without catalog.write", async () => {
