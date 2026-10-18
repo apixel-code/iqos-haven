@@ -5,7 +5,7 @@
 - Date: 2026-10-18
 - Milestone: M11 — full acceptance and release, in progress. Gates M0, M2–M10 PASSED (M0, M3, M4, M6–M10 on 2026-10-17, Marina); M1 open until staging/CI.
 - Step: launch parity gaps (Marina 2026-10-17): G-S2 (#101), G-S3 (#102), G-S5 (#103), G-A5 (#104), G-A6 (#105), G-A7 (#106), G-A8 (#107), G-A9 (#108), all merged to `main` 2026-10-18; G-A11 (#109), all merged to `main` 2026-10-18 — every launch parity gap is built. Steps 124 (#110) and 125 (#111) merged. **Marina (2026-10-18): the UI must match the prototypes before launch** (ADR 0097; storefront V-S1…V-S6, then admin V-A*; all deferred gaps included). V-S1 (storefront shell, #112) merged; **V-S2** (home, hero carousel, ADR 0097) done. Next: V-S3 (listing and search). Steps 126–127 follow the visual work unless Marina reorders. Steps 115–119, 121 done; 120 local part done (real devices wait for staging).
-- Branch: `parity/v-s2-store-home` (from `main` 487f194). No migration; hero content schema v2.
+- Branch: `parity/v-s2-store-home` (from `main` 487f194; PR #113). No migration; hero content schema v2.
 - See docs/verification.md for actual checks.
 
 ## Next action
@@ -238,7 +238,7 @@ Tests: `pnpm verify` PASS (age preview 2250). `pnpm test:int` PASS. `pnpm test:g
 
 Unfinished:
 
-- V-S2's PR waits for merge.
+- PR #113 (V-S2) waits for merge.
 - **Next, V-S3 listing and search:** prototype `shop` 7774, `chips` 7827, `filterBody` 7850 and the filter sheet. Includes G-S6 (sheet, "Show N", chips), G-S7 (skeletons are ready in `product-card.tsx`) and G-S9 (no-results WhatsApp).
 
 ## History (summary)
