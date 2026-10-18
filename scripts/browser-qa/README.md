@@ -202,7 +202,7 @@ the picker. It also checks the 390px layout and that there are no page errors.
 
 ## Admin deep links (parity G-A2)
 
-With `qa-server.cjs` and the admin running as above:
+With `qa-server.cjs` and the admin running as above, on a fresh schema (other passes add low-stock lines that push this pass's line off the dashboard list):
 
 ```sh
 QA_PLAYWRIGHT_DIR=/tmp/ih-qa node scripts/browser-qa/deep-links.mjs <SCHEMA>
@@ -295,3 +295,13 @@ QA_PLAYWRIGHT_DIR=/tmp/ih-qa node scripts/browser-qa/orders-list.mjs <SCHEMA>
 ```
 
 It seeds pending and confirmed orders of different sizes. It then checks the tab counts and the header line, that "Highest amount" puts the largest order first, and that select-all chooses every pending order on the page and clears again. At 390px the cards replace the table without sideways scroll, and a tap opens the order.
+
+## Packing slip (parity G-A6)
+
+With `qa-server.cjs` and the admin running as above:
+
+```sh
+QA_PLAYWRIGHT_DIR=/tmp/ih-qa node scripts/browser-qa/packing-slip.mjs <SCHEMA>
+```
+
+It checks the slip preview: order number, customer, area with the order's own emirate (never an assumed Dubai), item, quantity, SKU and the cash to collect. In print media only the slip is laid out, and the printed PDF is one A5 page. Staff without `customers.read` get no slip.

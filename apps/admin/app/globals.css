@@ -984,3 +984,130 @@ ul.dashboard-list {
     display: grid;
   }
 }
+/* Packing slip (parity G-A6): previewed in a dialog; only the slip is printed. */
+.slip-dialog {
+  width: min(94vw, 720px);
+  max-height: 92dvh;
+  border: 0;
+  border-radius: 12px;
+  padding: 20px;
+  background: var(--surface);
+  color: var(--ink);
+}
+.slip-dialog::backdrop {
+  background: rgb(0 0 0 / 40%);
+}
+.packing-slip {
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  padding: 20px;
+  display: grid;
+  gap: 16px;
+  font-size: 0.9rem;
+}
+.packing-slip h3 {
+  margin: 0 0 6px;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-2);
+}
+.packing-slip p {
+  margin: 0 0 3px;
+}
+.slip-head,
+.slip-totals div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+.slip-store {
+  font-size: 1.1rem;
+}
+.slip-number,
+.slip-mono {
+  font-family: var(--mono);
+}
+.slip-columns {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 20px;
+}
+.slip-items {
+  width: 100%;
+  border-collapse: collapse;
+}
+.slip-items th,
+.slip-items td {
+  text-align: left;
+  padding: 6px 4px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+}
+.slip-items th:nth-child(n + 2),
+.slip-items td:nth-child(n + 2) {
+  text-align: right;
+  white-space: nowrap;
+}
+.slip-items small {
+  display: block;
+  color: var(--ink-2);
+}
+.slip-totals {
+  margin: 0;
+  display: grid;
+  gap: 4px;
+}
+.slip-totals dd {
+  margin: 0;
+}
+.slip-collect {
+  border-top: 2px solid var(--ink);
+  padding-top: 6px;
+  font-weight: 700;
+  font-size: 1.05rem;
+}
+.slip-note {
+  margin-top: 6px;
+  font-style: italic;
+}
+@media (max-width: 560px) {
+  .slip-columns {
+    grid-template-columns: 1fr;
+  }
+}
+@media print {
+  @page {
+    size: A5 portrait;
+    margin: 10mm;
+  }
+  /* Only the slip and the elements that contain it are laid out; the rest takes no space,
+     so the slip prints on one page. */
+  body *:not(:has(.packing-slip)):not(.packing-slip):not(.packing-slip *) {
+    display: none !important;
+  }
+  body,
+  body *:has(.packing-slip) {
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    background: none !important;
+    box-shadow: none !important;
+    min-height: 0 !important;
+    height: auto !important;
+    overflow: visible !important;
+    position: static !important;
+    display: block !important;
+    width: auto !important;
+    max-width: none !important;
+  }
+  .slip-dialog::backdrop {
+    background: none;
+  }
+  .packing-slip {
+    border: 0;
+    padding: 0;
+    color: #000;
+    background: #fff;
+  }
+}

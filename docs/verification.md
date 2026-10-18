@@ -2338,3 +2338,12 @@ ADR 0089.
 | Admin           | `orders-list.mjs`: all checks PASS (tab counts, header line, highest amount first, select-all and clear, cards at 390px, tap opens).                                                                                                                                                        |
 | Found and fixed | `a11y-admin.mjs` (now seeded with an unread notification) caught the bell's accessible name not containing its visible text when it shows a count; fixed. While writing `orders-list.mjs` its own `check` had its arguments swapped (every check passed); fixed before any result was used. |
 | No regression   | `deep-links`, `order-picker`, `a11y-admin` all PASS.                                                                                                                                                                                                                                        |
+
+## Parity G-A6 — packing slip (2026-10-17, local)
+
+ADR 0090.
+
+| Item          | Evidence                                                                                                                                                                  |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Slip          | `packing-slip.mjs`: all checks PASS (contents, the order's emirate, cash to collect, print media shows only the slip, one A5 PDF page, no slip without `customers.read`). |
+| No regression | `a11y-admin`, `orders-list`, `deep-links` (fresh schema) all PASS.                                                                                                        |

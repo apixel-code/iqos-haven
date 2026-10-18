@@ -43,6 +43,7 @@ import {
 } from "../lib/orders";
 import { ManualOrderPanel } from "./manual-order";
 import { choiceLabel, OrderItemPicker } from "./order-item-picker";
+import { PackingSlip } from "./packing-slip";
 import { ResourceNotice, useManagementResource } from "./management-resource";
 import { useUrlQuery } from "./use-url-query";
 
@@ -619,10 +620,14 @@ function OrderDetail({
   }
   return (
     <section className="management-card order-detail">
-      <div>
+      <div className="form-actions">
         <button type="button" className="secondary-button" onClick={onBack}>
           ← Back to orders
         </button>
+        {/* The slip shows where to deliver, so it needs the contact (customers.read). */}
+        {order.data?.customer && (
+          <PackingSlip order={{ ...order.data, customer: order.data.customer }} />
+        )}
       </div>
       <ResourceNotice resource={order} />
       {order.data && (

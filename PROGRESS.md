@@ -4,8 +4,8 @@
 
 - Date: 2026-10-17
 - Milestone: M11 — full acceptance and release, in progress. Gates M0, M2–M10 PASSED (M0, M3, M4, M6–M10 on 2026-10-17, Marina); M1 open until staging/CI.
-- Step: launch parity gaps (Marina 2026-10-17): G-S2 (ADR 0086, PR #101), G-S3 (0087, #102), G-S5 (0088, #103) and **G-A5** (orders list, ADR 0089) done. Next: G-A6. Steps 115–119, 121 done; 120 local part done (real devices wait for staging).
-- Branch: `parity/g-a5-orders-list` (stacked on #103 → #102 → #101; PR #104)
+- Step: launch parity gaps (Marina 2026-10-17): G-S2 (#101), G-S3 (#102), G-S5 (#103), G-A5 (#104) and **G-A6** (packing slip, ADR 0090) done. Next: G-A7. Steps 115–119, 121 done; 120 local part done (real devices wait for staging).
+- Branch: `parity/g-a6-packing-slip` (stacked on #104 → #103 → #102 → #101; PR #105)
 - See docs/verification.md for actual checks.
 
 ## Next action
@@ -19,7 +19,7 @@
 1. **Marina's decisions (2026-10-17), all recorded:** gates M0, M3, M4, M6, M7, M8, M9, M10 PASSED (see Gates passed); M1 stays open until staging and CI are proven; M11 in progress. Business inputs: none OPEN (BI-01, BI-07, BI-09 partly answered: logo/contact copy, sender-domain verification and the WhatsApp number follow).
 2. **Merged 2026-10-17:** PR #100 brought every stacked step into `main` (f049897); #60–#99 closed (68 and 73 as superseded). Branch every new piece of work from `main`.
 3. **Work order (Marina, 2026-10-17):** merge → the nine chosen parity gaps → steps 124–127 → staging-dependent work (120 real devices, 121 rerun, 122, 128) on the Hostinger VPS (one VPS, staging first, later production).
-4. **Parity gaps to build before launch** (one branch, PR and commit each, from `main`): ~~G-S2 listing filters~~ (DONE, ADR 0086, PR #101), ~~G-S3 mobile search sheet~~ (DONE, ADR 0087, PR #102), ~~G-S5 sticky add-to-cart~~ (DONE, ADR 0088, PR #103), ~~G-A5 orders list~~ (DONE, ADR 0089), **G-A6 packing slip/print (next)**, G-A7 brand logo and category image upload (+ Owner purge), G-A8 products list (SKU search, stock filter/column, sort, thumbnail), G-A9 unsaved-changes guard, G-A11 Owner-sent staff reset and pending-invitation revoke. Not now: G-S8, G-A10 and every O-tier gap (after launch).
+4. **Parity gaps to build before launch** (one branch, PR and commit each, from `main`): ~~G-S2 listing filters~~ (DONE, ADR 0086, PR #101), ~~G-S3 mobile search sheet~~ (DONE, ADR 0087, PR #102), ~~G-S5 sticky add-to-cart~~ (DONE, ADR 0088, PR #103), ~~G-A5 orders list~~ (DONE, ADR 0089, PR #104), ~~G-A6 packing slip~~ (DONE, ADR 0090, PR #105), **G-A7 brand logo and category image upload + Owner purge (next)**, G-A8 products list (SKU search, stock filter/column, sort, thumbnail), G-A9 unsaved-changes guard, G-A11 Owner-sent staff reset and pending-invitation revoke. Not now: G-S8, G-A10 and every O-tier gap (after launch).
 5. **First Owner:** an Apixel account via `pnpm bootstrap:owner`, which invites the client as Owner and is then removed (the last-Owner guard keeps one Owner at all times).
 6. **At launch, Owner settings:** SEO policy `public_pages` (BI-05); WhatsApp number in Settings (BI-09); sender no-reply@iqoshaven.com once the domain is verified (BI-07), then `CHECKOUT_SUBMISSION_ENABLED=true`.
 7. **Next work: the four tier-L parity gaps** — Marina's decision (2026-10-17): build Apixel's recommended launch set from `docs/parity-review.md` before step 120. One branch, PR and commit each, in this order:
@@ -153,6 +153,7 @@ Before checkout is switched on: the sender domain verification (BI-07, Marina/Ap
 - 104 — storefront telemetry queue (batches of 20, one retry, pause on overload, drop when full or on quiet pages), events from search/product page/cart/saved list, rotating anonymous ID, browser QA script (ADR 0070) — `step(104)` commit on `step/104-client-telemetry`
 - 105 — financial metric definitions (booked/delivered/collected, AOV, cancellation, status mix; Dubai days, AED fils, tax note) and the Owner's snapshot summary query (ADR 0071) — `step(105)` commit on `step/105-financial-metrics`
 - 106 — `sales_daily`, `product_sales_daily` (snapshot brand), `search_daily`, `wishlist_daily`; idempotent per-day rollup sharing the step 105 definitions; `analytics_rollup` consumer on order events (ADR 0072) — `step(106)` commit on `step/106-daily-rollups`
+- G-A6 — packing slip: order-detail preview dialog and A5 print (only the slip is laid out), order's own emirate, cash to collect, no internal note, `customers.read` only; `packing-slip.mjs` (ADR 0090) — parity/g-a6-packing-slip
 - G-A5 — orders list: `GET /v1/admin/orders/counts` (tab counts under the other filters), four sorts with a per-sort keyset cursor, select-all pending on the page, phone cards; bell accessible name fixed; `orders-list.mjs` (ADR 0089) — parity/g-a5-orders-list
 - G-S5 — sticky add-to-cart bar on phones inside `BuyBox` (after the main button scrolls away; inert and control-less while hidden; no silent default option; page padding so the footer stays readable); `sticky-add.mjs` (ADR 0088) — parity/g-s5-sticky-add
 - G-S3 — mobile search sheet: phone header Search button, full-screen sheet with brands and recently viewed before typing, suggestions and see-all while typing; shared `useSuggestions`/`useStoreBrands` hooks; `search-sheet.mjs` (ADR 0087) — parity/g-s3-search-sheet
@@ -205,27 +206,28 @@ Before checkout is switched on: the sender domain verification (BI-07, Marina/Ap
 - Event `consumers` lists only implemented consumers (now `system_probe`, `email`, `notification`, `media_processor`, `storefront_revalidate`); planned ones are documented with roadmap steps and move in with a backfill decision (architecture §8: adding a consumer must not redefine old completions).
 - `audit_log` migration revokes UPDATE/DELETE/TRUNCATE only from a role named `ih_app`; other runtime role names must be revoked at provisioning (trigger blocks mutations regardless).
 
-## Last session handoff (2026-10-17, parity G-A5)
+## Last session handoff (2026-10-17, parity G-A6)
 
 Done:
 
-- **G-A5 (ADR 0089):**
-  - **API:**
-    - `GET /v1/admin/orders/counts` (`orders.read`): counts per status under search, dates and delayed;
-    - the list gains `sort` (newest, oldest, total_desc, total_asc). Its cursor names its sort, so another sort's cursor gets 400; an old two-part cursor still means newest.
-  - **Admin (`order-management.tsx`):** counts on the tabs and "N orders · M waiting for confirmation"; a sort select kept in the URL; a select-all-pending-on-page checkbox (with mixed state); cards below 700px instead of the table.
-  - **Bell fix:** its accessible name now contains its visible text. `a11y-admin.mjs` seeds an unread notification, so the bell is checked with a count.
+- **G-A6 (ADR 0090):** `apps/admin/components/packing-slip.tsx`, a Packing slip button in the order detail (only with `customers.read`) that opens a preview dialog with Print.
+  - **Slip contents:** store name and order number; deliver-to with the full address, area and the order's own emirate, phone and delivery note; order date, status and COD; items with options, SKU, quantity and line total; totals and **Collect in cash** (or "Already collected" / "Cancelled: nothing to collect").
+  - **Not printed:** the internal operational note.
+  - **Print CSS:** A5 portrait; everything but the slip and its ancestors is `display: none`, so it prints on one page.
+- **QA README:** notes that `deep-links.mjs` needs a fresh schema (other passes' low-stock lines push its line off the dashboard list).
 
-Files: `packages/contracts/src/orders.ts`, `packages/db/src/order-admin.ts`, `apps/api/src/orders/{admin-orders.controller.ts,admin-orders.service.ts,admin-orders.int.test.ts}`, `apps/admin/components/{order-management.tsx,notification-bell.tsx}`, `apps/admin/app/globals.css`, `scripts/browser-qa/{orders-list.mjs,a11y-admin.mjs,README.md}`, `docs/decisions/0089-orders-list-counts-sort.md`, `docs/parity-review.md`, `docs/verification.md`
+Files: `apps/admin/components/{packing-slip.tsx,order-management.tsx}`, `apps/admin/app/globals.css`, `scripts/browser-qa/{packing-slip.mjs,README.md}`, `docs/decisions/0090-packing-slip.md`, `docs/parity-review.md`, `docs/verification.md`
 
-Tests: `pnpm verify` PASS (age preview 2245). `pnpm test:int` PASS (653). Browser: `orders-list`, `deep-links`, `order-picker`, `a11y-admin` all PASS.
+Tests: `pnpm verify` PASS (age preview 2245). Browser: `packing-slip`, `a11y-admin`, `orders-list` all PASS; `deep-links` PASS on a fresh schema. No API change (integration 653 on #104).
 
 Unfinished:
 
-- PRs waiting for Marina's merge, in order: #101 (G-S2) → #102 (G-S3) → #103 (G-S5) → #104 (G-A5). Retarget each to `main` after the one below it is merged.
-- Next: G-A6 (packing slip / print view of one order).
+- PRs waiting for Marina's merge, in order: #101 → #102 → #103 → #104 → #105 (G-A6). Retarget each to `main` after the one below it is merged.
+- Next: G-A7 (brand logo and category image upload, Owner purge for brands/categories).
 
 ## History (summary)
+
+- 2026-10-17 parity G-A5: orders list counts, sorts, select-all, phone cards; bell accessible name (PR #104).
 
 - 2026-10-17 parity G-S5: sticky add-to-cart bar on phones (PR #103).
 
