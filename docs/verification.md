@@ -2327,3 +2327,14 @@ ADR 0088.
 | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Bar           | `sticky-add.mjs`: all checks PASS (hidden and inert, slides in after scrolling, bottom edge, no footer covered, no silent default, chosen option and price, add opens the cart sheet, none at 1280px). |
 | No regression | `cart-sheet`, `menu-sheet`, `search-sheet` (its recently-viewed wait made deterministic), `listing-filters`, `a11y-storefront` all PASS; `checkout.mjs` 49/49.                                         |
+
+## Parity G-A5 — orders list counts, sorts, select-all, phone cards (2026-10-17, local)
+
+ADR 0089.
+
+| Item            | Evidence                                                                                                                                                                                                                                                                                    |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| API             | `admin-orders.int.test.ts`: each sort pages completely with its own cursor (oldest is newest reversed; amounts ordered both ways); a cross-sort cursor is refused and a legacy cursor accepted; counts sum to all, match the list, follow search and delayed; 403 without `orders.read`.    |
+| Admin           | `orders-list.mjs`: all checks PASS (tab counts, header line, highest amount first, select-all and clear, cards at 390px, tap opens).                                                                                                                                                        |
+| Found and fixed | `a11y-admin.mjs` (now seeded with an unread notification) caught the bell's accessible name not containing its visible text when it shows a count; fixed. While writing `orders-list.mjs` its own `check` had its arguments swapped (every check passed); fixed before any result was used. |
+| No regression   | `deep-links`, `order-picker`, `a11y-admin` all PASS.                                                                                                                                                                                                                                        |

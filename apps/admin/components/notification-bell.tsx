@@ -96,10 +96,17 @@ export function NotificationBell({ onSignedOut }: { onSignedOut: () => void }) {
         type="button"
         className="secondary-button"
         aria-expanded={open}
-        aria-label={`Notifications${unread ? `, ${unread} unread` : ""}`}
         onClick={() => setOpen((value) => !value)}
       >
-        Notifications{unread > 0 && <span className="badge">{unread}</span>}
+        {/* The visible text ("Notifications" and the count) is the accessible name (WCAG 2.5.3). */}
+        Notifications
+        {unread > 0 && (
+          <>
+            {" "}
+            <span className="badge">{unread}</span>
+            <span className="sr-only"> unread</span>
+          </>
+        )}
       </button>
       {open && (
         <div className="record-card notification-panel" role="dialog" aria-label="Notifications">

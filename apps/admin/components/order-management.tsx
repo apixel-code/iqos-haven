@@ -2,7 +2,10 @@
 import { useState } from "react";
 import {
   adminOrderResponseSchema,
+  adminOrderCountsResponseSchema,
   adminOrdersResponseSchema,
+  ADMIN_ORDER_SORTS,
+  type AdminOrderSort,
   orderBulkConfirmResponseSchema,
   orderCancelRequestSchema,
   orderCancelResponseSchema,
@@ -81,6 +84,8 @@ export function OrderManagement({
   const setStatus = (value: (typeof STATUSES)[number]) =>
     navigate({ status: value === "all" ? null : value });
   const delayed = query("delayed") === "1";
+  const urlSort = query("sort");
+  const sort: AdminOrderSort = ADMIN_ORDER_SORTS.find((value) => value === urlSort) ?? "newest";
   const urlOrder = query("order");
   const selected = isUuid(urlOrder) ? urlOrder : null;
   const setSelected = (id: string | null) => navigate({ order: id }, true);
@@ -127,6 +132,7 @@ export function OrderManagement({
       setChosen(new Map());
       setUnclear(false);
       orders.reload();
+      counts.reload();
     } catch (error) {
       // No answer or a server error: some orders may be confirmed. Keep the batch to retry.
       // A refusal of the whole request (4xx other than "too many") applied nothing.
@@ -142,14 +148,22 @@ export function OrderManagement({
       setConfirming(false);
     }
   }
-  const params = new URLSearchParams({ limit: "25" });
+  // The filters every tab shares; the tab counts are taken under them (parity G-A5).
+  const shared = new URLSearchParams();
+  if (delayed) shared.set("delayed", "true");
+  if (search) shared.set("q", search);
+  if (from) shared.set("from", new Date(from).toISOString());
+  if (to) shared.set("to", new Date(to).toISOString());
+  const counts = useManagementResource(
+    `/orders/counts${shared.size ? `?${shared}` : ""}`,
+    adminOrderCountsResponseSchema,
+  );
+  const params = new URLSearchParams(shared);
+  params.set("limit", "25");
   if (status !== "all") params.set("status", status);
-  if (delayed) params.set("delayed", "true");
-  if (search) params.set("q", search);
-  if (from) params.set("from", new Date(from).toISOString());
-  if (to) params.set("to", new Date(to).toISOString());
+  if (sort !== "newest") params.set("sort", sort);
   // A link can change the filters while this list is open: start again from the first page.
-  const filterScope = `${status}|${delayed}`;
+  const filterScope = `${status}|${delayed}|${sort}`;
   const [pagedScope, setPagedScope] = useState(filterScope);
   if (pagedScope !== filterScope) {
     setPagedScope(filterScope);
@@ -158,6 +172,27 @@ export function OrderManagement({
   const cursor = cursors.at(-1);
   if (cursor) params.set("after", cursor);
   const orders = useManagementResource(`/orders?${params}`, adminOrdersResponseSchema);
+  // Select-all on this page (parity G-A5): the pending orders shown, within the batch limit.
+  const pageItems = orders.data?.items ?? [];
+  const selectablePending = pageItems.filter((order) => order.status === "pending");
+  const allPendingChosen =
+    selectablePending.length > 0 && selectablePending.every((order) => chosen.has(order.id));
+  const somePendingChosen = selectablePending.some((order) => chosen.has(order.id));
+  const choose = (order: (typeof pageItems)[number], on: boolean) =>
+    setChosen((current) => {
+      const next = new Map(current);
+      if (on && next.size < 50)
+        next.set(order.id, {
+          orderNumber: order.orderNumber,
+          expectedVersion: order.version,
+          commandId: crypto.randomUUID(),
+        });
+      if (!on) next.delete(order.id);
+      return next;
+    });
+  const chooseAllPending = (on: boolean) => {
+    for (const order of selectablePending) if (on !== chosen.has(order.id)) choose(order, on);
+  };
   const resetPage = () => {
     setCursors([]);
     // A selection belongs to the list it was made in.
@@ -194,7 +229,11 @@ export function OrderManagement({
       <header className="card-heading">
         <div>
           <h2>Orders</h2>
-          <p className="muted">Newest first · immutable order snapshots</p>
+          <p className="muted">
+            {counts.data
+              ? `${counts.data.all} ${counts.data.all === 1 ? "order" : "orders"} · ${counts.data.pending} waiting for confirmation`
+              : "Immutable order snapshots"}
+          </p>
         </div>
         {canCreate ? (
           <button type="button" className="primary-button" onClick={() => setCreating(true)}>
@@ -220,6 +259,7 @@ export function OrderManagement({
               }}
             >
               {value === "all" ? "All" : ORDER_STATUS_LABELS[value]}
+              {counts.data && <span className="tab-count">{counts.data[value]}</span>}
             </button>
           ))}
         </div>
@@ -247,6 +287,21 @@ export function OrderManagement({
           resetPage();
         }}
       >
+        <label>
+          <span>Sort</span>
+          <select
+            value={sort}
+            onChange={(event) => {
+              navigate({ sort: event.target.value === "newest" ? null : event.target.value });
+              resetPage();
+            }}
+          >
+            <option value="newest">Newest first</option>
+            <option value="oldest">Oldest first</option>
+            <option value="total_desc">Highest amount</option>
+            <option value="total_asc">Lowest amount</option>
+          </select>
+        </label>
         <label className="wide-field">
           <span>Search {canReadContact ? "order number, customer or phone" : "order number"}</span>
           <input name="q" type="search" maxLength={100} defaultValue={search} />
@@ -336,7 +391,20 @@ export function OrderManagement({
               <table className="order-table">
                 <thead>
                   <tr>
-                    {canTransition && <th aria-label="Select" />}
+                    {canTransition && (
+                      <th>
+                        <input
+                          type="checkbox"
+                          aria-label="Select all pending orders on this page"
+                          checked={allPendingChosen}
+                          ref={(box) => {
+                            if (box) box.indeterminate = somePendingChosen && !allPendingChosen;
+                          }}
+                          disabled={selectablePending.length === 0 || unclear}
+                          onChange={(event) => chooseAllPending(event.target.checked)}
+                        />
+                      </th>
+                    )}
                     <th>Order</th>
                     <th>Customer</th>
                     <th>Items</th>
@@ -359,24 +427,41 @@ export function OrderManagement({
                         unclear ||
                         (!chosen.has(order.id) && chosen.size >= 50)
                       }
-                      toggle={(on) =>
-                        setChosen((current) => {
-                          const next = new Map(current);
-                          if (on)
-                            next.set(order.id, {
-                              orderNumber: order.orderNumber,
-                              expectedVersion: order.version,
-                              commandId: crypto.randomUUID(),
-                            });
-                          else next.delete(order.id);
-                          return next;
-                        })
-                      }
+                      toggle={(on) => choose(order, on)}
                     />
                   ))}
                 </tbody>
               </table>
             </div>
+          )}
+          {/* Phones (parity G-A5): each order as a card; the table above is for wider screens. */}
+          {orders.data.items.length > 0 && (
+            <ul className="order-cards" aria-label="Orders">
+              {orders.data.items.map((order) => (
+                <li key={order.id}>
+                  <button
+                    type="button"
+                    className="order-card"
+                    onClick={() => setSelected(order.id)}
+                  >
+                    <span className="order-card-line">
+                      <strong>{order.orderNumber}</strong>
+                      <span className={`order-status status-${order.status}`}>
+                        {ORDER_STATUS_LABELS[order.status]}
+                      </span>
+                    </span>
+                    <span className="order-card-line">
+                      <span>{order.customer?.name ?? "Contact hidden"}</span>
+                      <strong>{money(order.totalFils)}</strong>
+                    </span>
+                    <small className="muted">
+                      {when(order.createdAt)} · {order.itemCount}{" "}
+                      {order.itemCount === 1 ? "item" : "items"} · {order.areaName}
+                    </small>
+                  </button>
+                </li>
+              ))}
+            </ul>
           )}
           <div className="form-actions">
             <button

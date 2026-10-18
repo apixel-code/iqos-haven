@@ -1,6 +1,8 @@
 import { Body, Controller, Get, HttpCode, Param, Patch, Query, Req, Res } from "@nestjs/common";
 import { isIP } from "node:net";
 import {
+  adminOrderCountsQuerySchema,
+  adminOrderCountsResponseSchema,
   adminOrderParamsSchema,
   adminOrderResponseSchema,
   adminOrdersQuerySchema,
@@ -8,6 +10,7 @@ import {
   orderEditRequestSchema,
   orderEditResponseSchema,
   type OrderEditRequest,
+  type AdminOrderCountsQuery,
   type AdminOrdersQuery,
 } from "@ih/contracts";
 import { defineFieldPolicy } from "@ih/domain";
@@ -20,6 +23,7 @@ import { ORDER_EDIT_POLICY } from "../security/limit-policies";
 import { RateLimitService } from "../security/rate-limit.service";
 
 class OrdersQueryDto extends createZodDto(adminOrdersQuerySchema) {}
+class CountsQueryDto extends createZodDto(adminOrderCountsQuerySchema) {}
 class OrderParamsDto extends createZodDto(adminOrderParamsSchema) {
   declare id: string;
 }
@@ -51,6 +55,18 @@ export class AdminOrdersController {
   ) {
     reply.header("Cache-Control", "private, no-store");
     return this.orders.list(request.staff!.userId, query as unknown as AdminOrdersQuery);
+  }
+
+  /** Tab counts (parity G-A5): numbers only, nothing personal. */
+  @Get("counts")
+  @Serialize(adminOrderCountsResponseSchema)
+  counts(
+    @Query() query: CountsQueryDto,
+    @Req() request: AuthenticatedRequest,
+    @Res({ passthrough: true }) reply: FastifyReply,
+  ) {
+    reply.header("Cache-Control", "private, no-store");
+    return this.orders.counts(request.staff!.userId, query as unknown as AdminOrderCountsQuery);
   }
 
   @Get(":id")
