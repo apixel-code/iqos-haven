@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   ForbiddenException,
   Inject,
@@ -13,15 +14,23 @@ import {
   CatalogueNotFoundError,
   createProduct,
   listProducts,
+  ProductCursorError,
   readProduct,
   updateProduct,
   type Database,
 } from "@ih/db";
-import { DATABASE } from "../infra/tokens";
+import type { ObjectStorage } from "@ih/platform";
+import { DATABASE, OBJECT_STORAGE } from "../infra/tokens";
+
+/** List thumbnails are signed briefly: the admin list is refetched on every visit. */
+const THUMBNAIL_SECONDS = 600;
 
 @Injectable()
 export class ProductsService {
-  constructor(@Inject(DATABASE) private readonly db: Database) {}
+  constructor(
+    @Inject(DATABASE) private readonly db: Database,
+    @Inject(OBJECT_STORAGE) private readonly storage: ObjectStorage,
+  ) {}
 
   private async execute<T>(work: () => Promise<T>) {
     try {
@@ -31,11 +40,25 @@ export class ProductsService {
       if (error instanceof CatalogueConflictError)
         throw new ConflictException({ code: error.reason });
       if (error instanceof CatalogueNotFoundError) throw new NotFoundException();
+      if (error instanceof ProductCursorError) throw new BadRequestException();
       throw error;
     }
   }
-  list(actor: string, query: ProductsQuery) {
-    return this.execute(() => listProducts(this.db, actor, query));
+  async list(actor: string, query: ProductsQuery) {
+    const page = await this.execute(() => listProducts(this.db, actor, query));
+    return {
+      nextCursor: page.nextCursor,
+      items: await Promise.all(
+        page.items.map(async ({ thumbnailKey, ...item }) => ({
+          ...item,
+          thumbnailUrl: thumbnailKey
+            ? await this.storage.presignDownload("media", thumbnailKey, {
+                expiresInSeconds: THUMBNAIL_SECONDS,
+              })
+            : null,
+        })),
+      ),
+    };
   }
   read(actor: string, id: string) {
     return this.execute(() => readProduct(this.db, actor, id));

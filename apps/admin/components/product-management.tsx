@@ -8,6 +8,7 @@ import {
   productReadinessSchema,
   productPurgeResponseSchema,
   type ProductResponse,
+  type ProductSort,
   type ProductSummary,
 } from "@ih/contracts";
 import { slugify } from "../lib/catalogue";
@@ -21,6 +22,15 @@ import { ProductImages } from "./product-images";
 import { ProductPublishing } from "./product-publishing";
 
 type Status = "all" | "published" | "draft" | "trashed";
+type StockFilter = "" | "in_stock" | "low" | "out";
+
+const SORT_LABELS: Record<ProductSort, string> = {
+  newest: "Newest first",
+  name: "Name A–Z",
+  price_asc: "Price: low to high",
+  price_desc: "Price: high to low",
+};
+const STOCK_LABELS = { in_stock: "In stock", low: "Low stock", out: "Out of stock" } as const;
 
 // Module-level contracts: the resource reloads when its contract identity changes, so these
 // must never be recreated per render (that caused an endless reload of the editor).
@@ -71,13 +81,19 @@ function ProductList({
   const [brandId, setBrandId] = useState("");
   const [categoryId, setCategoryId] = useState("");
   const [q, setQ] = useState("");
+  const [stock, setStock] = useState<StockFilter>("");
+  const [sort, setSort] = useState<ProductSort>("newest");
   const [cursor, setCursor] = useState<string | null>(null);
+  // Stock levels are `inventory.read` data: the API strips them and refuses the filter without it.
+  const canSeeStock = permissions.includes("inventory.read");
   const brands = useManagementResource("/brands?limit=100", brandsResponseSchema);
   const categories = useManagementResource("/categories?limit=100", categoriesResponseSchema);
   const params = new URLSearchParams({ status, limit: "25" });
   if (brandId) params.set("brandId", brandId);
   if (categoryId) params.set("categoryId", categoryId);
   if (q) params.set("q", q);
+  if (stock && canSeeStock) params.set("stock", stock);
+  if (sort !== "newest") params.set("sort", sort);
   if (cursor) params.set("after", cursor);
   const products = useManagementResource(`/products?${params}`, productsResponseSchema);
   const reset = (apply: () => void) => {
@@ -122,7 +138,7 @@ function ProductList({
         }}
       >
         <label>
-          <span>Search name</span>
+          <span>Search name or SKU</span>
           <input name="q" type="search" maxLength={100} defaultValue={q} />
         </label>
         <label>
@@ -147,46 +163,92 @@ function ProductList({
             ))}
           </select>
         </label>
+        {canSeeStock && (
+          <label>
+            <span>Stock</span>
+            <select
+              value={stock}
+              onChange={(e) => reset(() => setStock(e.target.value as StockFilter))}
+            >
+              <option value="">Any stock</option>
+              {(Object.keys(STOCK_LABELS) as Array<keyof typeof STOCK_LABELS>).map((value) => (
+                <option key={value} value={value}>
+                  {STOCK_LABELS[value]}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+        <label>
+          <span>Sort</span>
+          <select
+            value={sort}
+            onChange={(e) => reset(() => setSort(e.target.value as ProductSort))}
+          >
+            {(Object.keys(SORT_LABELS) as ProductSort[]).map((value) => (
+              <option key={value} value={value}>
+                {SORT_LABELS[value]}
+              </option>
+            ))}
+          </select>
+        </label>
       </form>
       <ResourceNotice resource={products} />
       {products.data && (
         <>
           {products.data.items.length === 0 && (
-            <p className="muted">No matching products. Try a different name or filter.</p>
+            <p className="muted">No matching products. Try a different name, SKU or filter.</p>
           )}
           <div className="record-list">
             {products.data.items.map((product) => (
-              <article className="record-card" key={product.id}>
-                <header className="card-heading">
-                  <strong>{product.name}</strong>
-                  <span className="badge">
-                    {product.status === "published" ? "Published" : "Draft"} · AED{" "}
-                    {filsToAed(product.basePriceFils)}
-                  </span>
-                </header>
-                <p className="muted">
-                  {product.brand.name} · {product.category.name} ·{" "}
-                  {product.type === "kit" ? "Kit" : "Disposable"}
-                  {product.isNew ? " · New" : ""}
-                </p>
-                {status === "trashed" ? (
-                  <TrashedActions
-                    product={product}
-                    permissions={permissions}
-                    run={products.run}
-                    onDone={() => products.reload()}
-                  />
+              <article className="record-card product-row" key={product.id}>
+                {product.thumbnailUrl ? (
+                  // Signed, short-lived thumbnail from the API; decorative next to the name.
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img className="product-thumb" src={product.thumbnailUrl} alt="" />
                 ) : (
-                  <div className="form-actions">
-                    <button
-                      type="button"
-                      className="secondary-button"
-                      onClick={() => onOpen(product.id)}
-                    >
-                      {canWrite ? "Edit product" : "View product"}
-                    </button>
-                  </div>
+                  <span className="product-thumb" aria-hidden="true" />
                 )}
+                <div className="product-row-body">
+                  <header className="card-heading">
+                    <strong>{product.name}</strong>
+                    <span className="badge">
+                      {product.status === "published" ? "Published" : "Draft"} · AED{" "}
+                      {filsToAed(product.basePriceFils)}
+                    </span>
+                  </header>
+                  <p className="muted">
+                    {product.brand.name} · {product.category.name} ·{" "}
+                    {product.type === "kit" ? "Kit" : "Disposable"}
+                    {product.isNew ? " · New" : ""}
+                  </p>
+                  {product.stock && (
+                    <p className="product-stock">
+                      <span className={`stock-tag stock-${product.stock.state}`}>
+                        {STOCK_LABELS[product.stock.state]}
+                      </span>{" "}
+                      {product.stock.onHand} on hand
+                    </p>
+                  )}
+                  {status === "trashed" ? (
+                    <TrashedActions
+                      product={product}
+                      permissions={permissions}
+                      run={products.run}
+                      onDone={() => products.reload()}
+                    />
+                  ) : (
+                    <div className="form-actions">
+                      <button
+                        type="button"
+                        className="secondary-button"
+                        onClick={() => onOpen(product.id)}
+                      >
+                        {canWrite ? "Edit product" : "View product"}
+                      </button>
+                    </div>
+                  )}
+                </div>
               </article>
             ))}
           </div>

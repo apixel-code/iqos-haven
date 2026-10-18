@@ -315,3 +315,13 @@ QA_PLAYWRIGHT_DIR=/tmp/ih-qa node scripts/browser-qa/parent-images.mjs <SCHEMA>
 ```
 
 Staff upload a generated PNG as a new brand's logo. It is processed and previewed, the brand is saved with it, and removing it clears and releases it. Staff get no permanent delete. The Owner trashes the brand and deletes it permanently. The pass also checks there is no sideways scroll.
+
+## Products list (parity G-A8)
+
+With `qa-server.cjs` and the admin running as above:
+
+```sh
+QA_PLAYWRIGHT_DIR=/tmp/ih-qa node scripts/browser-qa/products-list.mjs <SCHEMA>
+```
+
+Seeds three products (in stock, low, out) with stock through the ledger and a real thumbnail in the media bucket. Then it checks the SKU search, the stock tag and Stock filter, the price and name sorts, the thumbnail and its placeholder, and that a 390px screen has no sideways scroll.
