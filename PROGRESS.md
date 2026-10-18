@@ -5,7 +5,7 @@
 - Date: 2026-10-18
 - Milestone: M11 — full acceptance and release, in progress. Gates M0, M2–M10 PASSED (M0, M3, M4, M6–M10 on 2026-10-17, Marina); M1 open until staging/CI.
 - Step: launch parity gaps (Marina 2026-10-17): G-S2 (#101), G-S3 (#102), G-S5 (#103), G-A5 (#104), G-A6 (#105), G-A7 (#106), G-A8 (#107), G-A9 (#108), all merged to `main` 2026-10-18; G-A11 (#109), all merged to `main` 2026-10-18 — every launch parity gap is built. Steps 124 (#110) and 125 (#111) merged. **Marina (2026-10-18): the UI must match the prototypes before launch** (ADR 0097; storefront V-S1…V-S6, then admin V-A*; all deferred gaps included). **V-S1** (storefront shell) done. Next: V-S2 (home). Steps 126–127 follow the visual work unless Marina reorders. Steps 115–119, 121 done; 120 local part done (real devices wait for staging).
-- Branch: `parity/v-s1-store-shell` (from `main` 1d7cc9e). No migration.
+- Branch: `parity/v-s1-store-shell` (from `main` 1d7cc9e; PR #112). No migration.
 - See docs/verification.md for actual checks.
 
 ## Next action
@@ -239,7 +239,7 @@ Tests: `pnpm verify` PASS (age preview 2247). `pnpm test:gate` PASS (2586). `pnp
 
 Unfinished:
 
-- V-S1's PR waits for merge (Claude merges only when Marina asks).
+- PR #112 (V-S1) waits for merge (Claude merges only when Marina asks).
 - **Next, V-S2 home:** prototype `home` 7478, `heroBanner` 7576, `catTiles` 7676 and the trust strip; the hero is one hero from published content (BI-13); add G-S13 "by puff count".
 - Then V-S3…V-S6 and the admin V-A1…; steps 126–127 after, unless Marina reorders.
 
