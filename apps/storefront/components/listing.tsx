@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Fragment, type ReactNode } from "react";
-import { Icon } from "@/components/icons";
+import { Icon, type IconName } from "@/components/icons";
 
 export interface Crumb {
   label: string;
@@ -28,11 +28,25 @@ export function Breadcrumbs({ trail }: { trail: readonly Crumb[] }) {
 }
 
 /** The prototype's page heading (`shop-head`). */
-export function PageHead({ title, lead }: { title: string; lead?: string }) {
+export function PageHead({
+  title,
+  lead,
+  leadIcon,
+}: {
+  title: string;
+  lead?: string;
+  /** A small icon before the lead (the saved page's "on this device"). */
+  leadIcon?: IconName;
+}) {
   return (
     <div className="shop-head">
       <h1 className="h1">{title}</h1>
-      {lead && <p className="muted">{lead}</p>}
+      {lead && (
+        <p className={leadIcon ? "muted lead-ic" : "muted"}>
+          {leadIcon && <Icon name={leadIcon} size="sm" />}
+          {lead}
+        </p>
+      )}
     </div>
   );
 }

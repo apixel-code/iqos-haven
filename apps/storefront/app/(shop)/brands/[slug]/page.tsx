@@ -46,31 +46,31 @@ export default async function BrandPage({ params, searchParams }: Props) {
         { label: brand.name },
       ]}
       head={
-        <header className="my-4 grid gap-4 rounded-lg bg-accent-soft p-6 md:grid-cols-[1fr_auto] md:items-end md:px-10 md:py-9">
-          <div className="flex flex-col gap-2">
+        // The prototype's brand header (`bhero`). The prototype's "from" price is left out: the
+        // brand read carries no lowest price, and a guessed one could be wrong.
+        <header className="bhero">
+          <div className="bhero-t">
             {brand.logo && (
               // Signed link to a sanitized derivative; the Next image optimizer is not used.
               // eslint-disable-next-line @next/next/no-img-element
               <img
+                className="bhero-logo"
                 src={brand.logo.urls.medium}
                 alt={brand.logo.alt}
                 width={brand.logo.width}
                 height={brand.logo.height}
-                className="h-16 w-auto max-w-48 object-contain"
               />
             )}
-            <p className="text-xs font-medium uppercase tracking-[0.1em] text-ink-2">Brand</p>
-            <h1 className="text-4xl font-semibold tracking-tight md:text-5xl">{brand.name}</h1>
-            {brand.description && (
-              <p className="max-w-2xl whitespace-pre-line text-sm text-ink-2">
-                {brand.description}
-              </p>
-            )}
+            <span className="eyebrow">Brand</span>
+            <h1 className="bw">{brand.name}</h1>
+            {brand.description && <p className="muted bhero-d">{brand.description}</p>}
           </div>
-          <p className="text-sm text-ink-2">
-            <b className="block text-2xl font-semibold text-ink">{brand.productCount}</b>
-            {brand.productCount === 1 ? "product" : "products"}
-          </p>
+          <div className="stats">
+            <span>
+              <b>{brand.productCount}</b>
+              {brand.productCount === 1 ? "product" : "products"}
+            </span>
+          </div>
         </header>
       }
       emptyBody="This brand has no products available right now."

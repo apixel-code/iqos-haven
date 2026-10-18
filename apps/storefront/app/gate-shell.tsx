@@ -1,28 +1,46 @@
 import type { ReactNode } from "react";
+import { IconSprite } from "@/components/icons";
 import { AGE_COPY } from "@/lib/age/copy";
 import { PolicyLinks } from "./(policy)/policy-page";
 
-/** Shared frame of the age-check and restricted pages (prototype `gateShell`). */
-export function GateShell({ labelledBy, children }: { labelledBy: string; children: ReactNode }) {
+/**
+ * Shared frame of the age-check and restricted pages (prototype `gateShell`, ADR 0097): the
+ * arcs, the wordmark with the adults-only badge, the card and the foot with the policy links.
+ * No catalogue data is ever rendered here.
+ */
+export function GateShell({
+  labelledBy,
+  restricted = false,
+  children,
+}: {
+  labelledBy: string;
+  restricted?: boolean;
+  children: ReactNode;
+}) {
   return (
-    <div className="flex min-h-dvh flex-col">
-      <header className="flex items-center justify-between gap-3 px-4 py-4 sm:px-8">
-        <span className="text-lg font-semibold tracking-tight">Iqos Haven</span>
-        <span className="rounded-pill bg-accent-soft px-3 py-1 text-xs font-medium text-ink">
-          {AGE_COPY.badge}
+    <div className={restricted ? "gate restricted" : "gate"}>
+      <IconSprite />
+      <div className="gate-arcs" aria-hidden="true">
+        <i />
+        <i />
+        <i />
+      </div>
+      <header className="gate-top">
+        <span className="logo">
+          <span className="wm">
+            Iqos <span>Haven</span>
+          </span>
         </span>
+        <span className="badge badge-soft">{AGE_COPY.badge}</span>
       </header>
-      <main className="flex flex-1 items-center justify-center px-4 py-8">
-        <section
-          aria-labelledby={labelledBy}
-          className="flex w-full max-w-lg flex-col gap-6 text-center"
-        >
+      <main className="gate-main">
+        <section className="gate-card" aria-labelledby={labelledBy}>
           {children}
         </section>
       </main>
-      <footer className="flex flex-col items-center gap-2 px-4 py-4 text-xs text-ink-2 sm:px-8">
-        <PolicyLinks />
+      <footer className="gate-foot">
         <span>{AGE_COPY.footer}</span>
+        <PolicyLinks />
       </footer>
     </div>
   );

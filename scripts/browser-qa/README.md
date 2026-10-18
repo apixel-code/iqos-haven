@@ -299,6 +299,21 @@ It checks the cart sheet from the right on a phone, "Removed from cart" inside t
 
 Sheets slide out for 320 ms, so a check that a sheet is gone waits for it to be hidden.
 
+## Saved, compare, help, brands and the gate (V-S6b)
+
+```sh
+pnpm build && node scripts/check-gate-e2e.cjs --serve &   # SERVING
+QA_PLAYWRIGHT_DIR=/tmp/ih-qa node scripts/browser-qa/pages-gate.mjs <SERVING> /tmp/ih-qa/shots
+```
+
+It checks the gate at 360 and 1280 px, opened directly at `/age-check` because the unverified redirect goes to the stack's public host:
+
+- the seal, the two answers, no product data, the under-age form post, and the restricted page's lock and way out;
+- the saved page empty and with a product;
+- a non-kit in the compare list is reported and can be removed;
+- the help chips, an FAQ answer and "Copy number" with its toast;
+- the brand grid and type tiles, and the brand page header.
+
 ## Mobile search sheet (parity G-S3)
 
 ```sh

@@ -5822,4 +5822,146 @@
   .ctray .btn:hover {
     background: var(--surface-2);
   }
+
+  /* ---------- store: saved, compare, help, brands and the gate (V-S6b, ADR 0097) ---------- */
+  .list-page {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    padding-bottom: 48px;
+  }
+  .list-wait {
+    padding-block: 36px;
+  }
+  .list-empty {
+    margin-bottom: 48px;
+  }
+  .notice {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 12px 16px;
+    border-radius: var(--r-md);
+    background: var(--saffron-soft);
+    font-size: 14px;
+  }
+  .notice .link {
+    align-self: flex-start;
+  }
+  .lead-ic {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+  }
+  /* compare: product headings are column heads, not the sticky row heads. */
+  .cmp thead th.ch-col {
+    position: static;
+    width: auto;
+    color: var(--ink);
+    font-family: var(--font);
+  }
+  .cmp .ch .th {
+    background: var(--surface-2);
+  }
+  .cmp .ch .th img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+  .cmp .ch .rm {
+    text-align: left;
+    align-self: flex-start;
+    text-decoration: underline;
+  }
+  .cmp td.cmp-add {
+    font-family: var(--font);
+  }
+  .add-kits h2 {
+    margin: 12px 0 16px;
+  }
+  .add-kit {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  /* help */
+  .help-prose {
+    gap: 40px;
+  }
+  .help-sec {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    scroll-margin-top: 110px;
+  }
+  .help-prose .faq {
+    margin-top: 4px;
+  }
+  /* brands: the prototype's rail as a grid on the brands page. */
+  .brands.brands-grid {
+    grid-auto-flow: row;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    overflow: visible;
+    scroll-snap-type: none;
+  }
+  @media (min-width: 720px) {
+    .brands.brands-grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+  @media (min-width: 1040px) {
+    .brands.brands-grid {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+  }
+  .type-h {
+    margin-bottom: 18px;
+  }
+  .cat.type-cat {
+    min-height: 140px;
+  }
+  .bhero {
+    background: var(--saffron-soft);
+  }
+  .bhero-t {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .bhero .bw {
+    margin: 0;
+  }
+  .bhero-logo {
+    height: 56px;
+    width: auto;
+    max-width: 180px;
+    object-fit: contain;
+    object-position: left;
+  }
+  .bhero-d {
+    max-width: 62ch;
+    white-space: pre-line;
+  }
+  /* gate: fills the window (the prototype's fills its device frame). */
+  .gate {
+    min-height: 100dvh;
+  }
+  /* help: the prototype's lists keep their bullets (Tailwind's base removes them). */
+  .prose ul {
+    list-style: disc;
+  }
+  .gate-text {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .gate-actions form {
+    display: contents;
+  }
+  .gate-foot nav ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
 }
