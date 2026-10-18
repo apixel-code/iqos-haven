@@ -28,6 +28,7 @@ import {
 import { rejectionMessage, uploadForm, uploadRequestFor } from "../lib/media";
 import { money } from "../lib/orders";
 import { ResourceNotice, useManagementResource } from "./management-resource";
+import { useUnsavedChanges } from "./unsaved-guard";
 
 type Doc = Record<string, unknown>;
 type Names = Record<string, string>;
@@ -50,6 +51,20 @@ export function ContentManagement() {
   const draft = drafts[tab] ?? saved;
   const dirty = !same(draft, saved);
   const setDraft = (next: Doc) => setDrafts((current) => ({ ...current, [tab]: next }));
+  // Drafts live in state across tabs: any unsaved section guards leaving the page (G-A9).
+  useUnsavedChanges(
+    CONTENT_TABS.some(
+      (item) =>
+        drafts[item.key] !== undefined &&
+        !same(
+          drafts[item.key],
+          (content.data?.sections.find((row) => row.key === item.key)?.draft as Doc | null) ??
+            emptyContent(item.key),
+        ),
+    )
+      ? "the storefront content"
+      : null,
+  );
 
   const replace = (next: AdminContentSection) =>
     content.setData((current) =>

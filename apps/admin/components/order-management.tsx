@@ -621,7 +621,7 @@ function OrderDetail({
   return (
     <section className="management-card order-detail">
       <div className="form-actions">
-        <button type="button" className="secondary-button" onClick={onBack}>
+        <button data-leave type="button" className="secondary-button" onClick={onBack}>
           ← Back to orders
         </button>
         {/* The slip shows where to deliver, so it needs the contact (customers.read). */}
@@ -952,6 +952,7 @@ function OrderCollectionPanel({
           : `Record the cash actually received for this delivered order (order total ${money(order.totalFils)}).`}
       </p>
       <form
+        data-unsaved="this cash record"
         className="form-grid"
         onSubmit={(event) => {
           event.preventDefault();
@@ -1090,6 +1091,7 @@ function OrderCancelPanel({
         <p className="muted">Item details for a return need the order edit permission.</p>
       ) : (
         <form
+          data-unsaved="this cancellation"
           className="form-grid"
           onSubmit={(event) => {
             event.preventDefault();
@@ -1215,6 +1217,7 @@ function OrderEditPanel({
           : "Only the operational note can change while this order is processing."}
       </p>
       <form
+        data-unsaved={`order ${order.orderNumber}`}
         className="form-grid"
         onSubmit={(event) => {
           event.preventDefault();

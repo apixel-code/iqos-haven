@@ -358,7 +358,7 @@ function ProductEditor({
     return (
       <section className="management-card">
         <ResourceNotice resource={product} />
-        <button type="button" className="secondary-button" onClick={onBack}>
+        <button data-leave type="button" className="secondary-button" onClick={onBack}>
           Back to products
         </button>
       </section>
@@ -448,6 +448,7 @@ function ProductForm({
       </p>
       <ResourceNotice resource={resource} />
       <form
+        data-unsaved={row ? row.name : "this new product"}
         onSubmit={async (e) => {
           e.preventDefault();
           const data = new FormData(e.currentTarget);
@@ -646,7 +647,7 @@ function ProductForm({
                 {row ? "Save changes" : "Save draft"}
               </button>
             )}
-            <button type="button" className="secondary-button" onClick={onBack}>
+            <button data-leave type="button" className="secondary-button" onClick={onBack}>
               Back to products
             </button>
           </div>

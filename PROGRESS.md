@@ -4,8 +4,8 @@
 
 - Date: 2026-10-18
 - Milestone: M11 — full acceptance and release, in progress. Gates M0, M2–M10 PASSED (M0, M3, M4, M6–M10 on 2026-10-17, Marina); M1 open until staging/CI.
-- Step: launch parity gaps (Marina 2026-10-17): G-S2 (#101), G-S3 (#102), G-S5 (#103), G-A5 (#104), G-A6 (#105), G-A7 (#106) and **G-A8** (products list: SKU search, stock, sorts, thumbnails, ADR 0092) done. Next: G-A9. Steps 115–119, 121 done; 120 local part done (real devices wait for staging).
-- Branch: `parity/g-a8-products-list` (stacked on #106 → … → #101; PR #107). No new migration (G-A7 added `20261017000100_catalogue_images`).
+- Step: launch parity gaps (Marina 2026-10-17): G-S2 (#101), G-S3 (#102), G-S5 (#103), G-A5 (#104), G-A6 (#105), G-A7 (#106), G-A8 (#107), all merged to `main` 2026-10-18; **G-A9** (unsaved-changes guard, ADR 0093) done. Next: G-A11. Steps 115–119, 121 done; 120 local part done (real devices wait for staging).
+- Branch: `parity/g-a9-unsaved-guard` (from `main` 2a853df; PR #108). No migration.
 - See docs/verification.md for actual checks.
 
 ## Next action
@@ -19,7 +19,7 @@
 1. **Marina's decisions (2026-10-17), all recorded:** gates M0, M3, M4, M6, M7, M8, M9, M10 PASSED (see Gates passed); M1 stays open until staging and CI are proven; M11 in progress. Business inputs: none OPEN (BI-01, BI-07, BI-09 partly answered: logo/contact copy, sender-domain verification and the WhatsApp number follow).
 2. **Merged 2026-10-17:** PR #100 brought every stacked step into `main` (f049897); #60–#99 closed (68 and 73 as superseded). Branch every new piece of work from `main`.
 3. **Work order (Marina, 2026-10-17):** merge → the nine chosen parity gaps → steps 124–127 → staging-dependent work (120 real devices, 121 rerun, 122, 128) on the Hostinger VPS (one VPS, staging first, later production).
-4. **Parity gaps to build before launch** (one branch, PR and commit each, from `main`): ~~G-S2 listing filters~~ (DONE, ADR 0086, PR #101), ~~G-S3 mobile search sheet~~ (DONE, ADR 0087, PR #102), ~~G-S5 sticky add-to-cart~~ (DONE, ADR 0088, PR #103), ~~G-A5 orders list~~ (DONE, ADR 0089, PR #104), ~~G-A6 packing slip~~ (DONE, ADR 0090, PR #105), ~~G-A7 brand/category images + purge~~ (DONE, ADR 0091, PR #106), ~~G-A8 products list~~ (DONE, ADR 0092, PR #107), **G-A9 unsaved-changes guard (next)**, G-A11 Owner-sent staff reset and pending-invitation revoke. Not now: G-S8, G-A10 and every O-tier gap (after launch).
+4. **Parity gaps to build before launch** (one branch, PR and commit each, from `main`): ~~G-S2 listing filters~~ (DONE, ADR 0086, PR #101), ~~G-S3 mobile search sheet~~ (DONE, ADR 0087, PR #102), ~~G-S5 sticky add-to-cart~~ (DONE, ADR 0088, PR #103), ~~G-A5 orders list~~ (DONE, ADR 0089, PR #104), ~~G-A6 packing slip~~ (DONE, ADR 0090, PR #105), ~~G-A7 brand/category images + purge~~ (DONE, ADR 0091, PR #106), ~~G-A8 products list~~ (DONE, ADR 0092, PR #107), ~~G-A9 unsaved-changes guard~~ (DONE, ADR 0093, PR #108), **G-A11 (next)** G-A11 Owner-sent staff reset and pending-invitation revoke. Not now: G-S8, G-A10 and every O-tier gap (after launch).
 5. **First Owner:** an Apixel account via `pnpm bootstrap:owner`, which invites the client as Owner and is then removed (the last-Owner guard keeps one Owner at all times).
 6. **At launch, Owner settings:** SEO policy `public_pages` (BI-05); WhatsApp number in Settings (BI-09); sender no-reply@iqoshaven.com once the domain is verified (BI-07), then `CHECKOUT_SUBMISSION_ENABLED=true`.
 7. **Next work: the four tier-L parity gaps** — Marina's decision (2026-10-17): build Apixel's recommended launch set from `docs/parity-review.md` before step 120. One branch, PR and commit each, in this order:
@@ -155,6 +155,7 @@ Before checkout is switched on: the sender domain verification (BI-07, Marina/Ap
 - 106 — `sales_daily`, `product_sales_daily` (snapshot brand), `search_daily`, `wishlist_daily`; idempotent per-day rollup sharing the step 105 definitions; `analytics_rollup` consumer on order events (ADR 0072) — `step(106)` commit on `step/106-daily-rollups`
 - G-A7 — brand logos and category images (`catalogue` media purpose, `logo_asset_id`/`image_asset_id` FKs with ready-image triggers, upload/complete/status routes, store and storefront display, admin field) and Owner purge of trashed unused brands/categories (`catalogue_purge_parent`); `parent-images.mjs` (ADR 0091) — parity/g-a7-parent-images
 - G-A8 — products list: name or option-SKU search, stock state over active options (`inventory.read` field policy, filter 403 without it), sorts newest/name/price with per-sort cursors, signed thumbnails; `products-list.mjs` (ADR 0092) — parity/g-a8-products-list
+- G-A9 — unsaved-changes guard: `data-unsaved` editor regions snapshotted on first touch, re-snapshotted after a successful save; admin links, `data-leave` buttons and `beforeunload` ask "Leave without saving?"; `useUnsavedChanges` for the content editor; `unsaved-guard.mjs` (ADR 0093) — parity/g-a9-unsaved-guard
 - G-A6 — packing slip: order-detail preview dialog and A5 print (only the slip is laid out), order's own emirate, cash to collect, no internal note, `customers.read` only; `packing-slip.mjs` (ADR 0090) — parity/g-a6-packing-slip
 - G-A5 — orders list: `GET /v1/admin/orders/counts` (tab counts under the other filters), four sorts with a per-sort keyset cursor, select-all pending on the page, phone cards; bell accessible name fixed; `orders-list.mjs` (ADR 0089) — parity/g-a5-orders-list
 - G-S5 — sticky add-to-cart bar on phones inside `BuyBox` (after the main button scrolls away; inert and control-less while hidden; no silent default option; page padding so the footer stays readable); `sticky-add.mjs` (ADR 0088) — parity/g-s5-sticky-add
@@ -208,23 +209,25 @@ Before checkout is switched on: the sender domain verification (BI-07, Marina/Ap
 - Event `consumers` lists only implemented consumers (now `system_probe`, `email`, `notification`, `media_processor`, `storefront_revalidate`); planned ones are documented with roadmap steps and move in with a backfill decision (architecture §8: adding a consumer must not redefine old completions).
 - `audit_log` migration revokes UPDATE/DELETE/TRUNCATE only from a role named `ih_app`; other runtime role names must be revoked at provisioning (trigger blocks mutations regardless).
 
-## Last session handoff (2026-10-18, parity G-A8)
+## Last session handoff (2026-10-18, parity G-A9)
 
 Done:
 
-- **G-A8 (ADR 0092, no migration):** `GET /v1/admin/products` searches name or option SKU; each item carries `stock {onHand, state}` (active options only; stripped without `inventory.read`, and `stock=` filter answers 403 without it) and a ten-minute signed `thumbnailUrl`; `sort=newest|name|price_asc|price_desc` with an opaque `[sort,key,id]` cursor (bare id = legacy newest; another sort's cursor 400). Admin list: "Search name or SKU", Stock and Sort selects, thumbnail or placeholder, stock tag with on-hand count.
-- The `.turbo` cache had grown to 29 GB and filled the disk; Marina deleted it. Watch its size.
+- Marina asked Claude to merge #101–#107: all merged in order (each retargeted to `main`), `main` CI green at 2a853df.
+- **G-A9 (ADR 0093, admin only):** `components/unsaved-guard.tsx` mounted in the workspace shell, with `lib/unsaved.ts` holding the pure parts. Editor forms are marked `data-unsaved="<what>"`. A region is snapshotted on the first focus, press or key inside it, and is dirty while it differs from that snapshot; a submit followed by a successful mutation (`managementRequest` → `announceSaved`) re-snapshots it. Same-tab admin links, `data-leave` buttons (editor Back buttons, Sign out, coupon/brand/category Live–Trash tabs) and `beforeunload` ask "Leave without saving?" (Keep editing focused / Discard changes). The content editor declares its state through `useUnsavedChanges`. The browser's Back button inside the app is not intercepted.
 
-Files: `packages/contracts/src/products.ts`, `packages/db/src/products.ts`, `apps/api/src/catalogue/{products.service.ts,products.controller.ts,products.int.test.ts}`, `apps/admin/{components/product-management.tsx,app/globals.css}`, `scripts/browser-qa/{products-list.mjs,README.md}`, `docs/decisions/0092-products-list-stock-sort.md`, `docs/parity-review.md`, `docs/verification.md`
+Files: `apps/admin/{lib/unsaved.ts,lib/unsaved.test.ts,lib/management.ts,components/unsaved-guard.tsx,components/session-shell.tsx,components/content-management.tsx,app/globals.css}`, editor forms in `apps/admin/components/{product-management,product-variants,product-images,catalogue-parent-management,coupon-management,delivery-management,settings-management,staff-management,manual-order,order-management,inventory-management}.tsx`, `scripts/browser-qa/{unsaved-guard.mjs,README.md}`, `docs/decisions/0093-unsaved-changes-guard.md`, `docs/parity-review.md`, `docs/verification.md`
 
-Tests: `pnpm verify` PASS (age preview 2247). `pnpm test:int` PASS (660). Browser: `products-list`, `a11y-admin` PASS. `test:gate` not run (no storefront change).
+Tests: `pnpm verify` PASS (admin unit 65, age preview 2247). Browser: `unsaved-guard` PASS (rerun on a fresh schema after the last edit); `a11y-admin`, `parent-images`, `products-list`, `orders-list` PASS. `qa.mjs` has one known stale check (see verification.md). No API change, so `test:int` was not rerun (660 PASS on G-A8).
 
 Unfinished:
 
-- PRs waiting for Marina's merge, in order: #101 → … → #106 (G-A7) → #107 (G-A8). Retarget each to `main` after the one below it is merged.
-- Next: G-A9 (unsaved-changes guard on admin editors), then G-A11, then steps 124–127.
+- PR #108 (G-A9) waits for merge (Marina decides; Claude merges only on request).
+- Next: G-A11 (Owner-sent staff password reset; pending-invitations list with revoke), then steps 124–127.
 
 ## History (summary)
+
+- 2026-10-18 parity G-A8: products list SKU search, stock state/filter, sorts, thumbnails (PR #107, merged).
 
 - 2026-10-17 parity G-A7: brand logos, category images, Owner purge of brands/categories (PR #106, migration `20261017000100_catalogue_images`).
 

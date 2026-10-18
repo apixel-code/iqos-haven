@@ -1178,3 +1178,26 @@ ul.dashboard-list {
   color: var(--err);
   background: color-mix(in srgb, var(--err) 12%, transparent);
 }
+
+/* Unsaved-changes dialog (parity G-A9). */
+.leave-dialog {
+  /* The global reset zeroes margins; a modal dialog centres itself with auto margins. */
+  margin: auto;
+  width: min(420px, calc(100vw - 32px));
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 20px;
+  background: var(--surface);
+  color: var(--ink);
+}
+.leave-dialog::backdrop {
+  background: rgb(0 0 0 / 0.45);
+}
+.leave-dialog h2 {
+  margin: 0 0 8px;
+  font-size: 1.05rem;
+}
+.leave-dialog p {
+  margin: 0 0 16px;
+  color: var(--ink-2);
+}

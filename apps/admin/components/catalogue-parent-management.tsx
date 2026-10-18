@@ -187,6 +187,7 @@ export function CatalogueParentManagement({
           type="button"
           role="tab"
           className="secondary-button"
+          data-leave
           aria-selected={tab === "live"}
           onClick={() => show("live")}
         >
@@ -196,6 +197,7 @@ export function CatalogueParentManagement({
           type="button"
           role="tab"
           className="secondary-button"
+          data-leave
           aria-selected={tab === "trashed"}
           onClick={() => show("trashed")}
         >
@@ -269,6 +271,7 @@ export function CatalogueParentManagement({
                 </article>
               ) : (
                 <form
+                  data-unsaved={row.name}
                   className="record-card"
                   key={`${row.id}-${row.version}`}
                   onSubmit={async (e) => {
@@ -412,6 +415,7 @@ function CreateParent({
     <details>
       <summary>New {config.noun}</summary>
       <form
+        data-unsaved={`this new ${config.noun}`}
         onSubmit={async (e) => {
           e.preventDefault();
           const form = e.currentTarget;

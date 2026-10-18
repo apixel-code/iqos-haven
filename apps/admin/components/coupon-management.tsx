@@ -170,6 +170,7 @@ export function CouponManagement() {
           type="button"
           role="tab"
           className="secondary-button"
+          data-leave
           aria-selected={tab === "live"}
           onClick={() => show("live")}
         >
@@ -179,6 +180,7 @@ export function CouponManagement() {
           type="button"
           role="tab"
           className="secondary-button"
+          data-leave
           aria-selected={tab === "trashed"}
           onClick={() => show("trashed")}
         >
@@ -192,6 +194,7 @@ export function CouponManagement() {
             <details>
               <summary>Add code</summary>
               <form
+                data-unsaved="this new code"
                 onSubmit={(e) => {
                   e.preventDefault();
                   void create(new FormData(e.currentTarget), e.currentTarget);
@@ -212,6 +215,7 @@ export function CouponManagement() {
           <div className="record-list">
             {coupons.data.items.map((coupon) => (
               <form
+                data-unsaved={coupon.code}
                 className="record-card"
                 key={`${coupon.id}-${coupon.version}`}
                 onSubmit={(e) => {

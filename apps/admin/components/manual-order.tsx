@@ -220,13 +220,14 @@ export function ManualOrderPanel({
           <h2>New order</h2>
           <p className="muted">For a customer who ordered by phone, WhatsApp or in person.</p>
         </div>
-        <button type="button" className="secondary-button" onClick={onCancel}>
+        <button data-leave type="button" className="secondary-button" onClick={onCancel}>
           Back to orders
         </button>
       </header>
       <ResourceNotice resource={choices} />
       {choices.data && (
         <form
+          data-unsaved="this new order"
           className="form-grid"
           onSubmit={(event) => {
             event.preventDefault();

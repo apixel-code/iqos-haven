@@ -124,6 +124,7 @@ export function SettingsManagement() {
             </header>
             <p className="muted">{group.help}</p>
             <form
+              data-unsaved={group.title.toLowerCase()}
               onSubmit={(e) => {
                 e.preventDefault();
                 void save(new FormData(e.currentTarget));

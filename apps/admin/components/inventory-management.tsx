@@ -229,6 +229,7 @@ function StockCard({
       </div>
       {action && (
         <form
+          data-unsaved="this stock change"
           // A changed payload is a different action: it gets a new command ID, so a retry of
           // the unchanged form replays while an edited one is never mistaken for a reuse.
           onChange={() => setCommandId(crypto.randomUUID())}
