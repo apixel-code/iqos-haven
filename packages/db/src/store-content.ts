@@ -6,7 +6,7 @@ import {
   type ContentLink,
   type ContentOf,
   type ContentSectionKey,
-  type SectionContent,
+  upgradeContent,
 } from "@ih/contracts";
 import { Prisma, type Database, type Tx } from "./client";
 import {
@@ -35,7 +35,13 @@ export interface HomeBanner {
 }
 export interface PublishedHome {
   ticker: { messages: string[] } | null;
-  hero: (HomeBanner & { eyebrow: string | null }) | null;
+  heroSlides: Array<
+    HomeBanner & {
+      style: "navy" | "lilac" | "coral";
+      eyebrow: string | null;
+      secondaryCta: HomeLink | null;
+    }
+  >;
   featured: StoreProductCardRow[];
   bestSellers: StoreProductCardRow[];
   brands: Array<{ name: string; slug: string; productCount: number }>;
@@ -101,7 +107,13 @@ export async function readPublishedHome(
         if (!(CONTENT_SECTION_KEYS as readonly string[]).includes(row.key)) continue;
         const parsed = contentSchema(row.key, row.version).safeParse(row.published);
         // Written through the API, so this holds; a row edited outside it is left out, loudly.
-        if (parsed.success) (published as Record<string, SectionContent>)[row.key] = parsed.data;
+        // An older version reads in the current shape (hero v1 is one slide, ADR 0097).
+        if (parsed.success)
+          (published as Record<string, unknown>)[row.key] = upgradeContent(
+            row.key,
+            row.version,
+            parsed.data,
+          );
         else onInvalid(row.key);
       }
 
@@ -190,15 +202,15 @@ export async function readPublishedHome(
       const { ticker, hero, featured, best_sellers, campaign_banner, offers } = published;
       return {
         ticker: ticker?.enabled ? { messages: ticker.messages } : null,
-        hero: hero
-          ? {
-              eyebrow: hero.eyebrow,
-              title: hero.title,
-              subtitle: hero.subtitle,
-              cta: cta(hero.cta),
-              image: image(hero.image),
-            }
-          : null,
+        heroSlides: (hero?.slides ?? []).map((slide) => ({
+          style: slide.style,
+          eyebrow: slide.eyebrow,
+          title: slide.title,
+          subtitle: slide.subtitle,
+          cta: cta(slide.cta),
+          secondaryCta: cta(slide.secondaryCta),
+          image: image(slide.image),
+        })),
         featured: productCards(featured?.productIds ?? []),
         bestSellers: best_sellers
           ? best_sellers.mode === "auto"

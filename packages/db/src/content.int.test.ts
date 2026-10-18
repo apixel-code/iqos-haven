@@ -204,11 +204,17 @@ describe("content sections (real PostgreSQL)", () => {
       [product.id, ownerId],
     );
     const hero = (assetId: string, brandId: string) => ({
-      eyebrow: null,
-      title: "Every brand, one place",
-      subtitle: "Delivered across the UAE",
-      cta: { label: "Shop the brand", link: { kind: "brand", brandId } },
-      image: { assetId, alt: "Devices on a table" },
+      slides: [
+        {
+          style: "navy",
+          eyebrow: null,
+          title: "Every brand, one place",
+          subtitle: "Delivered across the UAE",
+          cta: { label: "Shop the brand", link: { kind: "brand", brandId } },
+          secondaryCta: null,
+          image: { assetId, alt: "Devices on a table" },
+        },
+      ],
     });
     await saveContentDraft(db, as(ownerId), "hero", {
       expectedVersion: 0,
@@ -223,7 +229,7 @@ describe("content sections (real PostgreSQL)", () => {
       content: hero(image, product.brandId),
     });
     const live = await publishContentSection(db, as(ownerId), "hero", 2);
-    expect(live.published).toMatchObject({ image: { assetId: image } });
+    expect(live.published).toMatchObject({ slides: [{ image: { assetId: image } }] });
     // The published image must stay ready.
     await refused("UPDATE media_assets SET state='removed', version=version+1 WHERE id=$1", [
       image,

@@ -647,7 +647,9 @@ async function main() {
     await apiJson("/api/v1/store/products/gatecheck-hidden", 404);
     const homeContent = JSON.parse(await apiJson("/api/v1/store/content/home"));
     check(
-      homeContent.ticker === null && homeContent.hero === null && homeContent.featured.length === 0,
+      homeContent.ticker === null &&
+        homeContent.heroSlides.length === 0 &&
+        homeContent.featured.length === 0,
       "home content through the gateway (nothing published, no draft shown)",
     );
     const deliveryText = await apiJson("/api/v1/store/delivery");

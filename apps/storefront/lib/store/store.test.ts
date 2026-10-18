@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { AgeRequiredError, StoreApiError, createStoreApi } from "./api";
-import { cardBadges, cardMeta, discountPercent, displayAed } from "./listing";
+import { cardBadges, cardMeta, discountPercent, displayAed, displayAmount } from "./listing";
 import { activeFilterCount, parseSearch, searchApiParams, searchHref } from "./search";
 
 describe("listing pages share the search filters (parity G-S2)", () => {
@@ -18,6 +18,21 @@ describe("listing pages share the search filters (parity G-S2)", () => {
     expect(searchHref({}, "/shop")).toBe("/shop");
   });
 
+  it("keeps a puff range from the home page, and ignores one the wrong way round", () => {
+    const state = parseSearch({ type: "disposable", minPuffs: "6000", maxPuffs: "12000" });
+    expect(searchApiParams(state)).toEqual([
+      ["type", "disposable"],
+      ["minPuffs", "6000"],
+      ["maxPuffs", "12000"],
+    ]);
+    expect(searchHref({ maxPuffs: 6000 }, "/disposable-vapes")).toBe(
+      "/disposable-vapes?maxPuffs=6000",
+    );
+    // The type and the puff range (one filter, however many bounds).
+    expect(activeFilterCount(state)).toBe(2);
+    expect(parseSearch({ minPuffs: "12000", maxPuffs: "6000" }).maxPuffs).toBeUndefined();
+  });
+
   it("drops a malformed category", () => {
     expect(parseSearch({ category: "../x" }).category).toBeUndefined();
     expect(parseSearch({ category: "a".repeat(151) }).category).toBeUndefined();
@@ -27,6 +42,7 @@ describe("listing pages share the search filters (parity G-S2)", () => {
 describe("price and card text", () => {
   it("formats integer fils without floating point", () => {
     expect(displayAed(4900)).toBe("AED 49");
+    expect(displayAmount(125050)).toBe("1,250.50");
     expect(displayAed(4950)).toBe("AED 49.50");
     expect(displayAed(5)).toBe("AED 0.05");
     expect(displayAed(0)).toBe("AED 0");

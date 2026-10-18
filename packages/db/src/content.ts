@@ -7,6 +7,7 @@ import {
   type ContentReferences,
   type ContentSectionKey,
   type SectionContent,
+  upgradeContent,
 } from "@ih/contracts";
 import { toAuditEntry, type CommandContext } from "@ih/application";
 import { Prisma, type Database, type Tx } from "./client";
@@ -70,9 +71,13 @@ const SELECT = Prisma.sql`
 const toRecord = (row: Row): ContentSectionRecord => ({
   key: row.key,
   schemaVersion: row.schemaVersion,
-  draft: row.draft as SectionContent,
+  // The editor works in the current shape; an older copy is upgraded for display (ADR 0097).
+  draft: upgradeContent(row.key, row.schemaVersion, row.draft) as SectionContent,
   draftUpdatedAt: row.draftUpdatedAt.toISOString(),
-  published: (row.published as SectionContent | null) ?? null,
+  published:
+    row.published === null || row.publishedSchemaVersion === null
+      ? null
+      : (upgradeContent(row.key, row.publishedSchemaVersion, row.published) as SectionContent),
   publishedSchemaVersion: row.publishedSchemaVersion,
   publishedAt: row.publishedAt?.toISOString() ?? null,
   unpublishedChanges: !row.same,

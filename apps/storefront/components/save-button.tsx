@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Icon } from "@/components/icons";
 import { LIST_LIMITS } from "@/lib/device/lists";
 import { toggleSavedProduct, useDeviceLists } from "@/lib/device/store";
 
@@ -33,17 +34,16 @@ export function SaveButton({
   const press = () => setFull(toggleSavedProduct(slug).full);
   if (variant === "card")
     return (
+      // The prototype's card heart (`wish`); a saved item fills it.
       <button
         type="button"
+        className="wish"
         aria-pressed={saved}
         aria-label={saved ? `Remove ${name} from saved items` : `Save ${name}`}
         title={full ? `You can save up to ${LIST_LIMITS.saved} items` : undefined}
         onClick={press}
-        className={`absolute right-2 top-2 z-[1] inline-flex size-[38px] items-center justify-center rounded-pill bg-white/90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus ${
-          saved ? "text-coral" : "text-ink"
-        }`}
       >
-        {heart}
+        <Icon name="heart" />
       </button>
     );
   return (

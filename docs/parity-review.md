@@ -66,7 +66,7 @@ Tiers are recommendations: **L** = before launch, **S** = should follow soon, **
 | G-S10 | No toast, cart-count bump or confirmation when saving or comparing.                                                                                                                              | `components/*`                                     | O    | S    |
 | G-S11 | No floating compare tray.                                                                                                                                                                        | —                                                  | O    | S    |
 | G-S12 | No gallery swipe or zoom.                                                                                                                                                                        | `components/gallery.tsx`; ADR 0030                 | O    | M    |
-| G-S13 | No "Disposables by puff count" home section (not in REQ-14).                                                                                                                                     | —                                                  | O    | S    |
+| G-S13 | **DONE 2026-10-18 (V-S2, ADR 0097).** No "Disposables by puff count" home section (not in REQ-14).                                                                                               | —                                                  | O    | S    |
 | G-S14 | Empty cart without history shows no best sellers.                                                                                                                                                | `components/cart-view.tsx`                         | O    | S    |
 
 ### Admin

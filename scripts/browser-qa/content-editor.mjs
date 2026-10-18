@@ -160,21 +160,40 @@ try {
   await page.getByText("Live", { exact: true }).waitFor();
   check("the hero publishes with its image", true);
   const hero = await one("SELECT published FROM content_sections WHERE key='hero'");
+  const [first] = hero.published.slides;
   check(
     "stored hero is typed data",
-    hero.published.title === "Every brand, one place" &&
-      hero.published.cta.link.kind === "shop" &&
-      typeof hero.published.image.assetId === "string",
+    first.title === "Every brand, one place" &&
+      first.style === "navy" &&
+      first.cta.link.kind === "shop" &&
+      typeof first.image.assetId === "string",
+  );
+
+  // A second slide in the lilac look (the carousel, ADR 0097).
+  await page.getByRole("button", { name: "Add slide" }).click();
+  const second = page.locator("fieldset", { has: page.locator("legend", { hasText: "Slide 2" }) });
+  await second.getByLabel("Look").selectOption("lilac");
+  await second.getByLabel("Headline").fill("Fresh flavours this week");
+  await page.getByRole("button", { name: "Save draft" }).click();
+  await page.getByRole("button", { name: "Publish" }).waitFor();
+  await page.getByRole("button", { name: "Publish" }).click();
+  await page.getByText("Live", { exact: true }).waitFor();
+  const carousel = await one("SELECT published FROM content_sections WHERE key='hero'");
+  check(
+    "a second slide publishes in its own look",
+    carousel.published.slides.length === 2 &&
+      carousel.published.slides[1].style === "lilac" &&
+      carousel.published.slides[1].title === "Fresh flavours this week",
   );
   await page.screenshot({ path: out + "content-hero.png", fullPage: true });
 
   // Unsaved changes are shown and can be discarded.
-  await page.getByLabel("Headline").fill("Changed");
+  await page.getByLabel("Headline").first().fill("Changed");
   check("unsaved changes are marked", (await status(page)) === "Unsaved");
   await page.getByRole("button", { name: "Discard changes" }).click();
   check(
     "discard restores the saved draft",
-    (await page.getByLabel("Headline").inputValue()) === "Every brand, one place",
+    (await page.getByLabel("Headline").first().inputValue()) === "Every brand, one place",
   );
 
   await page.setViewportSize({ width: 390, height: 844 });
@@ -187,7 +206,8 @@ try {
   const events = await one(
     "SELECT count(*)::int AS n FROM outbox_events WHERE event_type='content.published'",
   );
-  check("one content.published event per publish", events.n === 3, String(events.n));
+  // One more than before: the hero is published again with its second slide.
+  check("one content.published event per publish", events.n === 4, String(events.n));
 
   const staff = await session("staff.qa@iqoshaven.test");
   check(

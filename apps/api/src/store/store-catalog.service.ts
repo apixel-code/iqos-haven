@@ -280,7 +280,14 @@ export class StoreCatalogService {
       const cards = (rows: StoreProductCardRow[]) => Promise.all(rows.map((row) => this.card(row)));
       return {
         ticker: home.ticker,
-        hero: home.hero ? { ...(await banner(home.hero)), eyebrow: home.hero.eyebrow } : null,
+        heroSlides: await Promise.all(
+          home.heroSlides.map(async (slide) => ({
+            ...(await banner(slide)),
+            style: slide.style,
+            eyebrow: slide.eyebrow,
+            secondaryCta: slide.secondaryCta,
+          })),
+        ),
         featured: await cards(home.featured),
         bestSellers: await cards(home.bestSellers),
         brands: home.brands,

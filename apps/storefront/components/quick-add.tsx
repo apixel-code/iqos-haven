@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import { storeProductResponseSchema, type StoreProductResponse } from "@ih/contracts";
 import { BuyBox } from "./buy-box";
+import { Icon } from "@/components/icons";
 
 /**
  * "Add" on a product card. It loads the product (the API checks the age ticket again) and opens
@@ -44,9 +45,11 @@ export function QuickAdd({ slug, name }: { slug: string; name: string }) {
         aria-busy={loading || undefined}
         disabled={loading}
         onClick={() => void open()}
-        className="relative z-[1] inline-flex h-10 items-center rounded-pill bg-ink px-4 text-sm font-medium text-white shadow-2 hover:bg-primary-hover disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+        // The prototype's card button (`qadd`): a plus, and "Add" on wide screens.
+        className="qadd"
       >
-        {loading ? "…" : "Add"}
+        <Icon name="plus" size="sm" />
+        <span>{loading ? "…" : "Add"}</span>
       </button>
       <dialog
         ref={dialog}

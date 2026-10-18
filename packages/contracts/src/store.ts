@@ -468,7 +468,16 @@ const homeBannerSchema = z.strictObject({
  */
 export const storeHomeResponseSchema = z.strictObject({
   ticker: z.strictObject({ messages: z.array(z.string().min(1).max(90)).min(1).max(6) }).nullable(),
-  hero: homeBannerSchema.extend({ eyebrow: z.string().max(40).nullable() }).nullable(),
+  /** The hero carousel (ADR 0097): one to three slides, none when nothing is published. */
+  heroSlides: z
+    .array(
+      homeBannerSchema.extend({
+        style: z.enum(["navy", "lilac", "coral"]),
+        eyebrow: z.string().max(40).nullable(),
+        secondaryCta: homeLinkSchema.nullable(),
+      }),
+    )
+    .max(3),
   featured: z.array(storeProductCardSchema).max(8),
   bestSellers: z.array(storeProductCardSchema).max(8),
   brands: z

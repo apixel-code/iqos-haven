@@ -21,6 +21,7 @@ import {
   checkDraft,
   CONTENT_TABS,
   emptyContent,
+  emptyHeroSlide,
   LINK_KINDS,
   move,
   problemLines,
@@ -294,7 +295,6 @@ function Preview({
   preview: PreviewData;
   names: Names;
 }) {
-  const image = preview.images[0];
   const enabled = doc.enabled !== false;
   return (
     <div className="preview-block">
@@ -312,19 +312,31 @@ function Preview({
       {sectionKey === "ticker" && (
         <p className="mono small">{(doc.messages as string[]).join("  ·  ")}</p>
       )}
-      {sectionKey === "hero" && (
-        <div className="preview-hero">
-          {/* Signed link to a sanitized derivative; next/image must not fetch private links. */}
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          {image?.url && <img src={image.url} alt="" />}
-          {typeof doc.eyebrow === "string" && <p className="eyebrow">{doc.eyebrow}</p>}
-          <strong>{String(doc.title)}</strong>
-          {typeof doc.subtitle === "string" && <p>{doc.subtitle}</p>}
-          {doc.cta !== null && (
-            <span className="badge">{(doc.cta as { label: string }).label}</span>
-          )}
-        </div>
-      )}
+      {sectionKey === "hero" &&
+        (doc.slides as Doc[]).map((slide, index) => {
+          const slideImage = preview.images.find(
+            (item) => item.id === (slide.image as { assetId?: string } | null)?.assetId,
+          );
+          return (
+            <div key={index} className="preview-hero">
+              {/* Signed link to a sanitized derivative; next/image must not fetch private links. */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              {slideImage?.url && <img src={slideImage.url} alt="" />}
+              <p className="eyebrow">
+                Slide {index + 1} · {String(slide.style)}
+                {typeof slide.eyebrow === "string" ? ` · ${slide.eyebrow}` : ""}
+              </p>
+              <strong>{String(slide.title)}</strong>
+              {typeof slide.subtitle === "string" && <p>{slide.subtitle}</p>}
+              {slide.cta !== null && (
+                <span className="badge">{(slide.cta as { label: string }).label}</span>
+              )}
+              {slide.secondaryCta !== null && (
+                <span className="badge">{(slide.secondaryCta as { label: string }).label}</span>
+              )}
+            </div>
+          );
+        })}
       {sectionKey === "campaign_banner" &&
         (doc.banners as Doc[]).map((banner, index) => (
           <p key={index} className={banner.enabled ? undefined : "muted"}>
@@ -447,44 +459,118 @@ function SectionEditor({
         </div>
       );
     }
-    case "hero":
+    case "hero": {
+      // The carousel (ADR 0097): one to three slides; one slide shows no dots or arrows.
+      const slides = value.slides as Doc[];
+      const setSlide = (index: number, next: Doc) =>
+        set(
+          "slides",
+          slides.map((item, at) => (at === index ? next : item)),
+        );
+      const swap = (index: number, offset: -1 | 1) => {
+        const next = [...slides];
+        [next[index], next[index + offset]] = [next[index + offset]!, next[index]!];
+        set("slides", next);
+      };
       return (
         <div className="form-grid">
-          <Field label="Eyebrow (optional)">
-            <input
-              value={(value.eyebrow as string | null) ?? ""}
-              maxLength={40}
-              onChange={(event) => set("eyebrow", textOrNull(event.target.value))}
-            />
-          </Field>
-          <Field label="Headline" help={`${String(value.title).length}/60`}>
-            <input
-              value={String(value.title)}
-              maxLength={60}
-              required
-              onChange={(event) => set("title", event.target.value)}
-            />
-          </Field>
-          <Field label="Supporting text (optional)">
-            <textarea
-              value={(value.subtitle as string | null) ?? ""}
-              maxLength={160}
-              onChange={(event) => set("subtitle", textOrNull(event.target.value))}
-            />
-          </Field>
-          <CtaEditor
-            value={value.cta as Doc | null}
-            onChange={(next) => set("cta", next)}
-            names={names}
-            remember={remember}
-          />
-          <ImageField
-            value={value.image as Doc | null}
-            onChange={(next) => set("image", next)}
-            hint="1600 × 900 px"
-          />
+          {slides.map((slide, index) => (
+            <fieldset key={index} className="wide-field form-grid">
+              <legend>Slide {index + 1}</legend>
+              <Field label="Look">
+                <select
+                  value={String(slide.style)}
+                  onChange={(event) => setSlide(index, { ...slide, style: event.target.value })}
+                >
+                  <option value="navy">Navy, light text</option>
+                  <option value="lilac">Lilac, dark text</option>
+                  <option value="coral">Coral, light text</option>
+                </select>
+              </Field>
+              <Field label="Eyebrow (optional)">
+                <input
+                  value={(slide.eyebrow as string | null) ?? ""}
+                  maxLength={40}
+                  onChange={(event) =>
+                    setSlide(index, { ...slide, eyebrow: textOrNull(event.target.value) })
+                  }
+                />
+              </Field>
+              <Field label="Headline" help={`${String(slide.title).length}/60`}>
+                <input
+                  value={String(slide.title)}
+                  maxLength={60}
+                  required
+                  onChange={(event) => setSlide(index, { ...slide, title: event.target.value })}
+                />
+              </Field>
+              <Field label="Supporting text (optional)">
+                <textarea
+                  value={(slide.subtitle as string | null) ?? ""}
+                  maxLength={160}
+                  onChange={(event) =>
+                    setSlide(index, { ...slide, subtitle: textOrNull(event.target.value) })
+                  }
+                />
+              </Field>
+              <CtaEditor
+                value={slide.cta as Doc | null}
+                onChange={(next) => setSlide(index, { ...slide, cta: next })}
+                names={names}
+                remember={remember}
+              />
+              <CtaEditor
+                name="Second button"
+                value={slide.secondaryCta as Doc | null}
+                onChange={(next) => setSlide(index, { ...slide, secondaryCta: next })}
+                names={names}
+                remember={remember}
+              />
+              <ImageField
+                value={slide.image as Doc | null}
+                onChange={(next) => setSlide(index, { ...slide, image: next })}
+                hint="1600 × 900 px"
+              />
+              <div className="form-actions">
+                {index > 0 && (
+                  <button type="button" className="text-button" onClick={() => swap(index, -1)}>
+                    Move up
+                  </button>
+                )}
+                {index < slides.length - 1 && (
+                  <button type="button" className="text-button" onClick={() => swap(index, 1)}>
+                    Move down
+                  </button>
+                )}
+                {slides.length > 1 && (
+                  <button
+                    type="button"
+                    className="text-button"
+                    onClick={() =>
+                      set(
+                        "slides",
+                        slides.filter((_item, at) => at !== index),
+                      )
+                    }
+                  >
+                    Remove slide
+                  </button>
+                )}
+              </div>
+            </fieldset>
+          ))}
+          {slides.length < 3 && (
+            <button
+              type="button"
+              className="secondary-button"
+              onClick={() => set("slides", [...slides, emptyHeroSlide()])}
+            >
+              Add slide
+            </button>
+          )}
         </div>
       );
+    }
     case "featured":
       return (
         <ProductList
@@ -841,11 +927,14 @@ function CtaEditor({
   onChange,
   names,
   remember,
+  name = "Button",
 }: {
   value: Doc | null;
   onChange: (next: Doc | null) => void;
   names: Names;
   remember: (more: Names) => void;
+  /** The legend, e.g. "Second button". */
+  name?: string;
 }) {
   const brands = useManagementResource(
     value ? "/brands?limit=100" : "/brands?limit=1",
@@ -862,15 +951,15 @@ function CtaEditor({
         className="secondary-button"
         onClick={() => onChange({ label: "", link: { kind: "shop" } })}
       >
-        Add a button
+        Add {name === "Button" ? "a button" : name.toLowerCase()}
       </button>
     );
   const link = value.link as ContentLink;
   const setLink = (next: ContentLink) => onChange({ ...value, link: next });
   return (
     <fieldset className="wide-field form-grid">
-      <legend>Button</legend>
-      <Field label="Button label">
+      <legend>{name}</legend>
+      <Field label={`${name} label`}>
         <input
           value={String(value.label)}
           maxLength={30}

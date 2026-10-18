@@ -89,7 +89,7 @@ export const shellBrands = cache(async () => {
 /** What the shop shows when no content is published or it cannot be read: nothing extra. */
 export const EMPTY_HOME: StoreHomeResponse = {
   ticker: null,
-  hero: null,
+  heroSlides: [],
   featured: [],
   bestSellers: [],
   brands: [],

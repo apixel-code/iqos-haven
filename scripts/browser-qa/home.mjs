@@ -61,11 +61,26 @@ await publish("ticker", {
   ],
 });
 await publish("hero", {
-  eyebrow: "UAE-wide delivery",
-  title: "Premium vapes, delivered across the UAE.",
-  subtitle: "Disposables and pod kits from leading brands. Pay cash when it arrives.",
-  cta: { label: "Shop now", link: { kind: "shop" } },
-  image: null,
+  slides: [
+    {
+      style: "navy",
+      eyebrow: "UAE-wide delivery",
+      title: "Premium vapes, delivered across the UAE.",
+      subtitle: "Disposables and pod kits from leading brands. Pay cash when it arrives.",
+      cta: { label: "Shop now", link: { kind: "shop" } },
+      secondaryCta: { label: "Browse brands", link: { kind: "shop" } },
+      image: null,
+    },
+    {
+      style: "lilac",
+      eyebrow: "New arrival",
+      title: "Fresh flavours this week.",
+      subtitle: null,
+      cta: { label: "See what's new", link: { kind: "shop" } },
+      secondaryCta: null,
+      image: null,
+    },
+  ],
 });
 await publish("featured", { productIds: [product.id] });
 await publish("best_sellers", { mode: "manual", productIds: [product.id] });
@@ -121,6 +136,28 @@ try {
       if (!found) await new Promise((done) => setTimeout(done, 5000));
     }
     check(found, `${label}: published hero shown`);
+    // The hero carousel (ADR 0097): two slides, dots, arrows, pause, reduced motion.
+    const dot = (n) => page.getByRole("button", { name: `Slide ${n}`, exact: true });
+    const onSlide = async (n) => (await dot(n).getAttribute("aria-current")) === "true";
+    if (label === "1280") {
+      await page.getByRole("button", { name: "Pause slides" }).click();
+      check(
+        (await page.getByRole("button", { name: "Play slides" }).count()) === 1,
+        "1280: the carousel can be paused",
+      );
+      await page.getByRole("button", { name: "Next slide" }).click();
+      await page.waitForTimeout(1000);
+      check(await onSlide(2), "1280: Next slide shows the second slide");
+      await dot(1).click();
+      await page.waitForTimeout(1000);
+      check(await onSlide(1), "1280: a dot goes back to its slide");
+    } else if (label === "360") {
+      await page.waitForTimeout(6500);
+      check(await onSlide(2), "360: the carousel advances by itself");
+    } else {
+      await page.waitForTimeout(6500);
+      check(await onSlide(1), "360-reduced: with reduced motion it does not move by itself");
+    }
     check(
       await page.getByRole("region", { name: "Current offers" }).isVisible(),
       `${label}: promotional bar shown`,
