@@ -105,6 +105,8 @@ try {
   await sheet.getByRole("link", { name: "View cart and checkout" }).click();
   await page.waitForURL(/\/cart$/);
   await page.getByRole("complementary", { name: "Order summary" }).waitFor();
+  // The sheet slides out (V-S6) before it is hidden.
+  await sheet.waitFor({ state: "hidden", timeout: 2000 }).catch(() => {});
   check(
     !(await sheet.isVisible()),
     "View cart and checkout opens the cart page with the sheet closed",
@@ -126,6 +128,7 @@ try {
   await quick.getByRole("button", { name: "Add to cart" }).click();
   const side = sheetOf(wide.page);
   await side.waitFor();
+  await quick.waitFor({ state: "hidden", timeout: 2000 }).catch(() => {});
   check(!(await quick.isVisible()), "quick add closes and hands over to the cart sheet");
   const panel = await side.boundingBox();
   check(

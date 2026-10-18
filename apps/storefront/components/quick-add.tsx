@@ -1,9 +1,11 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useRef, useState } from "react";
+import { useState } from "react";
+import Link from "next/link";
 import { storeProductResponseSchema, type StoreProductResponse } from "@ih/contracts";
 import { BuyBox } from "./buy-box";
+import { Sheet } from "./sheet";
 import { Icon } from "@/components/icons";
 
 /**
@@ -13,11 +15,11 @@ import { Icon } from "@/components/icons";
  */
 export function QuickAdd({ slug, name }: { slug: string; name: string }) {
   const router = useRouter();
-  const dialog = useRef<HTMLDialogElement>(null);
+  const [open, setOpen] = useState(false);
   const [product, setProduct] = useState<StoreProductResponse | null>(null);
   const [loading, setLoading] = useState(false);
 
-  async function open() {
+  async function load() {
     setLoading(true);
     try {
       const response = await fetch(`/api/v1/store/products/${encodeURIComponent(slug)}`, {
@@ -29,7 +31,7 @@ export function QuickAdd({ slug, name }: { slug: string; name: string }) {
       );
       if (!parsed.success) throw new Error("unavailable");
       setProduct(parsed.data);
-      dialog.current?.showModal();
+      setOpen(true);
     } catch {
       router.push(`/p/${slug}`);
     } finally {
@@ -44,44 +46,37 @@ export function QuickAdd({ slug, name }: { slug: string; name: string }) {
         aria-label={`Quick add ${name}`}
         aria-busy={loading || undefined}
         disabled={loading}
-        onClick={() => void open()}
+        onClick={() => void load()}
         // The prototype's card button (`qadd`): a plus, and "Add" on wide screens.
         className="qadd"
       >
         <Icon name="plus" size="sm" />
         <span>{loading ? "…" : "Add"}</span>
       </button>
-      <dialog
-        ref={dialog}
-        aria-label="Quick add"
-        onClose={() => setProduct(null)}
-        className="m-auto w-[min(92vw,28rem)] rounded-lg bg-surface p-5 text-ink shadow-3 backdrop:bg-ink/40"
-      >
+      {/* The prototype's `quickSheet`: a bottom sheet on a phone, a centred one from 720 px. */}
+      <Sheet open={open} onClose={() => setOpen(false)} title="Quick add" side="bottom">
         {product && (
-          <div className="flex flex-col gap-4">
-            <div className="flex items-start justify-between gap-3">
+          <div className="q-body">
+            <div className="q-head">
+              <span className="q-thumb">
+                {product.images[0] && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={product.images[0].urls.thumb} alt="" width={72} height={84} />
+                )}
+              </span>
               <div>
-                <p className="text-[11px] uppercase tracking-[0.1em] text-ink-3">
-                  {product.brand.name}
-                </p>
-                <h2 className="text-lg font-semibold">{product.name}</h2>
+                <span className="eyebrow">{product.brand.name}</span>
+                <h3 className="h3">{product.name}</h3>
               </div>
-              <button
-                type="button"
-                aria-label="Close"
-                onClick={() => dialog.current?.close()}
-                className="size-10 rounded-pill text-xl hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-focus"
-              >
-                ×
-              </button>
             </div>
-            <BuyBox product={product} compact onAdded={() => dialog.current?.close()} />
-            <a href={`/p/${product.slug}`} className="text-sm underline underline-offset-2">
+            {/* Keyed by product so choices never carry over to another product. */}
+            <BuyBox key={product.slug} product={product} compact onAdded={() => setOpen(false)} />
+            <Link href={`/p/${product.slug}`} prefetch={false} className="link small q-more">
               View full details
-            </a>
+            </Link>
           </div>
         )}
-      </dialog>
+      </Sheet>
     </>
   );
 }

@@ -3,7 +3,8 @@
 import Link from "next/link";
 import type { StoreCartLine } from "@ih/contracts";
 import { CART_LIMITS, type CartViewLine } from "@/lib/cart/cart";
-import { removeFromCart, setCartQuantity } from "@/lib/cart/store";
+import { removeFromCart, restoreCartLine, setCartQuantity } from "@/lib/cart/store";
+import { toast } from "@/lib/ui/toast";
 import { Icon } from "@/components/icons";
 import { Money } from "@/components/money";
 
@@ -89,7 +90,19 @@ export function CartLines({
                   type="button"
                   className="rm"
                   aria-label={`Remove ${line.name}`}
-                  onClick={() => removeFromCart(line.variantId)}
+                  onClick={() => {
+                    const removed = removeFromCart(line.variantId);
+                    // The prototype's "Removed from cart" with Undo (parity G-S10).
+                    if (removed)
+                      toast({
+                        title: "Removed from cart",
+                        sub: line.name,
+                        action: {
+                          label: "Undo",
+                          run: () => restoreCartLine(removed.line, removed.index),
+                        },
+                      });
+                  }}
                 >
                   <Icon name="trash" size="sm" /> Remove
                 </button>

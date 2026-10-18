@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { LIST_LIMITS } from "@/lib/device/lists";
 import { toggleCompareProduct, useDeviceLists } from "@/lib/device/store";
+import { toast } from "@/lib/ui/toast";
 
 /** "Compare with other kits" on a kit's page (prototype); at most three kits. */
 export function CompareToggle({ slug }: { slug: string }) {
@@ -16,7 +17,15 @@ export function CompareToggle({ slug }: { slug: string }) {
         <input
           type="checkbox"
           checked={comparing}
-          onChange={() => setFull(toggleCompareProduct(slug).full)}
+          onChange={() => {
+            const result = toggleCompareProduct(slug);
+            setFull(result.full);
+            if (result.full)
+              toast({
+                title: `Compare holds up to ${LIST_LIMITS.compare} kits`,
+                sub: "Remove one to add another",
+              });
+          }}
         />
         <span className="ct">Compare with other kits</span>
       </label>

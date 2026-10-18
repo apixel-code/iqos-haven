@@ -2,11 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useDeviceLists } from "@/lib/device/store";
 import { useStoreBrands } from "@/lib/store/client-hooks";
 import { POLICY_PAGES, PRIMARY_NAV, SITE } from "@/lib/site";
 import { WHATSAPP_MESSAGES } from "@/lib/whatsapp";
+import { openSearchSheet } from "./search-sheet";
+import { Sheet } from "./sheet";
 import { WhatsAppLink } from "./whatsapp-link";
 import { Icon } from "@/components/icons";
 
@@ -16,31 +18,46 @@ const HELP_LINKS = [
   { href: "/help#help-contact", label: "Contact" },
   ...POLICY_PAGES.map((page) => ({ href: page.path, label: page.title })),
 ];
-const row =
-  "flex min-h-12 items-center justify-between gap-3 rounded-sm px-3 text-base hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus";
 
 /**
- * Mobile menu (parity G-S4, ADR 0083): a sheet from the left with the shop sections, brands,
- * saved items, compare, help and WhatsApp. Shown below the `md` breakpoint, where the header
- * keeps only the logo, this button, search and the cart. Brands are read when the menu first
- * opens (the API checks the age ticket), not on every page.
+ * Mobile menu (parity G-S4, ADR 0083) as the prototype's `menuSheet` (V-S6): a sheet from the
+ * left with search, the shop sections, brands, saved items, compare, help and WhatsApp. Shown
+ * below 720 px, where the header keeps only the logo, this button, search and the cart. Brands
+ * are read when the menu first opens (the API checks the age ticket), not on every page.
  */
 export function MenuSheet({ whatsappNumber }: { whatsappNumber: string | null }) {
-  const dialog = useRef<HTMLDialogElement>(null);
   const [open, setOpen] = useState(false);
+  const [section, setSection] = useState<"brands" | "help" | null>(null);
   const { brands, load: loadBrands, ensure: ensureBrands } = useStoreBrands();
   const lists = useDeviceLists();
   const pathname = usePathname();
-
-  const close = () => dialog.current?.close();
+  const close = () => setOpen(false);
   // A followed link closes the menu, including Back and Forward.
-  useEffect(() => close(), [pathname]);
-
-  function show() {
-    dialog.current?.showModal();
-    setOpen(true);
-    ensureBrands();
+  const [seenPath, setSeenPath] = useState(pathname);
+  if (seenPath !== pathname) {
+    setSeenPath(pathname);
+    setOpen(false);
   }
+
+  /** The prototype's accordion (`macc`); a closed panel is inert, so it is never tabbed into. */
+  const accordion = (id: "brands" | "help", label: string, inner: ReactNode) => (
+    <div className={section === id ? "macc open" : "macc"}>
+      <button
+        type="button"
+        className="macc-btn"
+        aria-expanded={section === id}
+        aria-controls={`macc-${id}`}
+        onClick={() => setSection(section === id ? null : id)}
+      >
+        <span>{label}</span>
+        <Icon name="chev-d" />
+      </button>
+      <div className="macc-panel" id={`macc-${id}`} inert={section !== id}>
+        <div className="macc-in">{inner}</div>
+      </div>
+    </div>
+  );
+  const count = (value: number) => (value > 0 ? <span className="c">{value}</span> : null);
 
   return (
     <>
@@ -48,165 +65,123 @@ export function MenuSheet({ whatsappNumber }: { whatsappNumber: string | null })
         type="button"
         aria-haspopup="dialog"
         aria-expanded={open}
-        onClick={show}
+        onClick={() => {
+          setOpen(true);
+          ensureBrands();
+        }}
         className="ibtn only-sm"
         aria-label="Open menu"
       >
         <Icon name="menu" />
       </button>
-      <dialog
-        ref={dialog}
-        aria-label="Menu"
-        // The close event arrives after the dialog closed; it may have been reopened since.
-        onClose={() => !dialog.current?.open && setOpen(false)}
-        // A click on the backdrop (outside the panel) closes the menu.
-        onClick={(event) => event.target === event.currentTarget && close()}
-        className="fixed inset-y-0 left-0 m-0 h-dvh max-h-dvh w-[min(86vw,22rem)] max-w-none bg-surface p-0 text-ink shadow-3 backdrop:bg-ink/40"
+      <Sheet
+        open={open}
+        onClose={close}
+        title="Menu"
+        side="left"
+        head={
+          <div className="sh-head">
+            <span className="wm">
+              Iqos <span>Haven</span>
+            </span>
+            <button type="button" className="ibtn" aria-label="Close menu" onClick={close}>
+              <Icon name="x" />
+            </button>
+          </div>
+        }
       >
-        {open && (
-          <div className="flex h-full flex-col">
-            <header className="flex items-center justify-between gap-3 border-b border-line px-5 py-4">
-              <span className="text-lg font-semibold tracking-tight">{SITE.name}</span>
-              <button
-                type="button"
-                aria-label="Close menu"
-                onClick={close}
-                className="size-10 rounded-pill text-xl hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-focus"
-              >
-                ×
-              </button>
-            </header>
-            <nav aria-label="Menu" className="flex-1 overflow-y-auto px-2 py-3">
-              <ul className="flex flex-col">
-                <li>
-                  <Link href="/" prefetch={false} onClick={close} className={row}>
-                    Home
-                  </Link>
-                </li>
-                {PRIMARY_NAV.filter((item) => item.href !== "/brands").map((item) => (
-                  <li key={item.href}>
-                    <Link
-                      href={item.href}
-                      prefetch={false}
-                      onClick={close}
-                      aria-current={pathname === item.href ? "page" : undefined}
-                      className={`${row} ${pathname === item.href ? "font-semibold" : ""}`}
-                    >
-                      {item.label}
-                    </Link>
-                  </li>
-                ))}
-                <li>
-                  <details className="group">
-                    <summary className={`${row} cursor-pointer list-none`}>
-                      Brands
-                      <span
-                        aria-hidden="true"
-                        className="transition-transform group-open:rotate-180"
-                      >
-                        ⌄
-                      </span>
-                    </summary>
-                    <div className="flex flex-col pb-2 pl-3">
-                      {brands.state === "ready" ? (
-                        <>
-                          {brands.items.map((brand) => (
-                            <Link
-                              key={brand.slug}
-                              href={`/brands/${brand.slug}`}
-                              prefetch={false}
-                              onClick={close}
-                              className={`${row} min-h-10 text-sm`}
-                            >
-                              {brand.name}
-                              <span className="font-mono text-xs text-ink-3">
-                                {brand.productCount}
-                              </span>
-                            </Link>
-                          ))}
-                          {brands.items.length === 0 && (
-                            <p className="px-3 py-2 text-sm text-ink-2">No brands yet.</p>
-                          )}
-                        </>
-                      ) : brands.state === "failed" ? (
-                        <p className="px-3 py-2 text-sm text-ink-2">
-                          Brands could not be loaded.{" "}
-                          <button type="button" onClick={loadBrands} className="underline">
-                            Try again
-                          </button>
-                        </p>
-                      ) : (
-                        <p role="status" className="px-3 py-2 text-sm text-ink-2">
-                          Loading brands…
-                        </p>
-                      )}
+        <button
+          type="button"
+          className="m-search"
+          onClick={() => {
+            close();
+            openSearchSheet();
+          }}
+        >
+          <Icon name="search" /> Search
+        </button>
+        <nav className="mnav" aria-label="Menu">
+          <Link href="/" prefetch={false} onClick={close}>
+            <span>Home</span>
+          </Link>
+          {PRIMARY_NAV.filter((item) => item.href !== "/brands").map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              prefetch={false}
+              onClick={close}
+              aria-current={pathname === item.href ? "page" : undefined}
+            >
+              <span>{item.label}</span>
+            </Link>
+          ))}
+          {accordion(
+            "brands",
+            "Brands",
+            <>
+              {brands.state === "ready" ? (
+                brands.items.length ? (
+                  <div className="mnav-sub">
+                    {brands.items.map((brand) => (
                       <Link
-                        href="/brands"
+                        key={brand.slug}
+                        href={`/brands/${brand.slug}`}
                         prefetch={false}
                         onClick={close}
-                        className={`${row} min-h-10 text-sm font-medium underline underline-offset-2`}
                       >
-                        View all brands
+                        <span>{brand.name}</span>
+                        <span className="c">{brand.productCount}</span>
                       </Link>
-                    </div>
-                  </details>
-                </li>
-                <li>
-                  <Link href="/wishlist" prefetch={false} onClick={close} className={row}>
-                    Saved items
-                    {lists.saved.length > 0 && (
-                      <span className="font-mono text-xs text-ink-3">{lists.saved.length}</span>
-                    )}
-                  </Link>
-                </li>
-                <li>
-                  <Link href="/compare" prefetch={false} onClick={close} className={row}>
-                    Compare kits
-                    {lists.compare.length > 0 && (
-                      <span className="font-mono text-xs text-ink-3">{lists.compare.length}</span>
-                    )}
-                  </Link>
-                </li>
-                <li>
-                  <details className="group">
-                    <summary className={`${row} cursor-pointer list-none`}>
-                      Help &amp; info
-                      <span
-                        aria-hidden="true"
-                        className="transition-transform group-open:rotate-180"
-                      >
-                        ⌄
-                      </span>
-                    </summary>
-                    <div className="flex flex-col pb-2 pl-3">
-                      {HELP_LINKS.map((link) => (
-                        <Link
-                          key={link.href}
-                          href={link.href}
-                          prefetch={false}
-                          onClick={close}
-                          className={`${row} min-h-10 text-sm`}
-                        >
-                          {link.label}
-                        </Link>
-                      ))}
-                    </div>
-                  </details>
-                </li>
-              </ul>
-            </nav>
-            <div className="border-t border-line px-5 py-4">
-              <WhatsAppLink
-                number={whatsappNumber}
-                message={WHATSAPP_MESSAGES.general(SITE.name)}
-                className="flex h-12 w-full items-center justify-center rounded-pill bg-wa px-4 text-sm font-medium text-white hover:bg-wa-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
-              >
-                Chat on WhatsApp
-              </WhatsAppLink>
-            </div>
-          </div>
-        )}
-      </dialog>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="small muted macc-note">No brands yet.</p>
+                )
+              ) : brands.state === "failed" ? (
+                <p className="small muted macc-note">
+                  Brands could not be loaded.{" "}
+                  <button type="button" className="link" onClick={loadBrands}>
+                    Try again
+                  </button>
+                </p>
+              ) : (
+                <p role="status" className="small muted macc-note">
+                  Loading brands…
+                </p>
+              )}
+              <Link href="/brands" prefetch={false} onClick={close} className="macc-all">
+                View all brands
+              </Link>
+            </>,
+          )}
+          <Link href="/wishlist" prefetch={false} onClick={close}>
+            <span>Saved items</span>
+            {count(lists.saved.length)}
+          </Link>
+          <Link href="/compare" prefetch={false} onClick={close}>
+            <span>Compare kits</span>
+            {count(lists.compare.length)}
+          </Link>
+          {accordion(
+            "help",
+            "Help & info",
+            <>
+              {HELP_LINKS.map((link) => (
+                <Link key={link.href} href={link.href} prefetch={false} onClick={close}>
+                  <span>{link.label}</span>
+                </Link>
+              ))}
+            </>,
+          )}
+        </nav>
+        <WhatsAppLink
+          number={whatsappNumber}
+          message={WHATSAPP_MESSAGES.general(SITE.name)}
+          className="btn btn-wa btn-block m-wa"
+        >
+          <Icon name="wa" size="sm" /> Chat on WhatsApp
+        </WhatsAppLink>
+      </Sheet>
     </>
   );
 }

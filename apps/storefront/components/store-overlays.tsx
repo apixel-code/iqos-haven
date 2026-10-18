@@ -3,11 +3,14 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { MouseEvent } from "react";
+import { CountBadge } from "@/components/count-badge";
 import { Icon } from "@/components/icons";
 import { cartCount } from "@/lib/cart/cart";
 import { openCartSheet } from "@/lib/cart/sheet";
 import { useCart } from "@/lib/cart/store";
-import { useDeviceLists } from "@/lib/device/store";
+import { LIST_LIMITS } from "@/lib/device/lists";
+import { removeFromList, useDeviceLists } from "@/lib/device/store";
+import { useProductCards } from "@/lib/device/use-cards";
 import { SITE } from "@/lib/site";
 import { whatsappHref, WHATSAPP_MESSAGES } from "@/lib/whatsapp";
 
@@ -19,12 +22,22 @@ import { whatsappHref, WHATSAPP_MESSAGES } from "@/lib/whatsapp";
 export function StoreOverlays({ whatsappNumber }: { whatsappNumber: string | null }) {
   const pathname = usePathname();
   const cart = cartCount(useCart());
-  const saved = useDeviceLists().saved.length;
+  const lists = useDeviceLists();
+  const saved = lists.saved.length;
+  const compare = lists.compare;
   const at = (path: string) => pathname === path || pathname.startsWith(path + "/");
   const product = at("/p");
   const showNav = !at("/checkout") && !product;
   const wa = whatsappHref(whatsappNumber, WHATSAPP_MESSAGES.general(SITE.name));
   const showWa = wa && !at("/checkout") && !at("/cart");
+  // The prototype's compare tray (parity G-S11): not where it would be in the way or repeat
+  // itself (compare, checkout, product and confirmation pages).
+  const showTray =
+    compare.length > 0 &&
+    !at("/compare") &&
+    !at("/checkout") &&
+    !product &&
+    !at("/order-confirmation");
   const current = (on: boolean) => (on ? ("page" as const) : undefined);
   const openSheet = (event: MouseEvent<HTMLAnchorElement>) => {
     if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0)
@@ -67,13 +80,14 @@ export function StoreOverlays({ whatsappNumber }: { whatsappNumber: string | nul
           >
             <Icon name="bag" />
             Cart
-            {cart > 0 && <span className="count">{cart}</span>}
+            <CountBadge value={cart} />
           </Link>
         </nav>
       )}
+      {showTray && <CompareTray slugs={compare} />}
       {showWa && (
         <a
-          className={product ? "wafab wafab-pdp" : "wafab"}
+          className={`wafab${product ? " wafab-pdp" : ""}${showTray ? " up" : ""}`}
           href={wa}
           target="_blank"
           rel="noopener noreferrer"
@@ -82,6 +96,42 @@ export function StoreOverlays({ whatsappNumber }: { whatsappNumber: string | nul
           <Icon name="wa" size="lg" />
         </a>
       )}
+    </div>
+  );
+}
+
+/** "N of 3 kits", their pictures, the way to the comparison and a way to clear it. */
+function CompareTray({ slugs }: { slugs: readonly string[] }) {
+  const cards = useProductCards(slugs);
+  const shown = cards.status === "ready" ? cards.cards : [];
+  return (
+    <div className="ctray" role="region" aria-label="Compare tray">
+      <span className="thumbs" aria-hidden="true">
+        {shown.map((card) => (
+          <i key={card.slug}>
+            {card.image && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={card.image.urls.thumb} alt="" width={36} height={36} />
+            )}
+          </i>
+        ))}
+      </span>
+      <span className="t">
+        {slugs.length} of {LIST_LIMITS.compare} kits
+      </span>
+      <Link href="/compare" prefetch={false} className="btn">
+        Compare
+      </Link>
+      <button
+        type="button"
+        className="ibtn"
+        aria-label="Clear compare"
+        onClick={() => {
+          for (const slug of slugs) removeFromList("compare", slug);
+        }}
+      >
+        <Icon name="x" />
+      </button>
     </div>
   );
 }

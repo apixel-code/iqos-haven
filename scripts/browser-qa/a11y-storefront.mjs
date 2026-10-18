@@ -272,8 +272,8 @@ try {
     await tabTo(
       small.page,
       () =>
-        document.activeElement?.tagName === "SUMMARY" &&
-        /Brands/.test(document.activeElement.textContent),
+        // The prototype's accordion button (V-S6).
+        document.activeElement?.getAttribute("aria-controls") === "macc-brands",
       15,
     ),
     "Tab reaches Brands",
@@ -288,10 +288,16 @@ try {
     "Brands opens with Enter and its links are reachable",
   );
   await small.page.keyboard.press("Escape");
+  // The sheet slides out first (V-S6); focus returns when the dialog closes.
   check(
-    await small.page.evaluate(
-      () => document.activeElement?.getAttribute("aria-label") === "Open menu",
-    ),
+    await small.page
+      .waitForFunction(() => document.activeElement?.getAttribute("aria-label") === "Open menu", {
+        timeout: 2000,
+      })
+      .then(
+        () => true,
+        () => false,
+      ),
     "Escape returns focus to Menu",
   );
   await small.context.close();

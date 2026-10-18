@@ -143,6 +143,30 @@ Step 115 and the nine launch gaps compared features. A side-by-side screenshot a
 - **Confirmation:** the prototype's `done`, with the `done-ic`, `cashbox`, `steps` timeline, items and `totals`, the address, and the actions (`btn-primary`, `btn-wa`). The page has no first-name greeting: the confirmation snapshot carries no customer name (step 81).
 - **Fixed on the way:** a product with no images put an `aria-label` on a plain div (axe `aria-prohibited-attr`). The empty gallery no longer has one.
 
+## V-S6a (sheets, toasts and the compare tray), 2026-10-18
+
+V-S6 is split in two PRs: V-S6a (this section) and V-S6b, which covers the saved, compare, help and brands pages and the gate.
+
+- **One sheet for all:** the cart, menu, search and quick-add sheets now use the shared `Sheet`: the prototype's backdrop and panel on a modal `<dialog>`. Each keeps focus, closes on Escape or the backdrop, and gives focus back after sliding out.
+  - The Sheet takes the prototype's sides: `right` for the cart on phones, a `pop` under the header's cart button from 720 px, `left` for the menu, `top` for search, and `bottom` for quick add (centred from 720 px).
+  - It accepts a custom head (the menu's wordmark, none in search).
+  - Reopened while still sliding out (an add right after closing), it slides back in instead of staying open but hidden.
+- **Sheet contents:**
+  - **Cart:** the prototype's `cartSheet` lines and foot. No payable total stays in the sheet (ADR 0082).
+  - **Menu:** search, `mnav` rows with counts, and the `macc` accordions for Brands and Help. These are buttons with `aria-expanded`, and a closed panel is `inert`.
+  - **Search:** `sq-box`, `sq-sec`, chips, `sq-item` rows with the typed text marked, and `sq-all`. The search body stays mounted after the first open: unmounting it on submit took the GET form out of the page before the browser sent it.
+  - **Quick add:** `q-thumb`, brand and name, then the shared buy box.
+- **Toasts (G-S10):** the prototype's `toast`. One message at a time; it disappears after 3.2 s, or 6 s with an action, and a pointer or focus holds it. It is announced in a polite live region.
+  - A modal sheet sits in the browser's top layer, so each open sheet has its own toast host and only the topmost host shows the toast. A toast raised in the cart sheet appears over it, and its Undo can be clicked.
+  - **Messages:**
+    - "Removed from cart" with **Undo**: `restoreCartLine` puts the stored line back in its place, unless the variant is back in the cart or the cart is full.
+    - "Saved on this device · No account needed" with **View saved**, and "Removed from saved items".
+    - The saved and compare limits.
+  - Adding to the cart still opens the cart sheet on every width (ADR 0083), so there is no add toast.
+- **Count bump (G-S10):** the cart count bumps when it changes (`CountBadge`), but not for the count read from storage on load. Reduced motion turns it off.
+- **Compare tray (G-S11):** the prototype's `ctray` with the kits' thumbnails, "N of 3 kits", Compare, and "Clear compare". It is hidden on the compare, checkout, product and confirmation pages, and while it shows the WhatsApp button moves up (`wafab up`).
+- **Not built:** the prototype's WhatsApp sheet with a message preview. WhatsApp links still open WhatsApp directly with the prepared message.
+
 ## Consequences
 
 - The look comes from the approved source instead of being re-imagined in utilities, so later screens are mostly markup work.

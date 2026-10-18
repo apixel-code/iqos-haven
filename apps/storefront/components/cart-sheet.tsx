@@ -1,48 +1,84 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { useFreshCart } from "@/lib/cart/fresh";
+import { cartCount } from "@/lib/cart/cart";
 import { closeCartSheet, useCartSheet } from "@/lib/cart/sheet";
+import { useCart } from "@/lib/cart/store";
 import { SITE } from "@/lib/site";
 import { whatsappHref, WHATSAPP_MESSAGES } from "@/lib/whatsapp";
 import { CartLines } from "./cart-lines";
+import { Sheet } from "./sheet";
+import { Icon } from "@/components/icons";
 import { Money } from "@/components/money";
 
 /**
- * Cart sheet after adding (parity G-S1, ADR 0082): a bottom sheet on a phone, a side panel on a
- * wide screen. It shows the lines with the API's current prices, the subtotal and the way on.
- * Delivery, any discount and the total are confirmed on the cart page, which holds the accepted
+ * Cart sheet after adding (parity G-S1, ADR 0082) as the prototype's `cartSheet` (V-S6): a side
+ * panel on a phone, a pop-over under the header's cart button from 720 px. It shows the lines
+ * with the API's current prices, the subtotal and the way on. Delivery, any discount and the total are confirmed on the cart page, which holds the accepted
  * server quote checkout needs; the sheet never shows a payable total.
  */
 export function CartSheet({ whatsappNumber }: { whatsappNumber: string | null }) {
   const { open, revision } = useCartSheet();
-  const dialog = useRef<HTMLDialogElement>(null);
+  const [place, setPlace] = useState<{ pop: boolean; style?: CSSProperties }>({ pop: false });
   useEffect(() => {
-    const element = dialog.current;
-    if (!element) return;
-    if (open && !element.open) element.showModal();
-    if (!open && element.open) element.close();
+    if (!open) return;
+    // Measured in the next frame, before the sheet slides in (it waits two frames).
+    const frame = requestAnimationFrame(() => {
+      // From 720 px the prototype's pop-over hangs under the header's cart button.
+      const wide = window.matchMedia("(min-width: 720px)").matches;
+      const anchor = document.querySelector<HTMLElement>("[data-cart-anchor]");
+      const box = wide ? anchor?.getBoundingClientRect() : undefined;
+      setPlace(
+        !wide
+          ? { pop: false }
+          : box && box.width > 0
+            ? {
+                pop: true,
+                style: {
+                  top: Math.max(12, box.bottom + 10),
+                  right: Math.max(12, window.innerWidth - (box.left + box.width / 2) - 28),
+                },
+              }
+            : { pop: true },
+      );
+    });
+    return () => cancelAnimationFrame(frame);
   }, [open, revision]);
-
   return (
-    <dialog
-      ref={dialog}
-      aria-labelledby="cart-sheet-title"
-      // The close event arrives after the dialog closed; a new add may have reopened it since.
-      onClose={() => !dialog.current?.open && closeCartSheet()}
-      // A click on the backdrop (outside the panel) closes the sheet.
-      onClick={(event) => event.target === event.currentTarget && closeCartSheet()}
-      className="fixed inset-x-0 top-auto bottom-0 m-0 max-h-[85dvh] w-full max-w-none overflow-hidden rounded-t-lg bg-surface p-0 text-ink shadow-3 backdrop:bg-ink/40 sm:inset-y-0 sm:right-0 sm:left-auto sm:h-dvh sm:max-h-dvh sm:w-[26rem] sm:rounded-none"
+    <Sheet
+      open={open}
+      onClose={closeCartSheet}
+      title="Your cart"
+      side={place.pop ? "pop" : "right"}
+      clearBackdrop={place.pop}
+      {...(place.style ? { style: place.style } : {})}
+      heading={<SheetTitle />}
+      bare
     >
       {open && <SheetBody whatsappNumber={whatsappNumber} />}
-    </dialog>
+    </Sheet>
+  );
+}
+
+/** "Your cart (2)": the count from this device, without asking the API again. */
+function SheetTitle() {
+  const units = cartCount(useCart());
+  return (
+    <>
+      Your cart{" "}
+      {units > 0 && (
+        <span className="muted" style={{ fontWeight: 400 }}>
+          ({units})
+        </span>
+      )}
+    </>
   );
 }
 
 function SheetBody({ whatsappNumber }: { whatsappNumber: string | null }) {
   const { cart, images, view, failed, mounted } = useFreshCart();
-  const units = cart.lines.reduce((sum, line) => sum + line.quantity, 0);
   const buyable = view.lines.filter(
     (line) => line.status === "ok" || line.status === "unconfirmed",
   );
@@ -50,39 +86,26 @@ function SheetBody({ whatsappNumber }: { whatsappNumber: string | null }) {
     ? whatsappHref(whatsappNumber, WHATSAPP_MESSAGES.cart(SITE.name, buyable))
     : null;
   return (
-    <div className="flex max-h-[85dvh] flex-col sm:h-dvh sm:max-h-dvh">
-      <header className="flex items-center justify-between gap-3 border-b border-line px-5 py-4">
-        <h2 id="cart-sheet-title" className="text-lg font-semibold">
-          Your cart {units > 0 && <span className="font-normal text-ink-2">({units})</span>}
-        </h2>
-        <button
-          type="button"
-          aria-label="Close cart"
-          onClick={closeCartSheet}
-          className="size-10 rounded-pill text-xl hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-focus"
-        >
-          ×
-        </button>
-      </header>
-      <div className="flex-1 overflow-y-auto px-5">
+    <>
+      <div className="sh-body">
         {!mounted ? (
-          <p role="status" className="py-6 text-sm text-ink-2">
+          <p role="status" className="small muted">
             Loading your cart…
           </p>
         ) : cart.lines.length === 0 ? (
-          <div className="flex flex-col items-center gap-3 py-9 text-center">
-            <p className="font-semibold">Your cart is empty</p>
-            <button
-              type="button"
-              onClick={closeCartSheet}
-              className="text-sm underline underline-offset-2"
-            >
+          <div className="empty cart-empty">
+            <span className="ic">
+              <Icon name="bag" size="lg" />
+            </span>
+            <h3 className="h3">Your cart is empty</h3>
+            <p>Browse disposables and kits, or ask us on WhatsApp for a recommendation.</p>
+            <button type="button" className="btn btn-primary" onClick={closeCartSheet}>
               Continue shopping
             </button>
           </div>
         ) : (
           <>
-            <p role="status" aria-live="polite" className="min-h-5 pt-3 text-sm text-ink-2">
+            <p role="status" aria-live="polite" className="small muted cart-status">
               {view.blockedCount > 0
                 ? `${view.blockedCount} ${view.blockedCount === 1 ? "item needs" : "items need"} your attention.`
                 : failed && !view.confirmed
@@ -96,32 +119,30 @@ function SheetBody({ whatsappNumber }: { whatsappNumber: string | null }) {
         )}
       </div>
       {mounted && cart.lines.length > 0 && (
-        <footer className="flex flex-col gap-3 border-t border-line px-5 py-4">
-          <dl className="flex justify-between gap-4 text-sm">
-            <dt>
-              Subtotal ({view.itemCount} {view.itemCount === 1 ? "item" : "items"})
-            </dt>
-            <dd className="font-semibold">
-              <Money fils={view.subtotalFils} />
-            </dd>
+        <div className="sh-foot">
+          <dl className="totals">
+            <div>
+              <dt>
+                Subtotal ({view.itemCount} {view.itemCount === 1 ? "item" : "items"})
+              </dt>
+              <dd>
+                <Money fils={view.subtotalFils} />
+              </dd>
+            </div>
           </dl>
-          <p className="text-xs text-ink-3">
+          <p className="small muted">
             Delivery and any discount are added in your cart. Cash on delivery.
           </p>
           <Link
             href="/cart"
             prefetch={false}
             onClick={closeCartSheet}
-            className="flex h-12 items-center justify-center rounded-pill bg-primary px-6 text-base font-medium text-on-primary hover:bg-primary-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+            className="btn btn-primary btn-lg btn-block"
           >
             View cart and checkout
           </Link>
-          <div className="grid gap-2 min-[400px]:grid-flow-col min-[400px]:auto-cols-fr">
-            <button
-              type="button"
-              onClick={closeCartSheet}
-              className="flex h-10 items-center justify-center rounded-pill border-[1.5px] border-line px-4 text-sm font-medium hover:border-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
-            >
+          <div className="sh-row">
+            <button type="button" className="btn btn-outline btn-sm" onClick={closeCartSheet}>
               Continue shopping
             </button>
             {whatsapp && (
@@ -129,14 +150,14 @@ function SheetBody({ whatsappNumber }: { whatsappNumber: string | null }) {
                 href={whatsapp}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex h-10 items-center justify-center rounded-pill border-[1.5px] border-line px-4 text-sm font-medium hover:border-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+                className="btn btn-sm btn-wa-line"
               >
-                Order on WhatsApp
+                <Icon name="wa" size="sm" /> Order on WhatsApp
               </a>
             )}
           </div>
-        </footer>
+        </div>
       )}
-    </div>
+    </>
   );
 }

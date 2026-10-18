@@ -5,6 +5,7 @@ import { IconSprite } from "@/components/icons";
 import { PromoTicker } from "@/components/promo-ticker";
 import { SiteHeader } from "@/components/site-header";
 import { StoreOverlays } from "@/components/store-overlays";
+import { Toasts } from "@/components/toasts";
 import { AGE_COPY } from "@/lib/age/copy";
 import { POLICY_PAGES, SITE } from "@/lib/site";
 import { shellBrands, storeHome, storeInfo } from "@/lib/store/server";
@@ -201,6 +202,7 @@ export default async function ShopLayout({ children }: { children: ReactNode }) 
       </footer>
       <StoreOverlays whatsappNumber={whatsappNumber} />
       <CartSheet whatsappNumber={whatsappNumber} />
+      <Toasts />
     </>
   );
 }

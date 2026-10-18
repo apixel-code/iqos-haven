@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { MouseEvent } from "react";
 import { BrandsMenu } from "@/components/brands-menu";
+import { CountBadge } from "@/components/count-badge";
 import { Icon } from "@/components/icons";
 import { MenuSheet } from "@/components/menu-sheet";
 import { SearchBox } from "@/components/search-box";
@@ -104,17 +105,14 @@ export function SiteHeader({
           </Link>
           <Link
             className="ibtn"
+            data-cart-anchor
             href="/cart"
             prefetch={false}
             onClick={inCheckout ? undefined : openSheet}
             aria-label={`Cart, ${plural(cart, "item")}`}
           >
             <Icon name="bag" />
-            {cart > 0 && (
-              <span className="count" data-cc>
-                {cart}
-              </span>
-            )}
+            <CountBadge value={cart} data />
           </Link>
         </div>
       </div>

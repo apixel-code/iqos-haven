@@ -138,7 +138,14 @@ export default async function ProductPage({ params }: Props) {
             key={product.slug}
             product={product}
             whatsappHref={whatsapp}
-            save={<SaveButton slug={product.slug} name={product.name} variant="page" />}
+            save={
+              <SaveButton
+                slug={product.slug}
+                name={product.name}
+                variant="page"
+                image={product.images[0]?.urls.thumb ?? null}
+              />
+            }
           />
           {whatsapp && (
             <a href={whatsapp} target="_blank" rel="noopener noreferrer" className="wa-link">
