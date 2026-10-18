@@ -44,10 +44,12 @@ function* sources(dir) {
     else if (/\.(tsx?|css|mjs|cjs)$/.test(name)) yield path;
   }
 }
+// The launch check (step 124, ADR 0095) names the demo codes only to find and block them.
+const DETECTORS = new Set(["packages/db/src/launch-readiness.ts"]);
 for (const root of ["apps", "packages"])
   for (const file of sources(root))
     assert(
-      !DEMO.test(readFileSync(file, "utf8")),
+      DETECTORS.has(file) || !DEMO.test(readFileSync(file, "utf8")),
       "Prototype demo coupon or free-delivery claim in " + file,
     );
 process.stdout.write("Reference set, 132 steps, prototype privacy and demo-copy checks passed.\n");

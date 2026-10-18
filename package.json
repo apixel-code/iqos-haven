@@ -26,6 +26,7 @@
     "contracts:check": "node scripts/generate-api-contract.mjs --check",
     "verify": "node scripts/verify.mjs",
     "bootstrap:owner": "pnpm --filter @ih/api bootstrap:owner",
+    "launch:check": "pnpm --filter @ih/api launch:check",
     "identity:benchmark": "pnpm --filter @ih/api identity:benchmark",
     "age:keygen": "node scripts/age-keygen.mjs",
     "load:test": "node scripts/load/load-test.cjs",

@@ -4,8 +4,8 @@
 
 - Date: 2026-10-18
 - Milestone: M11 — full acceptance and release, in progress. Gates M0, M2–M10 PASSED (M0, M3, M4, M6–M10 on 2026-10-17, Marina); M1 open until staging/CI.
-- Step: launch parity gaps (Marina 2026-10-17): G-S2 (#101), G-S3 (#102), G-S5 (#103), G-A5 (#104), G-A6 (#105), G-A7 (#106), G-A8 (#107), G-A9 (#108), all merged to `main` 2026-10-18; **G-A11** (Owner-sent staff reset, pending invitations, ADR 0094) done — every launch parity gap is built. Next: step 124. Steps 115–119, 121 done; 120 local part done (real devices wait for staging).
-- Branch: `parity/g-a11-staff-reset-invites` (from `main` ab91501; PR #109). No migration.
+- Step: launch parity gaps (Marina 2026-10-17): G-S2 (#101), G-S3 (#102), G-S5 (#103), G-A5 (#104), G-A6 (#105), G-A7 (#106), G-A8 (#107), G-A9 (#108), all merged to `main` 2026-10-18; G-A11 (#109), all merged to `main` 2026-10-18 — every launch parity gap is built. **Step 124** (launch readiness check instead of import, ADR 0095) done. Next: step 125. Steps 115–119, 121 done; 120 local part done (real devices wait for staging).
+- Branch: `step/124-launch-check` (from `main` 2c6ad5e; PR #110). No migration.
 - See docs/verification.md for actual checks.
 
 ## Next action
@@ -157,6 +157,7 @@ Before checkout is switched on: the sender domain verification (BI-07, Marina/Ap
 - G-A8 — products list: name or option-SKU search, stock state over active options (`inventory.read` field policy, filter 403 without it), sorts newest/name/price with per-sort cursors, signed thumbnails; `products-list.mjs` (ADR 0092) — parity/g-a8-products-list
 - G-A9 — unsaved-changes guard: `data-unsaved` editor regions snapshotted on first touch, re-snapshotted after a successful save; admin links, `data-leave` buttons and `beforeunload` ask "Leave without saving?"; `useUnsavedChanges` for the content editor; `unsaved-guard.mjs` (ADR 0093) — parity/g-a9-unsaved-guard
 - G-A11 — `POST /v1/admin/staff/:id/password-reset` (Owner-sent reset, audited as the Owner, 409 `STAFF_INACTIVE`) and `GET /v1/admin/staff/invitations` (pending, expired flagged); admin Pending invitations card with revoke and Send password reset; `staff-access.mjs` (ADR 0094) — parity/g-a11-staff-reset-invites
+- 124 — `pnpm launch:check`: read-only launch readiness (migrations, Owner, test accounts, settings, delivery, published catalogue, stock ledger, demo coupons, fixture slugs; warnings for sold-out, email alerts, SEO, dead effects); bootstrap runbook rewritten as the launch sequence; no import (BI-10/11) (ADR 0095) — step/124-launch-check
 - G-A6 — packing slip: order-detail preview dialog and A5 print (only the slip is laid out), order's own emirate, cash to collect, no internal note, `customers.read` only; `packing-slip.mjs` (ADR 0090) — parity/g-a6-packing-slip
 - G-A5 — orders list: `GET /v1/admin/orders/counts` (tab counts under the other filters), four sorts with a per-sort keyset cursor, select-all pending on the page, phone cards; bell accessible name fixed; `orders-list.mjs` (ADR 0089) — parity/g-a5-orders-list
 - G-S5 — sticky add-to-cart bar on phones inside `BuyBox` (after the main button scrolls away; inert and control-less while hidden; no silent default option; page padding so the footer stays readable); `sticky-add.mjs` (ADR 0088) — parity/g-s5-sticky-add
@@ -210,28 +211,31 @@ Before checkout is switched on: the sender domain verification (BI-07, Marina/Ap
 - Event `consumers` lists only implemented consumers (now `system_probe`, `email`, `notification`, `media_processor`, `storefront_revalidate`); planned ones are documented with roadmap steps and move in with a backfill decision (architecture §8: adding a consumer must not redefine old completions).
 - `audit_log` migration revokes UPDATE/DELETE/TRUNCATE only from a role named `ih_app`; other runtime role names must be revoked at provisioning (trigger blocks mutations regardless).
 
-## Last session handoff (2026-10-18, parity G-A11)
+## Last session handoff (2026-10-18, step 124)
 
 Done:
 
-- Merged PR #108 (G-A9) on Marina's request; `main` at ab91501.
-- **G-A11 (ADR 0094, no migration):**
-  - **Owner-sent reset:** `POST /v1/admin/staff/:id/password-reset` (`staff.manage`) issues the same 30-minute reset link and email as self-service, audited with the Owner as actor (`issueStaffPasswordReset`, `staffResetTarget` in `packages/db/src/password-reset.ts`). An inactive account gets 409 `STAFF_INACTIVE` (new code), an unknown one 404.
-  - **Pending invitations:** `GET /v1/admin/staff/invitations` lists them (`listPendingStaffInvitations`; at most 100, newest first, expired flagged, no tokens).
-  - **Admin:** a "Pending invitations" card with revoke, and "Send password reset" on active accounts.
-- **All nine launch parity gaps are now built.**
+- Merged PR #109 (G-A11) on Marina's request; `main` at 2c6ad5e, CI green. All nine launch parity gaps are in `main`.
+- **Step 124 (ADR 0095):** no import command, because the catalogue, settings and staff are entered through the admin (BI-10/11).
+  - `pnpm launch:check` reads `DATABASE_URL` and changes nothing. It prints PASS/WARN/FAIL and exits 1 while anything blocks.
+  - Facts come from `launchFacts`/`shippedMigrations` in `packages/db/src/launch-readiness.ts`; the rules live in `apps/api/src/cli/launch-check.ts`.
+  - New env schema `launchCheckEnvSchema`.
+  - `docs/runbooks/owner-and-data-bootstrap.md` now opens with the launch sequence: migrate → Apixel bootstrap Owner → invite the client Owner, deactivate Apixel → settings → catalogue and opening stock → `launch:check` → open checkout. The outdated import and Dubai-only paragraphs are removed.
+  - `scripts/check-reference-set.mjs` names the detector file as the one exception to the demo-code guard.
 
-Files: `packages/contracts/src/{auth.ts,index.ts}`, `packages/db/src/{password-reset.ts,staff-invitations.ts}`, `apps/api/src/auth/{password-reset.service.ts,staff-administration.controller.ts,staff-invitation.controller.ts,staff-invitation.service.ts,password-reset.int.test.ts,staff-invitation.int.test.ts}`, `apps/admin/components/staff-management.tsx`, `scripts/browser-qa/{staff-access.mjs,README.md}`, `docs/decisions/0094-staff-reset-and-pending-invitations.md`, `docs/parity-review.md`, `docs/verification.md`
+Files: `packages/db/src/{launch-readiness.ts,launch-readiness.int.test.ts,index.ts}`, `packages/config/src/index.ts`, `apps/api/src/cli/{launch-check.ts,launch-check.main.ts,launch-check.test.ts}`, `apps/api/package.json`, `package.json`, `CLAUDE.md`, `scripts/check-reference-set.mjs`, `docs/runbooks/owner-and-data-bootstrap.md`, `docs/decisions/0095-launch-check-instead-of-import.md`, `docs/verification.md`
 
-Tests: `pnpm verify` PASS (age preview 2247). `pnpm test:int` PASS (662). Browser: `staff-access`, `a11y-admin` PASS.
+Tests: `pnpm verify` PASS (age preview 2247). `pnpm test:int` PASS (664). `pnpm launch:check` run on the local dev database (read-only): not ready, as expected.
 
 Unfinished:
 
-- PR #109 (G-A11) waits for merge (Claude merges only when Marina asks).
-- Next: roadmap step 124 (validated import commands and Owner/settings bootstrap), then 125 (monitoring), 126 (backup/restore drill), 127 (runbooks). Check each row with `rg -n "^| 12[4-7] " docs/roadmap.md`.
-- Reset email wording ("If you did not request this…") is slightly off for an Owner-sent link; left for the email copy review (BI-01).
+- PR #110 (step 124) waits for merge (Claude merges only when Marina asks).
+- Next: step 125 (monitoring, synthetic checks, alerts, recipient verification), then 126 (backup/restore drill), 127 (runbooks: several already exist in `docs/runbooks/`; check what step 127 still needs).
+- Running `launch:check` on staging/production happens with the VPS (staging-dependent work).
 
 ## History (summary)
+
+- 2026-10-18 parity G-A11: Owner-sent staff reset, pending invitations with revoke (PR #109, merged).
 
 - 2026-10-18 parity G-A9: unsaved-changes guard on admin editors (PR #108, merged).
 
