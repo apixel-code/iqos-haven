@@ -258,3 +258,12 @@ QA_PLAYWRIGHT_DIR=/tmp/ih-qa node scripts/browser-qa/a11y-admin.mjs <SCHEMA>
 Both run axe-core with the WCAG 2.1 A/AA rules on every page at a phone and a desktop width (the
 admin also in its dark theme). Serious and critical violations fail; lesser ones are printed as
 notes. They then walk keyboard-only journeys through the dialogs, sheets and form errors.
+
+## Listing-page filters (parity G-S2)
+
+```sh
+pnpm build && node scripts/check-gate-e2e.cjs --serve &   # prints SERVING
+QA_PLAYWRIGHT_DIR=/tmp/ih-qa node scripts/browser-qa/listing-filters.mjs <SERVING> /tmp/ih-qa/shots
+```
+
+It checks that `/shop` offers every filter with counts, and that type, brand and offers pages hide the filter they fix. A filter submits to the page's own path, and a filter that matches nothing has a way back. Old `?brand=&sort=` links still work, a malformed cursor is ignored, and the 360px filter block opens with a count when a filter is active.

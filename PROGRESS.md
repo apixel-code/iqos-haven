@@ -4,8 +4,8 @@
 
 - Date: 2026-10-17
 - Milestone: M11 — full acceptance and release, in progress. Gates M0, M2–M10 PASSED (M0, M3, M4, M6–M10 on 2026-10-17, Marina); M1 open until staging/CI.
-- Step: **121 — done** (load/query/payload test, ADR 0085, docs/load-report.md; BI-16 answered: fewer than 200 shoppers at peak, covered). Step 120: local part done, real-device part waits for BI-15 + staging. All four tier-L parity gaps done (ADRs 0080–0083). M11 in progress (115–119, 121 done; 120 partial).
-- Branch: `step/121-load-testing` (from `step/120-accessibility`; PR #99 based on #98)
+- Step: launch parity gaps (Marina 2026-10-17): **G-S2 done** (listing filters, ADR 0086). Next: G-S3. Steps 115–119, 121 done; 120 local part done (real devices wait for staging).
+- Branch: `parity/g-s2-listing-filters` (from `main` at f049897, after PR #100; PR #101)
 - See docs/verification.md for actual checks.
 
 ## Next action
@@ -17,9 +17,9 @@
 - Marina's answers (2026-10-12, ADR 0036, docs/business-inputs.md): prices are final as entered, no tax calculation (BI-02); delivery covers the seven emirates at one flat fee (BI-03); minimum age 18 as built (BI-04); Hostinger VPS (BI-06); catalogue, Owner and staff are entered through the admin (BI-10/11); retention defaults chosen by Apixel (BI-08). Still open: BI-01, BI-09 (demo values for now), BI-05 (indexing stays off).
 
 1. **Marina's decisions (2026-10-17), all recorded:** gates M0, M3, M4, M6, M7, M8, M9, M10 PASSED (see Gates passed); M1 stays open until staging and CI are proven; M11 in progress. Business inputs: none OPEN (BI-01, BI-07, BI-09 partly answered: logo/contact copy, sender-domain verification and the WhatsApp number follow).
-2. **Merge:** one PR from `step/121-load-testing` to `main` contains every stacked step (#60–#99 are then closed as merged through it). Marina merges on GitHub ("Create a merge commit") once CI is green; afterwards `git checkout main && git pull --ff-only`, and branch new work from `main`.
+2. **Merged 2026-10-17:** PR #100 brought every stacked step into `main` (f049897); #60–#99 closed (68 and 73 as superseded). Branch every new piece of work from `main`.
 3. **Work order (Marina, 2026-10-17):** merge → the nine chosen parity gaps → steps 124–127 → staging-dependent work (120 real devices, 121 rerun, 122, 128) on the Hostinger VPS (one VPS, staging first, later production).
-4. **Parity gaps to build before launch** (one branch, PR and commit each, from `main`): G-S2 listing filters, G-S3 mobile search sheet, G-S5 sticky add-to-cart, G-A5 orders list (counts, sort, select-all, mobile cards), G-A6 packing slip/print, G-A7 brand logo and category image upload (+ Owner purge), G-A8 products list (SKU search, stock filter/column, sort, thumbnail), G-A9 unsaved-changes guard, G-A11 Owner-sent staff reset and pending-invitation revoke. Not now: G-S8, G-A10 and every O-tier gap (after launch).
+4. **Parity gaps to build before launch** (one branch, PR and commit each, from `main`): ~~G-S2 listing filters~~ (DONE, ADR 0086, PR #101), **G-S3 mobile search sheet (next)**, G-S5 sticky add-to-cart, G-A5 orders list (counts, sort, select-all, mobile cards), G-A6 packing slip/print, G-A7 brand logo and category image upload (+ Owner purge), G-A8 products list (SKU search, stock filter/column, sort, thumbnail), G-A9 unsaved-changes guard, G-A11 Owner-sent staff reset and pending-invitation revoke. Not now: G-S8, G-A10 and every O-tier gap (after launch).
 5. **First Owner:** an Apixel account via `pnpm bootstrap:owner`, which invites the client as Owner and is then removed (the last-Owner guard keeps one Owner at all times).
 6. **At launch, Owner settings:** SEO policy `public_pages` (BI-05); WhatsApp number in Settings (BI-09); sender no-reply@iqoshaven.com once the domain is verified (BI-07), then `CHECKOUT_SUBMISSION_ENABLED=true`.
 7. **Next work: the four tier-L parity gaps** — Marina's decision (2026-10-17): build Apixel's recommended launch set from `docs/parity-review.md` before step 120. One branch, PR and commit each, in this order:
@@ -153,6 +153,7 @@ Before checkout is switched on: the sender domain verification (BI-07, Marina/Ap
 - 104 — storefront telemetry queue (batches of 20, one retry, pause on overload, drop when full or on quiet pages), events from search/product page/cart/saved list, rotating anonymous ID, browser QA script (ADR 0070) — `step(104)` commit on `step/104-client-telemetry`
 - 105 — financial metric definitions (booked/delivered/collected, AOV, cancellation, status mix; Dubai days, AED fils, tax note) and the Owner's snapshot summary query (ADR 0071) — `step(105)` commit on `step/105-financial-metrics`
 - 106 — `sales_daily`, `product_sales_daily` (snapshot brand), `search_daily`, `wishlist_daily`; idempotent per-day rollup sharing the step 105 definitions; `analytics_rollup` consumer on order events (ADR 0072) — `step(106)` commit on `step/106-daily-rollups`
+- G-S2 — listing pages use termless search (catalogue budget and cache) with the full filter panel; `category` search scope; old listing controls removed; `listing-filters.mjs`; age-preview stub answers termless search (ADR 0086) — 948781e
 - 121 — `pnpm load:test` (`scripts/load/`): launch-sized dataset, 50/150 shoppers + staff, contention, queue outage; read p95 32 ms, checkout p95 62 ms, no pool waits; admin orders list fixed (52 → 2 ms at 51,788 orders); gate harness cleanup fixed (Nest hooks, storefront group, gateway); BI-16 added (ADR 0085) — step/121-load-testing
 - 120 (local part; step still open) — axe WCAG 2.1 AA + keyboard passes `a11y-storefront.mjs` (51) and `a11y-admin.mjs` (70); fixes: storefront `--ink-3` contrast, Cart link name, dialog reopen race (cart sheet, menu), admin tab list, notification panel Escape; BI-15 added (ADR 0084) — step/120-accessibility
 - G-S4 — storefront mobile menu sheet: compact phone header (logo, Menu, Cart, search row), `MenuSheet` dialog from the left with sections, brands loaded on opening, saved/compare counts, help and WhatsApp; Help link on wide screens; browser pass `menu-sheet.mjs` (ADR 0083) — parity/g-s4-menu-sheet
@@ -201,30 +202,32 @@ Before checkout is switched on: the sender domain verification (BI-07, Marina/Ap
 - Event `consumers` lists only implemented consumers (now `system_probe`, `email`, `notification`, `media_processor`, `storefront_revalidate`); planned ones are documented with roadmap steps and move in with a backfill decision (architecture §8: adding a consumer must not redefine old completions).
 - `audit_log` migration revokes UPDATE/DELETE/TRUNCATE only from a role named `ih_app`; other runtime role names must be revoked at provisioning (trigger blocks mutations regardless).
 
-## Last session handoff (2026-10-17, step 121)
+## Last session handoff (2026-10-17, parity G-S2)
 
 Done:
 
-- **Step 121 (ADR 0085, `docs/load-report.md`).**
-  - **The script:** `pnpm load:test` seeds 600 products, 1,800 options and 40 areas on a fresh test schema. It runs the built API on the budget profile in a child process (`scripts/load/api-server.cjs`, with the worker's relay, consumers and reconciler), then: 600 history orders → 50 shoppers + 2 staff for 120 s → contention → a 20 s queue-Redis outage.
-  - **Results:** read p95 32 ms and checkout p95 62 ms (targets 300 and 800); 23 and 54 ms with 150 shoppers. No pool waits. Last units and the one-use coupon exact. Effects drain 6 s after Redis returns. Reconciliation 0.
-  - **Volume check:** at 51,788 orders every admin and rollup read p95 is ≤ 93 ms.
-- **Fixes:**
-  - **Admin orders list** (`packages/db/src/order-admin.ts`): the page is picked before counting lines (52 → 2 ms at 51,788 orders).
-  - **`check-gate-e2e.cjs --serve`:** Nest's shutdown hooks had killed it before cleanup, leaving storefronts, gateway containers and schemas (load average 394). Now its cleanup always runs: it stops the storefront's process group and reports a gateway it cannot stop. 8 old gateway containers and 7 storefronts were stopped.
-- **BI-16 added:** the client's expected traffic.
+- **Housekeeping:** Marina merged PR #100 (all stacked steps) into `main`. #60–#99 closed (#68 and #73 as superseded: steps 94 and 99 are in `main` as 1bdeb3f and a0d8cd7). `main` CI green.
+- **G-S2 (ADR 0086):**
+  - **Listing pages:** they browse through `/store/search` without a term, with their fixed scope (`type`, `brand`, `category` or the offers flag), and get the full filter panel with counts.
+  - **API:**
+    - `category` added to search as a scope;
+    - a termless search uses the catalogue budget (240/min) and caches its first page in the catalogue cache, which is still dropped on any catalogue change;
+    - a typed term keeps the 60/min budget and no cache.
+  - **Removed:** `ListingControls`, `ProductListing`, `parseListing` and `listingHref`.
+  - **Age-preview stub:** now answers termless search.
 
-Files: `scripts/load/{load-test.cjs,api-server.cjs}`, `package.json` (`load:test`), `CLAUDE.md`, `.gitignore` (`.load/`), `packages/db/src/order-admin.ts`, `scripts/check-gate-e2e.cjs`, `scripts/browser-qa/README.md`, `docs/load-report.md`, `docs/decisions/0085-load-testing.md`, `docs/business-inputs.md` (BI-16), `docs/verification.md`
+Files: `packages/contracts/src/store.ts`, `packages/db/src/store-search.ts`, `apps/api/src/store/{store-catalog.service.ts,store-search.controller.ts,store-search.int.test.ts}`, `apps/storefront/app/(shop)/listing-page.tsx`, `apps/storefront/components/{search-filters.tsx,listing.tsx}`, `apps/storefront/components/sort-form.tsx` (deleted), `apps/storefront/lib/store/{search.ts,listing.ts,store.test.ts}`, `scripts/check-age-preview.mjs`, `scripts/browser-qa/{listing-filters.mjs,README.md}`, `docs/decisions/0086-listing-page-filters.md`, `docs/parity-review.md`, `docs/verification.md`
 
-Tests: `pnpm verify` PASS (age preview 2245). `pnpm test:int` PASS (651). `pnpm test:gate` PASS (2586), nothing left running afterwards.
+Tests: `pnpm verify` PASS (age preview 2245). `pnpm test:int` PASS (652). `pnpm test:gate` PASS (2586). Browser: `listing-filters.mjs` and `a11y-storefront.mjs` all PASS.
 
 Unfinished:
 
-- PR #99 is open (based on #98).
-- The 10 old `ih_test_*` schemas left by interrupted runs were dropped (Marina, 2026-10-17).
-- Marina's 2026-10-17 decisions are recorded under Next action; she merges the single PR to `main`.
+- PR #101 is open against `main`; Marina merges once CI is green.
+- Next: G-S3 (mobile search sheet), branched from `main` after the merge (or from this branch if it is not merged yet).
 
 ## History (summary)
+
+- 2026-10-17 step 121: `pnpm load:test`, targets met with headroom, admin orders list fix, gate harness cleanup fix (merged via #100).
 
 - 2026-10-17 step 120 (local part): axe WCAG 2.1 AA + keyboard passes, five accessibility fixes, BI-15 (PR #98).
 

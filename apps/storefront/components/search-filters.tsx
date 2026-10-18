@@ -17,9 +17,15 @@ const field =
 export function SearchFilters({
   state,
   result,
+  action = "/search",
+  fixed = {},
 }: {
   state: SearchState;
   result: StoreSearchResponse;
+  /** The page the form submits to: the search page, or a listing page (parity G-S2). */
+  action?: string;
+  /** Filters a listing page fixes in its path: not offered as choices. */
+  fixed?: { type?: boolean; brand?: boolean; sale?: boolean };
 }) {
   const { facets } = result;
   const typeLabels = { disposable: "Disposable vapes", kit: "Vape kits & devices" } as const;
@@ -27,7 +33,7 @@ export function SearchFilters({
     (sort) => sort !== "relevance" || result.query !== "",
   );
   return (
-    <form method="get" action="/search" className="flex flex-col gap-4">
+    <form method="get" action={action} className="flex flex-col gap-4">
       {state.q && <input type="hidden" name="q" value={state.q} />}
       <fieldset className={group}>
         <legend className={legend}>Sort by</legend>
@@ -39,7 +45,7 @@ export function SearchFilters({
           ))}
         </select>
       </fieldset>
-      {facets.types.length > 0 && (
+      {!fixed.type && facets.types.length > 0 && (
         <fieldset className={group}>
           <legend className={legend}>Category</legend>
           <label className={option}>
@@ -63,7 +69,7 @@ export function SearchFilters({
           ))}
         </fieldset>
       )}
-      {facets.brands.length > 0 && (
+      {!fixed.brand && facets.brands.length > 0 && (
         <fieldset className={group}>
           <legend className={legend}>Brand</legend>
           {facets.brands.map((brand) => (
@@ -164,13 +170,15 @@ export function SearchFilters({
           </span>
           <span className={count}>{facets.inStock}</span>
         </label>
-        <label className={option}>
-          <span className="flex items-center gap-2">
-            <input type="checkbox" name="onSale" value="true" defaultChecked={state.onSale} />
-            On sale
-          </span>
-          <span className={count}>{facets.onSale}</span>
-        </label>
+        {!fixed.sale && (
+          <label className={option}>
+            <span className="flex items-center gap-2">
+              <input type="checkbox" name="onSale" value="true" defaultChecked={state.onSale} />
+              On sale
+            </span>
+            <span className={count}>{facets.onSale}</span>
+          </label>
+        )}
       </fieldset>
       <button
         type="submit"

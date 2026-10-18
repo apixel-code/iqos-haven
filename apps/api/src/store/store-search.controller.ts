@@ -11,7 +11,6 @@ import {
 } from "@ih/contracts";
 import {
   assertStoreSearchCursor,
-  searchStoreProducts,
   StoreCursorError,
   suggestStoreSearch,
   type Database,
@@ -22,7 +21,11 @@ import { AgeVerified } from "../auth/access";
 import { Serialize } from "../auth/serialize";
 import { createZodDto } from "../http/zod-validation.pipe";
 import { DATABASE } from "../infra/tokens";
-import { STORE_SEARCH_POLICY, STORE_SUGGEST_POLICY } from "../security/limit-policies";
+import {
+  STORE_CATALOG_POLICY,
+  STORE_SEARCH_POLICY,
+  STORE_SUGGEST_POLICY,
+} from "../security/limit-policies";
 import { RateLimitService } from "../security/rate-limit.service";
 import { StoreCatalogService } from "./store-catalog.service";
 
@@ -34,7 +37,9 @@ class SuggestQueryDto extends createZodDto(storeSuggestQuerySchema) {
 /**
  * Gated search, facets and suggestions (roadmap step 60, ADR 0029). Same controls as the other
  * store reads: age ticket, per-address limit, `private, no-store`, contract-only responses.
- * Results are not cached: the text is free-form, so a cache would only hold other people's typos.
+ * Results for a typed term are not cached: the text is free-form, so a cache would only hold
+ * other people's typos. Without a term this is browsing (the listing pages' filters, parity
+ * G-S2, ADR 0086): it has the catalogue's budget and cache.
  */
 @Controller({ path: "store/search", version: "1" })
 export class StoreSearchController {
@@ -67,13 +72,13 @@ export class StoreSearchController {
     @Req() request: FastifyRequest,
     @Res({ passthrough: true }) reply: FastifyReply,
   ): Promise<StoreSearchResponse> {
-    await this.guard(STORE_SEARCH_POLICY, request, reply);
     const query = raw as unknown as StoreSearchQuery;
+    const browsing = !query.q?.trim();
+    await this.guard(browsing ? STORE_CATALOG_POLICY : STORE_SEARCH_POLICY, request, reply);
     try {
       // Refuse a malformed cursor before any query runs.
       assertStoreSearchCursor(query);
-      const { rows, ...result } = await searchStoreProducts(this.db, query);
-      return { ...result, items: await Promise.all(rows.map((row) => this.catalog.card(row))) };
+      return browsing ? await this.catalog.browse(query) : await this.catalog.loadSearch(query);
     } catch (error) {
       if (error instanceof StoreCursorError) throw new BadRequestException();
       throw error;

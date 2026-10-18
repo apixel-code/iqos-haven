@@ -244,13 +244,36 @@ const stub = createHttpServer((request, response) => {
   if (url.pathname === "/v1/store/search") {
     const q = url.searchParams.get("q") ?? "";
     const none = q.includes("zzz");
+    // Without a term this is a listing page browsing (parity G-S2): the listing cards.
+    const browse = !q
+      ? url.searchParams.get("onSale") === "true"
+        ? {
+            items: [card("Orbe Reduced Pick", { priceFromFils: 4500, compareAtPriceFils: 5900 })],
+            nextCursor: null,
+          }
+        : url.searchParams.has("cursor")
+          ? { items: [card("Orbe Second Page")], nextCursor: null }
+          : {
+              items: [
+                card("Orbe Halo Grape", {
+                  isNew: true,
+                  priceFromFils: 4500,
+                  compareAtPriceFils: 5900,
+                }),
+                card("Orbe Halo Mint", { soldOut: true, priceFromFils: 4950 }),
+              ],
+              nextCursor: "bmV4dC1wYWdl",
+            }
+      : null;
     return send(200, {
       query: q,
       approximate: q.includes("hallo"),
       sort: url.searchParams.get("sort") ?? (q ? "relevance" : "newest"),
-      total: none ? 0 : 2,
-      items: none ? [] : [card("Orbe Halo Grape"), card("Orbe Halo Mint", { soldOut: true })],
-      nextCursor: none ? null : "c2VhcmNoLW5leHQ",
+      total: none ? 0 : (browse?.items.length ?? 2),
+      items: none
+        ? []
+        : (browse?.items ?? [card("Orbe Halo Grape"), card("Orbe Halo Mint", { soldOut: true })]),
+      nextCursor: none ? null : browse ? browse.nextCursor : "c2VhcmNoLW5leHQ",
       facets: none
         ? {
             types: [],
@@ -514,7 +537,8 @@ try {
     ),
     "tracking and unknown parameters are not carried into links or forms",
   );
-  const listCall = apiCalls.find((call) => call.path === "/v1/store/products");
+  // Listing pages browse through the search route without a term (parity G-S2).
+  const listCall = apiCalls.find((call) => call.path === "/v1/store/search");
   check(
     listCall?.search === "?brand=orbe&sort=price_asc",
     "API receives only contract parameters",
@@ -537,16 +561,11 @@ try {
     "second page renders through the cursor",
   );
   check((await page("/disposable-vapes")).includes("Disposable Vapes"), "type page renders");
-  const typeCall = apiCalls.findLast((call) => call.path === "/v1/store/products");
-  check(
-    typeCall?.search === "?type=disposable&sort=newest",
-    "type page fixes its filter",
-    typeCall?.search,
-  );
+  const typeCall = apiCalls.findLast((call) => call.path === "/v1/store/search");
+  check(typeCall?.search === "?type=disposable", "type page fixes its filter", typeCall?.search);
   await page("/vape-kits?type=disposable");
   check(
-    apiCalls.findLast((call) => call.path === "/v1/store/products")?.search ===
-      "?type=kit&sort=newest",
+    apiCalls.findLast((call) => call.path === "/v1/store/search")?.search === "?type=kit",
     "a fixed filter cannot be overridden from the address bar",
   );
   const brandsPage = await page("/brands");
@@ -763,7 +782,9 @@ try {
     "offers list only reduced prices",
   );
   check(
-    apiCalls.some((call) => call.path === "/v1/store/products" && call.search.includes("sale=1")),
+    apiCalls.some(
+      (call) => call.path === "/v1/store/search" && call.search.includes("onSale=true"),
+    ),
     "offers ask the API for the sale filter",
   );
   const help = await page("/help");
