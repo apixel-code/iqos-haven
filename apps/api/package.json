@@ -12,6 +12,7 @@
     "test": "vitest run",
     "test:int": "vitest run --config vitest.int.config.ts",
     "bootstrap:owner": "node dist/cli/bootstrap-owner.main.js",
+    "launch:check": "node dist/cli/launch-check.main.js",
     "identity:benchmark": "node dist/cli/argon2-benchmark.main.js"
   },
   "dependencies": {
