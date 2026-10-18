@@ -110,6 +110,27 @@ Step 115 and the nine launch gaps compared features. A side-by-side screenshot a
   - The other sheets move onto it in V-S6.
 - **Search with no results:** offers "Ask us on WhatsApp" with a prepared message (G-S9).
 
+## V-S4 (product page), 2026-10-18
+
+- **Layout:** the prototype's `pdp` grid (one column, two from 820 px), the gallery sticky beside the buy box, then `pdp-more` (About this product, the `specs` table), Reviews and "More like this".
+- **Gallery (G-S12):**
+  - The prototype's scroll-snap `gal-track`: phones swipe, with the dots; from 720 px thumbnails, which scroll the track.
+  - The prototype's "Demo render" pill becomes a real **Zoom** button. It opens a modal `<dialog>` with the large derivative. There a click toggles 2× at the pointer (the keyboard zooms the centre), the arrow keys and buttons step through the images, Escape or the backdrop closes it, and the gallery stays on the last image viewed. Pinch zoom is the browser's own (`touch-action: pinch-zoom`).
+  - The prototype has no zoom, so this view is new design on the prototype's tokens.
+- **Buy box:**
+  - Brand link, `h1`, `rate-link`, the 26 px price with the struck-through price and the "Save N%" badge, and the `stock` dot.
+  - Options stay radio inputs (keyboard, the existing passes) drawn as the prototype's `flv` chips. Nicotine or strength uses the `seg` control. There are no swatches: options carry no colour value.
+  - `buy-row`: the stepper, the primary button and the big heart (`wishbig`).
+  - After an add the button says "Added" for 1.5 s. The prototype's fake 260 ms delay is not copied. On every width the cart sheet still opens (ADR 0083).
+  - Then the `wa-link`, the kit compare checkbox with "(N selected · view)", the `assure` box and the nicotine `warn`.
+- **Copy changed from the prototype's placeholders:**
+  - The delivery row reads "Delivery across the UAE / All seven emirates, one flat delivery fee shown at checkout." (BI-03). The prototype's "Dubai, same-day, AED 15, free over AED 150" is not carried over.
+  - "Genuine brand stock / Sourced from authorised UAE distributors." is kept as written in the prototype. The client confirms it with the rest of the launch copy.
+- **Specifications:** the prototype's rows. Disposables also show "Nicotine" and "Flavours" when those options exist.
+- **Reviews:** the prototype's `rv-sum`, `rv-bars` and `rv` markup on the real data (step 95). The demo badge, demo weights and demo reviews are not copied.
+- **More like this:** the brand's other products, then the same type from other brands, never sold out, at most four (`relatedProducts`, unit-tested), in the prototype's `rail` under `secHead`.
+- **Sticky bar:** it uses the prototype's `satc` markup. It now shows as soon as the main button is above the viewport. The check runs on scroll instead of in an IntersectionObserver: with images above it the button starts below the fold, and a jump (the reviews link, a restored scroll) passed it without an intersection change, so the bar never appeared.
+
 ## Consequences
 
 - The look comes from the approved source instead of being re-imagined in utilities, so later screens are mostly markup work.

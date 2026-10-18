@@ -268,6 +268,15 @@ QA_PLAYWRIGHT_DIR=/tmp/ih-qa node scripts/browser-qa/listing-filters.mjs <SERVIN
 
 It checks that `/shop` offers every filter with counts, and that type, brand and offers pages hide the filter they fix. A filter submits to the page's own path, and a filter that matches nothing has a way back. Old `?brand=&sort=` links still work, a malformed cursor is ignored, and the 360px filter block opens with a count when a filter is active.
 
+## Product page (V-S4, parity G-S12)
+
+```sh
+pnpm build && node scripts/check-gate-e2e.cjs --serve &   # prints SERVING and SCHEMA
+QA_PLAYWRIGHT_DIR=/tmp/ih-qa node scripts/browser-qa/product-page.mjs <SERVING> <SCHEMA> /tmp/ih-qa/shots
+```
+
+It writes three ready gallery images to `/p/gatecheck-halo` through `docker exec` psql (`QA_PSQL` overrides it). Their signed links point at the media bucket, and the browser gets drawn images in their place. The API caches catalogue reads for up to 60 s, so the first run reloads until the images appear. It checks the swipe track, dots and thumbnails, the zoom dialog (magnify, arrows, Escape) and the buy box layout at 360 and 1280 px.
+
 ## Mobile search sheet (parity G-S3)
 
 ```sh

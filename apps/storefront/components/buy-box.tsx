@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import type { StoreProductResponse } from "@ih/contracts";
 import { CART_LIMITS } from "@/lib/cart/cart";
 import { openCartSheet } from "@/lib/cart/sheet";
@@ -14,9 +14,15 @@ import {
   valueState,
   variantLabel,
 } from "@/lib/store/selection";
+import { Icon } from "@/components/icons";
 import { Money } from "@/components/money";
 
-type Feedback = { kind: "added" | "error"; text: string } | null;
+type Feedback = { kind: "added" | "note" | "error"; text: string } | null;
+
+/** Options shown as the prototype's segmented control rather than chips. */
+const SEGMENTED = new Set(["nicotine", "strength"]);
+/** How long the main button says "Added" (prototype). */
+const ADDED_MS = 1500;
 
 /**
  * Option choice, price, stock and add-to-cart for one product (product page and quick add).
@@ -28,9 +34,12 @@ export function BuyBox({
   compact = false,
   onAdded,
   whatsappHref,
+  save,
 }: {
   product: StoreProductResponse;
   compact?: boolean;
+  /** The heart beside the main button (product page only). */
+  save?: ReactNode;
   /** WhatsApp link for the sticky bar on phones (product page only). */
   whatsappHref?: string | null;
   /** Called after a successful add, before the cart sheet opens (quick add closes itself). */
@@ -40,6 +49,12 @@ export function BuyBox({
   const [chosen, setChosen] = useState<Record<string, string>>(() => impliedChoices(options));
   const [quantity, setQuantity] = useState(1);
   const [feedback, setFeedback] = useState<Feedback>(null);
+  const [added, setAdded] = useState(false);
+  useEffect(() => {
+    if (!added) return;
+    const timer = window.setTimeout(() => setAdded(false), ADDED_MS);
+    return () => window.clearTimeout(timer);
+  }, [added]);
   const formId = useId();
   const mainAdd = useRef<HTMLButtonElement>(null);
   const root = useRef<HTMLDivElement>(null);
@@ -48,14 +63,25 @@ export function BuyBox({
   useEffect(() => {
     const button = mainAdd.current;
     if (compact || !button) return;
-    const observer = new IntersectionObserver(([entry]) =>
-      setSticky(!entry!.isIntersecting && entry!.boundingClientRect.top < 80),
-    );
-    observer.observe(button);
+    // Measured on scroll, not by an IntersectionObserver: a jump (the "reviews" link, a restored
+    // scroll position) can pass the button without ever crossing the viewport edge.
+    let frame = 0;
+    const measure = () => {
+      frame = 0;
+      setSticky(button.getBoundingClientRect().bottom < 0);
+    };
+    const schedule = () => {
+      if (!frame) frame = requestAnimationFrame(measure);
+    };
+    schedule();
+    window.addEventListener("scroll", schedule, { passive: true });
+    window.addEventListener("resize", schedule, { passive: true });
     // Room below the page on phones, so the bar never covers the footer's last lines.
     document.body.classList.add("has-sticky-buy");
     return () => {
-      observer.disconnect();
+      cancelAnimationFrame(frame);
+      window.removeEventListener("scroll", schedule);
+      window.removeEventListener("resize", schedule);
       document.body.classList.remove("has-sticky-buy");
     };
   }, [compact]);
@@ -117,13 +143,14 @@ export function BuyBox({
     setFeedback(
       result.full
         ? { kind: "error", text: "Your cart is full. Remove an item to add another." }
-        : {
-            kind: "added",
-            text: result.capped
-              ? `Added. You can have up to ${CART_LIMITS.maxQuantity} of one item: ${result.quantity} in your cart.`
-              : `Added to cart: ${result.quantity} in your cart.`,
-          },
+        : result.capped
+          ? {
+              kind: "note",
+              text: `Added. You can have up to ${CART_LIMITS.maxQuantity} of one item: ${result.quantity} in your cart.`,
+            }
+          : { kind: "added", text: `Added to cart: ${result.quantity} in your cart.` },
     );
+    if (!result.full) setAdded(true);
     // The cart sheet shows what is now in the cart and the way on (parity G-S1).
     if (!result.full) {
       onAdded?.();
@@ -133,31 +160,32 @@ export function BuyBox({
 
   const blocked =
     selection.status === "sold_out" || selection.status === "unavailable" || product.soldOut;
+  const label =
+    selection.status === "sold_out" || product.soldOut
+      ? "Sold out"
+      : selection.status === "unavailable"
+        ? "Not available"
+        : "Add to cart";
   return (
-    <div ref={root} className="flex flex-col gap-5">
-      <div className="flex flex-col gap-1.5">
-        <p className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-          <span
-            className={`font-semibold ${compact ? "text-xl" : "text-3xl"} ${saving ? "text-coral" : ""}`}
-          >
-            {varies && <span className="text-base font-medium text-ink-2">From </span>}
+    <div ref={root} className="buy-box">
+      <div className="buy-price">
+        <div className="price">
+          <span className={saving ? "now sale" : "now"}>
+            {varies && <span className="from">From </span>}
             <Money fils={priceFils} />
           </span>
           {compareAt !== null && (
-            <span className="text-sm text-ink-3 line-through">
-              <span className="sr-only">Was </span>
+            <span className="was">
+              <span className="sr">Was </span>
               <Money fils={compareAt} />
             </span>
           )}
-          {saving !== null && (
-            <span className="rounded-pill bg-coral px-2 py-0.5 text-xs font-semibold text-white">
-              Save {saving}%
-            </span>
-          )}
-        </p>
-        <p aria-live="polite" className="min-h-5 text-sm">
+          {saving !== null && <span className="badge badge-sale">Save {saving}%</span>}
+        </div>
+        <p aria-live="polite" className="buy-stock">
           {stock && (
-            <span className={stock.tone === "ok" ? "text-success" : "text-error"}>
+            <span className={stock.tone === "ok" ? "stock" : "stock no"}>
+              <i aria-hidden="true" />
               {stock.text}
             </span>
           )}
@@ -167,26 +195,24 @@ export function BuyBox({
       {options
         .filter((option) => option.values.length > 1)
         .map((option) => (
-          <fieldset key={option.name} data-option={option.name} className="flex flex-col gap-2">
-            <legend className="text-sm font-medium">
+          <fieldset key={option.name} data-option={option.name} className="opt-g">
+            <legend>
               {optionLabel(option.name)}
               {chosen[option.name] ? (
-                <span className="font-normal text-ink-2">: {chosen[option.name]}</span>
+                <>
+                  : <span>{chosen[option.name]}</span>
+                </>
               ) : (
-                <span className="font-normal text-ink-3"> · choose one</span>
+                <span> · choose one</span>
               )}
             </legend>
-            <div className="flex flex-wrap gap-2">
+            {/* Radio inputs styled as the prototype's chips (`flv`) or segments (`seg`). */}
+            <div className={SEGMENTED.has(option.name) ? "seg" : "flv"}>
               {option.values.map((value) => {
                 const state = valueState(product.variants, chosen, option.name, value);
                 const selected = chosen[option.name] === value;
                 return (
-                  <label
-                    key={value}
-                    className={`inline-flex min-h-10 cursor-pointer items-center rounded-pill border-[1.5px] px-4 text-sm has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-focus ${
-                      selected ? "border-ink bg-ink text-white" : "border-line bg-surface text-ink"
-                    } ${state === "available" ? "" : "border-dashed text-ink-3 line-through"}`}
-                  >
+                  <label key={value} className={state === "available" ? undefined : "oos"}>
                     <input
                       type="radio"
                       name={`${formId}-${option.name}`}
@@ -196,11 +222,11 @@ export function BuyBox({
                         setChosen((current) => ({ ...current, [option.name]: value }));
                         setFeedback(null);
                       }}
-                      className="sr-only"
+                      className="sr"
                     />
                     {value}
                     {state !== "available" && (
-                      <span className="sr-only">
+                      <span className="sr">
                         ,{" "}
                         {state === "sold_out"
                           ? "sold out"
@@ -214,32 +240,24 @@ export function BuyBox({
           </fieldset>
         ))}
 
-      <div className="flex flex-wrap items-center gap-3">
-        <div
-          role="group"
-          aria-label="Quantity"
-          className="inline-flex h-12 items-center rounded-pill border-[1.5px] border-line bg-surface"
-        >
+      <div className="buy-row">
+        <div className="stepper" role="group" aria-label="Quantity">
           <button
             type="button"
             aria-label="Decrease quantity"
             disabled={quantity <= 1}
             onClick={() => setQuantity((current) => Math.max(1, current - 1))}
-            className="size-12 rounded-pill text-lg disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-focus"
           >
-            −
+            <Icon name="minus" />
           </button>
-          <output aria-live="polite" className="w-8 text-center text-sm font-medium">
-            {quantity}
-          </output>
+          <output aria-live="polite">{quantity}</output>
           <button
             type="button"
             aria-label="Increase quantity"
             disabled={quantity >= CART_LIMITS.maxQuantity}
             onClick={() => setQuantity((current) => Math.min(CART_LIMITS.maxQuantity, current + 1))}
-            className="size-12 rounded-pill text-lg disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-focus"
           >
-            +
+            <Icon name="plus" />
           </button>
         </div>
         <button
@@ -247,29 +265,37 @@ export function BuyBox({
           type="button"
           disabled={blocked}
           onClick={add}
-          className="inline-flex h-12 min-w-40 flex-1 items-center justify-center rounded-pill bg-primary px-6 text-base font-medium text-on-primary hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+          className={
+            blocked
+              ? "btn btn-lg"
+              : added
+                ? "btn btn-primary btn-lg added"
+                : "btn btn-primary btn-lg"
+          }
         >
-          {selection.status === "sold_out" || product.soldOut
-            ? "Sold out"
-            : selection.status === "unavailable"
-              ? "Not available"
-              : "Add to cart"}
+          {added && !blocked ? (
+            <>
+              <Icon name="check" /> Added
+            </>
+          ) : (
+            label
+          )}
         </button>
+        {save}
       </div>
       <p
         role="status"
         aria-live="polite"
-        className={`min-h-5 text-sm ${feedback?.kind === "error" ? "text-error" : "text-success"}`}
+        className={
+          feedback?.kind === "error"
+            ? "buy-note err"
+            : feedback?.kind === "added"
+              ? "sr"
+              : "buy-note"
+        }
       >
+        {/* A plain add is shown by the button and the cart sheet; screen readers hear it here. */}
         {feedback?.text}
-        {feedback?.kind === "added" && (
-          <>
-            {" "}
-            <a href="/cart" className="font-medium text-ink underline underline-offset-2">
-              View cart
-            </a>
-          </>
-        )}
       </p>
       {!compact && (
         // Phones only (parity G-S5, ADR 0088). Off-screen and inert until the main button has
@@ -278,13 +304,11 @@ export function BuyBox({
           aria-label="Add to cart"
           role="region"
           inert={!sticky}
-          className={`fixed inset-x-0 bottom-0 z-20 flex items-center gap-3 border-t border-line bg-surface px-4 pt-2.5 pb-[calc(10px+env(safe-area-inset-bottom))] shadow-3 transition-transform duration-300 ease-brand motion-reduce:transition-none md:hidden ${
-            sticky ? "translate-y-0" : "translate-y-[110%]"
-          }`}
+          className={sticky ? "satc store-satc show" : "satc store-satc"}
         >
-          <div className="flex min-w-0 flex-1 flex-col">
-            <b className="truncate text-sm font-semibold">{product.name}</b>
-            <span className="truncate text-xs text-ink-2">
+          <div className="t">
+            <b>{product.name}</b>
+            <span>
               {/* The price first, so it is never the part cut off. */}
               {varies ? "From " : ""}
               <Money fils={priceFils} />
@@ -303,34 +327,18 @@ export function BuyBox({
                   target="_blank"
                   rel="noopener noreferrer"
                   aria-label="Ask on WhatsApp"
-                  className="inline-flex size-12 shrink-0 items-center justify-center rounded-pill border-[1.5px] border-line text-sm font-semibold text-wa hover:border-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+                  className="ibtn wa-mini"
                 >
-                  <svg
-                    aria-hidden="true"
-                    viewBox="0 0 24 24"
-                    className="size-5"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                  >
-                    <path
-                      d="M21 12a8.5 8.5 0 0 1-12.6 7.4L3 21l1.6-5.2A8.5 8.5 0 1 1 21 12Z"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
+                  <Icon name="wa" />
                 </a>
               )}
               <button
                 type="button"
                 disabled={blocked}
                 onClick={addFromBar}
-                className="inline-flex h-12 shrink-0 items-center justify-center rounded-pill bg-primary px-5 text-sm font-medium text-on-primary hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+                className={blocked ? "btn" : "btn btn-primary"}
               >
-                {selection.status === "sold_out" || product.soldOut
-                  ? "Sold out"
-                  : selection.status === "unavailable"
-                    ? "Not available"
-                    : "Add to cart"}
+                {label}
               </button>
             </>
           )}

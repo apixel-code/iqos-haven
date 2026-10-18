@@ -4,8 +4,8 @@
 
 - Date: 2026-10-18
 - Milestone: M11 — full acceptance and release, in progress. Gates M0, M2–M10 PASSED (M0, M3, M4, M6–M10 on 2026-10-17, Marina); M1 open until staging/CI.
-- Step: launch parity gaps (Marina 2026-10-17): G-S2 (#101), G-S3 (#102), G-S5 (#103), G-A5 (#104), G-A6 (#105), G-A7 (#106), G-A8 (#107), G-A9 (#108), all merged to `main` 2026-10-18; G-A11 (#109), all merged to `main` 2026-10-18 — every launch parity gap is built. Steps 124 (#110) and 125 (#111) merged. **Marina (2026-10-18): the UI must match the prototypes before launch** (ADR 0097; storefront V-S1…V-S6, then admin V-A*; all deferred gaps included). V-S1 (storefront shell, #112) merged; V-S1 (#112), V-S2 (#113) and V-S3 (#114) merged to `main` (f419aed, CI green). **Next: V-S4 (product page).** Steps 126–127 follow the visual work unless Marina reorders. Steps 115–119, 121 done; 120 local part done (real devices wait for staging).
-- Branch: `parity/v-s4-store-pdp` (from `main` f419aed; handoff commit only so far).
+- Step: launch parity gaps (Marina 2026-10-17): G-S2 (#101), G-S3 (#102), G-S5 (#103), G-A5 (#104), G-A6 (#105), G-A7 (#106), G-A8 (#107), G-A9 (#108), all merged to `main` 2026-10-18; G-A11 (#109), all merged to `main` 2026-10-18 — every launch parity gap is built. Steps 124 (#110) and 125 (#111) merged. **Marina (2026-10-18): the UI must match the prototypes before launch** (ADR 0097; storefront V-S1…V-S6, then admin V-A*; all deferred gaps included). V-S1 (storefront shell, #112) merged; V-S1 (#112), V-S2 (#113) and V-S3 (#114) merged to `main` (f419aed, CI green). V-S4 (product page) built on `parity/v-s4-store-pdp`, PR pending. **Next: merge V-S4, then V-S5 (cart, checkout, confirmation).** Steps 126–127 follow the visual work unless Marina reorders. Steps 115–119, 121 done; 120 local part done (real devices wait for staging).
+- Branch: `parity/v-s4-store-pdp` (from `main` f419aed); V-S4 done locally, PR open against `main`.
 - See docs/verification.md for actual checks.
 
 ## Next action
@@ -161,6 +161,7 @@ Before checkout is switched on: the sender domain verification (BI-07, Marina/Ap
 - 125 — worker `ops.monitor` (every minute: effects backlog/dead, ledger, cache publication, DB connections, queue Redis, checkout 5xx via signed `/v1/internal/ops`, API readiness, synthetic age-gate→shop and admin login), `ops_alerts` open/remind/resolve, email to `OPS_ALERT_RECIPIENTS` (Apixel ops), `pnpm ops:test-alert`; optional scrubbed Sentry (`@ih/platform/error-reporting`) (ADR 0096) — step/125-monitoring
 - V-S1 — storefront shell like the prototype: `prototype.css` (prototype store CSS in the components layer, `@container`→`@media`), icon sprite, header (wordmark, sections, Brands panel, search bar/button, WhatsApp, saved and cart counts), footer (brands, help, legal, social from Contact), bottom nav, WhatsApp button, dirham sign (`Money`) (ADR 0097) — parity/v-s1-store-shell
 - V-S2 — home like the prototype: hero carousel (content schema v2, 1–3 slides in navy/lilac/coral, v1 read as one slide; admin slide editor), trust line, category tiles with counts and photos, popular toggle, prototype product card and rails, brand logos, code-less campaigns, puff-count bands (G-S13, `maxPuffs`) (ADR 0097) — parity/v-s2-store-home
+- V-S4 — product page like the prototype: `pdp` grid, swipe gallery with dots/thumbnails and a zoom dialog (G-S12), buy box in prototype markup (chips/segments over radios, stepper, "Added", big heart, wa-link, assure, warn), specs table, reviews markup on real data, "More like this" (`relatedProducts`), sticky bar measured on scroll (fix); `product-page.mjs` (ADR 0097) — uncommitted
 - V-S3 — listing and search like the prototype: one `ListingPage` + client `ShopLayout` (crumbs, sidebar filters with bands and switches, toolbar, chips, empty state), instant apply with skeleton (G-S7), bottom filter sheet with Show N (G-S6) on the shared `Sheet`, no-results WhatsApp (G-S9) (ADR 0097) — parity/v-s3-store-listing
 - G-A6 — packing slip: order-detail preview dialog and A5 print (only the slip is laid out), order's own emirate, cash to collect, no internal note, `customers.read` only; `packing-slip.mjs` (ADR 0090) — parity/g-a6-packing-slip
 - G-A5 — orders list: `GET /v1/admin/orders/counts` (tab counts under the other filters), four sorts with a per-sort keyset cursor, select-all pending on the page, phone cards; bell accessible name fixed; `orders-list.mjs` (ADR 0089) — parity/g-a5-orders-list
@@ -215,29 +216,33 @@ Before checkout is switched on: the sender domain verification (BI-07, Marina/Ap
 - Event `consumers` lists only implemented consumers (now `system_probe`, `email`, `notification`, `media_processor`, `storefront_revalidate`); planned ones are documented with roadmap steps and move in with a backfill decision (architecture §8: adding a consumer must not redefine old completions).
 - `audit_log` migration revokes UPDATE/DELETE/TRUNCATE only from a role named `ih_app`; other runtime role names must be revoked at provisioning (trigger blocks mutations regardless).
 
-## Last session handoff (2026-10-18, visual parity V-S3)
+## Last session handoff (2026-10-18, visual parity V-S4)
 
 Done:
 
-- Merged PR #113 (V-S2); `main` at 9089b34.
-- **V-S3:**
-  - **Shared page:** `app/(shop)/listing-page.tsx` now serves every listing and `/search` (`search` flag keeps the term, counts it, offers WhatsApp).
-  - **Shop layout:** `components/shop-layout.tsx` (client) holds the prototype's filters, toolbar, chips, bottom sheet and instant apply.
-  - **Shared sheet:** `components/sheet.tsx` is the prototype sheet on a modal dialog.
-  - **Search state:** `lib/store/search.ts` gains `PRICE_BANDS`/`PUFF_BANDS`/`bandOf`, `price=`/`puffs=` parameters and category checkboxes.
-  - **Listing parts:** `components/listing.tsx` (crumbs, shop-head, `.empty`) and `WHATSAPP_MESSAGES.search`.
-  - **Removed:** `search-filters.tsx`.
+- **V-S4 product page** (ADR 0097 V-S4 section; G-S12 marked DONE in `docs/parity-review.md`):
+  - **Gallery:** `components/gallery.tsx` is the prototype scroll-snap track (dots on phones, thumbnails from 720 px). A Zoom button opens a modal dialog with 2× at the pointer, arrows and Escape.
+  - **Buy box:** `components/buy-box.tsx` uses the prototype markup. Options are radio inputs drawn as `flv`/`seg`; the button says "Added" for 1.5 s; the `save` slot holds the big heart. The sticky bar is `satc` and is now measured on scroll, which fixes a bar that never appeared after a jump scroll.
+  - **Page:** `app/(shop)/p/[slug]/page.tsx` has the `pdp` grid, `wa-link`, `assure` (UAE-wide copy), `warn`, `pdp-more` with the specs table and "More like this" (`relatedProducts` in `lib/store/listing.ts`).
+  - **Reviews, heart and compare:** reviews use the `rv-*` markup; `save-button.tsx` has the `wishbig` variant; `compare-toggle.tsx` has `cmp-toggle`.
+  - **Browser QA:** new `scripts/browser-qa/product-page.mjs` seeds 3 ready images through psql and serves drawn images in their place. `a11y-storefront.mjs` accepts "Added".
 
-Files: `apps/storefront/{app/(shop)/{listing-page.tsx,search/page.tsx},app/prototype.css,components/{shop-layout,sheet,listing}.tsx,lib/{store/search.ts,store/store.test.ts,whatsapp.ts}}`, `scripts/browser-qa/{listing-filters.mjs,README.md}`, `docs/{decisions/0097-prototype-visual-parity.md,parity-review.md,verification.md}`
+Files: `apps/storefront/{app/(shop)/p/[slug]/page.tsx,app/prototype.css,components/{gallery,buy-box,product-reviews,save-button,compare-toggle}.tsx,lib/store/{listing.ts,store.test.ts}}`, `scripts/browser-qa/{product-page.mjs,a11y-storefront.mjs,README.md}`, `docs/{decisions/0097-prototype-visual-parity.md,parity-review.md,verification.md}`
 
-Tests: `pnpm verify` PASS (age preview 2250). `pnpm test:gate` PASS (2586). All storefront browser passes PASS on a fresh stack (pace them: per-IP catalogue budget).
+Tests:
+
+- `pnpm verify` PASS (age preview 2250). `pnpm test:gate` PASS (2586).
+- Browser: `product-page.mjs` 26 PASS. `sticky-add.mjs` PASS with and without images. `a11y-storefront.mjs`, `cart-sheet.mjs`, `search-sheet.mjs` and `menu-sheet.mjs` PASS. `checkout.mjs` 49 PASS.
 
 Unfinished:
 
-- PR #114 (V-S3) merged 2026-10-18; `main` at f419aed, CI green. Nothing is waiting for merge.
-- **Next, V-S4 product page:** prototype `pdp` 7893, `rerenderPdp`, `reviews` 8007; gallery swipe and zoom (G-S12); the buy box, options, specs and reviews in the prototype markup.
+- **Merge:** Marina merges the V-S4 PR once CI is green, then fast-forward local `main`.
+- **Next, V-S5 (cart, checkout, confirmation):** collapsed mobile summary (G-S8) and empty-cart best sellers (G-S14). Use the prototype-map entries for cart, checkout and done.
+- **Client copy:** "Genuine brand stock / Sourced from authorised UAE distributors." is prototype placeholder copy. The client confirms it with the launch copy (BI-01).
 
 ## History (summary)
+
+- 2026-10-18 V-S3: listing and search like the prototype (PR #114, merged).
 
 - 2026-10-18 V-S2: home like the prototype, hero carousel (PR #113, merged).
 
