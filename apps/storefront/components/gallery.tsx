@@ -17,7 +17,7 @@ export function Gallery({ images, name }: { images: readonly StoreImage[]; name:
 
   if (images.length === 0)
     return (
-      <div className="gal" aria-label="Product images">
+      <div className="gal">
         <div className="gal-track">
           <div aria-hidden="true" className="gal-slide gal-none">
             No image yet

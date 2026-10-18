@@ -15,24 +15,22 @@ import {
 import { SITE } from "@/lib/site";
 import { WHATSAPP_MESSAGES } from "@/lib/whatsapp";
 import { WhatsAppLink } from "./whatsapp-link";
+import { Icon } from "@/components/icons";
 import { Money } from "@/components/money";
 
-const PANEL = "flex flex-col gap-4 rounded-lg border border-line bg-surface p-5 sm:p-6";
-const PRIMARY =
-  "inline-flex h-11 items-center rounded-pill bg-primary px-5 text-sm font-medium text-on-primary hover:bg-primary-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus";
-
+/** One row of the prototype's "What happens next" (`steps`). */
 function Step({ done, title, children }: { done?: boolean; title: string; children: ReactNode }) {
   return (
-    <li className="flex gap-3">
-      <span
-        aria-hidden
-        className={`mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full border-2 text-xs ${done ? "border-success bg-success text-white" : "border-line-2"}`}
-      >
-        {done ? "✓" : ""}
+    <li>
+      <span className={done ? "dot on" : "dot"} aria-hidden="true">
+        {done && <Icon name="check" size="sm" />}
       </span>
-      <span className="flex flex-col">
-        <b className="text-[14.5px] font-semibold">{title}</b>
-        <span className="text-[13.5px] text-ink-3">{children}</span>
+      <span>
+        <b>
+          {title}
+          {done && <span className="sr"> (done)</span>}
+        </b>
+        <span>{children}</span>
       </span>
     </li>
   );
@@ -68,64 +66,68 @@ export function OrderConfirmation({ whatsappNumber }: { whatsappNumber: string |
 
   if (!view)
     return (
-      <p role="status" className="py-9 text-sm text-ink-2">
-        Loading your order…
-      </p>
+      <div className="done">
+        <p role="status" className="small muted">
+          Loading your order…
+        </p>
+      </div>
     );
   const actions = (orderNumber: string | null) => (
-    <div className="flex flex-wrap gap-2.5">
-      <Link href="/shop" prefetch={false} className={PRIMARY}>
+    <div className="co-actions">
+      <Link href="/shop" prefetch={false} className="btn btn-primary">
         Continue shopping
       </Link>
       <WhatsAppLink
         number={whatsappNumber}
+        className="btn btn-wa"
         message={
           orderNumber
             ? WHATSAPP_MESSAGES.order(SITE.name, orderNumber)
             : WHATSAPP_MESSAGES.general(SITE.name)
         }
       >
+        <Icon name="wa" size="sm" />
         {orderNumber ? "Message us about this order" : "Message us"}
       </WhatsAppLink>
     </div>
   );
   if (view.kind === "failed")
     return (
-      <div role="alert" className="flex flex-col items-start gap-3 py-6">
-        <h1 className="text-2xl font-semibold">We couldn&apos;t load your order</h1>
-        <p className="text-sm text-ink-2">
+      <div role="alert" className="done">
+        <h1 className="h1">We couldn&apos;t load your order</h1>
+        <p className="muted">
           {view.limited
             ? "Too many tries. Wait a minute and try again."
             : "Something went wrong on our side. If you placed an order, it is not affected."}
         </p>
-        <button
-          type="button"
-          className={PRIMARY}
-          onClick={() => {
-            setView(null);
-            setAttempt((count) => count + 1);
-          }}
-        >
-          Try again
-        </button>
+        <div>
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={() => {
+              setView(null);
+              setAttempt((count) => count + 1);
+            }}
+          >
+            Try again
+          </button>
+        </div>
       </div>
     );
   if (view.kind === "expired") {
     // Known only if the order was placed in this visit; a reload forgets it.
     const known = rememberedPlaced();
     return (
-      <div className="mx-auto flex max-w-[680px] flex-col gap-4 py-6">
-        <h1 className="text-2xl font-semibold">
-          {known ? "Your order was placed" : "This order can't be shown here"}
-        </h1>
+      <div className="done">
+        <h1 className="h1">{known ? "Your order was placed" : "This order can't be shown here"}</h1>
         {known ? (
-          <p className="text-sm text-ink-2">
-            Order <b className="font-mono font-semibold text-ink">{known.orderNumber}</b> ·{" "}
-            <Money fils={known.totalFils} /> cash on delivery. We can&apos;t show its details on
-            this device right now, but the order is not affected.
+          <p className="muted">
+            Order <b className="mono ink">{known.orderNumber}</b> · <Money fils={known.totalFils} />{" "}
+            cash on delivery. We can&apos;t show its details on this device right now, but the order
+            is not affected.
           </p>
         ) : (
-          <p className="text-sm text-ink-2">
+          <p className="muted">
             Order details can be opened for 30 minutes after ordering, in the browser that placed
             the order. If you placed an order, it is not affected.
           </p>
@@ -138,31 +140,29 @@ export function OrderConfirmation({ whatsappNumber }: { whatsappNumber: string |
   const { order } = view;
   const address = addressLines(order.address);
   return (
-    <div className="mx-auto flex max-w-[680px] flex-col gap-6 py-6">
-      <div className="flex flex-col gap-2">
-        <span
-          aria-hidden
-          className="flex size-[72px] items-center justify-center rounded-full bg-success text-3xl text-white"
-        >
-          ✓
-        </span>
-        <h1 className="text-3xl font-semibold tracking-tight">Order placed. Thank you.</h1>
-        <p className="text-sm text-ink-2">
-          Order <b className="font-mono font-semibold text-ink">{order.orderNumber}</b> ·{" "}
-          {placedText(order.placedAt)}
+    <div className="done">
+      <span className="done-ic" aria-hidden="true">
+        <Icon name="check" size="xl" />
+      </span>
+      <div className="done-head">
+        <h1 className="h1">Order placed. Thank you.</h1>
+        <p className="lead">
+          Order <span className="mono ink">{order.orderNumber}</span> · {placedText(order.placedAt)}
         </p>
-        <p className="text-sm font-medium">{STATUS_TEXT[order.status]}</p>
+        <p className="done-status">{STATUS_TEXT[order.status]}</p>
       </div>
-      <div className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-ink px-5 py-[18px] text-surface">
-        <span className="text-sm">Pay in cash on delivery</span>
-        <b className="text-2xl font-semibold">
+      <div className="cashbox">
+        <span>Pay in cash on delivery</span>
+        <b>
           <Money fils={order.totalFils} />
         </b>
       </div>
       {order.status !== "cancelled" && (
-        <section className={PANEL}>
-          <h2 className="text-lg font-semibold">What happens next</h2>
-          <ol className="flex flex-col gap-4">
+        <section className="panel" aria-labelledby="next-h">
+          <h2 className="h3" id="next-h">
+            What happens next
+          </h2>
+          <ol className="steps">
             <Step done title="Order received">
               {placedText(order.placedAt)}
             </Step>
@@ -179,43 +179,50 @@ export function OrderConfirmation({ whatsappNumber }: { whatsappNumber: string |
           </ol>
         </section>
       )}
-      <section className={PANEL}>
-        <h2 className="text-lg font-semibold">Items</h2>
-        <ul className="flex flex-col gap-3 text-sm">
+      <section className="panel" aria-labelledby="items-h">
+        <h2 className="h3" id="items-h">
+          Items
+        </h2>
+        <ul className="mini-lines">
           {order.items.map((item, index) => (
-            <li key={index} className="flex justify-between gap-4">
+            <li key={index} className="mini-line no-th">
               <span>
-                <span className="font-medium">{item.name}</span>
-                <span className="block text-xs text-ink-3">{optionText(item.attributes)}</span>
+                <span className="nm">{item.name}</span>
+                {optionText(item.attributes) && (
+                  <>
+                    <br />
+                    <span className="v">{optionText(item.attributes)}</span>
+                  </>
+                )}
               </span>
-              <span className="whitespace-nowrap text-ink-2">
+              <span className="num muted">
                 {item.quantity} × <Money fils={item.unitPriceFils} />
               </span>
             </li>
           ))}
         </ul>
-        <dl className="flex flex-col gap-2 border-t border-line pt-3 text-sm">
-          <div className="flex justify-between gap-4">
+        <dl className="totals">
+          <div>
             <dt>Subtotal</dt>
             <dd>
               <Money fils={subtotalFils(order)} />
             </dd>
           </div>
           {order.discountFils > 0 && (
-            <div className="flex justify-between gap-4 text-success">
+            <div className="disc">
               <dt>Discount</dt>
               <dd>
                 −<Money fils={order.discountFils} />
               </dd>
             </div>
           )}
-          <div className="flex justify-between gap-4">
+          <div>
             <dt>Delivery</dt>
             <dd>
               <Money fils={order.deliveryFeeFils} />
             </dd>
           </div>
-          <div className="flex justify-between gap-4 border-t border-line pt-2 text-lg font-semibold">
+          <div className="grand">
             <dt>Total to pay</dt>
             <dd>
               <Money fils={order.totalFils} />
@@ -223,13 +230,13 @@ export function OrderConfirmation({ whatsappNumber }: { whatsappNumber: string |
           </div>
         </dl>
       </section>
-      <section className={PANEL}>
-        <h2 className="text-lg font-semibold">Delivery address</h2>
-        <address className="text-sm not-italic text-ink-2">
+      <section className="panel" aria-labelledby="addr-h">
+        <h2 className="h3" id="addr-h">
+          Delivery address
+        </h2>
+        <address className="muted done-addr">
           {address.map((line) => (
-            <span key={line} className="block">
-              {line}
-            </span>
+            <span key={line}>{line}</span>
           ))}
         </address>
       </section>

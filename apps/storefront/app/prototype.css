@@ -5489,4 +5489,191 @@
     white-space: pre-line;
     overflow-wrap: anywhere;
   }
+
+  /* ---------- store: cart, checkout and confirmation (V-S5, ADR 0097) ---------- */
+  .center {
+    text-align: center;
+  }
+  .ink {
+    color: var(--ink);
+  }
+  .lines,
+  .mini-lines {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  .mini-lines {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  /* store: real thumbnails where the prototype draws SVG art. */
+  .line .th,
+  .mini-line .th {
+    background: var(--surface-2);
+  }
+  .line .th img,
+  .mini-line .th img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+  .line.off .th img {
+    opacity: 0.45;
+    filter: grayscale(1);
+  }
+  .line .t .nm {
+    font-weight: 500;
+    font-size: 14.5px;
+    line-height: 1.3;
+  }
+  .line-err {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--error);
+  }
+  .line-note {
+    font-size: 13px;
+    color: var(--ink-2);
+  }
+  .line .price.struck .now {
+    color: var(--ink-3);
+    text-decoration: line-through;
+  }
+  .cart-status:empty {
+    display: none;
+  }
+  .cart-page .wa-card {
+    margin-top: 20px;
+  }
+  .cart-wait,
+  .co-wait {
+    padding-block: 36px;
+  }
+  .co-wait {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  .cart-empty {
+    border: 0;
+    background: none;
+    padding: 36px 8px;
+  }
+  .cart-picks {
+    padding-bottom: 48px;
+  }
+  .cart-picks .eyebrow {
+    margin: 8px 0 14px;
+  }
+  .quote {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .quote-status:empty {
+    display: none;
+  }
+  .quote-notice {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 14px 16px;
+    border-radius: var(--r-md);
+    border: 1px solid var(--line);
+    font-size: 14px;
+    font-weight: 500;
+  }
+  .quote-notice .btn {
+    align-self: flex-start;
+  }
+  .totals dt,
+  .totals dd {
+    margin: 0;
+  }
+  .promo-f .btn {
+    min-height: 46px;
+  }
+  .promo-ok > span {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .errmsg .link {
+    color: inherit;
+  }
+  .co-main,
+  .co-form {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    min-width: 0;
+  }
+  .sumdet summary .num {
+    font-weight: 600;
+  }
+  .sumdet summary .i {
+    transition: transform 0.2s var(--ease);
+  }
+  .sumdet summary:focus-visible {
+    outline: 3px solid var(--focus);
+    outline-offset: 2px;
+    border-radius: var(--r-lg);
+  }
+  .mini-line .nm {
+    font-weight: 500;
+  }
+  .mini-line.no-th {
+    grid-template-columns: 1fr auto;
+  }
+  .mini-line .num {
+    white-space: nowrap;
+  }
+  .pay-opt .pay-t {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    flex: 1;
+    min-width: 0;
+  }
+  .pay-opt .pay-ok {
+    color: var(--success);
+  }
+  .co-again {
+    max-width: 560px;
+    margin: 20px auto 56px;
+  }
+  .co-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .done-head {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .done-status {
+    font-size: 14px;
+    font-weight: 500;
+  }
+  .steps .block {
+    display: block;
+  }
+  .done-addr {
+    font-style: normal;
+    display: flex;
+    flex-direction: column;
+    font-size: 14px;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .done-ic {
+      animation: none;
+    }
+  }
 }

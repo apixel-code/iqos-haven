@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import type { StoreProductCard } from "@ih/contracts";
 import { useState } from "react";
 import { useFreshCart } from "@/lib/cart/fresh";
 import { rememberChoice, rememberedChoice } from "@/lib/checkout/memory";
@@ -8,8 +9,12 @@ import { SITE } from "@/lib/site";
 import { whatsappHref, WHATSAPP_MESSAGES } from "@/lib/whatsapp";
 import { CartLines } from "./cart-lines";
 import { CartQuote } from "./cart-quote";
-import { RecentlyViewed } from "./recently-viewed";
+import { PageHead } from "./listing";
+import { ProductCard } from "./product-card";
+import { Icon } from "@/components/icons";
 import { Money } from "@/components/money";
+import { useDeviceLists } from "@/lib/device/store";
+import { useProductCards } from "@/lib/device/use-cards";
 
 /**
  * The device cart (roadmap step 62, ADR 0031). Lines come from this device; their current
@@ -20,8 +25,11 @@ import { Money } from "@/components/money";
 export function CartView({
   whatsappNumber,
   checkoutOpen,
+  bestSellers,
 }: {
   whatsappNumber: string | null;
+  /** The Owner's best sellers, shown in an empty cart with no browsing history (G-S14). */
+  bestSellers: readonly StoreProductCard[];
   /** Whether the shop is taking orders; the API decides again when one is placed. */
   checkoutOpen: boolean;
 }) {
@@ -31,40 +39,38 @@ export function CartView({
 
   if (!mounted)
     return (
-      <p role="status" className="py-9 text-sm text-ink-2">
-        Loading your cart…
-      </p>
+      <>
+        <PageHead title="Your cart" />
+        <p role="status" className="small muted cart-wait">
+          Loading your cart…
+        </p>
+      </>
     );
   if (cart.lines.length === 0)
     return (
-      <div className="flex flex-col items-center gap-3.5 px-2 py-9 text-center">
-        <h2 className="text-lg font-semibold">Your cart is empty</h2>
-        <p className="max-w-sm text-sm text-ink-2">Browse disposables and kits to get started.</p>
-        <Link
-          href="/shop"
-          prefetch={false}
-          className="inline-flex h-10 items-center rounded-pill bg-primary px-4 text-sm font-medium text-on-primary hover:bg-primary-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
-        >
-          Start shopping
-        </Link>
-        <div className="w-full text-left">
-          <RecentlyViewed />
-        </div>
-      </div>
+      <>
+        <PageHead title="Your cart" />
+        <EmptyCart bestSellers={bestSellers} />
+      </>
     );
-
   const units = cart.lines.reduce((sum, line) => sum + line.quantity, 0);
+
   const quoteLines = view.lines
     .filter((line) => line.status === "ok" || line.status === "unconfirmed")
     .map(({ variantId, quantity, name }) => ({ variantId, quantity, name }));
+  const buyable = view.lines.filter(
+    (line) => line.status === "ok" || line.status === "unconfirmed",
+  );
+  // Sends nothing: it opens WhatsApp with the cart written out for the shopper to send.
+  const waHref = buyable.length
+    ? whatsappHref(whatsappNumber, WHATSAPP_MESSAGES.cart(SITE.name, buyable))
+    : null;
   return (
     <>
-      <p className="pb-4 text-sm text-ink-2">
-        {units} {units === 1 ? "item" : "items"}
-      </p>
-      <div className="grid gap-8 lg:grid-cols-[1fr_340px]">
-        <div className="flex flex-col gap-4">
-          <p role="status" aria-live="polite" className="min-h-5 text-sm text-ink-2">
+      <PageHead title="Your cart" lead={`${units} ${units === 1 ? "item" : "items"}`} />
+      <div className="cart-page">
+        <div>
+          <p role="status" aria-live="polite" className="small muted cart-status">
             {view.blockedCount > 0
               ? `${view.blockedCount} ${view.blockedCount === 1 ? "item needs" : "items need"} your attention.`
               : failed && !view.confirmed
@@ -74,37 +80,26 @@ export function CartView({
                   : ""}
           </p>
           <CartLines lines={view.lines} images={images} />
-          {/* Sends nothing: it opens WhatsApp with the cart written out for the shopper to send. */}
-          {(() => {
-            const buyable = view.lines.filter(
-              (line) => line.status === "ok" || line.status === "unconfirmed",
-            );
-            const href = buyable.length
-              ? whatsappHref(whatsappNumber, WHATSAPP_MESSAGES.cart(SITE.name, buyable))
-              : null;
-            return href ? (
-              <a
-                href={href}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex w-fit flex-col rounded-md border border-line bg-surface px-4 py-3 text-sm hover:border-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
-              >
-                <b className="font-semibold">Prefer to order on WhatsApp?</b>
-                <span className="text-ink-2">Send this cart to our team</span>
-              </a>
-            ) : null;
-          })()}
+          {waHref && (
+            <a href={waHref} target="_blank" rel="noopener noreferrer" className="wa-card">
+              <span className="wa-ic" aria-hidden="true">
+                <Icon name="wa" />
+              </span>
+              <span className="t">
+                <b>Prefer to order on WhatsApp?</b>
+                <span>Send this cart to our team</span>
+              </span>
+              <Icon name="chev-r" />
+            </a>
+          )}
         </div>
-        <aside
-          aria-label="Order summary"
-          className="flex h-fit flex-col gap-3 rounded-lg border border-line bg-surface p-5 lg:sticky lg:top-6"
-        >
-          <dl className="flex flex-col gap-2 text-sm">
-            <div className="flex justify-between gap-4">
+        <aside aria-label="Order summary" className="panel sticky">
+          <dl className="totals">
+            <div>
               <dt>
                 Subtotal ({view.itemCount} {view.itemCount === 1 ? "item" : "items"})
               </dt>
-              <dd className="font-semibold">
+              <dd>
                 <Money fils={view.subtotalFils} />
               </dd>
             </div>
@@ -117,33 +112,23 @@ export function CartView({
             initial={rememberedChoice()}
             onChoice={rememberChoice}
           />
-          <p className="text-xs text-ink-3">
-            Cash on delivery: no account needed, pay when your order arrives.
-          </p>
           {view.blockedCount > 0 && (
-            <p className="text-sm font-medium text-error">
+            <p className="errmsg">
+              <Icon name="info" size="sm" />
               Remove the unavailable {view.blockedCount === 1 ? "item" : "items"} before checking
               out.
             </p>
           )}
           {checkoutOpen && quoteReady && view.blockedCount === 0 ? (
-            <Link
-              href="/checkout"
-              prefetch={false}
-              className="flex h-12 items-center justify-center rounded-pill bg-primary px-6 text-base font-medium text-on-primary hover:bg-primary-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
-            >
+            <Link href="/checkout" prefetch={false} className="btn btn-primary btn-lg btn-block">
               Checkout · Cash on delivery
             </Link>
           ) : (
             <>
-              <button
-                type="button"
-                disabled
-                className="h-12 cursor-not-allowed rounded-pill bg-primary px-6 text-base font-medium text-on-primary opacity-50"
-              >
+              <button type="button" disabled className="btn btn-primary btn-lg btn-block">
                 Checkout · Cash on delivery
               </button>
-              <p className="text-center text-xs text-ink-3">
+              <p className="small muted center">
                 {!checkoutOpen
                   ? quoteReady
                     ? "Your total is confirmed. Checkout is not open yet."
@@ -152,15 +137,56 @@ export function CartView({
               </p>
             </>
           )}
-          <Link
-            href="/shop"
-            prefetch={false}
-            className="text-center text-sm underline underline-offset-2"
-          >
+          <p className="small muted center">No account needed. Pay when your order arrives.</p>
+          <Link href="/shop" prefetch={false} className="link small center">
             Continue shopping
           </Link>
         </aside>
       </div>
+    </>
+  );
+}
+
+/**
+ * The prototype's `emptyCart`: a way back to the shop, then what this device viewed recently or,
+ * with no history, the Owner's best sellers (parity G-S14). Sold-out products are left out.
+ */
+function EmptyCart({ bestSellers }: { bestSellers: readonly StoreProductCard[] }) {
+  const recent = useDeviceLists().recent.slice(0, 4);
+  const viewed = useProductCards(recent);
+  const recentCards =
+    viewed.status === "ready" ? viewed.cards.filter((card) => !card.soldOut).slice(0, 4) : [];
+  const picks = recentCards.length
+    ? recentCards
+    : bestSellers.filter((card) => !card.soldOut).slice(0, 4);
+  // While the recently viewed cards load, nothing is shown in their place.
+  const waiting = recent.length > 0 && viewed.status !== "ready" && viewed.status !== "failed";
+  return (
+    <>
+      <div className="empty cart-empty">
+        <span className="ic">
+          <Icon name="bag" size="lg" />
+        </span>
+        <h2 className="h3">Your cart is empty</h2>
+        <p>Browse disposables and kits, or ask us on WhatsApp for a recommendation.</p>
+        <Link href="/shop" prefetch={false} className="btn btn-primary">
+          Start shopping
+        </Link>
+      </div>
+      {!waiting && picks.length > 0 && (
+        <section aria-labelledby="cart-picks-h" className="cart-picks">
+          <h3 className="eyebrow" id="cart-picks-h">
+            {recentCards.length ? "Recently viewed" : "Best sellers"}
+          </h3>
+          <ul className="pgrid">
+            {picks.map((product) => (
+              <li key={product.slug}>
+                <ProductCard product={product} />
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
     </>
   );
 }

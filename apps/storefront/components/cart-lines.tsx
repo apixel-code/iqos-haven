@@ -4,6 +4,7 @@ import Link from "next/link";
 import type { StoreCartLine } from "@ih/contracts";
 import { CART_LIMITS, type CartViewLine } from "@/lib/cart/cart";
 import { removeFromCart, setCartQuantity } from "@/lib/cart/store";
+import { Icon } from "@/components/icons";
 import { Money } from "@/components/money";
 
 const STATUS_TEXT: Partial<Record<CartViewLine["status"], string>> = {
@@ -26,91 +27,72 @@ export function CartLines({
   /** Called when a product link is followed (the sheet closes itself). */
   onNavigate?: () => void;
 }) {
+  // The prototype's `cartLines`: picture, name and options, stepper and price, Remove.
   return (
-    <ul className="flex flex-col divide-y divide-line">
+    <ul className="lines">
       {lines.map((line) => {
         const blocked = line.status === "sold_out" || line.status === "unavailable";
         const image = images.get(line.variantId);
         return (
-          <li key={line.variantId} className="flex gap-4 py-4">
-            <div className="size-20 shrink-0 overflow-hidden rounded-sm bg-surface-2">
+          <li key={line.variantId} className={blocked ? "line off" : "line"}>
+            <span className="th">
               {image && (
                 // Signed link to a sanitized derivative; the Next image optimizer is not used.
                 // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={image.urls.thumb}
-                  alt=""
-                  width={80}
-                  height={80}
-                  className={`size-full object-cover ${blocked ? "opacity-45 grayscale" : ""}`}
-                />
+                <img src={image.urls.thumb} alt="" width={76} height={92} />
               )}
-            </div>
-            <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-              <p className="text-[11px] uppercase tracking-[0.1em] text-ink-3">{line.brand}</p>
+            </span>
+            <div className="t">
               {line.status === "unavailable" ? (
-                <span className="font-medium">{line.name}</span>
+                <span className="nm">{line.name}</span>
               ) : (
-                <Link
-                  href={`/p/${line.productSlug}`}
-                  prefetch={false}
-                  onClick={onNavigate}
-                  className="font-medium hover:underline"
-                >
+                <Link href={`/p/${line.productSlug}`} prefetch={false} onClick={onNavigate}>
                   {line.name}
                 </Link>
               )}
-              {line.options && <p className="text-sm text-ink-2">{line.options}</p>}
-              {blocked && (
-                <p className="text-sm font-medium text-error">{STATUS_TEXT[line.status]}</p>
-              )}
+              <span className="v">{[line.brand, line.options].filter(Boolean).join(" · ")}</span>
+              {blocked && <p className="line-err">{STATUS_TEXT[line.status]}</p>}
               {!blocked && line.previousUnitPriceFils !== null && (
-                <p className="text-sm text-ink-2">
+                <p className="line-note">
                   Price changed from <Money fils={line.previousUnitPriceFils} /> to{" "}
                   <Money fils={line.unitPriceFils} /> since you added it.
                 </p>
               )}
-              <div className="flex flex-wrap items-center gap-3 pt-1">
-                <div
-                  role="group"
-                  aria-label={`Quantity for ${line.name}`}
-                  className="inline-flex h-10 items-center rounded-pill border-[1.5px] border-line bg-surface"
-                >
+              <div className="r">
+                <div className="stepper sm" role="group" aria-label={`Quantity for ${line.name}`}>
                   <button
                     type="button"
                     aria-label="Decrease"
                     disabled={blocked || line.quantity <= 1}
                     onClick={() => setCartQuantity(line.variantId, line.quantity - 1)}
-                    className="size-10 rounded-pill disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-focus"
                   >
-                    −
+                    <Icon name="minus" size="sm" />
                   </button>
-                  <output aria-live="polite" className="w-7 text-center text-sm font-medium">
-                    {line.quantity}
-                  </output>
+                  <output aria-live="polite">{line.quantity}</output>
                   <button
                     type="button"
                     aria-label="Increase"
                     disabled={blocked || line.quantity >= CART_LIMITS.maxQuantity}
                     onClick={() => setCartQuantity(line.variantId, line.quantity + 1)}
-                    className="size-10 rounded-pill disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-focus"
                   >
-                    +
+                    <Icon name="plus" size="sm" />
                   </button>
                 </div>
+                <div className={blocked ? "price struck" : "price"}>
+                  <span className="now">
+                    <Money fils={line.lineTotalFils} />
+                  </span>
+                </div>
+              </div>
+              <div>
                 <button
                   type="button"
+                  className="rm"
                   aria-label={`Remove ${line.name}`}
                   onClick={() => removeFromCart(line.variantId)}
-                  className="text-sm underline underline-offset-2 hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
                 >
-                  Remove
+                  <Icon name="trash" size="sm" /> Remove
                 </button>
-                <span
-                  className={`ml-auto text-base font-semibold ${blocked ? "text-ink-3 line-through" : ""}`}
-                >
-                  <Money fils={line.lineTotalFils} />
-                </span>
               </div>
             </div>
           </li>

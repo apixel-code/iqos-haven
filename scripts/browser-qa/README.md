@@ -277,6 +277,17 @@ QA_PLAYWRIGHT_DIR=/tmp/ih-qa node scripts/browser-qa/product-page.mjs <SERVING> 
 
 It writes three ready gallery images to `/p/gatecheck-halo` through `docker exec` psql (`QA_PSQL` overrides it). Their signed links point at the media bucket, and the browser gets drawn images in their place. The API caches catalogue reads for up to 60 s, so the first run reloads until the images appear. It checks the swipe track, dots and thumbnails, the zoom dialog (magnify, arrows, Escape) and the buy box layout at 360 and 1280 px.
 
+## Cart and checkout (V-S5, parity G-S8 and G-S14)
+
+```sh
+pnpm build && node scripts/check-gate-e2e.cjs --serve --checkout-open &   # SERVING, SCHEMA
+QA_PLAYWRIGHT_DIR=/tmp/ih-qa node scripts/browser-qa/cart-checkout.mjs <SERVING> <SCHEMA> /tmp/ih-qa/shots
+```
+
+It publishes a manual best-sellers section with the gate product through psql: a draft first, then published, as the database guard requires. It checks the empty cart's best sellers and then its recently viewed, the cart layout and total, the folded summary on phones (its amount equals the Place order button's), the error summary, and the side panels at 1280 px. It places no order.
+
+Order matters on one stack: `checkout.mjs` changes the product's price, so run `sticky-add.mjs` (which expects AED 49) before it. `a11y-storefront.mjs` is worth running both before and after `product-page.mjs`, with and without images.
+
 ## Mobile search sheet (parity G-S3)
 
 ```sh

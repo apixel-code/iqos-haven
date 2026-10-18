@@ -131,6 +131,18 @@ Step 115 and the nine launch gaps compared features. A side-by-side screenshot a
 - **More like this:** the brand's other products, then the same type from other brands, never sold out, at most four (`relatedProducts`, unit-tested), in the prototype's `rail` under `secHead`.
 - **Sticky bar:** it uses the prototype's `satc` markup. It now shows as soon as the main button is above the viewport. The check runs on scroll instead of in an IntersectionObserver: with images above it the button starts below the fold, and a jump (the reviews link, a restored scroll) passed it without an intersection change, so the bar never appeared.
 
+## V-S5 (cart, checkout and confirmation), 2026-10-18
+
+- **Cart:** the prototype's `cart-page` grid. On the left are the `line` rows (picture, name, brand and options, small stepper, price, Remove) and the `wa-card`. On the right is the sticky `panel` with the subtotal, the area and code (`field`, `promo-f`, `promo-ok` once a code applies), `totals` and the Checkout button. The heading counts the items.
+- **Empty cart (G-S14):** the prototype's `emptyCart`. It shows the products this device viewed recently or, with no history, the Owner's published best sellers (read with the home content on the server). Sold-out products are never shown, and nothing appears when neither list has any.
+- **Checkout:**
+  - The prototype's `co` grid, numbered `co-step` sections, `field`/`input`/`prefix`/`errmsg`/`help`, the address-type `atype` with icons, the `errsum` summary, `pay-opt` and the `check` box.
+  - The steps stay as built (ADR 0041). Area and code keep their own block, step 3 "Delivery area and total", because the code has its own form and the accepted total belongs beside them. So there are four steps, not the prototype's three. The prototype's "Card, Apple Pay, Tabby" placeholder row is not shown (online payments are out of scope).
+  - The step sections have no `aria-labelledby`: "Delivery area and total" would also name the area field's section.
+- **Folded summary on phones (G-S8):** under 900 px a `details.sumdet` titled "Order summary · <amount>" replaces the side panel. The amount is the accepted total once there is one, until then the subtotal (said to screen readers). Opening it shows the `mini-line` rows, the subtotal and "Edit cart". From 900 px the same content sits in the sticky side panel. The summary has no "Total" row of its own, so the authoritative total appears once, in step 3.
+- **Confirmation:** the prototype's `done`, with the `done-ic`, `cashbox`, `steps` timeline, items and `totals`, the address, and the actions (`btn-primary`, `btn-wa`). The page has no first-name greeting: the confirmation snapshot carries no customer name (step 81).
+- **Fixed on the way:** a product with no images put an `aria-label` on a plain div (axe `aria-prohibited-attr`). The empty gallery no longer has one.
+
 ## Consequences
 
 - The look comes from the approved source instead of being re-imagined in utilities, so later screens are mostly markup work.
