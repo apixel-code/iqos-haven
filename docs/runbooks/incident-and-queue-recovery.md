@@ -1,6 +1,30 @@
 # Incidents, queue recovery and provider outages
 
-Status: procedure to exercise once durable effects are implemented. Current worker accepts only the named healthcheck system job; all business handlers are pending and unknown jobs fail explicitly.
+## Monitoring and alerts (step 125, ADR 0096)
+
+The worker's `ops.monitor` job runs every minute. Each rule opens an alert in `ops_alerts`, logs it (`"ops alert"`, error level) and emails `OPS_ALERT_RECIPIENTS`. It reminds every `OPS_ALERT_REMINDER_HOURS` while the alert stays open, and sends "resolved" on the first clean check. Emails go straight to the provider, not through the outbox, because the outbox may be the problem. If the email fails, the log line is still written.
+
+Before launch:
+
+1. Set `OPS_ALERT_RECIPIENTS` to Apixel's ops address. In staging it must also pass `EMAIL_RECIPIENT_ALLOWLIST`.
+2. Run `pnpm ops:test-alert` on the server and confirm the message arrived.
+3. Set `SYNTHETIC_STOREFRONT_URL` / `SYNTHETIC_ADMIN_URL` to the public URLs.
+4. Optionally set `SENTRY_DSN`.
+5. The monitor runs inside the VPS, so it cannot report the VPS itself being down. Add an external uptime check (any free pinger) on the storefront home page that emails the same address.
+
+| Alert                                      | Fires when                                                                           | First action                                                                                  |
+| ------------------------------------------ | ------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------- |
+| `effects.backlog`                          | the oldest unfinished background effect is older than 5 min                          | Is the worker running? Check queue Redis; the reconciler re-enqueues from PostgreSQL (below)  |
+| `effects.dead`                             | any effect is `dead`                                                                 | Read its `last_error` code; fix the cause; replay deliberately (below)                        |
+| `inventory.ledger`                         | an option's stock differs from its movements                                         | Stop stock edits on it; reconcile with audited stock commands (§15)                           |
+| `cache.publication`                        | a storefront cache invalidation waits over 60 s                                      | Check `API_INTERNAL_URL` and the worker's service key; the catalogue TTL bounds staleness     |
+| `database.connections`                     | over 80 % of PostgreSQL connections in use                                           | Look for stuck transactions or a pool misconfiguration before raising limits                  |
+| `redis.queue`                              | queue Redis unreachable, not `noeviction`, evicting, or above 90 % memory            | Restore the policy and memory; then reconcile (below)                                         |
+| `checkout.errors`                          | over 2 % of checkout/quote requests failed with 5xx in 10 min (at least 20 requests) | Logs by request ID, Sentry if enabled. Expected rejections (sold out, coupon) are not counted |
+| `api.ready`                                | twice in a row: the API is unreachable from the worker or not ready                  | `/v1/health/ready` on the server; database first                                              |
+| `synthetic.storefront` / `synthetic.admin` | twice in a row: the age gate → shop journey or the admin sign-in page fails          | Gateway, TLS, the storefront/admin processes                                                  |
+
+Alert emails and logs carry counts and durations only, never order, customer or token data.
 
 ## Triage
 

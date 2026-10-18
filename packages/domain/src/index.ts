@@ -17,3 +17,4 @@ export * from "./whatsapp-templates";
 export * from "./metrics";
 export * from "./reports";
 export * from "./csv";
+export * from "./ops-alerts";

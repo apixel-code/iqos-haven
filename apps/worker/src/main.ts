@@ -12,6 +12,7 @@ import { createMediaCleanupJob, createMediaConsumer } from "./media";
 import { createStockReconciliationJob } from "./inventory";
 import { createRevalidateConsumer, revalidateTargetFromEnv } from "./revalidate";
 import { ObjectStorage, storageConfigFromEnv } from "@ih/platform";
+import { flushErrorReporting, startErrorReporting } from "@ih/platform/error-reporting";
 import sharp from "sharp";
 import { EffectRunner, startEffectWorkers, systemProbeHandler } from "./effects";
 import { BullEffectEnqueuer, createQueueConnection } from "./queue";
@@ -29,12 +30,16 @@ import { createBrowsingEventsCleanupJob } from "./browsing-events";
 import { createDailySummaryJob, dailySummaryEmailPlanner } from "./daily-summary";
 import { createReportBuilderConsumer, createReportUpkeepJob } from "./reports";
 import { Scheduler } from "./scheduler";
+import { createOpsMonitorJob, OpsAlerter } from "./ops-monitor";
 import { startWorker, type WorkerRuntime } from "./runtime";
 const SHUTDOWN_TIMEOUT_MS = 20000;
 async function main(): Promise<void> {
   loadLocalEnvFile();
   const env = loadEnv(workerEnvSchema);
   const log = createLogger({ service: "worker", level: env.LOG_LEVEL });
+  // Uncaught errors only (step 125); effect failures stay in consumer_effects and the monitor.
+  const errorReporting = startErrorReporting(env, "worker");
+  if (errorReporting) log.info("error reporting enabled");
   const pool = createPool({
     connectionString: env.DATABASE_URL,
     max: env.DATABASE_POOL_MAX,
@@ -83,6 +88,8 @@ async function main(): Promise<void> {
     ],
     retries: enqueuer,
   });
+  if (!env.OPS_ALERT_RECIPIENTS.length)
+    log.warn("ops alert recipients not set; alerts go to logs only");
   const reconciler = new EffectReconciler({ db: database, enqueuer, log });
   // Scheduled jobs register here in their roadmap steps (daily summary: 92/107, rollups: 107).
   const scheduler = new Scheduler({
@@ -99,6 +106,21 @@ async function main(): Promise<void> {
       createTodayRollupJob({ db: database, log }),
       createLateEditRollupJob({ db: database, log }),
       createReportUpkeepJob({ db: database, storage, log }),
+      createOpsMonitorJob({
+        db: database,
+        redis: connection,
+        apiTarget: revalidateTarget,
+        synthetic: { storefront: env.SYNTHETIC_STOREFRONT_URL, admin: env.SYNTHETIC_ADMIN_URL },
+        alerter: new OpsAlerter({
+          adapter: email.adapter,
+          from: env.EMAIL_FROM ?? "no-reply@iqoshaven.local",
+          recipients: env.OPS_ALERT_RECIPIENTS,
+          appEnv: env.APP_ENV,
+          log,
+        }),
+        remindAfterMs: env.OPS_ALERT_REMINDER_HOURS * 3_600_000,
+        log,
+      }),
     ],
   });
   let effectWorkers: { stop(): Promise<void> } | undefined;
@@ -140,6 +162,7 @@ async function main(): Promise<void> {
     deadline.unref();
     try {
       await closeResources();
+      if (errorReporting) await flushErrorReporting();
       clearTimeout(deadline);
       log.info("worker stopped");
       process.exit(reason === "SIGTERM" || reason === "SIGINT" ? 0 : 1);

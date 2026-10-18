@@ -5,12 +5,14 @@ import type { ApiEnv } from "@ih/config";
 import { MAX_EVENT_BATCH_BYTES } from "@ih/contracts";
 import { Logger } from "nestjs-pino";
 import { createLogger } from "@ih/logger";
+import { startErrorReporting } from "@ih/platform/error-reporting";
 import { AppModule } from "./app.module";
 import type { InfraOverrides } from "./infra/infra.module";
 import { requestId } from "./http/request-id";
 import { ApiErrorFilter, errorEnvelope } from "./http/error.filter";
 import { checkBrowserRequest } from "./security/browser-request";
 import { ZodValidationPipe } from "./http/zod-validation.pipe";
+import { OpsCounters } from "./health/ops-counters";
 export async function createApp(
   env: ApiEnv,
   overrides?: InfraOverrides,
@@ -59,8 +61,22 @@ export async function createApp(
     },
   );
   app.useLogger(app.get(Logger));
+  // Checkout and quote outcomes for the ops monitor (step 125): route pattern and status only.
+  const counters = app.get(OpsCounters);
+  app
+    .getHttpAdapter()
+    .getInstance()
+    .addHook("onResponse", (req, reply, done) => {
+      counters.record(`${req.method} ${req.routeOptions.url ?? ""}`, reply.statusCode);
+      done();
+    });
   app.useGlobalPipes(new ZodValidationPipe());
-  app.useGlobalFilters(new ApiErrorFilter(createLogger({ service: "api", level: env.LOG_LEVEL })));
+  app.useGlobalFilters(
+    new ApiErrorFilter(
+      createLogger({ service: "api", level: env.LOG_LEVEL }),
+      startErrorReporting(env, "api"),
+    ),
+  );
   app.enableVersioning({ type: VersioningType.URI, defaultVersion: "1" });
   app.enableShutdownHooks();
   return app;

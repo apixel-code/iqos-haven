@@ -52,6 +52,7 @@ pnpm db:migrate
 pnpm format
 pnpm bootstrap:owner --email <a> --name "<n>"   # one-time first Owner (password prompted)
 pnpm launch:check            # read-only launch readiness of DATABASE_URL (exit 1 = blocked)
+pnpm ops:test-alert          # one test alert to OPS_ALERT_RECIPIENTS (recipient verification)
 pnpm identity:benchmark       # argon2id cost on this machine
 pnpm age:keygen [kid]         # Ed25519 age-ticket key pair (private key: storefront only)
 pnpm load:test                # load/query/payload run on a fresh test schema (needs infra + build)

@@ -22,7 +22,11 @@ export function errorEnvelope(status: number, requestId: string): ErrorEnvelope 
 }
 @Catch()
 export class ApiErrorFilter implements ExceptionFilter {
-  constructor(private readonly logger?: Pick<Logger, "error">) {}
+  constructor(
+    private readonly logger?: Pick<Logger, "error">,
+    /** Optional error reporting for 5xx (step 125); scrubbed before it leaves the process. */
+    private readonly report?: (error: unknown) => void,
+  ) {}
   catch(error: unknown, host: ArgumentsHost): void {
     const http = host.switchToHttp();
     const req = http.getRequest<FastifyRequest>();
@@ -117,8 +121,10 @@ export class ApiErrorFilter implements ExceptionFilter {
           message: "Age check required",
         };
     }
-    if (status >= 500)
+    if (status >= 500) {
       (this.logger ?? req.log).error({ requestId: id, ...errorSummary(error) }, "request failed");
+      this.report?.(error);
+    }
     res.header("x-request-id", id).header("cache-control", "no-store").status(status).send(body);
   }
 }

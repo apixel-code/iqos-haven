@@ -8,6 +8,7 @@
     "dev": "tsx watch src/main.ts",
     "start": "node dist/main.js",
     "analytics:backfill": "node dist/cli/rollup-backfill.main.js",
+    "ops:test-alert": "node dist/cli/ops-test-alert.main.js",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src",
     "test": "vitest run --exclude \"src/**/*.int.test.ts\"",

@@ -84,6 +84,38 @@ const recipientAllowlist = z
       ),
     "entries must be addresses or @domain",
   );
+/**
+ * Error reporting (roadmap step 125, ADR 0096): off unless SENTRY_DSN is set. Events are scrubbed
+ * of request data and users before they leave the process.
+ */
+const sentryEnvFields = {
+  SENTRY_DSN: z
+    .string()
+    .url()
+    .refine((value) => new URL(value).protocol === "https:", "must be https")
+    .optional(),
+  /** Release tag, e.g. the deployed commit. */
+  SENTRY_RELEASE: z
+    .string()
+    .regex(/^[A-Za-z0-9._-]{1,64}$/)
+    .optional(),
+};
+/** Exact addresses only, at most ten, lower case (ops alerts, step 125). */
+const opsRecipients = z
+  .string()
+  .default("")
+  .transform((value) =>
+    value
+      .split(",")
+      .map((entry) => entry.trim().toLowerCase())
+      .filter(Boolean),
+  )
+  .refine(
+    (entries) =>
+      entries.length <= 10 &&
+      entries.every((entry) => /^[^\s@,]+@[a-z0-9.-]+\.[a-z]{2,}$/.test(entry)),
+    "up to ten email addresses",
+  );
 const LOCAL_SMTP_HOSTS = new Set(["localhost", "127.0.0.1", "::1", "[::1]", "mailpit"]);
 
 /**
@@ -687,6 +719,7 @@ export const apiEnvSchema = baseEnvSchema
     ...catalogueCacheEnvFields,
     ...ageVerifierEnvFields,
     ...foreignAgeSigningKeyField,
+    ...sentryEnvFields,
   })
   .superRefine((value, ctx) => {
     ageSafety({ ...value, AGE_TICKET_PRIVATE_KEY: undefined }, ctx);
@@ -752,6 +785,14 @@ export const workerEnvSchema = baseEnvSchema
     /** Private API base URL for signed invalidation calls (step 52). */
     API_INTERNAL_URL: httpUrl.optional(),
     ...foreignAgeSigningKeyField,
+    ...sentryEnvFields,
+    /** Ops alert email recipients (step 125, Apixel's ops address); empty = alerts in logs only. */
+    OPS_ALERT_RECIPIENTS: opsRecipients,
+    /** Hours between reminders while an alert stays open. */
+    OPS_ALERT_REMINDER_HOURS: z.coerce.number().int().min(1).max(72).default(6),
+    /** Public storefront and admin URLs the synthetic check visits; unset = not checked. */
+    SYNTHETIC_STOREFRONT_URL: httpUrl.optional(),
+    SYNTHETIC_ADMIN_URL: httpUrl.optional(),
   })
   .superRefine((value, ctx) => {
     noForeignAgeSigningKey(value, ctx);
