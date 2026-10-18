@@ -314,6 +314,59 @@ describe("staff invitations through the real API and PostgreSQL", () => {
       ),
     ).rejects.toMatchObject({ code: "INVITATION_NOT_ALLOWED" });
   });
+  it("lists pending invitations for staff.manage only, newest first, without accepted or revoked ones (G-A11)", async () => {
+    const list = async (cookie = ownerCookie) =>
+      fetch(`${base}/v1/admin/staff/invitations`, {
+        headers: { cookie, "x-ih-client-ip": "192.0.2.101" },
+      });
+    const kept = await invite("owner");
+    const revoked = await invite();
+    const accepted = await invite();
+    // An expired pending invitation: copied from a revoked one with its times moved back.
+    const source = await invite();
+    await manage("/revoke", { invitationId: source.id });
+    const expired = { id: randomUUID() };
+    await pool.query(
+      "INSERT INTO staff_invitation_tokens (id,email,name,role_id,invited_by,token_hash,key_id,created_at,expires_at) SELECT $1,email,name,role_id,invited_by,$2,key_id,created_at - interval '25 hours',expires_at - interval '25 hours' FROM staff_invitation_tokens WHERE id = $3",
+      [expired.id, invitationTokenHash(invitationToken(expired.id, key)), source.id],
+    );
+    expect((await manage("/revoke", { invitationId: revoked.id })).status).toBe(204);
+    expect((await accept(accepted.token)).status).toBe(204);
+    const response = await list();
+    expect(response.status).toBe(200);
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    const { items } = (await response.json()) as {
+      items: Array<{
+        id: string;
+        email: string;
+        role: string;
+        invitedBy: string;
+        expired: boolean;
+      }>;
+    };
+    const ids = items.map((item) => item.id);
+    expect(ids).toContain(kept.id);
+    expect(ids).toContain(expired.id);
+    expect(ids).not.toContain(revoked.id);
+    expect(ids).not.toContain(accepted.id);
+    expect(ids.indexOf(kept.id)).toBeLessThan(ids.indexOf(expired.id));
+    expect(items.find((item) => item.id === kept.id)).toMatchObject({
+      email: kept.email,
+      role: "owner",
+      invitedBy: "Owner",
+      expired: false,
+    });
+    expect(items.find((item) => item.id === expired.id)!.expired).toBe(true);
+    // The token never leaves the server.
+    expect(JSON.stringify(items)).not.toContain(kept.token);
+    // Revoking from the list removes it.
+    expect((await manage("/revoke", { invitationId: expired.id })).status).toBe(204);
+    const after = (await (await list()).json()) as { items: Array<{ id: string }> };
+    expect(after.items.map((item) => item.id)).not.toContain(expired.id);
+    expect((await list(staffCookie)).status).toBe(403);
+    expect((await list("")).status).toBe(401);
+  });
+
   it("enforces Origin/rate limits and fails closed on missing keys or shared limiter outage", async () => {
     expect(
       (

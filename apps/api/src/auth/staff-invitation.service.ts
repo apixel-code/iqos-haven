@@ -21,6 +21,7 @@ import {
   revokeStaffInvitation,
   staffInvitationCandidate,
   acceptStaffInvitation,
+  listPendingStaffInvitations,
   InvitationNotAllowedError,
   InvitationAccountExistsError,
   type Database,
@@ -74,6 +75,9 @@ export class StaffInvitationService {
     } catch (error) {
       this.mapError(error);
     }
+  }
+  pending() {
+    return listPendingStaffInvitations(this.db);
   }
   async revoke(context: CommandContext, id: string): Promise<void> {
     try {

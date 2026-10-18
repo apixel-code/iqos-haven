@@ -187,3 +187,30 @@ export async function loadStaffInvitationEmail(db: Database, id: string) {
     return null;
   return invite;
 }
+
+/** Pending invitations, newest first (parity G-A11): not accepted, not revoked; expired flagged. */
+export async function listPendingStaffInvitations(db: Database) {
+  const rows = await db.$queryRaw<
+    Array<{
+      id: string;
+      email: string;
+      name: string;
+      role: RoleKey;
+      invitedBy: string | null;
+      createdAt: Date;
+      expiresAt: Date;
+      expired: boolean;
+    }>
+  >(Prisma.sql`SELECT t.id, t.email, t.name, r.key AS role, u.name AS "invitedBy",
+      t.created_at AS "createdAt", t.expires_at AS "expiresAt",
+      t.expires_at <= statement_timestamp() AS expired
+    FROM staff_invitation_tokens t JOIN roles r ON r.id = t.role_id
+    LEFT JOIN staff_users u ON u.id = t.invited_by
+    WHERE t.accepted_at IS NULL AND t.revoked_at IS NULL
+    ORDER BY t.created_at DESC, t.id DESC LIMIT 100`);
+  return rows.map((row) => ({
+    ...row,
+    createdAt: row.createdAt.toISOString(),
+    expiresAt: row.expiresAt.toISOString(),
+  }));
+}
