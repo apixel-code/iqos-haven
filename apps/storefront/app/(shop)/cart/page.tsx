@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import { CartView } from "@/components/cart-view";
-import { Breadcrumbs, PageHead } from "@/components/listing";
+import { Breadcrumbs } from "@/components/listing";
 import { SITE } from "@/lib/site";
-import { storeInfo } from "@/lib/store/server";
+import { storeHome, storeInfo } from "@/lib/store/server";
 
 export const metadata: Metadata = { title: `Your cart · ${SITE.name}` };
 
@@ -11,12 +11,19 @@ export const metadata: Metadata = { title: `Your cart · ${SITE.name}` };
  * and is drawn in the browser. Like every page here it is behind the routing gate.
  */
 export default async function CartPage() {
-  const { whatsappNumber, checkoutOpen } = await storeInfo();
+  // Best sellers only for an empty cart with no history (G-S14); empty when they can't be read.
+  const [{ whatsappNumber, checkoutOpen }, { bestSellers }] = await Promise.all([
+    storeInfo(),
+    storeHome(),
+  ]);
   return (
     <>
       <Breadcrumbs trail={[{ label: "Home", href: "/" }, { label: "Cart" }]} />
-      <PageHead title="Your cart" />
-      <CartView whatsappNumber={whatsappNumber} checkoutOpen={checkoutOpen} />
+      <CartView
+        whatsappNumber={whatsappNumber}
+        checkoutOpen={checkoutOpen}
+        bestSellers={bestSellers}
+      />
     </>
   );
 }

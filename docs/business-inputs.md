@@ -68,3 +68,5 @@ Not implemented yet (steps 103, 111, 126). Nothing below deletes an order.
 - 2026-10-15 — Review proof channel and unverified reviews (step 93) — chat with Marina — staff send a per-order review link by WhatsApp after delivery; only verified reviews are accepted (BI-12). Link wording is placeholder until BI-09.
 
 - 2026-10-15 — Home content scope (step 96) — raised by Apixel — whether the Offers section may show coupon codes, and whether the hero is one banner or a carousel (BI-13). Built: no codes, one hero.
+
+- 2026-10-18 — Product-page trust copy (V-S4, ADR 0097) — raised by Apixel — "Genuine brand stock / Sourced from authorised UAE distributors." is the prototype's placeholder, kept as written; the client confirms or rewrites it with the launch copy (BI-01). Does not block V-S4.

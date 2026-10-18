@@ -163,7 +163,14 @@ try {
   await page.keyboard.press("Escape");
   await sheet.waitFor({ state: "hidden" });
   check(
-    await page.evaluate(() => document.activeElement?.textContent?.trim() === "Add to cart"),
+    // The main button; for 1.5 s after an add it reads "Added" (prototype, V-S4).
+    await page.evaluate(() =>
+      /^(Add to cart|Added)$/.test(
+        (document.activeElement?.closest(".buy-row") &&
+          document.activeElement.textContent?.trim()) ||
+          "",
+      ),
+    ),
     "closing the cart sheet returns focus to Add to cart",
   );
   // Straight away, before the dialog's close event: the sheet must open again.

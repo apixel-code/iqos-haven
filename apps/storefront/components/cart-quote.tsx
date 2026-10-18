@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import {
   EMIRATE_NAMES,
   storeDeliveryResponseSchema,
@@ -23,6 +23,7 @@ import {
 import type { QuoteChoice } from "@/lib/checkout/memory";
 import { freeDeliveryProgress } from "@/lib/cart/free-delivery";
 import { displayAed } from "@/lib/store/listing";
+import { Icon } from "@/components/icons";
 import { Money } from "@/components/money";
 
 interface Line {
@@ -38,8 +39,6 @@ export interface AcceptedOrderQuote {
   token: string;
   totalFils: number;
 }
-const FIELD =
-  "h-11 w-full rounded-md border border-line bg-surface px-3 text-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus";
 
 /**
  * The authoritative total for the cart (roadmap step 71, ADR 0041). The shopper picks a
@@ -88,6 +87,7 @@ export function CartQuote({
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [retry, setRetry] = useState(0);
+  const codeId = useId();
   // The total accepted with a code the server then refused; see `compareQuotes`.
   const droppedFrom = useRef<AcceptedQuote | null>(null);
   // The request effect compares against the latest accepted total without re-running for it.
@@ -217,29 +217,29 @@ export function CartQuote({
 
   if (delivery === null)
     return (
-      <p role="status" className="text-sm text-ink-2">
+      <p role="status" className="small muted">
         Loading delivery options…
       </p>
     );
   if (delivery === "failed")
     return (
-      <p className="text-sm text-ink-2">
-        Delivery options could not be loaded. Reload to try again.
-      </p>
+      <p className="small muted">Delivery options could not be loaded. Reload to try again.</p>
     );
   if (delivery.feeFils === null || delivery.areas.length === 0)
-    return <p className="text-sm text-ink-2">Delivery is not available yet.</p>;
+    return <p className="small muted">Delivery is not available yet.</p>;
 
   const short = current
     ? lines.filter((line) => current.insufficientStock.includes(line.variantId))
     : [];
   return (
-    <div className="flex flex-col gap-3">
-      <label className="flex flex-col gap-1.5 text-sm">
-        <span className="font-medium">Delivery area</span>
+    <div className="quote">
+      <div className="field">
+        <label className="label" htmlFor="checkout-area">
+          Delivery area
+        </label>
         <select
           id="checkout-area"
-          className={FIELD}
+          className={areaError ? "select err" : "select"}
           value={areaId}
           aria-invalid={areaError ? true : undefined}
           aria-describedby={areaError ? "checkout-area-error" : undefined}
@@ -265,43 +265,63 @@ export function CartQuote({
           ))}
         </select>
         {areaError && (
-          <span id="checkout-area-error" className="text-sm font-medium text-error">
+          <span id="checkout-area-error" className="errmsg">
+            <Icon name="info" size="sm" />
             {areaError}
           </span>
         )}
-      </label>
-      <form
-        className="flex items-end gap-2"
-        onSubmit={(event) => {
-          event.preventDefault();
-          const next = typedCode.trim();
-          droppedFrom.current = null;
-          setProblem(null);
-          setCode(next ? next : null);
-          // Applying the same code again asks again.
-          if ((next || null) === code) setRetry((count) => count + 1);
-        }}
-      >
-        <label className="flex flex-1 flex-col gap-1.5 text-sm">
-          <span className="font-medium">Discount code</span>
-          <input
-            className={FIELD}
-            value={typedCode}
-            onChange={(event) => setTypedCode(event.target.value)}
-            maxLength={32}
-            autoCapitalize="characters"
-            autoComplete="off"
-            spellCheck={false}
-          />
-        </label>
-        <button
-          type="submit"
-          className="h-11 rounded-pill border border-line px-4 text-sm font-medium hover:border-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+      </div>
+      {current?.coupon ? (
+        // The prototype's applied-code line.
+        <div className="promo-ok">
+          <span>
+            <Icon name="tag" size="sm" /> <span className="mono">{current.coupon.code}</span>{" "}
+            applied · −<Money fils={current.discountFils} />
+          </span>
+          <button
+            type="button"
+            onClick={() => {
+              setCode(null);
+              setTypedCode("");
+            }}
+          >
+            Remove<span className="sr"> code {current.coupon.code}</span>
+          </button>
+        </div>
+      ) : (
+        <form
+          className="field"
+          onSubmit={(event) => {
+            event.preventDefault();
+            const next = typedCode.trim();
+            droppedFrom.current = null;
+            setProblem(null);
+            setCode(next ? next : null);
+            // Applying the same code again asks again.
+            if ((next || null) === code) setRetry((count) => count + 1);
+          }}
         >
-          Apply
-        </button>
-      </form>
-      <p role="status" aria-live="polite" className="min-h-5 text-sm text-ink-2">
+          <label className="label" htmlFor={codeId}>
+            Discount code
+          </label>
+          <div className="promo-f">
+            <input
+              id={codeId}
+              className="input"
+              value={typedCode}
+              onChange={(event) => setTypedCode(event.target.value)}
+              maxLength={32}
+              autoCapitalize="characters"
+              autoComplete="off"
+              spellCheck={false}
+            />
+            <button type="submit" className="btn btn-outline">
+              Apply
+            </button>
+          </div>
+        </form>
+      )}
+      <p role="status" aria-live="polite" className="small muted quote-status">
         {busy
           ? "Working out your total…"
           : !areaId
@@ -309,20 +329,23 @@ export function CartQuote({
             : ""}
       </p>
       {problem && (
-        <p role="alert" className="text-sm font-medium text-error">
-          {QUOTE_MESSAGES[problem]}{" "}
-          {(problem === "FAILED" || problem === "RATE_LIMITED") && (
-            <button
-              type="button"
-              className="underline underline-offset-2"
-              onClick={() => {
-                setProblem(null);
-                setRetry((count) => count + 1);
-              }}
-            >
-              Try again
-            </button>
-          )}
+        <p role="alert" className="errmsg">
+          <Icon name="info" size="sm" />
+          <span>
+            {QUOTE_MESSAGES[problem]}{" "}
+            {(problem === "FAILED" || problem === "RATE_LIMITED") && (
+              <button
+                type="button"
+                className="link"
+                onClick={() => {
+                  setProblem(null);
+                  setRetry((count) => count + 1);
+                }}
+              >
+                Try again
+              </button>
+            )}
+          </span>
         </p>
       )}
       {current && (
@@ -333,56 +356,42 @@ export function CartQuote({
       )}
       {current && (
         <>
-          <dl className="flex flex-col gap-2 text-sm">
+          <dl className="totals">
             {current.coupon && (
-              <div className="flex justify-between gap-4">
-                <dt>
-                  Discount ({current.coupon.code}){" "}
-                  <button
-                    type="button"
-                    className="text-ink-2 underline underline-offset-2"
-                    onClick={() => {
-                      setCode(null);
-                      setTypedCode("");
-                    }}
-                  >
-                    Remove
-                  </button>
-                </dt>
-                <dd className="whitespace-nowrap">
+              <div className="disc">
+                <dt>Discount ({current.coupon.code})</dt>
+                <dd>
                   −<Money fils={current.discountFils} />
                 </dd>
               </div>
             )}
-            <div className="flex justify-between gap-4">
+            <div>
               <dt>Delivery to {current.delivery.areaName}</dt>
               <dd>
                 <Money fils={current.deliveryFeeFils} />
               </dd>
             </div>
-            <div className="flex justify-between gap-4 border-t border-line pt-2 text-base font-semibold">
+            <div className="grand">
               <dt>Total</dt>
               <dd>
                 <Money fils={current.totalFils} />
               </dd>
             </div>
           </dl>
-          <p className="text-xs text-ink-3">{current.delivery.etaText}</p>
+          <p className="small muted">{current.delivery.etaText}</p>
           {short.length > 0 && (
-            <p role="alert" className="text-sm font-medium text-error">
+            <p role="alert" className="errmsg">
+              <Icon name="info" size="sm" />
               Not enough stock for {short.map((line) => line.name).join(", ")}. Reduce the quantity
               to continue.
             </p>
           )}
           {notice && (
-            <div
-              role="alert"
-              className="flex flex-col gap-2 rounded-md border border-line p-3 text-sm"
-            >
-              <p className="font-medium">{notice}</p>
+            <div role="alert" className="quote-notice">
+              <p>{notice}</p>
               <button
                 type="button"
-                className="h-10 w-fit rounded-pill bg-primary px-4 text-sm font-medium text-on-primary hover:bg-primary-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+                className="btn btn-primary btn-sm"
                 onClick={() => {
                   setAccepted(acceptedFrom(key, current));
                   setNotice(null);
@@ -409,13 +418,13 @@ function FreeDelivery({
   const progress = freeDeliveryProgress(thresholdFils, afterDiscountFils);
   if (!progress) return null;
   return (
-    <div className="flex flex-col gap-2 rounded-md bg-surface-2 px-4 py-3.5 text-[13.5px]">
+    <div className="fdel">
       <span>
         {progress.kind === "reached" ? (
           "Your order qualifies for free delivery."
         ) : (
           <>
-            Add{" "}
+            <Icon name="truck" size="sm" /> Add{" "}
             <b>
               <Money fils={progress.remainingFils} />
             </b>{" "}
@@ -423,11 +432,8 @@ function FreeDelivery({
           </>
         )}
       </span>
-      <span aria-hidden="true" className="h-1.5 overflow-hidden rounded-pill bg-line">
-        <i
-          className="block h-full bg-success"
-          style={{ width: `${progress.kind === "reached" ? 100 : progress.percent}%` }}
-        />
+      <span aria-hidden="true" className="bar">
+        <i style={{ width: `${progress.kind === "reached" ? 100 : progress.percent}%` }} />
       </span>
     </div>
   );

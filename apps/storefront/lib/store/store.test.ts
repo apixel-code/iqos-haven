@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { AgeRequiredError, StoreApiError, createStoreApi } from "./api";
-import { cardBadges, cardMeta, discountPercent, displayAed, displayAmount } from "./listing";
+import {
+  cardBadges,
+  cardMeta,
+  discountPercent,
+  displayAed,
+  displayAmount,
+  relatedProducts,
+} from "./listing";
 import {
   activeFilterCount,
   bandOf,
@@ -103,6 +110,21 @@ describe("price and card text", () => {
       { kind: "soldOut", label: "Sold out" },
     ]);
     expect(cardBadges({ ...card, isNew: false, compareAtPriceFils: null })).toEqual([]);
+  });
+});
+
+describe("more like this (product page)", () => {
+  const item = (slug: string, soldOut = false) => ({ slug, soldOut });
+  it("puts the brand first, then the type, without the product, sold-out items or repeats", () => {
+    const picked = relatedProducts(
+      { slug: "self" },
+      [item("self"), item("b1"), item("b2", true)],
+      [item("b1"), item("t1"), item("t2"), item("t3"), item("t4")],
+    );
+    expect(picked.map((p) => p.slug)).toEqual(["b1", "t1", "t2", "t3"]);
+  });
+  it("can be empty", () => {
+    expect(relatedProducts({ slug: "self" }, [item("self")], [item("x", true)])).toEqual([]);
   });
 });
 

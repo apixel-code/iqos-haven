@@ -67,3 +67,24 @@ export function cardBadges(
   if (card.isNew) badges.push({ kind: "new", label: "New" });
   return badges;
 }
+
+/**
+ * "More like this" on the product page (prototype): the brand's other products first, then
+ * other brands of the same type; never the product itself or a sold-out one; at most four.
+ */
+export function relatedProducts<T extends { slug: string; soldOut: boolean }>(
+  product: { slug: string },
+  sameBrand: readonly T[],
+  sameType: readonly T[],
+  limit = 4,
+): T[] {
+  const seen = new Set([product.slug]);
+  const picked: T[] = [];
+  for (const item of [...sameBrand, ...sameType]) {
+    if (picked.length === limit) break;
+    if (item.soldOut || seen.has(item.slug)) continue;
+    seen.add(item.slug);
+    picked.push(item);
+  }
+  return picked;
+}

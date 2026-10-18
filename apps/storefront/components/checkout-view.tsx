@@ -21,13 +21,9 @@ import {
   type FormField,
 } from "@/lib/checkout/order";
 import { CartQuote, type AcceptedOrderQuote } from "./cart-quote";
+import { Icon } from "@/components/icons";
 import { Money } from "@/components/money";
 
-const INPUT =
-  "min-h-12 w-full rounded-md border border-line-2 bg-surface px-3.5 py-3 text-base hover:border-ink-3 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus aria-[invalid=true]:border-error aria-[invalid=true]:bg-error-soft";
-const STEP = "flex flex-col gap-4 rounded-lg border border-line bg-surface p-5 sm:p-6";
-const PRIMARY =
-  "inline-flex h-12 items-center justify-center rounded-pill bg-primary px-6 text-base font-medium text-on-primary hover:bg-primary-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus disabled:cursor-not-allowed disabled:opacity-60";
 /** Fields in the order they appear, for the error summary. */
 const FIELD_ORDER: readonly FormField[] = [
   "name",
@@ -56,39 +52,45 @@ const FIELD_ID: Record<FormField, string> = {
 const TYPES: ReadonlyArray<{
   type: AddressType;
   label: string;
+  icon: "building" | "home" | "briefcase";
   building: [label: string, placeholder: string];
   unit: [label: string, placeholder: string] | null;
 }> = [
   {
     type: "apartment",
     label: "Apartment",
+    icon: "building",
     building: ["Building name", "e.g. Marina Gate 2"],
     unit: ["Apartment no.", "e.g. 2408"],
   },
   {
     type: "villa",
     label: "Villa",
+    icon: "home",
     building: ["Villa number & community", "e.g. Villa 24, Springs 7"],
     unit: null,
   },
   {
     type: "office",
     label: "Office / Hotel",
+    icon: "briefcase",
     building: ["Building or hotel name", "e.g. Marina Gate 2"],
     unit: ["Office / room no.", "e.g. 2408"],
   },
 ];
 
+/** The prototype's numbered step heading (`co-step h2 .n`). */
 function StepHead({ n, children }: { n: number; children: ReactNode }) {
   return (
-    <h2 className="flex items-center gap-2.5 text-[17px] font-semibold">
-      <span className="flex size-[26px] items-center justify-center rounded-full bg-ink font-mono text-xs text-surface">
+    <h2>
+      <span className="n" aria-hidden="true">
         {n}
       </span>
       {children}
     </h2>
   );
 }
+/** The prototype's `fld`: label, control, then the error or the help line. */
 function Field({
   id,
   label,
@@ -105,17 +107,22 @@ function Field({
   children: ReactNode;
 }) {
   return (
-    <div className="flex flex-col gap-1.5">
-      <label htmlFor={id} className="text-[13px] font-medium">
-        {label} {optional && <span className="font-normal text-ink-3">(optional)</span>}
+    <div className="field">
+      <label htmlFor={id} className="label">
+        {label} {optional && <span className="opt">(optional)</span>}
       </label>
       {children}
       {error ? (
-        <span id={`${id}-error`} className="text-[13px] font-medium text-error">
+        <span id={`${id}-error`} className="errmsg">
+          <Icon name="info" size="sm" />
           {error}
         </span>
       ) : (
-        help && <span className="text-xs text-ink-3">{help}</span>
+        help && (
+          <span id={`${id}-help`} className="help">
+            {help}
+          </span>
+        )
       )}
     </div>
   );
@@ -129,7 +136,7 @@ function Field({
  * shopper; the cart is emptied only once the API has acknowledged the order.
  */
 export function CheckoutView() {
-  const { cart, view, mounted, recheck } = useFreshCart();
+  const { cart, view, images, mounted, recheck } = useFreshCart();
   const [form, setForm] = useState<CheckoutForm>(EMPTY_FORM);
   const [errors, setErrors] = useState<FormErrors>({});
   const [choice, setChoice] = useState<QuoteChoice>(rememberedChoice);
@@ -168,6 +175,7 @@ export function CheckoutView() {
   };
   const text = (field: Exclude<keyof CheckoutForm, "type" | "ageConfirmed">) => ({
     id: FIELD_ID[field],
+    className: errors[field] ? "input err" : "input",
     value: form[field],
     "aria-invalid": errors[field] ? (true as const) : undefined,
     "aria-describedby": errors[field] ? `${FIELD_ID[field]}-error` : undefined,
@@ -257,7 +265,7 @@ export function CheckoutView() {
 
   if (!mounted)
     return (
-      <p role="status" className="py-9 text-sm text-ink-2">
+      <p role="status" className="small muted co-wait">
         Loading checkout…
       </p>
     );
@@ -266,18 +274,18 @@ export function CheckoutView() {
     // connection dropped), the shopper still has the order number and a way to it.
     const order = rememberedPlaced();
     return (
-      <div role="status" className="flex flex-col items-start gap-3 py-9 text-sm text-ink-2">
-        <p>
+      <div role="status" className="co-wait">
+        <p className="muted">
           Order placed
           {order && (
             <>
-              : <b className="font-mono font-semibold text-ink">{order.orderNumber}</b> ·{" "}
-              <Money fils={order.totalFils} /> cash on delivery
+              : <b className="mono ink">{order.orderNumber}</b> · <Money fils={order.totalFils} />{" "}
+              cash on delivery
             </>
           )}
           . Opening your confirmation…
         </p>
-        <Link href="/order-confirmation" prefetch={false} className="underline underline-offset-2">
+        <Link href="/order-confirmation" prefetch={false} className="link">
           View your order
         </Link>
       </div>
@@ -285,25 +293,22 @@ export function CheckoutView() {
   }
   if (alreadyPlaced)
     return (
-      <section
-        role="alert"
-        className="mx-auto flex max-w-lg flex-col gap-3 rounded-lg border border-line bg-surface p-6"
-      >
-        <h2 className="text-xl font-semibold">This order was already placed</h2>
-        <p className="text-sm text-ink-2">
+      <section role="alert" className="panel co-again">
+        <h2 className="h3">This order was already placed</h2>
+        <p className="muted">
           An order was already placed from this checkout, so we did not place it again. Your items
           are on their way to being confirmed; you do not need to do anything.
         </p>
-        <p className="text-sm text-ink-2">
+        <p className="muted">
           Your cart still shows them. Only continue if you want a second, separate order.
         </p>
-        <div className="flex flex-wrap gap-3">
-          <Link href="/order-confirmation" prefetch={false} className={PRIMARY}>
+        <div className="co-actions">
+          <Link href="/order-confirmation" prefetch={false} className="btn btn-primary">
             View your latest order
           </Link>
           <button
             type="button"
-            className="inline-flex h-11 items-center rounded-pill border border-line px-4 text-sm font-medium hover:border-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+            className="btn btn-outline"
             onClick={() => {
               // The shopper asks for another order: this, and only this, makes a new key.
               endAttempt();
@@ -313,7 +318,7 @@ export function CheckoutView() {
           >
             Place a second order
           </button>
-          <Link href="/cart" prefetch={false} className="self-center text-sm underline">
+          <Link href="/cart" prefetch={false} className="link small">
             Back to cart
           </Link>
         </div>
@@ -321,12 +326,17 @@ export function CheckoutView() {
     );
   if (cart.lines.length === 0)
     return (
-      <div className="flex flex-col items-center gap-3.5 px-2 py-9 text-center">
-        <h2 className="text-lg font-semibold">Your cart is empty</h2>
-        <p className="max-w-sm text-sm text-ink-2">Add something before checking out.</p>
-        <Link href="/shop" prefetch={false} className={PRIMARY}>
-          Shop now
-        </Link>
+      <div className="done">
+        <div className="empty">
+          <span className="ic">
+            <Icon name="bag" size="lg" />
+          </span>
+          <h2 className="h3">Your cart is empty</h2>
+          <p>Add something before checking out.</p>
+          <Link href="/shop" prefetch={false} className="btn btn-primary">
+            Shop now
+          </Link>
+        </div>
       </div>
     );
 
@@ -340,26 +350,87 @@ export function CheckoutView() {
   }));
   const kind = TYPES.find((item) => item.type === form.type)!;
   const total = accepted ? <Money fils={accepted.totalFils} /> : null;
+  // The prototype's summary lines (`mini-line`), on phones in the collapsed block (G-S8) and
+  // beside the form from 900 px.
+  const summaryBody = (
+    <>
+      <ul className="mini-lines">
+        {buyable.map((line) => {
+          const image = images.get(line.variantId);
+          return (
+            <li key={line.variantId} className="mini-line">
+              <span className="th">
+                {image && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={image.urls.thumb} alt="" width={52} height={60} />
+                )}
+                <span className="q" aria-label={`Quantity ${line.quantity}`}>
+                  {line.quantity}
+                </span>
+              </span>
+              <span>
+                <b className="nm">{line.name}</b>
+                {line.options && (
+                  <>
+                    <br />
+                    <span className="v">{line.options}</span>
+                  </>
+                )}
+              </span>
+              <span className="num">
+                <Money fils={line.lineTotalFils} />
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+      <dl className="totals">
+        <div>
+          <dt>
+            Subtotal ({view.itemCount} {view.itemCount === 1 ? "item" : "items"})
+          </dt>
+          <dd>
+            <Money fils={view.subtotalFils} />
+          </dd>
+        </div>
+      </dl>
+      <Link href="/cart" prefetch={false} className="link small">
+        Edit cart
+      </Link>
+    </>
+  );
   return (
-    <div className="grid gap-5 pb-14 lg:grid-cols-[1.35fr_1fr] lg:items-start lg:gap-10">
-      <div className="flex flex-col gap-4">
+    <div className="co">
+      <div className="co-main">
+        {/* Phones: the summary folds away with the amount in its title (parity G-S8). The
+            amount is the accepted total once there is one, until then the subtotal. */}
+        <details className="sumdet co-sum-m">
+          <summary>
+            <span>
+              Order summary ·{" "}
+              <b className="num">
+                {accepted ? (
+                  <Money fils={accepted.totalFils} />
+                ) : (
+                  <Money fils={view.subtotalFils} />
+                )}
+              </b>
+              {!accepted && <span className="sr"> subtotal, before delivery</span>}
+            </span>
+            <Icon name="chev-d" />
+          </summary>
+          <div className="in">{summaryBody}</div>
+        </details>
         {shown.length > 0 && (
-          <div
-            ref={summary}
-            role="alert"
-            tabIndex={-1}
-            className="rounded-md border border-error bg-error-soft p-4 text-sm focus-visible:outline-2 focus-visible:outline-error"
-          >
-            <p className="font-semibold">
+          <div ref={summary} role="alert" tabIndex={-1} className="errsum">
+            <b>
               Please fix {shown.length} {shown.length === 1 ? "thing" : "things"} to place your
               order:
-            </p>
-            <ul className="list-disc pl-5">
+            </b>
+            <ul>
               {shown.map((field) => (
                 <li key={field}>
-                  <a href={`#${FIELD_ID[field]}`} className="underline underline-offset-2">
-                    {errors[field]}
-                  </a>
+                  <a href={`#${FIELD_ID[field]}`}>{errors[field]}</a>
                 </li>
               ))}
             </ul>
@@ -368,17 +439,17 @@ export function CheckoutView() {
         <form
           id="checkout-form"
           noValidate
-          className="flex flex-col gap-4"
+          className="co-form"
           onSubmit={(event) => {
             event.preventDefault();
             void submit();
           }}
         >
-          <section className={STEP}>
+          <section className="co-step">
             <StepHead n={1}>Contact</StepHead>
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid2">
               <Field id={FIELD_ID.name} label="Full name" error={errors.name}>
-                <input {...text("name")} className={INPUT} autoComplete="name" maxLength={100} />
+                <input {...text("name")} autoComplete="name" maxLength={100} />
               </Field>
               <Field
                 id={FIELD_ID.phone}
@@ -386,13 +457,13 @@ export function CheckoutView() {
                 help="For delivery updates on WhatsApp or by call"
                 error={errors.phone}
               >
-                <div className="flex">
-                  <span className="flex items-center rounded-l-md border border-r-0 border-line-2 bg-surface-2 px-3 text-base text-ink-2">
-                    +971
-                  </span>
+                <div className="prefix">
+                  <span aria-hidden="true">+971</span>
                   <input
                     {...text("phone")}
-                    className={`${INPUT} rounded-l-none`}
+                    aria-describedby={
+                      errors.phone ? `${FIELD_ID.phone}-error` : `${FIELD_ID.phone}-help`
+                    }
                     type="tel"
                     inputMode="tel"
                     autoComplete="tel-national"
@@ -403,29 +474,28 @@ export function CheckoutView() {
               </Field>
             </div>
           </section>
-          <section className={STEP}>
+          <section className="co-step">
             <StepHead n={2}>Delivery address</StepHead>
-            <fieldset id={FIELD_ID.type} className="flex flex-col gap-1.5">
-              <legend className="pb-1.5 text-[13px] font-medium">Address type</legend>
-              <div className="grid grid-cols-3 gap-2">
+            <fieldset id={FIELD_ID.type} className="opt-g">
+              <legend className="label">Address type</legend>
+              <div className="atype">
                 {TYPES.map((item) => (
                   <button
                     key={item.type}
                     type="button"
                     aria-pressed={form.type === item.type}
                     onClick={() => set("type", item.type)}
-                    className="min-h-12 rounded-md border border-line-2 px-2 text-sm font-medium hover:border-ink-3 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus aria-pressed:border-ink aria-pressed:bg-bg aria-pressed:shadow-[inset_0_0_0_1px_var(--color-ink)]"
                   >
-                    {item.label}
+                    <Icon name={item.icon} />
+                    <span>{item.label}</span>
                   </button>
                 ))}
               </div>
             </fieldset>
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid2">
               <Field id={FIELD_ID.building} label={kind.building[0]} error={errors.building}>
                 <input
                   {...text("building")}
-                  className={INPUT}
                   autoComplete="address-line1"
                   placeholder={kind.building[1]}
                   maxLength={150}
@@ -435,7 +505,6 @@ export function CheckoutView() {
                 <Field id={FIELD_ID.unit} label={kind.unit[0]} error={errors.unit}>
                   <input
                     {...text("unit")}
-                    className={INPUT}
                     autoComplete="address-line2"
                     placeholder={kind.unit[1]}
                     maxLength={50}
@@ -443,14 +512,9 @@ export function CheckoutView() {
                 </Field>
               )}
             </div>
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid2">
               <Field id={FIELD_ID.street} label="Street or landmark" optional error={errors.street}>
-                <input
-                  {...text("street")}
-                  className={INPUT}
-                  placeholder="e.g. next to Spinneys"
-                  maxLength={150}
-                />
+                <input {...text("street")} placeholder="e.g. next to Spinneys" maxLength={150} />
               </Field>
               <Field
                 id={FIELD_ID.makani}
@@ -461,7 +525,10 @@ export function CheckoutView() {
               >
                 <input
                   {...text("makani")}
-                  className={`${INPUT} font-mono`}
+                  className={errors.makani ? "input mono err" : "input mono"}
+                  aria-describedby={
+                    errors.makani ? `${FIELD_ID.makani}-error` : `${FIELD_ID.makani}-help`
+                  }
                   inputMode="numeric"
                   placeholder="10 digits"
                   maxLength={14}
@@ -471,7 +538,7 @@ export function CheckoutView() {
             <Field id={FIELD_ID.notes} label="Delivery notes" optional error={errors.notes}>
               <textarea
                 {...text("notes")}
-                className={`${INPUT} min-h-[84px] resize-y`}
+                className={errors.notes ? "textarea err" : "textarea"}
                 placeholder="Gate code, best time to call, leave with reception…"
                 maxLength={500}
               />
@@ -479,15 +546,18 @@ export function CheckoutView() {
           </section>
         </form>
         {/* Outside the form above: this block has its own small form for the discount code. */}
-        <section className={STEP}>
+        <section className="co-step">
           <StepHead n={3}>Delivery area and total</StepHead>
           {view.blockedCount > 0 && (
-            <p className="text-sm font-medium text-error">
-              Something in your cart can no longer be bought.{" "}
-              <Link href="/cart" prefetch={false} className="underline underline-offset-2">
-                Go back to your cart
-              </Link>{" "}
-              to remove it.
+            <p className="errmsg">
+              <Icon name="info" size="sm" />
+              <span>
+                Something in your cart can no longer be bought.{" "}
+                <Link href="/cart" prefetch={false} className="link">
+                  Go back to your cart
+                </Link>{" "}
+                to remove it.
+              </span>
             </p>
           )}
           <CartQuote
@@ -502,25 +572,34 @@ export function CheckoutView() {
             areaError={errors.areaId}
           />
         </section>
-        <section className={STEP}>
+        <section className="co-step">
           <StepHead n={4}>Payment</StepHead>
-          <div className="rounded-md border-[1.5px] border-ink bg-bg p-4 text-sm">
-            <b className="font-semibold">Cash on delivery</b>
-            <p className="text-ink-2">
-              {total ? (
-                <>Pay {total} in cash when your order arrives. Exact change helps.</>
-              ) : (
-                "Pay in cash when your order arrives. Exact change helps."
-              )}
-            </p>
+          <div className="pay-opt">
+            <Icon name="cash" size="lg" />
+            <span className="pay-t">
+              <b>Cash on delivery</b>
+              <span className="small muted">
+                {total ? (
+                  <>
+                    Pay <b className="num ink">{total}</b> in cash when your order arrives. Exact
+                    change helps.
+                  </>
+                ) : (
+                  "Pay in cash when your order arrives. Exact change helps."
+                )}
+              </span>
+            </span>
+            <span className="pay-ok">
+              <Icon name="check" />
+            </span>
           </div>
-          <div className="flex flex-col gap-1.5">
-            <label className="flex items-start gap-3 text-[14.5px]">
+          <div className="field">
+            <label className="check" htmlFor={FIELD_ID.ageConfirmed}>
               <input
                 id={FIELD_ID.ageConfirmed}
                 form="checkout-form"
                 type="checkbox"
-                className="mt-0.5 size-[22px] shrink-0 accent-ink"
+                className={errors.ageConfirmed ? "err" : undefined}
                 checked={form.ageConfirmed}
                 aria-invalid={errors.ageConfirmed ? true : undefined}
                 aria-describedby={
@@ -528,72 +607,50 @@ export function CheckoutView() {
                 }
                 onChange={(event) => set("ageConfirmed", event.target.checked)}
               />
-              I confirm I am 18 or older.
+              <span className="ct">I confirm I am 18 or older.</span>
             </label>
             {errors.ageConfirmed && (
-              <span
-                id={`${FIELD_ID.ageConfirmed}-error`}
-                className="text-[13px] font-medium text-error"
-              >
+              <span id={`${FIELD_ID.ageConfirmed}-error`} className="errmsg">
+                <Icon name="info" size="sm" />
                 {errors.ageConfirmed}
               </span>
             )}
           </div>
           {message && (
-            <p role="alert" className="text-sm font-medium text-error">
+            <p role="alert" className="errmsg">
+              <Icon name="info" size="sm" />
               {message}
             </p>
           )}
-          <button type="submit" form="checkout-form" disabled={busy} className={PRIMARY}>
+          <button
+            type="submit"
+            form="checkout-form"
+            disabled={busy}
+            className={
+              busy ? "btn btn-primary btn-lg btn-block busy" : "btn btn-primary btn-lg btn-block"
+            }
+          >
             {busy ? "Placing your order…" : total ? <>Place order · {total}</> : "Place order"}
           </button>
-          <p role="status" aria-live="polite" className="text-center text-xs text-ink-3">
+          <p role="status" aria-live="polite" className="small muted center">
             {busy
               ? "Please wait. Do not close this page."
               : quoteReady || choice.areaId
                 ? ""
                 : "Choose your delivery area to see your total."}
           </p>
-          <p className="text-center text-xs text-ink-3">
+          <p className="small muted center">
             By placing your order you agree to our{" "}
-            <Link href="/terms" prefetch={false} className="underline underline-offset-2">
+            <Link href="/terms" prefetch={false} className="link">
               terms
             </Link>
             .
           </p>
         </section>
       </div>
-      <aside
-        aria-label="Order summary"
-        className="order-first flex h-fit flex-col gap-3 rounded-lg border border-line bg-surface p-5 lg:sticky lg:top-6 lg:order-none"
-      >
-        <h2 className="text-lg font-semibold">Order summary</h2>
-        <ul className="flex flex-col gap-3 text-sm">
-          {buyable.map((line) => (
-            <li key={line.variantId} className="flex justify-between gap-4">
-              <span>
-                <span className="font-medium">{line.name}</span>
-                <span className="block text-xs text-ink-3">
-                  {[line.options, `Qty ${line.quantity}`].filter(Boolean).join(" · ")}
-                </span>
-              </span>
-              <span className="whitespace-nowrap">
-                <Money fils={line.lineTotalFils} />
-              </span>
-            </li>
-          ))}
-        </ul>
-        <div className="flex justify-between gap-4 border-t border-line pt-3 text-sm">
-          <span>
-            Subtotal ({view.itemCount} {view.itemCount === 1 ? "item" : "items"})
-          </span>
-          <span className="font-semibold">
-            <Money fils={view.subtotalFils} />
-          </span>
-        </div>
-        <Link href="/cart" prefetch={false} className="text-sm underline underline-offset-2">
-          Edit cart
-        </Link>
+      <aside aria-label="Order summary" className="panel sticky co-sum-d">
+        <h2 className="h3">Order summary</h2>
+        {summaryBody}
       </aside>
     </div>
   );

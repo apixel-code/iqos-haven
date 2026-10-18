@@ -27,13 +27,13 @@ export default async function CheckoutPage() {
           { label: "Checkout" },
         ]}
       />
-      <PageHead title="Checkout" lead="Guest checkout. No account needed, pay when it arrives." />
+      <PageHead title="Checkout" lead="Guest checkout. Four short steps, no account." />
       {checkoutOpen ? (
         <CheckoutView />
       ) : (
-        <div className="flex flex-col items-start gap-3 py-6">
-          <p className="text-sm text-ink-2">Checkout is not open yet.</p>
-          <Link href="/cart" prefetch={false} className="text-sm underline underline-offset-2">
+        <div className="co-wait">
+          <p className="muted">Checkout is not open yet.</p>
+          <Link href="/cart" prefetch={false} className="link">
             Back to cart
           </Link>
         </div>

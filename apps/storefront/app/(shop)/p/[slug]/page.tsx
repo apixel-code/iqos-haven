@@ -6,12 +6,14 @@ import { ProductReviews, RatingLink } from "@/components/product-reviews";
 import { CompareToggle } from "@/components/compare-toggle";
 import { RecentlyViewed, RecordView } from "@/components/recently-viewed";
 import { SaveButton } from "@/components/save-button";
-import { WhatsAppLink } from "@/components/whatsapp-link";
 import { Gallery } from "@/components/gallery";
+import { SectionHead } from "@/components/home-sections";
+import { Icon } from "@/components/icons";
 import { Breadcrumbs } from "@/components/listing";
-import { ProductGrid } from "@/components/product-card";
+import { ProductRail } from "@/components/product-card";
 import { SITE } from "@/lib/site";
-import { TYPE_PAGES } from "@/lib/store/listing";
+import { relatedProducts, TYPE_PAGES } from "@/lib/store/listing";
+import { offeredOptions } from "@/lib/store/selection";
 import { StoreApiError } from "@/lib/store/api";
 import { storeInfo, storeRead } from "@/lib/store/server";
 import { WHATSAPP_MESSAGES, whatsappHref } from "@/lib/whatsapp";
@@ -43,10 +45,13 @@ function specRows(product: StoreProductResponse): Array<[string, string]> {
   const specs = product.specs as Record<string, unknown>;
   const text = (key: string) => (typeof specs[key] === "string" ? (specs[key] as string) : null);
   const number = (key: string) => (typeof specs[key] === "number" ? (specs[key] as number) : null);
+  /** The values offered for an option (the prototype's nicotine and flavour rows). */
+  const option = (name: string) => offeredOptions(product).find((o) => o.name === name)?.values;
   const rows: Array<[string, string | number | null | false]> =
     product.type === "disposable"
       ? [
           ["Puffs (approx.)", product.puffCount ? product.puffCount.toLocaleString("en-US") : null],
+          ["Nicotine", option("nicotine")?.join(" / ") ?? null],
           ["E-liquid", text("liquidMl") && `${text("liquidMl")} ml`],
           ["Battery", number("batteryMah") && `${number("batteryMah")} mAh`],
           [
@@ -58,6 +63,7 @@ function specRows(product: StoreProductResponse): Array<[string, string]> {
                   ? "Not rechargeable"
                   : null),
           ],
+          ["Flavours", option("flavour") ? String(option("flavour")!.length) : null],
         ]
       : [
           ["Battery", number("batteryMah") && `${number("batteryMah")} mAh`],
@@ -89,14 +95,25 @@ export default async function ProductPage({ params }: Props) {
   const typePage = TYPE_PAGES[product.type];
   const { whatsappNumber } = await storeInfo();
   // Optional section: if it cannot be loaded the product page still renders.
-  const related = await storeRead((api, shopper) =>
-    api.products(shopper, { brand: product.brand.slug, limit: 5 }),
-  ).catch((error: unknown) => {
-    if (error instanceof StoreApiError) return { items: [] };
-    throw error;
-  });
-  const more = related.items.filter((item) => item.slug !== product.slug).slice(0, 4);
+  const optional = <T,>(read: Promise<{ items: T[] }>) =>
+    read.catch((error: unknown) => {
+      if (error instanceof StoreApiError) return { items: [] as T[] };
+      throw error;
+    });
+  const [sameBrand, sameType] = await Promise.all([
+    optional(
+      storeRead((api, shopper) => api.products(shopper, { brand: product.brand.slug, limit: 9 })),
+    ),
+    optional(storeRead((api, shopper) => api.products(shopper, { type: product.type, limit: 9 }))),
+  ]);
+  const more = relatedProducts(product, sameBrand.items, sameType.items);
   const specs = specRows(product);
+  const whatsappMessage = WHATSAPP_MESSAGES.product(SITE.name, {
+    name: product.name,
+    priceFromFils: Math.min(...product.variants.map((variant) => variant.priceFils)),
+    soldOut: product.soldOut,
+  });
+  const whatsapp = whatsappHref(whatsappNumber, whatsappMessage);
   return (
     <>
       <Breadcrumbs
@@ -106,90 +123,104 @@ export default async function ProductPage({ params }: Props) {
           { label: product.name },
         ]}
       />
-      <div className="grid gap-6 pt-4 md:grid-cols-[1.08fr_1fr] md:gap-12">
+      <div className="pdp">
         <Gallery images={product.images} name={product.name} />
-        <div className="flex flex-col gap-5">
-          <div className="flex flex-col gap-1.5">
-            <a
-              href={`/brands/${product.brand.slug}`}
-              className="text-xs font-medium uppercase tracking-[0.1em] text-ink-2 hover:text-ink"
-            >
+        <div className="buy" id="buybox">
+          <div className="buy-top">
+            <a href={`/brands/${product.brand.slug}`} className="brandlink">
               {product.brand.name}
             </a>
-            <h1 className="text-3xl font-semibold tracking-tight">{product.name}</h1>
+            <h1 className="h1">{product.name}</h1>
             <RatingLink rating={product.rating} />
           </div>
           {/* Keyed by product so choices never carry over to another product. */}
           <BuyBox
             key={product.slug}
             product={product}
-            whatsappHref={whatsappHref(
-              whatsappNumber,
-              WHATSAPP_MESSAGES.product(SITE.name, {
-                name: product.name,
-                priceFromFils: Math.min(...product.variants.map((variant) => variant.priceFils)),
-                soldOut: product.soldOut,
-              }),
-            )}
+            whatsappHref={whatsapp}
+            save={<SaveButton slug={product.slug} name={product.name} variant="page" />}
           />
-          <SaveButton slug={product.slug} name={product.name} variant="page" />
+          {whatsapp && (
+            <a href={whatsapp} target="_blank" rel="noopener noreferrer" className="wa-link">
+              <Icon name="wa" />
+              {product.soldOut
+                ? "Ask on WhatsApp when it's back"
+                : "Ask about this product on WhatsApp"}
+            </a>
+          )}
           {product.type === "kit" && <CompareToggle slug={product.slug} />}
-          <WhatsAppLink
-            number={whatsappNumber}
-            message={WHATSAPP_MESSAGES.product(SITE.name, {
-              name: product.name,
-              priceFromFils: Math.min(...product.variants.map((variant) => variant.priceFils)),
-              soldOut: product.soldOut,
-            })}
-          >
-            {product.soldOut
-              ? "Ask on WhatsApp when it's back"
-              : "Ask about this product on WhatsApp"}
-          </WhatsAppLink>
-          <ul className="flex flex-col gap-1 text-sm text-ink-2">
-            <li>
-              <b className="font-medium text-ink">Cash on delivery.</b> Pay the courier when your
-              order arrives.
-            </li>
-          </ul>
-          <p className="rounded-md bg-warning-soft px-4 py-3 text-sm">
-            This product contains nicotine, which is an addictive substance.
-          </p>
+          <div className="assure">
+            <div>
+              <Icon name="truck" />
+              <p>
+                <b>Delivery across the UAE</b>
+                <span>All seven emirates, one flat delivery fee shown at checkout.</span>
+              </p>
+            </div>
+            <div>
+              <Icon name="cash" />
+              <p>
+                <b>Cash on delivery</b>
+                <span>Pay the courier when your order arrives.</span>
+              </p>
+            </div>
+            <div>
+              <Icon name="shield" />
+              <p>
+                <b>Genuine brand stock</b>
+                <span>Sourced from authorised UAE distributors.</span>
+              </p>
+            </div>
+          </div>
+          <div className="warn">
+            <Icon name="info" />
+            <p>This product contains nicotine, which is an addictive substance.</p>
+          </div>
         </div>
       </div>
-      <div className="grid gap-8 pt-12 lg:grid-cols-2">
-        {product.description && (
-          <section aria-labelledby="about" className="flex flex-col gap-3">
-            <h2 id="about" className="text-xl font-semibold tracking-tight">
-              About this product
-            </h2>
-            <p className="whitespace-pre-line text-sm text-ink-2">{product.description}</p>
-          </section>
-        )}
-        {specs.length > 0 && (
-          <section aria-labelledby="specs" className="flex flex-col gap-3">
-            <h2 id="specs" className="text-xl font-semibold tracking-tight">
-              Specifications
-            </h2>
-            <dl className="divide-y divide-line text-sm">
-              {specs.map(([label, value]) => (
-                <div key={label} className="flex justify-between gap-4 py-2.5">
-                  <dt className="text-ink-2">{label}</dt>
-                  <dd className="text-right font-medium">{value}</dd>
-                </div>
-              ))}
-            </dl>
-          </section>
-        )}
-      </div>
+      {(product.description || specs.length > 0) && (
+        <div className="pdp-more">
+          {product.description && (
+            <section aria-labelledby="desc-h">
+              <h2 className="h3 pdp-h" id="desc-h">
+                About this product
+              </h2>
+              <div className="desc">
+                {product.description.split(/\n\s*\n/).map((paragraph, index) => (
+                  <p key={index}>{paragraph}</p>
+                ))}
+              </div>
+            </section>
+          )}
+          {specs.length > 0 && (
+            <section aria-labelledby="spec-h">
+              <h2 className="h3 pdp-h spec" id="spec-h">
+                Specifications
+              </h2>
+              <table className="specs">
+                <tbody>
+                  {specs.map(([label, value]) => (
+                    <tr key={label}>
+                      <th scope="row">{label}</th>
+                      <td>{value}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </section>
+          )}
+        </div>
+      )}
       <ProductReviews rating={product.rating} reviews={product.reviews} />
       <RecordView slug={product.slug} />
       {more.length > 0 && (
-        <section aria-labelledby="more" className="flex flex-col gap-5 pt-12">
-          <h2 id="more" className="text-xl font-semibold tracking-tight">
-            More from {product.brand.name}
-          </h2>
-          <ProductGrid products={more} />
+        <section className="sec" aria-labelledby="rel-h">
+          <SectionHead
+            id="rel-h"
+            title="More like this"
+            sub={`More from ${product.brand.name} and similar ${product.type === "kit" ? "kits" : "disposables"}`}
+          />
+          <ProductRail products={more} />
         </section>
       )}
       <RecentlyViewed exclude={product.slug} />

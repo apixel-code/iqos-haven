@@ -5173,4 +5173,507 @@
   .sh-body noscript .btn {
     margin-top: 6px;
   }
+
+  /* ---------- store: product page (V-S4, ADR 0097) ---------- */
+  /* store: the zoom button sits over the image's top right corner. */
+  .gal {
+    position: relative;
+  }
+  .gal-slide {
+    background: var(--surface-2);
+  }
+  .gal-slide img {
+    width: 100%;
+    height: 100%;
+    display: block;
+    object-fit: contain;
+    user-select: none;
+  }
+  .gal-slide.gal-none {
+    display: grid;
+    place-items: center;
+    font-size: 14px;
+    color: var(--ink-3);
+  }
+  .gal-track:focus-visible {
+    outline: 3px solid var(--focus);
+    outline-offset: 2px;
+  }
+  /* store: the prototype's "Demo render" pill becomes a real Zoom button. */
+  button.gal-zoom {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--ink);
+    box-shadow: var(--sh-1);
+    cursor: zoom-in;
+  }
+  @media (max-width: 719px) {
+    button.gal-zoom {
+      right: -4px;
+    }
+  }
+  .gal-thumbs img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    background: var(--surface-2);
+  }
+  /* store: the zoom view, a modal dialog over the page (parity G-S12). */
+  dialog.gal-lightbox {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    max-width: none;
+    max-height: none;
+    margin: 0;
+    padding: 16px;
+    border: 0;
+    background: rgba(18, 22, 27, 0.92);
+    color: #fff;
+  }
+  dialog.gal-lightbox::backdrop {
+    background: transparent;
+  }
+  .gal-lb-frame {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    display: grid;
+    place-items: center;
+  }
+  .gal-lb-img {
+    width: min(100%, 900px, calc(100dvh - 32px));
+    aspect-ratio: 1 / 1;
+    overflow: hidden;
+    border-radius: var(--r-lg);
+    background: var(--surface);
+    cursor: zoom-in;
+    touch-action: pinch-zoom;
+  }
+  .gal-lb-img[aria-pressed="true"] {
+    cursor: zoom-out;
+  }
+  .gal-lb-img img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    display: block;
+    transition: transform 0.25s var(--ease);
+    user-select: none;
+  }
+  .gal-lb-img img.on {
+    transform: scale(2);
+  }
+  .gal-lb-img:focus-visible {
+    outline: 3px solid var(--focus);
+    outline-offset: 3px;
+  }
+  .gal-lightbox .ibtn {
+    position: absolute;
+    background: rgba(255, 255, 255, 0.92);
+    color: var(--ink);
+    box-shadow: var(--sh-1);
+  }
+  .gal-lightbox .ibtn:hover {
+    background: #fff;
+  }
+  .gal-lb-close {
+    top: 0;
+    right: 0;
+  }
+  .gal-lb-prev,
+  .gal-lb-next {
+    top: 50%;
+    transform: translateY(-50%);
+  }
+  .gal-lb-prev {
+    left: 0;
+  }
+  .gal-lb-next {
+    right: 0;
+  }
+  .gal-lb-count {
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+    background: rgba(18, 22, 27, 0.6);
+    border-radius: var(--r-pill);
+    padding: 4px 12px;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .gal-lb-img img {
+      transition: none;
+    }
+  }
+  /* store: the buy box is shared with quick add, so its layout is its own class. */
+  .buy-box {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+  .buy-price {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .buy-stock {
+    min-height: 20px;
+  }
+  .price .now .from {
+    font-size: 0.6em;
+    font-weight: 500;
+    color: var(--ink-2);
+  }
+  /* store: options are radio inputs drawn as the prototype's chips and segments. */
+  .flv label,
+  .seg label {
+    display: inline-flex;
+    align-items: center;
+    cursor: pointer;
+    font-size: 13.5px;
+    font-weight: 500;
+    -webkit-tap-highlight-color: transparent;
+    transition:
+      background-color 0.2s var(--ease),
+      color 0.2s var(--ease),
+      border-color 0.2s var(--ease),
+      box-shadow 0.2s var(--ease),
+      transform 0.2s var(--ease);
+  }
+  .flv label {
+    min-height: 42px;
+    padding: 0 14px;
+    border-radius: var(--r-pill);
+    border: 1.5px solid var(--line);
+    background: var(--surface);
+  }
+  .flv label:hover {
+    border-color: var(--ink-3);
+  }
+  .flv label:has(:checked) {
+    border-color: var(--ink);
+    box-shadow: inset 0 0 0 1px var(--ink);
+  }
+  .flv label.oos {
+    color: var(--ink-3);
+    text-decoration: line-through;
+    border-style: dashed;
+  }
+  .seg label {
+    min-height: 38px;
+    padding: 0 16px;
+    border-radius: var(--r-pill);
+    color: var(--ink-2);
+  }
+  .seg label:has(:checked) {
+    background: var(--surface);
+    color: var(--ink);
+    box-shadow: var(--sh-1);
+  }
+  .seg label.oos {
+    color: var(--ink-3);
+    text-decoration: line-through;
+  }
+  .flv label:active,
+  .seg label:active {
+    transform: scale(0.94);
+  }
+  .flv label:has(:focus-visible),
+  .seg label:has(:focus-visible) {
+    outline: 3px solid var(--focus);
+    outline-offset: 2px;
+  }
+  .buy-note {
+    min-height: 20px;
+    margin-top: -8px;
+    font-size: 13.5px;
+    color: var(--success);
+  }
+  .buy-note.err {
+    color: var(--error);
+  }
+  .buy-note:empty {
+    min-height: 0;
+    margin-top: -20px;
+  }
+  /* store: the sticky bar is fixed to the viewport (the prototype pins it in its frame). */
+  .satc.store-satc {
+    position: fixed;
+    z-index: 20;
+  }
+  .satc .t span {
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .satc .btn {
+    flex: none;
+    padding: 0 20px;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .satc {
+      transition: none;
+    }
+  }
+  .cmp-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 10px;
+  }
+  .cmp-full {
+    flex-basis: 100%;
+    font-size: 13px;
+    color: var(--error);
+  }
+  .cmp-full:empty {
+    display: none;
+  }
+  .assure p,
+  .warn p {
+    margin: 0;
+  }
+  .assure .i,
+  .warn .i {
+    flex: none;
+    margin-top: 1px;
+  }
+  .pdp-h {
+    margin-bottom: 12px;
+  }
+  .pdp-h.spec {
+    margin-bottom: 4px;
+  }
+  .desc p {
+    white-space: pre-line;
+    overflow-wrap: anywhere;
+  }
+  .rv-sec {
+    padding-bottom: 0;
+  }
+  .rv-title {
+    margin-bottom: 16px;
+  }
+  .rv-empty {
+    padding: 36px 20px;
+  }
+  .rv-side {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .rv-count {
+    margin-top: 4px;
+  }
+  .rv-bars dt,
+  .rv-bars dd {
+    margin: 0;
+  }
+  .rv-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  .rv-ok {
+    color: var(--success);
+    font-weight: 500;
+  }
+  .rv-body {
+    white-space: pre-line;
+    overflow-wrap: anywhere;
+  }
+
+  /* ---------- store: cart, checkout and confirmation (V-S5, ADR 0097) ---------- */
+  .center {
+    text-align: center;
+  }
+  .ink {
+    color: var(--ink);
+  }
+  .lines,
+  .mini-lines {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  .mini-lines {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  /* store: real thumbnails where the prototype draws SVG art. */
+  .line .th,
+  .mini-line .th {
+    background: var(--surface-2);
+  }
+  .line .th img,
+  .mini-line .th img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+  .line.off .th img {
+    opacity: 0.45;
+    filter: grayscale(1);
+  }
+  .line .t .nm {
+    font-weight: 500;
+    font-size: 14.5px;
+    line-height: 1.3;
+  }
+  .line-err {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--error);
+  }
+  .line-note {
+    font-size: 13px;
+    color: var(--ink-2);
+  }
+  .line .price.struck .now {
+    color: var(--ink-3);
+    text-decoration: line-through;
+  }
+  .cart-status:empty {
+    display: none;
+  }
+  .cart-page .wa-card {
+    margin-top: 20px;
+  }
+  .cart-wait,
+  .co-wait {
+    padding-block: 36px;
+  }
+  .co-wait {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  .cart-empty {
+    border: 0;
+    background: none;
+    padding: 36px 8px;
+  }
+  .cart-picks {
+    padding-bottom: 48px;
+  }
+  .cart-picks .eyebrow {
+    margin: 8px 0 14px;
+  }
+  .quote {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .quote-status:empty {
+    display: none;
+  }
+  .quote-notice {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 14px 16px;
+    border-radius: var(--r-md);
+    border: 1px solid var(--line);
+    font-size: 14px;
+    font-weight: 500;
+  }
+  .quote-notice .btn {
+    align-self: flex-start;
+  }
+  .totals dt,
+  .totals dd {
+    margin: 0;
+  }
+  .promo-f .btn {
+    min-height: 46px;
+  }
+  .promo-ok > span {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .errmsg .link {
+    color: inherit;
+  }
+  .co-main,
+  .co-form {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    min-width: 0;
+  }
+  .sumdet summary .num {
+    font-weight: 600;
+  }
+  .sumdet summary .i {
+    transition: transform 0.2s var(--ease);
+  }
+  .sumdet summary:focus-visible {
+    outline: 3px solid var(--focus);
+    outline-offset: 2px;
+    border-radius: var(--r-lg);
+  }
+  .mini-line .nm {
+    font-weight: 500;
+  }
+  .mini-line.no-th {
+    grid-template-columns: 1fr auto;
+  }
+  .mini-line .num {
+    white-space: nowrap;
+  }
+  .pay-opt .pay-t {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    flex: 1;
+    min-width: 0;
+  }
+  .pay-opt .pay-ok {
+    color: var(--success);
+  }
+  .co-again {
+    max-width: 560px;
+    margin: 20px auto 56px;
+  }
+  .co-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .done-head {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .done-status {
+    font-size: 14px;
+    font-weight: 500;
+  }
+  .steps .block {
+    display: block;
+  }
+  .done-addr {
+    font-style: normal;
+    display: flex;
+    flex-direction: column;
+    font-size: 14px;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .done-ic {
+      animation: none;
+    }
+  }
 }
