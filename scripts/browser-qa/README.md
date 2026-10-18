@@ -288,6 +288,17 @@ It publishes a manual best-sellers section with the gate product through psql: a
 
 Order matters on one stack: `checkout.mjs` changes the product's price, so run `sticky-add.mjs` (which expects AED 49) before it. `a11y-storefront.mjs` is worth running both before and after `product-page.mjs`, with and without images.
 
+## Sheets, toasts and compare tray (V-S6a, parity G-S10 and G-S11)
+
+```sh
+pnpm build && node scripts/check-gate-e2e.cjs --serve &   # SERVING
+QA_PLAYWRIGHT_DIR=/tmp/ih-qa node scripts/browser-qa/sheets-toasts.mjs <SERVING> /tmp/ih-qa/shots
+```
+
+It checks the cart sheet from the right on a phone, "Removed from cart" inside the open sheet and its Undo, the count bump (not on load), the save and unsave toasts with "View saved", and the compare tray. The gate has no kit, so the tray is fed through the device list: it counts, lifts the WhatsApp button, is absent on a product page, and clears. It also checks quick add as a bottom sheet and, at 1280 px, the cart pop-over under the header's cart button.
+
+Sheets slide out for 320 ms, so a check that a sheet is gone waits for it to be hidden.
+
 ## Mobile search sheet (parity G-S3)
 
 ```sh

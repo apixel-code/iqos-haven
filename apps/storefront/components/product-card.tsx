@@ -49,7 +49,11 @@ export function ProductCard({ product }: { product: StoreProductCard }) {
           ))}
         </div>
       )}
-      <SaveButton slug={product.slug} name={product.name} />
+      <SaveButton
+        slug={product.slug}
+        name={product.name}
+        image={product.image?.urls.thumb ?? null}
+      />
       <div className="info">
         <span className="brandname">{product.brand.name}</span>
         <Link href={href} prefetch={false} className="name">

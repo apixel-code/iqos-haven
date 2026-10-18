@@ -4,8 +4,8 @@
 
 - Date: 2026-10-18
 - Milestone: M11 — full acceptance and release, in progress. Gates M0, M2–M10 PASSED (M0, M3, M4, M6–M10 on 2026-10-17, Marina); M1 open until staging/CI.
-- Step: launch parity gaps (Marina 2026-10-17): G-S2 (#101), G-S3 (#102), G-S5 (#103), G-A5 (#104), G-A6 (#105), G-A7 (#106), G-A8 (#107), G-A9 (#108), all merged to `main` 2026-10-18; G-A11 (#109), all merged to `main` 2026-10-18 — every launch parity gap is built. Steps 124 (#110) and 125 (#111) merged. **Marina (2026-10-18): the UI must match the prototypes before launch** (ADR 0097; storefront V-S1…V-S6, then admin V-A*; all deferred gaps included). V-S1 (storefront shell, #112) merged; V-S1 (#112), V-S2 (#113) and V-S3 (#114) merged to `main` (f419aed, CI green). V-S4 (product page) PR #115 open (CI green, not yet merged); V-S5 (cart, checkout, confirmation) built on `parity/v-s5-store-checkout`, stacked on V-S4, PR #116 open. **Next: Marina merges #115 then #116 (V-S5); then V-S6 (sheets, saved, compare, help, brands, gate).** Steps 126–127 follow the visual work unless Marina reorders. Steps 115–119, 121 done; 120 local part done (real devices wait for staging).
-- Branch: `parity/v-s5-store-checkout` (from `parity/v-s4-store-pdp` dd0fa62, because #115 was still open); V-S5 done locally.
+- Step: launch parity gaps (Marina 2026-10-17): G-S2 (#101), G-S3 (#102), G-S5 (#103), G-A5 (#104), G-A6 (#105), G-A7 (#106), G-A8 (#107), G-A9 (#108), all merged to `main` 2026-10-18; G-A11 (#109), all merged to `main` 2026-10-18 — every launch parity gap is built. Steps 124 (#110) and 125 (#111) merged. **Marina (2026-10-18): the UI must match the prototypes before launch** (ADR 0097; storefront V-S1…V-S6, then admin V-A*; all deferred gaps included). V-S1 (storefront shell, #112) merged; V-S1 (#112), V-S2 (#113) and V-S3 (#114) merged to `main` (f419aed, CI green). V-S4 (#115) and V-S5 (#116) merged to `main` (0e6b954). V-S6 split in two: V-S6a (sheets, toasts, compare tray) built on `parity/v-s6-store-sheets`, PR #117 open. **Next: Marina merges V-S6a; then V-S6b (saved, compare, help, brands pages and the gate).** Steps 126–127 follow the visual work unless Marina reorders. Steps 115–119, 121 done; 120 local part done (real devices wait for staging).
+- Branch: `parity/v-s6-store-sheets` (from `main` 0e6b954); V-S6a done locally.
 - See docs/verification.md for actual checks.
 
 ## Next action
@@ -161,6 +161,7 @@ Before checkout is switched on: the sender domain verification (BI-07, Marina/Ap
 - 125 — worker `ops.monitor` (every minute: effects backlog/dead, ledger, cache publication, DB connections, queue Redis, checkout 5xx via signed `/v1/internal/ops`, API readiness, synthetic age-gate→shop and admin login), `ops_alerts` open/remind/resolve, email to `OPS_ALERT_RECIPIENTS` (Apixel ops), `pnpm ops:test-alert`; optional scrubbed Sentry (`@ih/platform/error-reporting`) (ADR 0096) — step/125-monitoring
 - V-S1 — storefront shell like the prototype: `prototype.css` (prototype store CSS in the components layer, `@container`→`@media`), icon sprite, header (wordmark, sections, Brands panel, search bar/button, WhatsApp, saved and cart counts), footer (brands, help, legal, social from Contact), bottom nav, WhatsApp button, dirham sign (`Money`) (ADR 0097) — parity/v-s1-store-shell
 - V-S2 — home like the prototype: hero carousel (content schema v2, 1–3 slides in navy/lilac/coral, v1 read as one slide; admin slide editor), trust line, category tiles with counts and photos, popular toggle, prototype product card and rails, brand logos, code-less campaigns, puff-count bands (G-S13, `maxPuffs`) (ADR 0097) — parity/v-s2-store-home
+- V-S6a — sheets, toasts and compare tray like the prototype: cart (right / pop-over), menu (`mnav` + `macc`), search (`sq-*`) and quick add (bottom) on the shared `Sheet`; toasts with Undo / View saved and a host per open sheet (G-S10); cart count bump; compare tray (G-S11); `sheets-toasts.mjs` (ADR 0097, PR #117) — 0ca64d0
 - V-S5 — cart, checkout and confirmation like the prototype: `cart-page` + `line`/`wa-card`/sticky `panel`, empty cart with recently viewed or best sellers (G-S14), checkout `co`/`co-step`/`atype`/`errsum`/`pay-opt`, folded phone summary with the accepted total (G-S8), `done`/`cashbox`/`steps`; empty-gallery axe fix; `cart-checkout.mjs` (ADR 0097, PR #116) — 4d6e733
 - V-S4 — product page like the prototype: `pdp` grid, swipe gallery with dots/thumbnails and a zoom dialog (G-S12), buy box in prototype markup (chips/segments over radios, stepper, "Added", big heart, wa-link, assure, warn), specs table, reviews markup on real data, "More like this" (`relatedProducts`), sticky bar measured on scroll (fix); `product-page.mjs` (ADR 0097, PR #115) — 83c6bcb
 - V-S3 — listing and search like the prototype: one `ListingPage` + client `ShopLayout` (crumbs, sidebar filters with bands and switches, toolbar, chips, empty state), instant apply with skeleton (G-S7), bottom filter sheet with Show N (G-S6) on the shared `Sheet`, no-results WhatsApp (G-S9) (ADR 0097) — parity/v-s3-store-listing
@@ -217,33 +218,42 @@ Before checkout is switched on: the sender domain verification (BI-07, Marina/Ap
 - Event `consumers` lists only implemented consumers (now `system_probe`, `email`, `notification`, `media_processor`, `storefront_revalidate`); planned ones are documented with roadmap steps and move in with a backfill decision (architecture §8: adding a consumer must not redefine old completions).
 - `audit_log` migration revokes UPDATE/DELETE/TRUNCATE only from a role named `ih_app`; other runtime role names must be revoked at provisioning (trigger blocks mutations regardless).
 
-## Last session handoff (2026-10-18, visual parity V-S5)
+## Last session handoff (2026-10-18, visual parity V-S6a)
 
 Done:
 
-- **Merge state:** Marina said V-S4 was merged, but PR #115 was still OPEN (CI green) and `main` stayed at f419aed. So V-S5 is stacked on `parity/v-s4-store-pdp`.
-- **V-S5** (ADR 0097 V-S5 section; G-S8 and G-S14 marked DONE in `docs/parity-review.md`):
-  - **Cart page:** `components/cart-view.tsx` has the `cart-page` grid, a heading with the item count, the `wa-card`, the sticky `panel`, and `EmptyCart` (recently viewed, else best sellers from `storeHome()` passed by `app/(shop)/cart/page.tsx`).
-  - **Cart lines and quote:** `cart-lines.tsx` uses the prototype `line` markup (shared with the cart sheet). `cart-quote.tsx` uses `field`/`promo-f`/`promo-ok`/`totals`/`fdel`; its logic is unchanged.
-  - **Checkout:** `checkout-view.tsx` has the `co` grid, `co-step`, `atype` with icons, `errsum` and `pay-opt`. The `details.sumdet` folded summary on phones shows the accepted total, else the subtotal; the side panel is shown from 900 px. Submit and idempotency are unchanged.
-  - **Confirmation:** `order-confirmation.tsx` uses `done`/`cashbox`/`steps`/`totals`/`btn-wa`.
-  - **Gallery fix:** `gallery.tsx` no longer puts an `aria-label` on the empty gallery (axe).
-  - **Browser QA:** new `scripts/browser-qa/cart-checkout.mjs`.
+- **Merged:** #115 (V-S4) and #116 (V-S5) are in `main` (0e6b954).
+- **V-S6 split:** **V-S6a** (sheets, toasts, compare tray) now, **V-S6b** (saved, compare, help and brands pages, the gate) next. ADR 0097 has a V-S6a section; G-S10 and G-S11 are marked DONE in `docs/parity-review.md`.
+- **Sheet:** `components/sheet.tsx` gains the `top`/`pop` sides, a custom head, a bare body, `clearBackdrop`, a toast host while open, and slides back in when reopened mid-close.
+- **Sheets on it:**
+  - `cart-sheet.tsx`: right on phones, a pop-over under `[data-cart-anchor]` from 720 px.
+  - `menu-sheet.tsx`: `mnav` with `macc` accordion buttons; a closed panel is inert.
+  - `search-sheet.tsx`: `sq-*` markup; the body stays mounted after the first open.
+  - `quick-add.tsx`: a bottom sheet.
+- **Toasts:** `lib/ui/toast.ts` (store and host stack) and `components/toasts.tsx` (in the shell and in each open sheet).
+  - `cart-lines.tsx` shows "Removed from cart" with Undo, backed by `restoreCartLine` in `lib/cart/store.ts`.
+  - `save-button.tsx` shows the saved and removed toasts; `product-card.tsx` and the product page pass it a thumbnail.
+  - `compare-toggle.tsx` shows the compare limit.
+- **Count bump:** `components/count-badge.tsx`, used in the header and the bottom nav.
+- **Compare tray:** in `store-overlays.tsx`.
 
-Files: `apps/storefront/{app/(shop)/{cart,checkout}/page.tsx,app/prototype.css,components/{cart-view,cart-lines,cart-quote,checkout-view,order-confirmation,gallery}.tsx}`, `scripts/browser-qa/{cart-checkout.mjs,README.md}`, `docs/{decisions/0097-prototype-visual-parity.md,parity-review.md,verification.md}`
+Files: `apps/storefront/{app/(shop)/layout.tsx,app/(shop)/p/[slug]/page.tsx,app/prototype.css,components/{sheet,toasts,count-badge,cart-sheet,menu-sheet,search-sheet,quick-add,store-overlays,site-header,cart-lines,save-button,compare-toggle,product-card}.tsx,lib/{ui/toast.ts,cart/store.ts}}`, `scripts/browser-qa/{sheets-toasts.mjs,menu-sheet.mjs,cart-sheet.mjs,a11y-storefront.mjs,README.md}`, `docs/{decisions/0097-prototype-visual-parity.md,parity-review.md,verification.md}`
 
 Tests:
 
 - `pnpm verify` PASS (age preview 2250). `pnpm test:gate` PASS (2586).
-- Browser: `cart-checkout.mjs`, `cart-sheet.mjs`, `sticky-add.mjs` (run before checkout), `product-page.mjs`, `search-sheet.mjs` and `menu-sheet.mjs` PASS. `a11y-storefront.mjs` PASS with and without images. `checkout.mjs` 49 PASS.
+- Browser: `sheets-toasts.mjs` 16 PASS. `menu-sheet`, `search-sheet`, `cart-sheet`, `a11y-storefront`, `sticky-add` (run before checkout), `listing-filters`, `cart-checkout` and `product-page` PASS. `checkout` 49 PASS.
 
 Unfinished:
 
-- **Merges:** Marina merges #115 (V-S4) first, then #116 (V-S5). Fast-forward local `main` after each.
-- **Next, V-S6:** prototype sheets, toasts and count bump (G-S10), the compare tray (G-S11), then the saved, compare, help and brands pages and the gate. The cart sheet still uses Tailwind (`cart-sheet.tsx`).
+- **Merge:** Marina merges #117 (V-S6a), then fast-forward local `main`.
+- **Next, V-S6b:** the saved items (`saved-view.tsx`), compare (`compare-view.tsx`), help, brands and brand pages and the age gate (`app/age-check`, `gate-shell.tsx`), in the prototype markup (`wishlist`, `comparePage`, `help`, brands and `gate` in `docs/prototype-map.md`). Then the admin V-A1.
+- **Not built:** the prototype's WhatsApp message-preview sheet (WhatsApp links open directly).
 - **Client copy:** "Genuine brand stock" on the product page waits for the client (BI-01).
 
 ## History (summary)
+
+- 2026-10-18 V-S5: cart, checkout and confirmation like the prototype (PR #116, merged with #115).
 
 - 2026-10-18 V-S4: product page like the prototype, gallery zoom (PR #115, open at handoff).
 

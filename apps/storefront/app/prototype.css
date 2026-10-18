@@ -5676,4 +5676,150 @@
       animation: none;
     }
   }
+
+  /* ---------- store: sheets, toasts and the compare tray (V-S6, ADR 0097) ---------- */
+  /* store: toast hosts (the prototype's single #toasts); one in the shell, one in each open sheet. */
+  .toasts {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 45;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    padding: 16px;
+    padding-bottom: calc(84px + env(safe-area-inset-bottom, 0px));
+  }
+  .toasts > * {
+    pointer-events: auto;
+  }
+  @media (min-width: 720px) {
+    .toasts {
+      padding-bottom: 24px;
+    }
+  }
+  .toast .th {
+    background: var(--surface-2);
+  }
+  .toast .th img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+  .toast b {
+    font-weight: 500;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .toast,
+    .toast.out,
+    .count.bump {
+      animation: none;
+    }
+  }
+  .sh-row {
+    display: flex;
+    gap: 8px;
+  }
+  .sh-row .btn {
+    flex: 1;
+    min-width: 0;
+  }
+  .btn-wa-line {
+    color: var(--wa);
+    border: 1.5px solid var(--line);
+  }
+  .btn-wa-line:hover {
+    border-color: var(--wa);
+  }
+  .sheet .cart-empty {
+    padding: 28px 8px;
+  }
+  .sheet .lines .line:last-child {
+    border-bottom: 0;
+  }
+  /* store: menu */
+  .sheet .sh-head .wm {
+    font-size: 20px;
+  }
+  .sheet.left .m-search {
+    margin-bottom: 14px;
+  }
+  .mnav-sub a {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .mnav-sub a span.c {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--ink-3);
+  }
+  .macc-note {
+    padding: 8px 4px;
+  }
+  .m-wa {
+    margin-top: 18px;
+  }
+  /* store: search */
+  .sq-list,
+  .sq-chips {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  .sq-item .th {
+    background: var(--surface-2);
+  }
+  .sq-item .th img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+  .sq-none {
+    padding: 4px 0 12px;
+  }
+  /* store: quick add */
+  .q-body {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+  }
+  .q-head {
+    display: flex;
+    gap: 14px;
+    align-items: center;
+  }
+  .q-thumb {
+    background: var(--surface-2);
+  }
+  .q-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+  .q-more {
+    align-self: center;
+  }
+  /* store: compare tray (fixed in the overlay layer). */
+  .ctray {
+    position: fixed;
+  }
+  .ctray .thumbs i {
+    background: rgba(255, 255, 255, 0.12);
+  }
+  .ctray .thumbs img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+  .ctray .btn:hover {
+    background: var(--surface-2);
+  }
 }

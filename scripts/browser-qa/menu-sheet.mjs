@@ -96,7 +96,7 @@ try {
     check(text.includes(label), `the menu lists ${label}`);
   check(/Saved items\s*1/.test(text), "the menu shows the saved count", text);
   await page.screenshot({ path: join(shots, "menu-sheet-360.png") });
-  await menu.locator("summary", { hasText: "Brands" }).click();
+  await menu.getByRole("button", { name: "Brands", exact: true }).click();
   await menu.getByRole("link", { name: /Gatebrand/ }).waitFor({ timeout: 10000 });
   check(true, "opening Brands loads the brands");
   await page.screenshot({ path: join(shots, "menu-sheet-brands-360.png") });
@@ -105,7 +105,7 @@ try {
   await menu.waitFor({ state: "hidden" });
   check(true, "a brand opens its page and closes the menu");
   await menuButton.click();
-  await menu.locator("summary", { hasText: "Help & info" }).click();
+  await menu.getByRole("button", { name: "Help & info" }).click();
   await menu.getByRole("link", { name: "Delivery information" }).click();
   await page.waitForURL(/\/help#help-delivery/);
   await menu.waitFor({ state: "hidden" });

@@ -4,6 +4,7 @@ import { useSyncExternalStore } from "react";
 import { track } from "@/lib/telemetry/client";
 import {
   addLine,
+  CART_LIMITS,
   CART_STORAGE_KEY,
   EMPTY_CART,
   parseCart,
@@ -91,9 +92,27 @@ export function clearCart(): void {
   write(EMPTY_CART);
 }
 
-export function removeFromCart(variantId: string): void {
-  const before = quantityOf(read(), variantId);
-  const next = removeLine(read(), variantId);
+/** Removes a line and gives it back with its place, for "Undo" (parity G-S10). */
+export function removeFromCart(variantId: string): { line: CartLine; index: number } | null {
+  const cart = read();
+  const index = cart.lines.findIndex((line) => line.variantId === variantId);
+  const before = quantityOf(cart, variantId);
+  const next = removeLine(cart, variantId);
   if (next !== cached.cart) write(next);
   trackChange(variantId, before, 0);
+  return index < 0 ? null : { line: cart.lines[index]!, index };
+}
+
+/**
+ * Puts a removed line back where it was ("Undo"), as it was stored. Nothing happens if the
+ * variant is in the cart again by then or the cart has since filled up.
+ */
+export function restoreCartLine(line: CartLine, index: number): void {
+  const cart = read();
+  if (cart.lines.some((item) => item.variantId === line.variantId)) return;
+  if (cart.lines.length >= CART_LIMITS.maxLines) return;
+  const lines = [...cart.lines];
+  lines.splice(Math.min(index, lines.length), 0, line);
+  write({ v: 1, lines });
+  trackChange(line.variantId, 0, line.quantity);
 }
