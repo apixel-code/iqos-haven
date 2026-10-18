@@ -101,6 +101,20 @@ model ScheduledRun {
   @@map("scheduled_runs")
 }
 
+/// Operational alert state (step 125): one row per monitor rule.
+model OpsAlert {
+  key            String    @id @db.VarChar(64)
+  firing         Boolean   @default(false)
+  consecutive    Int       @default(0)
+  summary        String?   @db.VarChar(300)
+  openedAt       DateTime? @map("opened_at") @db.Timestamptz(6)
+  lastNotifiedAt DateTime? @map("last_notified_at") @db.Timestamptz(6)
+  resolvedAt     DateTime? @map("resolved_at") @db.Timestamptz(6)
+  updatedAt      DateTime  @default(dbgenerated("statement_timestamp()")) @map("updated_at") @db.Timestamptz(6)
+
+  @@map("ops_alerts")
+}
+
 /// Fixed launch roles (roadmap step 27): owner, staff. Custom roles are deferred.
 /// The owner row is also the common identity guard locked before Owner membership changes.
 model Role {

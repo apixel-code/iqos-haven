@@ -94,6 +94,16 @@ export const readinessResponseSchema = z.object({
   checks: z.object({ database: dependencyStatusSchema, queue: dependencyStatusSchema }),
 });
 export type ReadinessResponse = z.infer<typeof readinessResponseSchema>;
+/** The worker's ops monitor reads this from the API (step 125): counts only. */
+export const internalOpsResponseSchema = z.strictObject({
+  checkout: z.strictObject({
+    requests: z.number().int().min(0),
+    serverErrors: z.number().int().min(0),
+    windowSeconds: z.number().int().positive(),
+  }),
+  readiness: readinessResponseSchema,
+});
+export type InternalOpsResponse = z.infer<typeof internalOpsResponseSchema>;
 export * from "./events";
 export * from "./auth";
 export * from "./settings";

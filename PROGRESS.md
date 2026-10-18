@@ -4,8 +4,8 @@
 
 - Date: 2026-10-18
 - Milestone: M11 — full acceptance and release, in progress. Gates M0, M2–M10 PASSED (M0, M3, M4, M6–M10 on 2026-10-17, Marina); M1 open until staging/CI.
-- Step: launch parity gaps (Marina 2026-10-17): G-S2 (#101), G-S3 (#102), G-S5 (#103), G-A5 (#104), G-A6 (#105), G-A7 (#106), G-A8 (#107), G-A9 (#108), all merged to `main` 2026-10-18; G-A11 (#109), all merged to `main` 2026-10-18 — every launch parity gap is built. **Step 124** (launch readiness check instead of import, ADR 0095) done. Next: step 125. Steps 115–119, 121 done; 120 local part done (real devices wait for staging).
-- Branch: `step/124-launch-check` (from `main` 2c6ad5e; PR #110). No migration.
+- Step: launch parity gaps (Marina 2026-10-17): G-S2 (#101), G-S3 (#102), G-S5 (#103), G-A5 (#104), G-A6 (#105), G-A7 (#106), G-A8 (#107), G-A9 (#108), all merged to `main` 2026-10-18; G-A11 (#109), all merged to `main` 2026-10-18 — every launch parity gap is built. Step 124 (#110, merged). **Step 125** (ops monitor, email alerts, optional Sentry, ADR 0096) done. Next: step 126. Steps 115–119, 121 done; 120 local part done (real devices wait for staging).
+- Branch: `step/125-monitoring` (from `main` cd826ea; PR #111). New migration `20261018000100_ops_alerts`.
 - See docs/verification.md for actual checks.
 
 ## Next action
@@ -158,6 +158,7 @@ Before checkout is switched on: the sender domain verification (BI-07, Marina/Ap
 - G-A9 — unsaved-changes guard: `data-unsaved` editor regions snapshotted on first touch, re-snapshotted after a successful save; admin links, `data-leave` buttons and `beforeunload` ask "Leave without saving?"; `useUnsavedChanges` for the content editor; `unsaved-guard.mjs` (ADR 0093) — parity/g-a9-unsaved-guard
 - G-A11 — `POST /v1/admin/staff/:id/password-reset` (Owner-sent reset, audited as the Owner, 409 `STAFF_INACTIVE`) and `GET /v1/admin/staff/invitations` (pending, expired flagged); admin Pending invitations card with revoke and Send password reset; `staff-access.mjs` (ADR 0094) — parity/g-a11-staff-reset-invites
 - 124 — `pnpm launch:check`: read-only launch readiness (migrations, Owner, test accounts, settings, delivery, published catalogue, stock ledger, demo coupons, fixture slugs; warnings for sold-out, email alerts, SEO, dead effects); bootstrap runbook rewritten as the launch sequence; no import (BI-10/11) (ADR 0095) — step/124-launch-check
+- 125 — worker `ops.monitor` (every minute: effects backlog/dead, ledger, cache publication, DB connections, queue Redis, checkout 5xx via signed `/v1/internal/ops`, API readiness, synthetic age-gate→shop and admin login), `ops_alerts` open/remind/resolve, email to `OPS_ALERT_RECIPIENTS` (Apixel ops), `pnpm ops:test-alert`; optional scrubbed Sentry (`@ih/platform/error-reporting`) (ADR 0096) — step/125-monitoring
 - G-A6 — packing slip: order-detail preview dialog and A5 print (only the slip is laid out), order's own emirate, cash to collect, no internal note, `customers.read` only; `packing-slip.mjs` (ADR 0090) — parity/g-a6-packing-slip
 - G-A5 — orders list: `GET /v1/admin/orders/counts` (tab counts under the other filters), four sorts with a per-sort keyset cursor, select-all pending on the page, phone cards; bell accessible name fixed; `orders-list.mjs` (ADR 0089) — parity/g-a5-orders-list
 - G-S5 — sticky add-to-cart bar on phones inside `BuyBox` (after the main button scrolls away; inert and control-less while hidden; no silent default option; page padding so the footer stays readable); `sticky-add.mjs` (ADR 0088) — parity/g-s5-sticky-add
@@ -211,29 +212,36 @@ Before checkout is switched on: the sender domain verification (BI-07, Marina/Ap
 - Event `consumers` lists only implemented consumers (now `system_probe`, `email`, `notification`, `media_processor`, `storefront_revalidate`); planned ones are documented with roadmap steps and move in with a backfill decision (architecture §8: adding a consumer must not redefine old completions).
 - `audit_log` migration revokes UPDATE/DELETE/TRUNCATE only from a role named `ih_app`; other runtime role names must be revoked at provisioning (trigger blocks mutations regardless).
 
-## Last session handoff (2026-10-18, step 124)
+## Last session handoff (2026-10-18, step 125)
 
 Done:
 
-- Merged PR #109 (G-A11) on Marina's request; `main` at 2c6ad5e, CI green. All nine launch parity gaps are in `main`.
-- **Step 124 (ADR 0095):** no import command, because the catalogue, settings and staff are entered through the admin (BI-10/11).
-  - `pnpm launch:check` reads `DATABASE_URL` and changes nothing. It prints PASS/WARN/FAIL and exits 1 while anything blocks.
-  - Facts come from `launchFacts`/`shippedMigrations` in `packages/db/src/launch-readiness.ts`; the rules live in `apps/api/src/cli/launch-check.ts`.
-  - New env schema `launchCheckEnvSchema`.
-  - `docs/runbooks/owner-and-data-bootstrap.md` now opens with the launch sequence: migrate → Apixel bootstrap Owner → invite the client Owner, deactivate Apixel → settings → catalogue and opening stock → `launch:check` → open checkout. The outdated import and Dubai-only paragraphs are removed.
-  - `scripts/check-reference-set.mjs` names the detector file as the one exception to the demo-code guard.
+- Merged PR #110 (step 124) on Marina's request; `main` at cd826ea, CI green.
+- **Marina's decision (2026-10-18):** built-in monitoring with Sentry optional, and alerts to Apixel's ops email.
+- **Step 125 (ADR 0096, migration `20261018000100_ops_alerts`):**
+  - **Rules:** worker job `ops.monitor` (`apps/worker/src/ops-monitor.ts`) checks the §15 rules every minute.
+  - **Alert state:** stored in `ops_alerts` (`applyAlertEvaluations`, `opsSignals` in `packages/db/src/ops.ts`; transitions in `packages/domain/src/ops-alerts.ts`).
+  - **Notices:** logged, and emailed directly (not through the outbox) to `OPS_ALERT_RECIPIENTS`.
+  - **API signals:** the API counts checkout/quote 5xx (`apps/api/src/health/ops-counters.ts`, `onResponse` hook) and serves the signed `GET /v1/internal/ops`.
+  - **Synthetic check:** visits `SYNTHETIC_STOREFRONT_URL`/`SYNTHETIC_ADMIN_URL`.
+  - **Recipient check:** `pnpm ops:test-alert`.
+  - **Error reporting:** `@ih/platform/error-reporting`, `@sentry/node` 11.3.0, on only with `SENTRY_DSN`; scrubbed to type and location.
+  - **Env:** new variables in `.env.example` and `docs/environment.md`.
+  - **Runbook:** `docs/runbooks/incident-and-queue-recovery.md` gains an alert table and pre-launch steps (including an external uptime pinger).
 
-Files: `packages/db/src/{launch-readiness.ts,launch-readiness.int.test.ts,index.ts}`, `packages/config/src/index.ts`, `apps/api/src/cli/{launch-check.ts,launch-check.main.ts,launch-check.test.ts}`, `apps/api/package.json`, `package.json`, `CLAUDE.md`, `scripts/check-reference-set.mjs`, `docs/runbooks/owner-and-data-bootstrap.md`, `docs/decisions/0095-launch-check-instead-of-import.md`, `docs/verification.md`
+Files: `packages/db/prisma/{schema.prisma,migrations/20261018000100_ops_alerts/}`, `packages/db/src/{ops.ts,launch-readiness.ts,index.ts}`, `packages/domain/src/{ops-alerts.ts,ops-alerts.test.ts,index.ts}`, `packages/contracts/src/index.ts`, `packages/config/src/index.ts`, `packages/platform/{package.json,src/error-reporting/*,src/index.ts}`, `apps/api/src/{bootstrap.ts,http/error.filter.ts,health/*}`, `apps/worker/src/{main.ts,ops-monitor.ts,ops-monitor.test.ts,ops-monitor.int.test.ts,cli/ops-test-alert.main.ts}`, `apps/worker/package.json`, `package.json`, `pnpm-lock.yaml`, `.env.example`, `CLAUDE.md`, `docs/environment.md`, `docs/runbooks/incident-and-queue-recovery.md`, `docs/decisions/0096-ops-monitor-and-alerts.md`, `docs/verification.md`
 
-Tests: `pnpm verify` PASS (age preview 2247). `pnpm test:int` PASS (664). `pnpm launch:check` run on the local dev database (read-only): not ready, as expected.
+Tests: `pnpm verify` PASS (age preview 2247). `pnpm test:int` PASS (667). `pnpm ops:test-alert` delivered through Mailpit.
 
 Unfinished:
 
-- PR #110 (step 124) waits for merge (Claude merges only when Marina asks).
-- Next: step 125 (monitoring, synthetic checks, alerts, recipient verification), then 126 (backup/restore drill), 127 (runbooks: several already exist in `docs/runbooks/`; check what step 127 still needs).
-- Running `launch:check` on staging/production happens with the VPS (staging-dependent work).
+- PR #111 (step 125) waits for merge (Claude merges only when Marina asks).
+- **On the VPS:** set the real recipient, run `ops:test-alert`, set the synthetic URLs, and add an external uptime pinger (staging-dependent).
+- Next: step 126 (backup configuration and a measured isolated restore drill), then 127 (runbooks).
 
 ## History (summary)
+
+- 2026-10-18 step 124: `pnpm launch:check` launch readiness, no import (PR #110, merged).
 
 - 2026-10-18 parity G-A11: Owner-sent staff reset, pending invitations with revoke (PR #109, merged).
 

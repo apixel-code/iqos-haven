@@ -31,6 +31,7 @@
     "age:keygen": "node scripts/age-keygen.mjs",
     "load:test": "node scripts/load/load-test.cjs",
     "analytics:backfill": "pnpm --filter @ih/worker analytics:backfill",
+    "ops:test-alert": "pnpm --filter @ih/worker ops:test-alert",
     "test:gateway": "node scripts/check-gateway.mjs",
     "test:age-preview": "node scripts/check-age-preview.mjs",
     "test:gate": "node scripts/check-gate-e2e.cjs"

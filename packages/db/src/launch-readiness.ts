@@ -60,6 +60,16 @@ async function setting(db: Database, key: string) {
 }
 const text = (value: unknown) => (typeof value === "string" && value.trim() ? value : null);
 
+/** Options whose stock differs from the sum of their ledger movements (launch check, monitor). */
+export function ledgerMismatchCount(db: Database) {
+  return count(
+    db,
+    Prisma.sql`SELECT count(*)::int AS n FROM variants v
+      WHERE v.stock_on_hand <> coalesce((SELECT sum(m.delta) FROM stock_movements m
+        WHERE m.variant_id = v.id), 0)`,
+  );
+}
+
 export async function launchFacts(db: Database): Promise<LaunchFacts> {
   let migrations: LaunchFacts["migrations"] = null;
   const [history] = await db.$queryRaw<Array<{ readable: boolean }>>(Prisma.sql`
@@ -132,12 +142,7 @@ export async function launchFacts(db: Database): Promise<LaunchFacts> {
         AND NOT EXISTS (SELECT 1 FROM variants v WHERE v.product_id = p.id AND v.active
           AND v.stock_on_hand > 0)`,
     ),
-    ledgerMismatches: await count(
-      db,
-      Prisma.sql`SELECT count(*)::int AS n FROM variants v
-        WHERE v.stock_on_hand <> coalesce((SELECT sum(m.delta) FROM stock_movements m
-          WHERE m.variant_id = v.id), 0)`,
-    ),
+    ledgerMismatches: await ledgerMismatchCount(db),
     demoCoupons: await count(
       db,
       Prisma.sql`SELECT count(*)::int AS n FROM coupons
