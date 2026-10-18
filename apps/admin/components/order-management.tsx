@@ -1,4 +1,5 @@
 "use client";
+import { confirmDialog } from "../lib/ui/confirm";
 import { useState } from "react";
 import {
   adminOrderResponseSchema,
@@ -108,7 +109,14 @@ export function OrderManagement({
   const [unclear, setUnclear] = useState(false);
   async function confirmChosen() {
     const batch = [...chosen.entries()];
-    if (!unclear && !window.confirm(`Confirm ${batch.length} order(s)?`)) return;
+    if (
+      !unclear &&
+      !(await confirmDialog({
+        title: `Confirm ${batch.length} ${batch.length === 1 ? "order" : "orders"}?`,
+        ok: "Confirm orders",
+      }))
+    )
+      return;
     setConfirming(true);
     setBulkMessage("");
     try {
@@ -602,7 +610,14 @@ function OrderDetail({
       expectedVersion: order.data.version,
       to: action.to,
     };
-    if (!activePending && !window.confirm(`${action.label} for ${order.data.orderNumber}?`)) return;
+    if (
+      !activePending &&
+      !(await confirmDialog({
+        title: `${action.label} for ${order.data.orderNumber}?`,
+        ok: action.label,
+      }))
+    )
+      return;
     setPending(command);
     const result = await order.run((signal) =>
       managementRequest(
@@ -868,7 +883,15 @@ function ReviewLinkPanel({ id }: { id: string }) {
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   async function create() {
-    if (link && !window.confirm("Create a new link? The previous link stops working.")) return;
+    if (
+      link &&
+      !(await confirmDialog({
+        title: "Create a new link?",
+        body: "The previous link stops working.",
+        ok: "Create new link",
+      }))
+    )
+      return;
     setBusy(true);
     setMessage("");
     try {
@@ -979,9 +1002,14 @@ function OrderCollectionPanel({
                 reference,
                 collectedAt: at,
               });
-              if (!window.confirm(`Correct the cash record of ${order.orderNumber}?`)) return;
-              setMessage("");
-              void correct(request).then((result) => result.ok && done());
+              void confirmDialog({
+                title: `Correct the cash record of ${order.orderNumber}?`,
+                ok: "Correct record",
+              }).then((ok) => {
+                if (!ok) return;
+                setMessage("");
+                void correct(request).then((result) => result.ok && done());
+              });
             } else {
               const request = validate(orderCollectionRequestSchema, {
                 expectedVersion: order.version,
@@ -994,14 +1022,15 @@ function OrderCollectionPanel({
                 amountFils !== order.totalFils
                   ? ` This differs from the order total of ${money(order.totalFils)}.`
                   : "";
-              if (
-                !window.confirm(
-                  `Record ${money(amountFils)} collected for ${order.orderNumber}?${differs}`,
-                )
-              )
-                return;
-              setMessage("");
-              void record(request).then((result) => result.ok && done());
+              void confirmDialog({
+                title: `Record ${money(amountFils)} collected for ${order.orderNumber}?`,
+                ...(differs ? { body: differs.trim() } : {}),
+                ok: "Record cash",
+              }).then((ok) => {
+                if (!ok) return;
+                setMessage("");
+                void record(request).then((result) => result.ok && done());
+              });
             }
           } catch {
             setMessage(
@@ -1132,9 +1161,17 @@ function OrderCancelPanel({
               );
               return;
             }
-            if (!window.confirm(`Cancel ${order.orderNumber}? This cannot be undone.`)) return;
-            setMessage("");
-            void save(request).then((result) => result.ok && done());
+            void confirmDialog({
+              title: `Cancel ${order.orderNumber}?`,
+              body: "This cannot be undone.",
+              ok: "Cancel order",
+              cancel: "Keep order",
+              danger: true,
+            }).then((ok) => {
+              if (!ok) return;
+              setMessage("");
+              void save(request).then((result) => result.ok && done());
+            });
           }}
         >
           {returned &&

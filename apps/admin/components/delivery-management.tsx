@@ -1,4 +1,5 @@
 "use client";
+import { confirmDialog } from "../lib/ui/confirm";
 import { useState } from "react";
 import {
   deliveryConfigurationResponseSchema,
@@ -106,8 +107,14 @@ export function DeliveryManagement() {
                     type="button"
                     className="secondary-button"
                     onClick={() => {
-                      if (window.confirm("Clear delivery charge and promise?"))
-                        void saveConfiguration(null);
+                      void confirmDialog({
+                        title: "Clear delivery charge and promise?",
+                        body: "Checkout stays closed to new orders until delivery is set again.",
+                        ok: "Clear configuration",
+                        danger: true,
+                      }).then((ok) => {
+                        if (ok) void saveConfiguration(null);
+                      });
                     }}
                   >
                     Clear configuration

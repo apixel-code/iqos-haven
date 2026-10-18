@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { visibleSections } from "./navigation";
+import { navHref, visibleNav, visibleSections } from "./navigation";
 describe("permission-derived navigation", () => {
   it("hides financial/settings/staff/SEO sections from operational Staff grants", () => {
     expect(
@@ -32,5 +32,22 @@ describe("permission-derived navigation", () => {
   it("drops navigation immediately when refreshed permissions are revoked", () => {
     expect(visibleSections(["reports.read"])).toHaveLength(1);
     expect(visibleSections(["orders.read"]).some((s) => s.key === "reports")).toBe(false);
+  });
+});
+
+describe("sidebar (prototype navItems)", () => {
+  it("keeps the dashboard for everyone and leaves out what the rights do not cover", () => {
+    const nav = visibleNav(["orders.read"]);
+    expect(nav.map((group) => group.group)).toEqual([null, "Commerce"]);
+    expect(nav[1]!.items.map((item) => item.key)).toEqual(["orders"]);
+  });
+  it("nests categories and brands under products", () => {
+    const commerce = visibleNav(["catalog.read"]).find((group) => group.group === "Commerce")!;
+    expect(commerce.items.map((item) => item.key)).toEqual(["products"]);
+    expect(commerce.items[0]!.sub!.map((item) => item.key)).toEqual(["categories", "brands"]);
+  });
+  it("links the dashboard to the home page", () => {
+    expect(navHref("dashboard")).toBe("/");
+    expect(navHref("orders")).toBe("/workspace/orders");
   });
 });

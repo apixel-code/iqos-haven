@@ -1,4 +1,6 @@
 "use client";
+import { confirmDialog } from "../lib/ui/confirm";
+import { toast } from "../lib/ui/toast";
 import { useState } from "react";
 import {
   brandResponseSchema,
@@ -122,15 +124,19 @@ export function CatalogueParentManagement({
   }
   async function moveToTrash(row: Parent) {
     if (row.publishedProductCount > 0) {
-      window.alert(
+      toast(
         `${plural(row.publishedProductCount, "published product")} use ${row.name}. Move or unpublish them before moving the ${config.noun} to trash.`,
+        { kind: "err" },
       );
       return;
     }
     if (
-      !window.confirm(
-        `Move ${row.name} to trash? The ${config.noun} page will be hidden. You can restore it from Trash.`,
-      )
+      !(await confirmDialog({
+        title: `Move ${row.name} to Trash?`,
+        body: `The ${config.noun} page will be hidden. You can restore it from Trash.`,
+        ok: "Move to Trash",
+        danger: true,
+      }))
     )
       return;
     const outcome = await resource.run((signal) =>
@@ -159,9 +165,12 @@ export function CatalogueParentManagement({
   /** Owner only (parity G-A7): a trashed brand or category that no product uses. */
   async function purge(row: Parent) {
     if (
-      !window.confirm(
-        `Delete ${row.name} permanently? Its old links stop redirecting. This cannot be undone.`,
-      )
+      !(await confirmDialog({
+        title: `Delete ${row.name} permanently?`,
+        body: "Its old links stop redirecting. This cannot be undone.",
+        ok: "Delete permanently",
+        danger: true,
+      }))
     )
       return;
     const outcome = await resource.run((signal) =>

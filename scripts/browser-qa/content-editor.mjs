@@ -84,7 +84,7 @@ async function session(email, viewport = { width: 1366, height: 900 }) {
 const status = (page) => page.locator(".order-status").first().innerText();
 try {
   const { page, errors } = await session("owner.qa@iqoshaven.test");
-  await page.getByRole("link", { name: "Storefront content", exact: true }).click();
+  await page.getByRole("link", { name: "Storefront Content", exact: true }).click();
   await page.waitForURL("**/workspace/content");
   await page.getByRole("heading", { name: "Promotional bar" }).waitFor();
   check("a new section says it is not set up", (await status(page)) === "Not set up");
@@ -212,7 +212,7 @@ try {
   const staff = await session("staff.qa@iqoshaven.test");
   check(
     "staff see no content link",
-    (await staff.page.getByRole("link", { name: "Storefront content", exact: true }).count()) === 0,
+    (await staff.page.getByRole("link", { name: "Storefront Content", exact: true }).count()) === 0,
   );
   await staff.page.goto(BASE + "/workspace/content");
   await staff.page.getByText("Access unavailable").waitFor();

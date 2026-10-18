@@ -1,4 +1,5 @@
 "use client";
+import { confirmDialog } from "../lib/ui/confirm";
 import { useEffect, useState } from "react";
 import {
   mediaAssetSchema,
@@ -190,11 +191,14 @@ export function ProductImages({ productId, canWrite }: { productId: string; canW
                     ),
                   )
                 }
-                onRemove={() => {
+                onRemove={async () => {
                   if (
-                    !window.confirm(
-                      "Remove this image from the product? To use it again, upload the file again.",
-                    )
+                    !(await confirmDialog({
+                      title: "Remove this image?",
+                      body: "It is taken off the product. To use it again, upload the file again.",
+                      ok: "Remove image",
+                      danger: true,
+                    }))
                   )
                     return;
                   void save((signal) =>

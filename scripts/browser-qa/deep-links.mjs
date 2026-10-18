@@ -166,9 +166,10 @@ try {
   // 3. Bell and inbox.
   await page.goto(BASE + "/");
   await page.getByRole("button", { name: /Notifications/ }).click();
+  // The prototype's panel (V-A1): a notification is one button that opens what it is about.
   await page
     .getByRole("dialog", { name: "Notifications" })
-    .getByRole("link", { name: "Open order" })
+    .locator('button.ni:has(use[href="#i-orders"])')
     .first()
     .click();
   await detailOf(page, number(late));

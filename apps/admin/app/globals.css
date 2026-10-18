@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @import "@ih/tokens/admin.theme.css";
+@import "./prototype.css";
 @source "../../../packages/ui-core/src";
 
 body {
@@ -9,10 +10,8 @@ body {
 * {
   box-sizing: border-box;
 }
-button,
-input {
-  font: inherit;
-}
+/* Buttons and inputs take the page font from Tailwind's preflight (base layer); an unlayered
+   rule here would override the prototype's sizes (prototype.css, components layer). */
 button,
 a,
 input {

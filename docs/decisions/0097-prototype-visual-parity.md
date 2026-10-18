@@ -188,6 +188,35 @@ With V-S6b the storefront part of the parity programme is done: every shopper pa
   - The foot keeps the address and policy links. The prototype's trade-licence placeholder waits for client copy.
   - The answers are still the two plain form posts, so they work without JavaScript, and the gate renders no catalogue data. `pnpm test:age-preview` and `pnpm test:gate` both pass.
 
+## V-A1 (admin shell, overlays and confirmations), 2026-10-18
+
+The admin parity work starts here. It follows the storefront's method: the prototype's styles, its markup and its icon sprite, on real data.
+
+- **Styles:**
+  - `apps/admin/app/prototype.css` holds the admin prototype's `<style>` block, copied verbatim into the `components` layer, with `@container` changed to `@media`. The existing admin rules in `globals.css` still win where a screen has not been rebuilt yet.
+  - Left out: the tokens (`@ih/tokens/admin.theme.css` holds them), the prototype chrome, the coach and guide tours, the `body` rule (the sign-in pages keep theirs) and the global hidden scrollbars (admin tables need a visible scrollbar on a desktop).
+  - The duplicate unlayered `button, input { font: inherit }` in `globals.css` was removed. Tailwind's preflight already sets it, and the unlayered copy overrode every prototype font size.
+- **Icons:** the prototype's 79-symbol sprite is in `components/icons.tsx`.
+- **Shell (G-A12):**
+  - **Sidebar:** the prototype's `navHtml`: groups (Commerce, Storefront, Insights, Administration), icons and sub-items (Categories and Brands under Products). It becomes an icon rail from 720 px and the full 244 px sidebar from 1100 px.
+  - **Counts:** pending orders, low or sold-out stock (`warn`) and reviews waiting. They come from the dashboard read, which leaves out what the user may not see, and are read every minute and on each page change.
+  - **What a user sees:** entries the user's rights don't cover are left out (`visibleNav`); the API still decides every request.
+  - **Placement:** Delivery sits with Settings. Notifications are reached from the bell.
+- **Topbar and account:**
+  - **Topbar:** global search, the role pill, the bell and, on a phone, the account button.
+  - **Account menu:** name, email and role; light, dark or match-device theme (kept in this browser only); and Sign out, which still passes the unsaved-changes guard.
+- **Global search:** looks up orders, products and customers on the server (`?q=`, the API checks each list), after a short pause, for 2 characters or more. `/` focuses the field, as in the prototype. On a phone it is the prototype's search modal. Nothing typed is kept.
+- **Page head:** the prototype's `pageHead`, with its fixed subtitles. The home page has the greeting ("Good evening, …") and the Dubai date and time. The subtitles the prototype counts in the title wait for each screen's PR.
+- **Phone:** the bottom bar (Home, Orders, Stock, Products and More). More opens the full menu as the prototype's drawer, with the account and Sign out.
+- **Overlays (G-A13):**
+  - The prototype's `modal`, `drawer` and `toast` are built on a modal `<dialog>`. Focus stays inside, Escape closes, and focus goes back to the opener; the prototype has none of these. A layer can mark the control to focus first (`data-autofocus`).
+  - **Toasts:** up to three, 3.8 s or 6.5 s with an action, and held while pointed at or focused. Errors are announced assertively. As in the storefront, each open layer has its own toast host.
+  - **The bell:** the prototype's `#bell` and `.notif` panel. Each notification is one button: it is marked read and opens what it links to. The icon follows the link (order, stock, review).
+- **Confirmations (G-A13):**
+  - All 21 `window.confirm` calls, the one `window.alert` and the unsaved-changes guard's own dialog now use `confirmDialog()`: the prototype's `confirmDlg`, with a title, optional body, a named button and red for destructive actions.
+  - A destructive question starts on Cancel ("Keep editing"); any other starts on the answer.
+  - The browser passes answer it through `scripts/browser-qa/confirm.mjs` (`autoConfirm`, `answerConfirm`).
+
 ## Consequences
 
 - The look comes from the approved source instead of being re-imagined in utilities, so later screens are mostly markup work.

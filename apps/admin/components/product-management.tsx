@@ -1,4 +1,5 @@
 "use client";
+import { confirmDialog } from "../lib/ui/confirm";
 import { useState } from "react";
 import {
   brandsResponseSchema,
@@ -321,7 +322,14 @@ function TrashedActions({
             className="danger-button"
             disabled={!understood}
             onClick={() => {
-              if (window.confirm(`Delete ${product.name} permanently?`)) void act("purge");
+              void confirmDialog({
+                title: `Delete ${product.name} permanently?`,
+                body: "This cannot be undone.",
+                ok: "Delete permanently",
+                danger: true,
+              }).then((ok) => {
+                if (ok) void act("purge");
+              });
             }}
           >
             Delete permanently

@@ -1,4 +1,5 @@
 "use client";
+import { confirmDialog } from "../lib/ui/confirm";
 import { useCallback, useEffect, useState } from "react";
 import {
   seoIssuesResponseSchema,
@@ -56,7 +57,17 @@ export function SeoManagement({ canReport }: { canReport: boolean }) {
       indexing === "public_pages"
         ? "Offer the responsible-use, terms and privacy pages to search engines? Products stay hidden from them."
         : "Close the store to search engines again? robots.txt will disallow everything.";
-    if (!window.confirm(message)) return;
+    if (
+      !(await confirmDialog({
+        title:
+          indexing === "public_pages"
+            ? "Open policy pages to search engines?"
+            : "Close the store to search engines?",
+        body: message,
+        ok: indexing === "public_pages" ? "Open to search engines" : "Close to search engines",
+      }))
+    )
+      return;
     setBusy(true);
     setNotice(null);
     try {
@@ -158,7 +169,8 @@ export function SeoManagement({ canReport }: { canReport: boolean }) {
             cut short in search results. Fix them on the page itself.
           </p>
           {issues.items.length ? (
-            <div className="order-table-wrap">
+            // Scrolls sideways on a phone, so it takes keyboard focus (WCAG 2.1.1, axe).
+            <div className="order-table-wrap" role="region" aria-label="Page issues" tabIndex={0}>
               <table className="order-table">
                 <thead>
                   <tr>

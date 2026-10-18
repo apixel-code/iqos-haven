@@ -168,7 +168,10 @@ try {
   check("Escape closes the notification panel", !(await panel.isVisible()));
   check(
     "focus returns to the bell",
-    await page.evaluate(() => /^Notifications/.test(document.activeElement?.textContent ?? "")),
+    // The prototype's bell is an icon; its accessible name is the label (V-A1).
+    await page.evaluate(() =>
+      /^Notifications/.test(document.activeElement?.getAttribute("aria-label") ?? ""),
+    ),
   );
 
   // Form errors: an empty required field in a management form is reported and reachable.

@@ -17,6 +17,8 @@ import { ReportManagement } from "./report-management";
 import { SeoManagement } from "./seo-management";
 import { NotificationInbox } from "./notification-inbox";
 import { sections } from "../lib/navigation";
+import { Icon } from "./icons";
+import { PageHead } from "./page-head";
 export function WorkspaceSection({ sectionKey }: { sectionKey: string }) {
   const session = useSession();
   const section = sections.find((item) => item.key === sectionKey);
@@ -24,15 +26,25 @@ export function WorkspaceSection({ sectionKey }: { sectionKey: string }) {
   if (!section || !session.permissions.includes(section.permission))
     return (
       <main className="page-content">
-        <h1>Access unavailable</h1>
-        <p className="muted">You do not have access to this workspace.</p>
-        <Link href="/">Back to workspace</Link>
+        <div className="card lockcard">
+          <div className="dlg-ic">
+            <Icon name="lock" size="lg" />
+          </div>
+          <h2>Access unavailable</h2>
+          <p className="muted">
+            Your account cannot open this page. Ask the Owner if you need it for your work.
+          </p>
+          <div className="row">
+            <Link href="/" className="btn btn-p">
+              Go to dashboard
+            </Link>
+          </div>
+        </div>
       </main>
     );
   return (
     <main className="page-content">
-      <p className="eyebrow">{section.group}</p>
-      <h1>{section.label}</h1>
+      <PageHead title={section.label} {...("sub" in section ? { sub: section.sub } : {})} />
       {sectionKey === "orders" ? (
         <OrderManagement
           canReadContact={session.permissions.includes("customers.read")}
