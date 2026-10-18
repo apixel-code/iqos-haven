@@ -5,7 +5,7 @@
 - Date: 2026-10-18
 - Milestone: M11 — full acceptance and release, in progress. Gates M0, M2–M10 PASSED (M0, M3, M4, M6–M10 on 2026-10-17, Marina); M1 open until staging/CI.
 - Step: launch parity gaps (Marina 2026-10-17): G-S2 (#101), G-S3 (#102), G-S5 (#103), G-A5 (#104), G-A6 (#105), G-A7 (#106), G-A8 (#107), G-A9 (#108), all merged to `main` 2026-10-18; **G-A11** (Owner-sent staff reset, pending invitations, ADR 0094) done — every launch parity gap is built. Next: step 124. Steps 115–119, 121 done; 120 local part done (real devices wait for staging).
-- Branch: `parity/g-a11-staff-reset-invites` (from `main` ab91501). No migration.
+- Branch: `parity/g-a11-staff-reset-invites` (from `main` ab91501; PR #109). No migration.
 - See docs/verification.md for actual checks.
 
 ## Next action
@@ -19,7 +19,7 @@
 1. **Marina's decisions (2026-10-17), all recorded:** gates M0, M3, M4, M6, M7, M8, M9, M10 PASSED (see Gates passed); M1 stays open until staging and CI are proven; M11 in progress. Business inputs: none OPEN (BI-01, BI-07, BI-09 partly answered: logo/contact copy, sender-domain verification and the WhatsApp number follow).
 2. **Merged 2026-10-17:** PR #100 brought every stacked step into `main` (f049897); #60–#99 closed (68 and 73 as superseded). Branch every new piece of work from `main`.
 3. **Work order (Marina, 2026-10-17):** merge → the nine chosen parity gaps → steps 124–127 → staging-dependent work (120 real devices, 121 rerun, 122, 128) on the Hostinger VPS (one VPS, staging first, later production).
-4. **Parity gaps to build before launch** (one branch, PR and commit each, from `main`): ~~G-S2 listing filters~~ (DONE, ADR 0086, PR #101), ~~G-S3 mobile search sheet~~ (DONE, ADR 0087, PR #102), ~~G-S5 sticky add-to-cart~~ (DONE, ADR 0088, PR #103), ~~G-A5 orders list~~ (DONE, ADR 0089, PR #104), ~~G-A6 packing slip~~ (DONE, ADR 0090, PR #105), ~~G-A7 brand/category images + purge~~ (DONE, ADR 0091, PR #106), ~~G-A8 products list~~ (DONE, ADR 0092, PR #107), ~~G-A9 unsaved-changes guard~~ (DONE, ADR 0093, PR #108), ~~G-A11~~ (DONE, ADR 0094) G-A11 Owner-sent staff reset and pending-invitation revoke. Not now: G-S8, G-A10 and every O-tier gap (after launch).
+4. **Parity gaps to build before launch** (one branch, PR and commit each, from `main`): ~~G-S2 listing filters~~ (DONE, ADR 0086, PR #101), ~~G-S3 mobile search sheet~~ (DONE, ADR 0087, PR #102), ~~G-S5 sticky add-to-cart~~ (DONE, ADR 0088, PR #103), ~~G-A5 orders list~~ (DONE, ADR 0089, PR #104), ~~G-A6 packing slip~~ (DONE, ADR 0090, PR #105), ~~G-A7 brand/category images + purge~~ (DONE, ADR 0091, PR #106), ~~G-A8 products list~~ (DONE, ADR 0092, PR #107), ~~G-A9 unsaved-changes guard~~ (DONE, ADR 0093, PR #108), ~~G-A11~~ (DONE, ADR 0094, PR #109) G-A11 Owner-sent staff reset and pending-invitation revoke. Not now: G-S8, G-A10 and every O-tier gap (after launch).
 5. **First Owner:** an Apixel account via `pnpm bootstrap:owner`, which invites the client as Owner and is then removed (the last-Owner guard keeps one Owner at all times).
 6. **At launch, Owner settings:** SEO policy `public_pages` (BI-05); WhatsApp number in Settings (BI-09); sender no-reply@iqoshaven.com once the domain is verified (BI-07), then `CHECKOUT_SUBMISSION_ENABLED=true`.
 7. **Next work: the four tier-L parity gaps** — Marina's decision (2026-10-17): build Apixel's recommended launch set from `docs/parity-review.md` before step 120. One branch, PR and commit each, in this order:
@@ -227,7 +227,7 @@ Tests: `pnpm verify` PASS (age preview 2247). `pnpm test:int` PASS (662). Browse
 
 Unfinished:
 
-- G-A11's PR waits for merge (Claude merges only when Marina asks).
+- PR #109 (G-A11) waits for merge (Claude merges only when Marina asks).
 - Next: roadmap step 124 (validated import commands and Owner/settings bootstrap), then 125 (monitoring), 126 (backup/restore drill), 127 (runbooks). Check each row with `rg -n "^| 12[4-7] " docs/roadmap.md`.
 - Reset email wording ("If you did not request this…") is slightly off for an Owner-sent link; left for the email copy review (BI-01).
 
