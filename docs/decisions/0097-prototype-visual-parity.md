@@ -86,6 +86,30 @@ Step 115 and the nine launch gaps compared features. A side-by-side screenshot a
 
 **Admin:** the hero editor lists the slides. Each has a look, two buttons and an image, and can be added (up to three), moved or removed.
 
+## V-S3 (listing and search), 2026-10-18
+
+- **One shop view:** every listing (`/shop`, the type, brand, category and offers pages) and `/search` render `ListingPage` with the client `ShopLayout`, which is the prototype's `shop`:
+  - breadcrumb chevrons and the shop heading;
+  - filters beside the grid from 1040 px;
+  - a toolbar with the count, the sort select and the Filters button;
+  - removable chips with "Clear all";
+  - the prototype's `.empty` state.
+- **Filters:**
+  - category checkboxes (one type narrows; both are every type);
+  - brand checkboxes with counts;
+  - the prototype's price bands (Under 50, 50–100, 100–200, 200+, without counts: the API has no price-band facet);
+  - puff-count bands with counts summed from the puff facet;
+  - nicotine checkboxes;
+  - In stock and On sale switches.
+  - Bands travel as `price=`/`puffs=` and are read into min/max bounds.
+- **Instant apply:** a change applies at once, as in the prototype, by moving to the page's address without scrolling. The controls keep focus while the shopper changes them and reset when the address changes another way (chip, Back).
+  - The grid shows the skeleton while the next page loads (G-S7).
+  - Every form is still a plain GET form, with a `<noscript>` button.
+- **Phone:** under 1040 px the Filters button (with its count) opens the prototype's bottom sheet, with "Clear all" and "Show N products" (G-S6).
+  - The new shared `Sheet` puts the prototype's backdrop and panel on a modal `<dialog>`, which keeps focus, closes on Escape and gives focus back.
+  - The other sheets move onto it in V-S6.
+- **Search with no results:** offers "Ask us on WhatsApp" with a prepared message (G-S9).
+
 ## Consequences
 
 - The look comes from the approved source instead of being re-imagined in utilities, so later screens are mostly markup work.

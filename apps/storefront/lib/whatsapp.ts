@@ -26,6 +26,9 @@ export const WHATSAPP_MESSAGES = {
     product.soldOut
       ? `Hi ${store}, please let me know when ${product.name} is back in stock.`
       : `Hi ${store}, I have a question about ${product.name} (${displayAed(product.priceFromFils)}).`,
+  /** From a search with no results (prototype `emptyResults`, parity G-S9). */
+  search: (store: string, term: string) =>
+    `Hi ${store}, I am looking for "${term.slice(0, 100)}". Do you have it?`,
   /** The cart as a readable list: quantities, names, options. No totals: the store confirms those. */
   cart: (
     store: string,

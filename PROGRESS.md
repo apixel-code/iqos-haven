@@ -4,8 +4,8 @@
 
 - Date: 2026-10-18
 - Milestone: M11 — full acceptance and release, in progress. Gates M0, M2–M10 PASSED (M0, M3, M4, M6–M10 on 2026-10-17, Marina); M1 open until staging/CI.
-- Step: launch parity gaps (Marina 2026-10-17): G-S2 (#101), G-S3 (#102), G-S5 (#103), G-A5 (#104), G-A6 (#105), G-A7 (#106), G-A8 (#107), G-A9 (#108), all merged to `main` 2026-10-18; G-A11 (#109), all merged to `main` 2026-10-18 — every launch parity gap is built. Steps 124 (#110) and 125 (#111) merged. **Marina (2026-10-18): the UI must match the prototypes before launch** (ADR 0097; storefront V-S1…V-S6, then admin V-A*; all deferred gaps included). V-S1 (storefront shell, #112) merged; **V-S2** (home, hero carousel, ADR 0097) done. Next: V-S3 (listing and search). Steps 126–127 follow the visual work unless Marina reorders. Steps 115–119, 121 done; 120 local part done (real devices wait for staging).
-- Branch: `parity/v-s2-store-home` (from `main` 487f194; PR #113). No migration; hero content schema v2.
+- Step: launch parity gaps (Marina 2026-10-17): G-S2 (#101), G-S3 (#102), G-S5 (#103), G-A5 (#104), G-A6 (#105), G-A7 (#106), G-A8 (#107), G-A9 (#108), all merged to `main` 2026-10-18; G-A11 (#109), all merged to `main` 2026-10-18 — every launch parity gap is built. Steps 124 (#110) and 125 (#111) merged. **Marina (2026-10-18): the UI must match the prototypes before launch** (ADR 0097; storefront V-S1…V-S6, then admin V-A*; all deferred gaps included). V-S1 (storefront shell, #112) merged; V-S2 (home, #113) merged; **V-S3** (listing and search, ADR 0097) done. Next: V-S4 (product page). Steps 126–127 follow the visual work unless Marina reorders. Steps 115–119, 121 done; 120 local part done (real devices wait for staging).
+- Branch: `parity/v-s3-store-listing` (from `main` 9089b34). Storefront only.
 - See docs/verification.md for actual checks.
 
 ## Next action
@@ -161,6 +161,7 @@ Before checkout is switched on: the sender domain verification (BI-07, Marina/Ap
 - 125 — worker `ops.monitor` (every minute: effects backlog/dead, ledger, cache publication, DB connections, queue Redis, checkout 5xx via signed `/v1/internal/ops`, API readiness, synthetic age-gate→shop and admin login), `ops_alerts` open/remind/resolve, email to `OPS_ALERT_RECIPIENTS` (Apixel ops), `pnpm ops:test-alert`; optional scrubbed Sentry (`@ih/platform/error-reporting`) (ADR 0096) — step/125-monitoring
 - V-S1 — storefront shell like the prototype: `prototype.css` (prototype store CSS in the components layer, `@container`→`@media`), icon sprite, header (wordmark, sections, Brands panel, search bar/button, WhatsApp, saved and cart counts), footer (brands, help, legal, social from Contact), bottom nav, WhatsApp button, dirham sign (`Money`) (ADR 0097) — parity/v-s1-store-shell
 - V-S2 — home like the prototype: hero carousel (content schema v2, 1–3 slides in navy/lilac/coral, v1 read as one slide; admin slide editor), trust line, category tiles with counts and photos, popular toggle, prototype product card and rails, brand logos, code-less campaigns, puff-count bands (G-S13, `maxPuffs`) (ADR 0097) — parity/v-s2-store-home
+- V-S3 — listing and search like the prototype: one `ListingPage` + client `ShopLayout` (crumbs, sidebar filters with bands and switches, toolbar, chips, empty state), instant apply with skeleton (G-S7), bottom filter sheet with Show N (G-S6) on the shared `Sheet`, no-results WhatsApp (G-S9) (ADR 0097) — parity/v-s3-store-listing
 - G-A6 — packing slip: order-detail preview dialog and A5 print (only the slip is laid out), order's own emirate, cash to collect, no internal note, `customers.read` only; `packing-slip.mjs` (ADR 0090) — parity/g-a6-packing-slip
 - G-A5 — orders list: `GET /v1/admin/orders/counts` (tab counts under the other filters), four sorts with a per-sort keyset cursor, select-all pending on the page, phone cards; bell accessible name fixed; `orders-list.mjs` (ADR 0089) — parity/g-a5-orders-list
 - G-S5 — sticky add-to-cart bar on phones inside `BuyBox` (after the main button scrolls away; inert and control-less while hidden; no silent default option; page padding so the footer stays readable); `sticky-add.mjs` (ADR 0088) — parity/g-s5-sticky-add
@@ -214,34 +215,31 @@ Before checkout is switched on: the sender domain verification (BI-07, Marina/Ap
 - Event `consumers` lists only implemented consumers (now `system_probe`, `email`, `notification`, `media_processor`, `storefront_revalidate`); planned ones are documented with roadmap steps and move in with a backfill decision (architecture §8: adding a consumer must not redefine old completions).
 - `audit_log` migration revokes UPDATE/DELETE/TRUNCATE only from a role named `ih_app`; other runtime role names must be revoked at provisioning (trigger blocks mutations regardless).
 
-## Last session handoff (2026-10-18, visual parity V-S2)
+## Last session handoff (2026-10-18, visual parity V-S3)
 
 Done:
 
-- Merged PR #112 (V-S1); `main` at 487f194.
-- **Marina's decisions (2026-10-18):** the hero is the prototype's carousel (one to three slides); campaign banners show no coupon code. Recorded in BI-13 and ADR 0097.
-- **V-S2 home:**
-  - **Hero content:** schema v2 `{slides}` in `packages/contracts/src/content.ts`, with `HERO_STYLES` navy/lilac/coral and `upgradeContent` reading v1 as one navy slide. It is used by `readPublishedHome` and the admin record. The store home answers `heroSlides`.
-  - **Admin editor:** the hero editor lists slides (look, two buttons, image, add/move/remove).
-  - **Storefront components:**
-    - `components/hero-carousel.tsx`: swipe, dots, arrows, a 5 s autoplay with pause (WCAG 2.2.2), reduced motion;
-    - `home-sections.tsx`: tiles, brands, campaigns, offers, puff bands;
-    - `popular-products.tsx`: the `.seg` toggle;
-    - `product-card.tsx`: the prototype card plus `ProductRail` and the `sk-card` skeleton;
-    - `save-button` and `quick-add` use the prototype `wish` and `qadd`;
-    - `recently-viewed` is a rail.
-  - **Search:** the storefront search keeps `maxPuffs`; the search sheet opens on the `ih:open-search` event.
+- Merged PR #113 (V-S2); `main` at 9089b34.
+- **V-S3:**
+  - **Shared page:** `app/(shop)/listing-page.tsx` now serves every listing and `/search` (`search` flag keeps the term, counts it, offers WhatsApp).
+  - **Shop layout:** `components/shop-layout.tsx` (client) holds the prototype's filters, toolbar, chips, bottom sheet and instant apply.
+  - **Shared sheet:** `components/sheet.tsx` is the prototype sheet on a modal dialog.
+  - **Search state:** `lib/store/search.ts` gains `PRICE_BANDS`/`PUFF_BANDS`/`bandOf`, `price=`/`puffs=` parameters and category checkboxes.
+  - **Listing parts:** `components/listing.tsx` (crumbs, shop-head, `.empty`) and `WHATSAPP_MESSAGES.search`.
+  - **Removed:** `search-filters.tsx`.
 
-Files: `packages/{contracts/src/{content.ts,content.test.ts,store.ts},db/src/{content.ts,store-content.ts,content.int.test.ts}}`, `apps/api/src/{store/store-catalog.service.ts,store/store-content.int.test.ts,content/admin-content.int.test.ts}`, `apps/admin/{components/content-management.tsx,lib/content.ts}`, `apps/storefront/{app/(shop)/page.tsx,app/prototype.css,components/*,lib/store/{search.ts,server.ts,store.test.ts}}`, `scripts/{check-age-preview.mjs,check-gate-e2e.cjs,browser-qa/{home,content-editor}.mjs}`, `docs/{decisions/0097-prototype-visual-parity.md,business-inputs.md,parity-review.md,verification.md}`
+Files: `apps/storefront/{app/(shop)/{listing-page.tsx,search/page.tsx},app/prototype.css,components/{shop-layout,sheet,listing}.tsx,lib/{store/search.ts,store/store.test.ts,whatsapp.ts}}`, `scripts/browser-qa/{listing-filters.mjs,README.md}`, `docs/{decisions/0097-prototype-visual-parity.md,parity-review.md,verification.md}`
 
-Tests: `pnpm verify` PASS (age preview 2250). `pnpm test:int` PASS. `pnpm test:gate` PASS (2586). Storefront browser passes and the admin `content-editor` PASS (fresh stacks).
+Tests: `pnpm verify` PASS (age preview 2250). `pnpm test:gate` PASS (2586). All storefront browser passes PASS on a fresh stack (pace them: per-IP catalogue budget).
 
 Unfinished:
 
-- PR #113 (V-S2) waits for merge.
-- **Next, V-S3 listing and search:** prototype `shop` 7774, `chips` 7827, `filterBody` 7850 and the filter sheet. Includes G-S6 (sheet, "Show N", chips), G-S7 (skeletons are ready in `product-card.tsx`) and G-S9 (no-results WhatsApp).
+- V-S3's PR waits for merge.
+- **Next, V-S4 product page:** prototype `pdp` 7893, `rerenderPdp`, `reviews` 8007; gallery swipe and zoom (G-S12); the buy box, options, specs and reviews in the prototype markup.
 
 ## History (summary)
+
+- 2026-10-18 V-S2: home like the prototype, hero carousel (PR #113, merged).
 
 - 2026-10-18 V-S1: storefront shell like the prototype, dirham sign (PR #112, merged).
 

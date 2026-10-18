@@ -358,3 +358,9 @@ QA_PLAYWRIGHT_DIR=/tmp/ih-qa node scripts/browser-qa/staff-access.mjs <SCHEMA>
 ```
 
 The Owner invites someone, sees them under Pending invitations (with inviter and expiry), and revokes the invitation. The Owner then sends Staff QA a password reset; one reset link is issued.
+
+## Running several storefront passes in a row
+
+Every pass browses from 127.0.0.1, and the API's catalogue read budget is per IP (240 reads a minute, `STORE_CATALOG_POLICY`). Run back to back, the later passes can hit it: the page then shows "We couldn't load this page". Leave a minute between heavy passes, or run each on its own served stack.
+
+`checkout.mjs` changes price and stock mid-journey, so run it after `sticky-add.mjs` and `a11y-storefront.mjs`. `telemetry.mjs` needs a fresh stack.

@@ -14,6 +14,34 @@ export const SEARCH_SORT_LABELS: Record<StoreSearchSort, string> = {
   name: "Name: A to Z",
 };
 
+/** A filter band from the prototype: inclusive bounds; an open end is undefined. */
+export interface Band {
+  readonly key: string;
+  readonly min?: number;
+  readonly max?: number;
+}
+/** The prototype's price bands (`PRICE`), in whole dirhams (ADR 0097). */
+export const PRICE_BANDS: readonly Band[] = [
+  { key: "u50", max: 50 },
+  { key: "50-100", min: 50, max: 100 },
+  { key: "100-200", min: 100, max: 200 },
+  { key: "o200", min: 200 },
+];
+/** The prototype's puff-count bands (`PUFF`). */
+export const PUFF_BANDS: readonly (Band & { label: string })[] = [
+  { key: "u6", max: 6000, label: "Up to 6,000" },
+  { key: "6-12", min: 6000, max: 12000, label: "6,000–12,000" },
+  { key: "o12", min: 12001, label: "12,000+" },
+];
+/** The band whose bounds are exactly these, if any. */
+export function bandOf<B extends Band>(
+  bands: readonly B[],
+  min: number | undefined,
+  max: number | undefined,
+): B | undefined {
+  return bands.find((band) => band.min === min && band.max === max);
+}
+
 export interface SearchState {
   q: string;
   type?: ProductType;
@@ -47,13 +75,20 @@ function wholeNumber(value: string | undefined, max: number): number | undefined
 }
 
 export function parseSearch(raw: RawParams): SearchState {
-  const type = first(raw.type);
+  // Category checkboxes (prototype): one type narrows; both or none is every type.
+  const types = [...new Set(many(raw.type))].filter(
+    (value) => value === "disposable" || value === "kit",
+  );
+  const type = types.length === 1 ? types[0] : undefined;
+  // A band from the filter radios (`price=u50`, `puffs=6-12`) stands for its bounds.
+  const priceBand = PRICE_BANDS.find((band) => band.key === first(raw.price));
+  const puffBand = PUFF_BANDS.find((band) => band.key === first(raw.puffs));
   const sort = first(raw.sort);
   const cursor = first(raw.cursor);
-  const minPrice = wholeNumber(first(raw.minPrice), MAX_AED);
-  const maxPrice = wholeNumber(first(raw.maxPrice), MAX_AED);
-  const minPuffs = wholeNumber(first(raw.minPuffs), 1_000_000);
-  const maxPuffs = wholeNumber(first(raw.maxPuffs), 1_000_000);
+  const minPrice = priceBand ? priceBand.min : wholeNumber(first(raw.minPrice), MAX_AED);
+  const maxPrice = priceBand ? priceBand.max : wholeNumber(first(raw.maxPrice), MAX_AED);
+  const minPuffs = puffBand ? puffBand.min : wholeNumber(first(raw.minPuffs), 1_000_000);
+  const maxPuffs = puffBand ? puffBand.max : wholeNumber(first(raw.maxPuffs), 1_000_000);
   // A range typed the wrong way round is ignored rather than sent as an error.
   const validRange = minPrice === undefined || maxPrice === undefined || minPrice <= maxPrice;
   return {
