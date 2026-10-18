@@ -9,6 +9,7 @@ import {
   staffReactivateRequestSchema,
   invitationRequestSchema,
   invitationResponseSchema,
+  pendingInvitationsResponseSchema,
 } from "@ih/contracts";
 import { emptyResponse, managementRequest, validate } from "../lib/management";
 import { Fields, ResourceNotice, useManagementResource } from "./management-resource";
@@ -21,6 +22,8 @@ export function StaffManagement() {
     staffListResponseSchema,
   );
   const [invitation, setInvitation] = useState<{ id: string; expiresAt: string } | null>(null);
+  const [resetSent, setResetSent] = useState<string | null>(null);
+  const pending = useManagementResource("/staff/invitations", pendingInvitationsResponseSchema);
   async function invite(data: FormData, form: HTMLFormElement) {
     const outcome = await resource.run((signal) =>
       managementRequest(
@@ -38,6 +41,7 @@ export function StaffManagement() {
     if (outcome.ok) {
       setInvitation(outcome.value);
       form.reset();
+      pending.reload();
     }
   }
   return (
@@ -85,25 +89,61 @@ export function StaffManagement() {
                   Invitation queued. Link expires {new Date(invitation.expiresAt).toLocaleString()}.
                   Delivery has not been confirmed.
                 </p>
-                <button
-                  className="secondary-button"
-                  disabled={resource.disabled}
-                  onClick={async () => {
-                    if (!window.confirm("Revoke this invitation?")) return;
-                    const outcome = await resource.run((signal) =>
-                      managementRequest(
-                        "/staff/invitations/revoke",
-                        emptyResponse,
-                        "POST",
-                        { invitationId: invitation.id },
-                        signal,
-                      ),
-                    );
-                    if (outcome.ok) setInvitation(null);
-                  }}
-                >
-                  Revoke this invitation
-                </button>
+              </div>
+            )}
+          </section>
+          <section className="management-card">
+            <h2>Pending invitations</h2>
+            <p className="muted">
+              Invitations not yet accepted. A link works for 24 hours; revoke one that was sent to
+              the wrong person or is no longer needed, or invite the same email again for a new
+              link.
+            </p>
+            <ResourceNotice resource={pending} />
+            {pending.data?.items.length === 0 && <p className="muted">No pending invitations.</p>}
+            {pending.data && pending.data.items.length > 0 && (
+              <div className="record-list">
+                {pending.data.items.map((item) => (
+                  <article className="record-card" key={item.id}>
+                    <header className="card-heading">
+                      <h3>{item.name}</h3>
+                      <span className="badge">
+                        {item.role === "owner" ? "Owner" : "Staff"} ·{" "}
+                        {item.expired ? "Expired" : "Pending"}
+                      </span>
+                    </header>
+                    <p className="muted">
+                      {item.email} · invited {new Date(item.createdAt).toLocaleString()}
+                      {item.invitedBy ? ` by ${item.invitedBy}` : ""} ·{" "}
+                      {item.expired ? "expired" : "expires"}{" "}
+                      {new Date(item.expiresAt).toLocaleString()}
+                    </p>
+                    <div className="form-actions">
+                      <button
+                        className="secondary-button"
+                        disabled={pending.disabled}
+                        onClick={async () => {
+                          if (!window.confirm(`Revoke the invitation for ${item.email}?`)) return;
+                          const outcome = await pending.run((signal) =>
+                            managementRequest(
+                              "/staff/invitations/revoke",
+                              emptyResponse,
+                              "POST",
+                              { invitationId: item.id },
+                              signal,
+                            ),
+                          );
+                          if (outcome.ok) {
+                            if (invitation?.id === item.id) setInvitation(null);
+                            pending.reload();
+                          }
+                        }}
+                      >
+                        Revoke invitation
+                      </button>
+                    </div>
+                  </article>
+                ))}
               </div>
             )}
           </section>
@@ -113,6 +153,14 @@ export function StaffManagement() {
               Account, email and role changes may revoke sessions. At least one active Owner must
               remain. Role and activation are separate commands.
             </p>
+            {resetSent && (
+              <div className="notice" role="status">
+                <p>
+                  Password reset link queued for {resetSent}. It works for 30 minutes. Delivery has
+                  not been confirmed.
+                </p>
+              </div>
+            )}
             {resource.data.items.length === 0 && <p className="muted">No staff on this page.</p>}
             <div className="record-list">
               {resource.data.items.map((staff) => {
@@ -313,6 +361,33 @@ export function StaffManagement() {
                     >
                       {staff.active ? "Deactivate account" : "Reactivate account"}
                     </button>
+                    {staff.active && (
+                      <button
+                        className="secondary-button"
+                        disabled={resource.disabled}
+                        onClick={async () => {
+                          if (
+                            !window.confirm(
+                              `Email ${staff.name} a password reset link? Their current password keeps working until they use it.`,
+                            )
+                          )
+                            return;
+                          setResetSent(null);
+                          const outcome = await resource.run((signal) =>
+                            managementRequest(
+                              `/staff/${staff.id}/password-reset`,
+                              emptyResponse,
+                              "POST",
+                              undefined,
+                              signal,
+                            ),
+                          );
+                          if (outcome.ok) setResetSent(staff.email);
+                        }}
+                      >
+                        Send password reset
+                      </button>
+                    )}
                   </article>
                 );
               })}

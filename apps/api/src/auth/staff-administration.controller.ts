@@ -27,6 +27,7 @@ import { RequirePermission, type AuthenticatedRequest } from "./access";
 import { Serialize, NoResponseBody } from "./serialize";
 import { clearedSessionCookie } from "./session-cookie";
 import { StaffAdministrationService } from "./staff-administration.service";
+import { PasswordResetService } from "./password-reset.service";
 import { RateLimitService } from "../security/rate-limit.service";
 import { STAFF_MANAGE_POLICY } from "../security/limit-policies";
 class StaffQuery extends createZodDto(staffListQuerySchema) {
@@ -56,6 +57,7 @@ class StaffReactivateDto extends createZodDto(staffReactivateRequestSchema) {
 export class StaffController {
   constructor(
     private readonly staff: StaffAdministrationService,
+    private readonly resets: PasswordResetService,
     private readonly limits: RateLimitService,
   ) {}
   @Get()
@@ -144,6 +146,20 @@ export class StaffController {
       { requestId: request.id, actorId: request.staff!.userId },
       params.id,
       body.version,
+    );
+  }
+  /** The Owner emails a staff member a password reset link (parity G-A11). */
+  @Post(":id/password-reset")
+  @NoResponseBody()
+  async passwordReset(
+    @Param() params: StaffParams,
+    @Req() request: AuthenticatedRequest,
+    @Res({ passthrough: true }) reply: FastifyReply,
+  ) {
+    await this.limit(request, reply);
+    await this.resets.sendForStaff(
+      { requestId: request.id, actorId: request.staff!.userId },
+      params.id,
     );
   }
   private async limit(request: AuthenticatedRequest, reply: FastifyReply) {

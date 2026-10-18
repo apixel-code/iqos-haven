@@ -42,8 +42,8 @@ const env = apiEnvSchema.parse({
 let app: INestApplication;
 let base: string;
 let seq = 0;
-async function user(active = true) {
-  const role = await db.role.findUniqueOrThrow({ where: { key: "staff" } });
+async function user(active = true, roleKey: "owner" | "staff" = "staff") {
+  const role = await db.role.findUniqueOrThrow({ where: { key: roleKey } });
   return db.staffUser.create({
     data: {
       email: `reset${seq++}@iqoshaven.test`,
@@ -259,6 +259,54 @@ describe("password reset through the real API and PostgreSQL", () => {
         )
       ).status,
     ).toBe(200);
+  });
+  it("lets the Owner send a staff member a reset link, audited as the Owner (G-A11)", async () => {
+    const owner = await user(true, "owner");
+    const staff = await user();
+    const other = await user();
+    const inactive = await user(false);
+    const cookie = async (email: string) => {
+      const response = await post("login", { email, password: PASSWORD }, "203.0.113.40");
+      expect(response.status).toBe(200);
+      return response.headers.get("set-cookie")!.split(";")[0]!;
+    };
+    const ownerCookie = await cookie(owner.email);
+    const staffCookie = await cookie(other.email);
+    const send = (id: string, session = ownerCookie) =>
+      fetch(`${base}/v1/admin/staff/${id}/password-reset`, {
+        method: "POST",
+        headers: { origin: ADMIN, cookie: session, "x-ih-client-ip": "203.0.113.41" },
+      });
+    expect((await send(staff.id, staffCookie)).status).toBe(403);
+    expect(await db.passwordResetToken.count({ where: { userId: staff.id } })).toBe(0);
+    const response = await send(staff.id);
+    expect(response.status).toBe(204);
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    const reset = await db.passwordResetToken.findFirstOrThrow({ where: { userId: staff.id } });
+    expect(reset.expiresAt.getTime() - reset.createdAt.getTime()).toBe(30 * 60_000);
+    const audit = await db.auditLog.findFirstOrThrow({
+      where: { action: "staff.password_reset_requested", entityId: staff.id },
+    });
+    expect(audit.actorId).toBe(owner.id);
+    const event = await db.outboxEvent.findFirstOrThrow({
+      where: { aggregateId: staff.id, eventType: "staff.password_reset_requested" },
+      include: { effects: true },
+    });
+    expect(event.payload).toEqual({ resetId: reset.id });
+    expect(event.effects.map((x) => x.consumer)).toEqual(["email"]);
+    // The link works like a self-service one.
+    expect(
+      (await post("reset", { token: resetToken(reset.id, key), password: NEXT }, "203.0.113.42"))
+        .status,
+    ).toBe(204);
+    const inactiveResponse = await send(inactive.id);
+    expect(inactiveResponse.status).toBe(409);
+    expect(((await inactiveResponse.json()) as { error: { code: string } }).error.code).toBe(
+      "STAFF_INACTIVE",
+    );
+    expect((await send(randomUUID())).status).toBe(404);
+    expect((await send("not-a-uuid")).status).toBe(400);
+    expect(await db.passwordResetToken.count({ where: { userId: inactive.id } })).toBe(0);
   });
   it("enforces Origin, strict body schemas and temporary request/consume limits", async () => {
     expect(

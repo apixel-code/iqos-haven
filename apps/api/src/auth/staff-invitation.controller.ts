@@ -1,9 +1,10 @@
-import { Body, Controller, Post, Req, Res, BadRequestException } from "@nestjs/common";
+import { Body, Controller, Get, Post, Req, Res, BadRequestException } from "@nestjs/common";
 import {
   invitationRequestSchema,
   invitationResponseSchema,
   invitationRevokeRequestSchema,
   invitationAcceptRequestSchema,
+  pendingInvitationsResponseSchema,
 } from "@ih/contracts";
 import type { FastifyReply, FastifyRequest } from "fastify";
 import { isIP } from "node:net";
@@ -36,6 +37,14 @@ export class StaffInvitationController {
     private readonly invites: StaffInvitationService,
     private readonly limits: RateLimitService,
   ) {}
+  /** Pending invitations with their expiry (parity G-A11), for review and revoke. */
+  @Get()
+  @RequirePermission("staff.manage")
+  @Serialize(pendingInvitationsResponseSchema)
+  async pending(@Res({ passthrough: true }) reply: FastifyReply) {
+    reply.header("Cache-Control", "no-store");
+    return { items: await this.invites.pending() };
+  }
   @Post()
   @RequirePermission("staff.manage")
   @Serialize(invitationResponseSchema)

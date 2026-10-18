@@ -1,9 +1,21 @@
-import { Inject, Injectable, ServiceUnavailableException } from "@nestjs/common";
+import {
+  ConflictException,
+  ForbiddenException,
+  Inject,
+  Injectable,
+  NotFoundException,
+  ServiceUnavailableException,
+} from "@nestjs/common";
+import type { CommandContext } from "@ih/application";
 import { randomUUID } from "node:crypto";
 import type { ApiEnv } from "@ih/config";
 import { normalizeEmail, normalizePassword, passwordProblems } from "@ih/domain";
 import {
   issuePasswordReset,
+  issueStaffPasswordReset,
+  staffResetTarget,
+  StaffResetForbiddenError,
+  StaffResetTargetError,
   passwordResetCandidate,
   consumePasswordReset,
   type Database,
@@ -56,6 +68,30 @@ export class PasswordResetService {
         recipientHash: resetRecipientHash(email, key),
       },
     );
+  }
+  /** The Owner sends a staff member a reset link (parity G-A11): 404 unknown, 409 inactive. */
+  async sendForStaff(context: CommandContext, userId: string): Promise<void> {
+    const key = this.configured();
+    try {
+      const email = await staffResetTarget(this.db, userId);
+      const id = randomUUID();
+      await issueStaffPasswordReset(this.db, context, {
+        userId,
+        email,
+        id,
+        tokenHash: resetTokenHash(resetToken(id, key)),
+        keyId: key.keyId,
+        recipientHash: resetRecipientHash(email, key),
+      });
+    } catch (error) {
+      if (error instanceof StaffResetForbiddenError) throw new ForbiddenException();
+      if (error instanceof StaffResetTargetError) {
+        if (error.reason === "STAFF_INACTIVE")
+          throw new ConflictException({ code: "STAFF_INACTIVE" });
+        throw new NotFoundException();
+      }
+      throw error;
+    }
   }
   async consume(token: string, passwordInput: string, requestId: string): Promise<boolean> {
     this.configured();

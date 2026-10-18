@@ -37,6 +37,21 @@ export const invitationResponseSchema = z.strictObject({
   expiresAt: z.iso.datetime(),
 });
 export const invitationRevokeRequestSchema = z.strictObject({ invitationId: z.uuid() });
+/** Invitations neither accepted nor revoked (parity G-A11); expired ones can still be revoked. */
+export const pendingInvitationSchema = z.strictObject({
+  id: z.uuid(),
+  email: z.email().max(254),
+  name: z.string().min(1).max(100),
+  role: z.enum(["owner", "staff"]),
+  invitedBy: z.string().max(100).nullable(),
+  createdAt: z.iso.datetime(),
+  expiresAt: z.iso.datetime(),
+  expired: z.boolean(),
+});
+export const pendingInvitationsResponseSchema = z.strictObject({
+  items: z.array(pendingInvitationSchema).max(100),
+});
+export type PendingInvitation = z.infer<typeof pendingInvitationSchema>;
 export const invitationAcceptRequestSchema = z.strictObject({
   token: z.string().min(1).max(200),
   password: z.string().min(1).max(1024),

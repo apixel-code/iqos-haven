@@ -45,6 +45,76 @@ export async function issuePasswordReset(
   });
 }
 
+/** The Owner's reset for a staff member (parity G-A11): refused for an unknown or inactive one. */
+export class StaffResetTargetError extends Error {
+  constructor(readonly reason: "NOT_FOUND" | "STAFF_INACTIVE") {
+    super(reason);
+  }
+}
+/** The address a staff reset goes to, read before the recipient hash is computed. */
+export async function staffResetTarget(db: Database, userId: string) {
+  const rows = await db.$queryRaw<Array<{ email: string; active: boolean }>>(Prisma.sql`
+    SELECT email, active FROM staff_users WHERE id = ${userId}::uuid`);
+  const row = rows[0];
+  if (!row) throw new StaffResetTargetError("NOT_FOUND");
+  if (!row.active) throw new StaffResetTargetError("STAFF_INACTIVE");
+  return row.email;
+}
+/**
+ * Issues a reset link for a staff member on the Owner's request (parity G-A11). The actor must
+ * still hold `staff.manage`; the target is locked and must be active with the email the
+ * recipient hash was computed for. Same token, expiry, email and audit trail as a self-service
+ * reset, with the Owner as the audited actor.
+ */
+export async function issueStaffPasswordReset(
+  db: Database,
+  context: CommandContext,
+  input: {
+    userId: string;
+    email: string;
+    id: string;
+    tokenHash: Buffer;
+    keyId: string;
+    recipientHash: Buffer;
+  },
+): Promise<void> {
+  await withTransaction(db, async (tx) => {
+    const allowed = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`SELECT u.id
+      FROM staff_users u JOIN role_permissions rp ON rp.role_id = u.role_id
+      JOIN permissions p ON p.id = rp.permission_id
+      WHERE u.id = ${context.actorId}::uuid AND u.active AND p.key = 'staff.manage'`);
+    if (!allowed[0]) throw new StaffResetForbiddenError();
+    const users = await tx.$queryRaw<
+      Array<{ id: string; version: number; email: string; active: boolean }>
+    >(
+      Prisma.sql`SELECT id, version, email, active FROM staff_users
+        WHERE id = ${input.userId}::uuid FOR UPDATE`,
+    );
+    const user = users[0];
+    if (!user) throw new StaffResetTargetError("NOT_FOUND");
+    if (!user.active) throw new StaffResetTargetError("STAFF_INACTIVE");
+    // The email changed between the read and the lock: the hash would not match; ask to retry.
+    if (user.email !== input.email) throw new StaffResetTargetError("NOT_FOUND");
+    await tx.$executeRaw(Prisma.sql`INSERT INTO password_reset_tokens
+      (id, user_id, token_hash, key_id, user_version, recipient_hash, expires_at)
+      VALUES (${input.id}::uuid, ${user.id}::uuid, ${input.tokenHash}, ${input.keyId},
+        ${user.version}, ${input.recipientHash}, statement_timestamp() + interval '30 minutes')`);
+    await audit.append(
+      tx,
+      toAuditEntry(context, {
+        action: "staff.password_reset_requested",
+        entity: { type: "staff_user", id: user.id },
+        after: { resetRequested: true },
+      }),
+    );
+    await outbox.publish(
+      tx,
+      defineEvent("staff.password_reset_requested", user.id, { resetId: input.id }),
+    );
+  });
+}
+export class StaffResetForbiddenError extends Error {}
+
 /** Read before expensive hashing. Consumption repeats every check under the user lock. */
 export async function passwordResetCandidate(db: Database, id: string, tokenHash: Buffer) {
   const rows = await db.$queryRaw<

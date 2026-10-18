@@ -343,3 +343,18 @@ Checks:
 - Unsaved storefront content is guarded.
 - Closing the tab raises the browser's `beforeunload` prompt.
 - The dialog fits at 390px.
+
+## Pending invitations and Owner-sent reset (parity G-A11)
+
+Start `qa-server.cjs` with invitation and reset keys, for example:
+
+```sh
+PASSWORD_RESET_KEYS="reset:qa:$(node -e 'console.log(require("crypto").randomBytes(32).toString("base64url"))')" \
+PASSWORD_RESET_ORIGIN=http://localhost:8081 \
+STAFF_INVITATION_KEYS="invite:qa:$(node -e 'console.log(require("crypto").randomBytes(32).toString("base64url"))')" \
+STAFF_INVITATION_ORIGIN=http://localhost:8081 \
+node scripts/browser-qa/qa-server.cjs &
+QA_PLAYWRIGHT_DIR=/tmp/ih-qa node scripts/browser-qa/staff-access.mjs <SCHEMA>
+```
+
+The Owner invites someone, sees them under Pending invitations (with inviter and expiry), and revokes the invitation. The Owner then sends Staff QA a password reset; one reset link is issued.

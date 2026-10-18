@@ -49,6 +49,8 @@ export const CONFLICT_CODES = [
   "MEDIA_NOT_READY",
   "ORDER_MISMATCH",
   "NOT_TRASHED",
+  /** A password reset cannot be sent to a deactivated staff member (parity G-A11). */
+  "STAFF_INACTIVE",
   /** Store quote and checkout reasons (architecture §7). */
   "AREA_UNAVAILABLE",
   "VARIANT_UNAVAILABLE",
