@@ -240,6 +240,23 @@ The admin parity work starts here. It follows the storefront's method: the proto
   - `prototype.css` sets the prototype's root `box-sizing: border-box` (from its first style block). Its `* { box-sizing: inherit }` otherwise fell back to content-box, and padded lists and nav items overflowed.
   - The old shell rules (`.workspace`, `.sidebar` …) and the old dashboard rules are gone. `.page-content` no longer adds a second padding inside the shell's `.page`. The analytics tiles keep their rules, scoped to `.kpi-grid`.
 
+## V-A3a (admin orders list), 2026-10-19
+
+The orders screens come in three PRs: V-A3a (the list), V-A3b (the order detail and its panels) and V-A3c (the manual order and the edit).
+
+- **Page head:** the prototype's `VIEWS.orders` head with "N orders · M waiting for confirmation" from the counts read, and "Create order".
+- **Toolbar:**
+  - Status `tabs` with their counts.
+  - A `toolbar` with search as you type (after a pause), the prototype's date choices, the sort, and "Delayed only" as a filter chip.
+  - The date choices are All dates, Today, Last 7 days, Last 30 days and This month. They are Dubai days, from `orderRangeStart`, which is unit-tested; they replace the two free date-time fields.
+- **Bulk confirm:** the prototype's dark `bulk` bar: "N selected", "Confirm N pending" and Clear. The confirm logic is unchanged (version per order, one command each, retry after an unclear answer).
+- **Table:** the prototype's `tbl`, with a select box, the order number (and "Created in admin" for manual orders), customer, phone, amount with item count, COD and cash state, status badge (`st`), and placed time with the area.
+- **Phone:** the prototype's order rows (`mrow`) replace the table, so the table no longer scrolls sideways (G-A12, for this screen).
+- **Pages:** the prototype's table foot ("Showing 1–25 of N" and the pager). The list pages by position, so the pager steps back and forward rather than jumping to a page number.
+- **Not carried over:** Export CSV and per-row action menus (Reports holds the exports; the actions are on the order).
+- **Notices:** `ResourceNotice` has a `compact` form for rebuilt screens: a live region, plus a Reload button only when something failed.
+- **Page heads:** screens that draw the prototype's page head themselves are listed in `WorkspaceSection` (`OWN_HEAD`), starting with orders.
+
 ## Consequences
 
 - The look comes from the approved source instead of being re-imagined in utilities, so later screens are mostly markup work.

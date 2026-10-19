@@ -113,7 +113,7 @@ try {
   await detailOf(page, number(late));
   check("reloading keeps the order open", true);
   await page.getByRole("button", { name: "← Back to orders" }).click();
-  await page.getByRole("heading", { name: "Orders", exact: true }).nth(1).waitFor();
+  await page.getByRole("tablist", { name: "Order status" }).waitFor();
   check("Back to orders drops the order from the URL", !page.url().includes("order="));
   await page.goBack();
   await detailOf(page, number(late));

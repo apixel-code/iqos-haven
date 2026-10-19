@@ -19,6 +19,9 @@ import { NotificationInbox } from "./notification-inbox";
 import { sections } from "../lib/navigation";
 import { Icon } from "./icons";
 import { PageHead } from "./page-head";
+/** Screens that draw the prototype's page head themselves. */
+const OWN_HEAD = new Set(["orders"]);
+
 export function WorkspaceSection({ sectionKey }: { sectionKey: string }) {
   const session = useSession();
   const section = sections.find((item) => item.key === sectionKey);
@@ -44,7 +47,10 @@ export function WorkspaceSection({ sectionKey }: { sectionKey: string }) {
     );
   return (
     <main className="page-content">
-      <PageHead title={section.label} {...("sub" in section ? { sub: section.sub } : {})} />
+      {/* Rebuilt screens draw their own head (counts and actions, as in the prototype). */}
+      {!OWN_HEAD.has(sectionKey) && (
+        <PageHead title={section.label} {...("sub" in section ? { sub: section.sub } : {})} />
+      )}
       {sectionKey === "orders" ? (
         <OrderManagement
           canReadContact={session.permissions.includes("customers.read")}

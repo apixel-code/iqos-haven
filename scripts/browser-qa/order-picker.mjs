@@ -128,7 +128,7 @@ const picks = (page) => page.getByRole("list", { name: "Matching products" });
 
 async function openNewOrder(page) {
   await page.goto(BASE + "/workspace/orders");
-  await page.getByRole("button", { name: "New order" }).click();
+  await page.getByRole("button", { name: "Create order", exact: true }).click();
   await page.getByRole("heading", { name: "New order" }).waitFor();
 }
 async function pick(page, query, label) {

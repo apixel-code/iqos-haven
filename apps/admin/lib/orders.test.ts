@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { aedToFils, inputInstant, localInstant } from "./orders";
+import { aedToFils, inputInstant, localInstant, orderRangeStart } from "./orders";
 
 describe("cash amounts typed by staff", () => {
   it("reads AED as integer fils without float arithmetic", () => {
@@ -34,5 +34,23 @@ describe("cash amounts typed by staff", () => {
     expect(localInstant("not a date")).toBeNull();
     const iso = localInstant("2026-10-14T12:05")!;
     expect(inputInstant(iso)).toBe("2026-10-14T12:05");
+  });
+});
+
+describe("orders list date choices (Dubai days)", () => {
+  // 2026-10-19 01:30 in Dubai is still 2026-10-18 21:30 UTC.
+  const now = new Date("2026-10-18T21:30:00Z");
+  it("starts today at Dubai midnight, not UTC midnight", () => {
+    expect(orderRangeStart("today", now)).toBe("2026-10-18T20:00:00.000Z");
+  });
+  it("counts the last 7 and 30 days with today", () => {
+    expect(orderRangeStart("7d", now)).toBe("2026-10-12T20:00:00.000Z");
+    expect(orderRangeStart("30d", now)).toBe("2026-09-19T20:00:00.000Z");
+  });
+  it("starts this month on the first, in Dubai", () => {
+    expect(orderRangeStart("month", now)).toBe("2026-09-30T20:00:00.000Z");
+  });
+  it("leaves all dates open", () => {
+    expect(orderRangeStart("all", now)).toBeNull();
   });
 });

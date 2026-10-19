@@ -4,8 +4,8 @@
 
 - Date: 2026-10-18
 - Milestone: M11 — full acceptance and release, in progress. Gates M0, M2–M10 PASSED (M0, M3, M4, M6–M10 on 2026-10-17, Marina); M1 open until staging/CI.
-- Step: launch parity gaps (Marina 2026-10-17): G-S2 (#101), G-S3 (#102), G-S5 (#103), G-A5 (#104), G-A6 (#105), G-A7 (#106), G-A8 (#107), G-A9 (#108), all merged to `main` 2026-10-18; G-A11 (#109), all merged to `main` 2026-10-18 — every launch parity gap is built. Steps 124 (#110) and 125 (#111) merged. **Marina (2026-10-18): the UI must match the prototypes before launch** (ADR 0097; storefront V-S1…V-S6, then admin V-A*; all deferred gaps included). V-S1 (storefront shell, #112) merged; V-S1 (#112), V-S2 (#113) and V-S3 (#114) merged to `main` (f419aed, CI green). V-S4 (#115) and V-S5 (#116) merged to `main` (0e6b954). V-S6a (#117) and V-S6b (#118) merged to `main` (550b05d): the storefront parity programme is complete. Admin V-A1 (shell, overlays, confirmations) PR #119 open (CI green); V-A2 (dashboard) built on `parity/v-a2-admin-dashboard`, stacked on V-A1, PR #120 open. **Next: Marina merges #119, then V-A2; then V-A3 orders (list, detail, edit, create).** Steps 126–127 follow the visual work unless Marina reorders. Steps 115–119, 121 done; 120 local part done (real devices wait for staging).
-- Branch: `parity/v-a2-admin-dashboard` (from `parity/v-a1-admin-shell`, because #119 was still open); V-A2 done locally.
+- Step: launch parity gaps (Marina 2026-10-17): G-S2 (#101), G-S3 (#102), G-S5 (#103), G-A5 (#104), G-A6 (#105), G-A7 (#106), G-A8 (#107), G-A9 (#108), all merged to `main` 2026-10-18; G-A11 (#109), all merged to `main` 2026-10-18 — every launch parity gap is built. Steps 124 (#110) and 125 (#111) merged. **Marina (2026-10-18): the UI must match the prototypes before launch** (ADR 0097; storefront V-S1…V-S6, then admin V-A*; all deferred gaps included). V-S1 (storefront shell, #112) merged; V-S1 (#112), V-S2 (#113) and V-S3 (#114) merged to `main` (f419aed, CI green). V-S4 (#115) and V-S5 (#116) merged to `main` (0e6b954). V-S6a (#117) and V-S6b (#118) merged to `main` (550b05d): the storefront parity programme is complete. Admin V-A1 (shell, overlays, confirmations) PR #119 open (CI green); V-A2 (dashboard) PR #120 open, stacked on V-A1; V-A3a (orders list) built on `parity/v-a3-admin-orders`, stacked on V-A2, PR open. **Next: Marina merges #119 → #120 → V-A3a; then V-A3b (order detail) and V-A3c (manual order, edit).** Steps 126–127 follow the visual work unless Marina reorders. Steps 115–119, 121 done; 120 local part done (real devices wait for staging).
+- Branch: `parity/v-a3-admin-orders` (from `parity/v-a2-admin-dashboard`; #119 and #120 still open); V-A3a done locally.
 - See docs/verification.md for actual checks.
 
 ## Next action
@@ -161,6 +161,7 @@ Before checkout is switched on: the sender domain verification (BI-07, Marina/Ap
 - 125 — worker `ops.monitor` (every minute: effects backlog/dead, ledger, cache publication, DB connections, queue Redis, checkout 5xx via signed `/v1/internal/ops`, API readiness, synthetic age-gate→shop and admin login), `ops_alerts` open/remind/resolve, email to `OPS_ALERT_RECIPIENTS` (Apixel ops), `pnpm ops:test-alert`; optional scrubbed Sentry (`@ih/platform/error-reporting`) (ADR 0096) — step/125-monitoring
 - V-S1 — storefront shell like the prototype: `prototype.css` (prototype store CSS in the components layer, `@container`→`@media`), icon sprite, header (wordmark, sections, Brands panel, search bar/button, WhatsApp, saved and cart counts), footer (brands, help, legal, social from Contact), bottom nav, WhatsApp button, dirham sign (`Money`) (ADR 0097) — parity/v-s1-store-shell
 - V-S2 — home like the prototype: hero carousel (content schema v2, 1–3 slides in navy/lilac/coral, v1 read as one slide; admin slide editor), trust line, category tiles with counts and photos, popular toggle, prototype product card and rails, brand logos, code-less campaigns, puff-count bands (G-S13, `maxPuffs`) (ADR 0097) — parity/v-s2-store-home
+- V-A3a — admin orders list like the prototype: head with counts and Create order, status tabs, live search, Dubai date choices (`orderRangeStart`), sort, Delayed chip, dark bulk bar, `tbl` rows, phone `mrow` rows, pager; compact `ResourceNotice` (ADR 0097) — uncommitted
 - V-A2 — admin dashboard like the prototype: attention strip, Owner/Staff KPI tiles (today vs yesterday, no invented figures), quick actions with `?new=1` deep links, recent orders table + phone rows, needs attention, low stock, open-order status bar, best sellers, booked sales / your access; globals' element rules moved to `@layer base`, root `box-sizing` restored (ADR 0097, PR #120) — 7f56d53
 - V-A1 — admin shell like the prototype: `prototype.css` (admin style block, components layer), icon sprite, sidebar with groups/icons/counts (rail 720–1099, full from 1100), topbar with server-side global search (`/`), role pill, bell panel, account menu with theme; phone bottom bar + More drawer; page heads; `<dialog>` modal/drawer/toasts; `confirmDialog` replaces all 21 `window.confirm` + the leave guard (G-A12, G-A13); `confirm.mjs` QA helper (ADR 0097, PR #119) — 720dba0
 - V-S6b — saved, compare, help, brands and the gate like the prototype: wishlist empty state and notice, `cmp` table with best values, quick add and "Add a kit", help as chips + `prose` + `faq` with Copy number, shared `BrandTile` grid and type tiles, brand `bhero`, gate shell with seal/arcs (form posts unchanged); `pages-gate.mjs` (ADR 0097, PR #118) — 124cf1d, merged 550b05d
@@ -221,32 +222,36 @@ Before checkout is switched on: the sender domain verification (BI-07, Marina/Ap
 - Event `consumers` lists only implemented consumers (now `system_probe`, `email`, `notification`, `media_processor`, `storefront_revalidate`); planned ones are documented with roadmap steps and move in with a backfill decision (architecture §8: adding a consumer must not redefine old completions).
 - `audit_log` migration revokes UPDATE/DELETE/TRUNCATE only from a role named `ih_app`; other runtime role names must be revoked at provisioning (trigger blocks mutations regardless).
 
-## Last session handoff (2026-10-19, visual parity V-A2)
+## Last session handoff (2026-10-19, visual parity V-A3a)
 
 Done:
 
-- **Merge state:** #119 (V-A1) was still OPEN (CI green), so V-A2 is stacked on `parity/v-a1-admin-shell`.
-- **V-A2, dashboard** (ADR 0097 V-A2 section):
-  - **Dashboard:** `components/dashboard.tsx` is the prototype's dashboard on the dashboard API's data. The Owner and Staff tile sets differ; a day not computed is named, never drawn as zero.
-  - **Quick-action links:** `lib/links.ts` gains `newOrderHref` and `newProductHref`, which `order-management.tsx` and `product-management.tsx` open from `?new=1`.
-  - **CSS:** `app/globals.css` moves the element rules into `@layer base` and drops the old shell and dashboard rules; `.page-content` loses its double padding. `app/prototype.css` gets the root `box-sizing` and the dashboard additions.
-  - **Browser QA:** `scripts/browser-qa/{dashboard,deep-links}.mjs` follow the new wording.
+- **Merge state:** #119 (V-A1) and #120 (V-A2) were still OPEN, so V-A3a is stacked on V-A2. The orders work is split into V-A3a (list), V-A3b (detail) and V-A3c (manual order and edit).
+- **V-A3a, orders list** (ADR 0097 V-A3a section):
+  - **Orders list:** `components/order-management.tsx` has the prototype's head, tabs, toolbar, bulk bar, table, phone rows and pager. Detail and creation still show their old screens, under a plain "Orders" head.
+  - **Date ranges:** `lib/orders.ts` gains `ORDER_DATE_RANGES` and `orderRangeStart` (Dubai days), with tests.
+  - **Notice:** `components/management-resource.tsx` gains `ResourceNotice compact`.
+  - **Page head:** `components/workspace-section.tsx` lists the screens that draw their own head (`OWN_HEAD`).
+  - **Browser QA:** `scripts/browser-qa/{orders-list,deep-links,order-picker,a11y-admin}.mjs` follow the new markup and the "Create order" wording.
 
-Files: `apps/admin/{app/{globals.css,prototype.css},components/{dashboard,order-management,product-management}.tsx,lib/links.ts}`, `scripts/browser-qa/{dashboard,deep-links}.mjs`, `docs/{decisions/0097-prototype-visual-parity.md,verification.md}`
+Files: `apps/admin/{app/prototype.css,components/{order-management,management-resource,workspace-section}.tsx,lib/{orders.ts,orders.test.ts}}`, `scripts/browser-qa/{orders-list,deep-links,order-picker,a11y-admin}.mjs`, `docs/{decisions/0097-prototype-visual-parity.md,parity-review.md,verification.md}`
 
 Tests:
 
-- `pnpm verify` PASS (age preview 2250). `pnpm test:gate` PASS (2586). Admin unit 72 PASS.
-- Admin browser passes PASS on fresh schemas, apart from the known `qa.mjs` publish check and the `deep-links` low-stock line (both the same on `main`).
+- `pnpm verify` PASS (age preview 2250). `pnpm test:gate` PASS (2586). Admin unit 76 PASS.
+- Admin browser passes PASS on fresh schemas, apart from the known `qa.mjs` publish check. `deep-links` passed in full this time.
 
 Unfinished:
 
-- **Merges:** Marina merges #119 (V-A1) first, then #120 (V-A2).
-- **Next, V-A3 orders:** `VIEWS.orders`, `VIEWS.order`, `order-edit`, `order-new`. Tables become card rows on a phone (G-A12 rest), and the page-head subtitles carry counts.
-- **To look into:** the API 500 on staff invitation in the QA stack (also on `main`), and the stale `deep-links` low-stock and `qa.mjs` publish checks.
+- **Merges:** Marina merges #119 → #120 → V-A3a, in that order.
+- **Next, V-A3b order detail:** `VIEWS.order`, with the status stepper and actions, the WhatsApp templates, collection, cancel and return, review link and packing slip, in the prototype markup. Collection stays a separate action.
+- **After that, V-A3c:** the manual order (`order-new`) and the edit (`order-edit`).
+- **To look into:** the staff-invitation API 500 in the QA stack, and the stale `qa.mjs` publish check.
 - **Client copy:** the gate's trade-licence line and "Genuine brand stock" wait for the client (BI-01).
 
 ## History (summary)
+
+- 2026-10-19 V-A2: admin dashboard like the prototype (PR #120, open at handoff).
 
 - 2026-10-18 V-A1: admin shell, overlays, confirmDialog (PR #119, open at handoff).
 

@@ -124,7 +124,7 @@ try {
     await page.getByRole("heading", { name: "Edit order" }).waitFor();
     await scan(page, `order detail ${tag}`);
     await page.goto(`${BASE}/workspace/orders`);
-    await page.getByRole("button", { name: "New order" }).click();
+    await page.getByRole("button", { name: "Create order", exact: true }).click();
     await page.getByRole("heading", { name: "New order" }).waitFor();
     await page.waitForLoadState("networkidle");
     await scan(page, `new order ${tag}`);
@@ -176,7 +176,7 @@ try {
 
   // Form errors: an empty required field in a management form is reported and reachable.
   await page.goto(BASE + "/workspace/orders");
-  await page.getByRole("button", { name: "New order" }).click();
+  await page.getByRole("button", { name: "Create order", exact: true }).click();
   await page.getByRole("heading", { name: "New order" }).waitFor();
   const missing = await page.evaluate(() => {
     const form = document.querySelector("main form");

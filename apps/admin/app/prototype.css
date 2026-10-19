@@ -3929,4 +3929,70 @@
   :root {
     box-sizing: border-box;
   }
+
+  /* ---------- admin: orders list (V-A3a, ADR 0097) ---------- */
+  .orders-head {
+    gap: 12px;
+  }
+  button.chipf {
+    padding: 0 11px;
+    color: var(--ink-2);
+  }
+  button.chipf.chipf-on {
+    background: var(--err-soft);
+    color: var(--err);
+    padding: 0 6px 0 11px;
+  }
+  .bulk-area {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .bulk {
+    border-radius: var(--r-md);
+  }
+  .bulk .bulk-go {
+    background: var(--surface);
+    color: var(--ink);
+  }
+  .bulk .bulk-clear {
+    margin-left: auto;
+  }
+  .bulk-results {
+    margin: 0;
+    padding-left: 18px;
+    font-size: 13px;
+  }
+  button.lnk-id {
+    padding: 0;
+    background: none;
+    border: 0;
+    cursor: pointer;
+  }
+  .nowrap {
+    white-space: nowrap;
+  }
+  .cust {
+    font-weight: 600;
+  }
+  button.mrow {
+    width: 100%;
+    text-align: left;
+    background: none;
+    border: 0;
+    border-bottom: 1px solid var(--line);
+    font: inherit;
+    color: inherit;
+  }
+  .orders-mpager {
+    margin-top: 8px;
+  }
+
+  .res-note:not(.note) {
+    display: contents;
+  }
+  .res-note.note {
+    align-items: center;
+    justify-content: space-between;
+  }
 }

@@ -1,6 +1,6 @@
 "use client";
 import { confirmDialog } from "../lib/ui/confirm";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   adminOrderResponseSchema,
   adminOrderCountsResponseSchema,
@@ -39,9 +39,14 @@ import {
   inputInstant,
   localInstant,
   money,
+  ORDER_DATE_RANGES,
   ORDER_STATUS_LABELS,
+  orderRangeStart,
+  type OrderDateRange,
   when,
 } from "../lib/orders";
+import { Icon } from "./icons";
+import { PageHead } from "./page-head";
 import { ManualOrderPanel } from "./manual-order";
 import { choiceLabel, OrderItemPicker } from "./order-item-picker";
 import { PackingSlip } from "./packing-slip";
@@ -91,10 +96,23 @@ export function OrderManagement({
   const urlOrder = query("order");
   const selected = isUuid(urlOrder) ? urlOrder : null;
   const setSelected = (id: string | null) => navigate({ order: id }, true);
-  const [search, setSearch] = useState("");
-  const [from, setFrom] = useState("");
-  const [to, setTo] = useState("");
   const [cursors, setCursors] = useState<string[]>([]);
+  // The prototype's toolbar: search as you type (after a pause) and a date choice in Dubai days.
+  const [typed, setTyped] = useState("");
+  const [search, setSearch] = useState("");
+  const [range, setRange] = useState<OrderDateRange>("all");
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      const next = typed.trim().slice(0, 100);
+      if (next !== search) {
+        setSearch(next);
+        setCursors([]);
+      }
+    }, 350);
+    return () => window.clearTimeout(timer);
+  }, [typed, search]);
+  // The start of the chosen range, fixed when it is chosen (not moving with every render).
+  const [from, setFrom] = useState<string | null>(null);
   // `?new=1` (the dashboard's "Create order") opens the manual order form.
   const [creating, setCreatingState] = useState(() => canCreate && query("new") === "1");
   const setCreating = (on: boolean) => {
@@ -166,8 +184,7 @@ export function OrderManagement({
   const shared = new URLSearchParams();
   if (delayed) shared.set("delayed", "true");
   if (search) shared.set("q", search);
-  if (from) shared.set("from", new Date(from).toISOString());
-  if (to) shared.set("to", new Date(to).toISOString());
+  if (from) shared.set("from", from);
   const counts = useManagementResource(
     `/orders/counts${shared.size ? `?${shared}` : ""}`,
     adminOrderCountsResponseSchema,
@@ -214,58 +231,76 @@ export function OrderManagement({
   };
   if (creating)
     return (
-      <ManualOrderPanel
-        canConfirm={canTransition}
-        canLookUp={canReadContact}
-        onCancel={() => setCreating(false)}
-        onCreated={(orderId) => {
-          setCreating(false);
-          setSelected(orderId);
-        }}
-      />
+      <>
+        <PageHead title="Orders" />
+        <ManualOrderPanel
+          canConfirm={canTransition}
+          canLookUp={canReadContact}
+          onCancel={() => setCreating(false)}
+          onCreated={(orderId) => {
+            setCreating(false);
+            setSelected(orderId);
+          }}
+        />
+      </>
     );
   if (selected)
     return (
-      <OrderDetail
-        id={selected}
-        canReadContact={canReadContact}
-        canTransition={canTransition}
-        canEdit={canEdit}
-        canCancel={canCancel}
-        canReturn={canReturn}
-        canCollect={canCollect}
-        canCorrect={canCorrect}
-        onBack={() => setSelected(null)}
-      />
+      <>
+        <PageHead title="Orders" />
+        <OrderDetail
+          id={selected}
+          canReadContact={canReadContact}
+          canTransition={canTransition}
+          canEdit={canEdit}
+          canCancel={canCancel}
+          canReturn={canReturn}
+          canCollect={canCollect}
+          canCorrect={canCorrect}
+          onBack={() => setSelected(null)}
+        />
+      </>
     );
+  const items = orders.data?.items ?? [];
+  const shownTotal = counts.data ? counts.data[status] : null;
+  const firstShown = cursors.length * PAGE_SIZE + 1;
+  const filtered = Boolean(search || from || delayed);
+  const clearFilters = () => {
+    setTyped("");
+    setSearch("");
+    setRange("all");
+    setFrom(null);
+    navigate({ status: null, delayed: null });
+    resetPage();
+  };
   return (
-    <section className="management-card order-management">
-      <header className="card-heading">
-        <div>
-          <h2>Orders</h2>
-          <p className="muted">
-            {counts.data
-              ? `${counts.data.all} ${counts.data.all === 1 ? "order" : "orders"} · ${counts.data.pending} waiting for confirmation`
-              : "Immutable order snapshots"}
-          </p>
-        </div>
-        {canCreate ? (
-          <button type="button" className="primary-button" onClick={() => setCreating(true)}>
-            New order
-          </button>
-        ) : (
-          <span className="badge">Live order operations</span>
-        )}
-      </header>
-      {/* The status tabs are a tablist; the delayed filter is a separate toggle beside it. */}
-      <div className="order-filter-row">
-        <div className="tab-list" role="tablist" aria-label="Order status">
+    <>
+      <PageHead
+        title="Orders"
+        sub={
+          counts.data && !filtered
+            ? `${counts.data.all.toLocaleString("en-AE")} ${counts.data.all === 1 ? "order" : "orders"} · ${counts.data.pending} waiting for confirmation`
+            : counts.data
+              ? `${counts.data.pending} waiting for confirmation`
+              : undefined
+        }
+        actions={
+          canCreate && (
+            <button type="button" className="btn btn-p" onClick={() => setCreating(true)}>
+              <Icon name="plus" />
+              Create order
+            </button>
+          )
+        }
+      />
+      <div className="stack orders-head">
+        <div className="tabs" role="tablist" aria-label="Order status">
           {STATUSES.map((value) => (
             <button
               key={value}
               type="button"
               role="tab"
-              className="secondary-button"
+              className="tab"
               aria-selected={status === value}
               onClick={() => {
                 setStatus(value);
@@ -273,37 +308,45 @@ export function OrderManagement({
               }}
             >
               {value === "all" ? "All" : ORDER_STATUS_LABELS[value]}
-              {counts.data && <span className="tab-count">{counts.data[value]}</span>}
+              {counts.data && <span className="c">{counts.data[value]}</span>}
             </button>
           ))}
         </div>
-        <button
-          type="button"
-          className="secondary-button"
-          aria-pressed={delayed}
-          onClick={() => {
-            navigate({ delayed: delayed ? null : "1" });
-            resetPage();
-          }}
-        >
-          Delayed only
-        </button>
-      </div>
-      <form
-        key={`${search}|${from}|${to}`}
-        className="order-filters"
-        onSubmit={(event) => {
-          event.preventDefault();
-          const data = new FormData(event.currentTarget);
-          setSearch(String(data.get("q") ?? "").trim());
-          setFrom(String(data.get("from") ?? ""));
-          setTo(String(data.get("to") ?? ""));
-          resetPage();
-        }}
-      >
-        <label>
-          <span>Sort</span>
+        <div className="toolbar">
+          <div className="search">
+            <Icon name="search" />
+            <label className="sr" htmlFor="orders-q">
+              Search orders
+            </label>
+            <input
+              id="orders-q"
+              type="search"
+              maxLength={100}
+              placeholder={canReadContact ? "Order number, customer name or phone" : "Order number"}
+              value={typed}
+              onChange={(event) => setTyped(event.target.value)}
+            />
+          </div>
           <select
+            className="fsel"
+            aria-label="Date"
+            value={range}
+            onChange={(event) => {
+              const next = event.target.value as OrderDateRange;
+              setRange(next);
+              setFrom(orderRangeStart(next, new Date()));
+              resetPage();
+            }}
+          >
+            {Object.entries(ORDER_DATE_RANGES).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+          <select
+            className="fsel"
+            aria-label="Sort"
             value={sort}
             onChange={(event) => {
               navigate({ sort: event.target.value === "newest" ? null : event.target.value });
@@ -315,54 +358,38 @@ export function OrderManagement({
             <option value="total_desc">Highest amount</option>
             <option value="total_asc">Lowest amount</option>
           </select>
-        </label>
-        <label className="wide-field">
-          <span>Search {canReadContact ? "order number, customer or phone" : "order number"}</span>
-          <input name="q" type="search" maxLength={100} defaultValue={search} />
-        </label>
-        <label>
-          <span>Placed from</span>
-          <input name="from" type="datetime-local" defaultValue={from} />
-        </label>
-        <label>
-          <span>Placed before</span>
-          <input name="to" type="datetime-local" defaultValue={to} />
-        </label>
-        <div className="form-actions wide-field">
-          <button type="submit" className="primary-button">
-            Apply filters
-          </button>
           <button
             type="button"
-            className="secondary-button"
+            className={delayed ? "chipf chipf-on" : "chipf"}
+            aria-pressed={delayed}
             onClick={() => {
-              setSearch("");
-              setFrom("");
-              setTo("");
-              navigate({ status: null, delayed: null });
+              navigate({ delayed: delayed ? null : "1" });
               resetPage();
             }}
           >
-            Clear filters
+            Delayed only
+            {delayed && <Icon name="x" size="sm" />}
           </button>
         </div>
-      </form>
-      <ResourceNotice resource={orders} />
+      </div>
+      <ResourceNotice resource={orders} compact />
       {canTransition && (chosen.size > 0 || bulkResults.length > 0 || bulkMessage) && (
-        <div className="record-card">
+        <div className="bulk-area">
           {chosen.size > 0 && (
-            <div className="form-actions">
+            <div className="bulk" role="region" aria-label="Selected orders">
+              <span>{chosen.size} selected</span>
               <button
                 type="button"
-                className="primary-button"
+                className="btn btn-sm bulk-go"
                 disabled={confirming}
                 onClick={() => void confirmChosen()}
               >
-                {unclear ? `Retry confirming ${chosen.size}` : `Confirm selected (${chosen.size})`}
+                <Icon name="check" size="sm" />
+                {unclear ? `Retry confirming ${chosen.size}` : `Confirm ${chosen.size} pending`}
               </button>
               <button
                 type="button"
-                className="secondary-button"
+                className="btn btn-sm btn-s bulk-clear"
                 disabled={confirming}
                 onClick={() => {
                   // Safe after an unclear answer too: a fresh selection re-checks each order's
@@ -372,19 +399,24 @@ export function OrderManagement({
                   if (unclear) orders.reload();
                 }}
               >
-                {unclear ? "Discard and reload" : "Clear selection"}
+                {unclear ? "Discard and reload" : "Clear"}
               </button>
-              <small className="muted">
-                At most 50 at a time; each order is confirmed on its own.
-              </small>
             </div>
           )}
-          {bulkMessage && <p role="alert">{bulkMessage}</p>}
+          {chosen.size > 0 && (
+            <p className="small muted">At most 50 at a time; each order is confirmed on its own.</p>
+          )}
+          {bulkMessage && (
+            <div className="note err" role="alert">
+              <Icon name="alert" />
+              <p>{bulkMessage}</p>
+            </div>
+          )}
           {bulkResults.length > 0 && (
-            <ul className="record-list" aria-label="Bulk confirm results">
+            <ul className="bulk-results" aria-label="Bulk confirm results">
               {bulkResults.map((result) => (
                 <li key={result.orderId}>
-                  {result.orderNumber}:{" "}
+                  <span className="mono">{result.orderNumber}</span>:{" "}
                   {result.outcome === "confirmed"
                     ? result.replayed
                       ? "already confirmed by this action"
@@ -396,108 +428,198 @@ export function OrderManagement({
           )}
         </div>
       )}
-      {orders.data && (
-        <>
-          {orders.data.items.length === 0 ? (
-            <p className="muted">No orders match these filters.</p>
-          ) : (
-            <div className="order-table-wrap">
-              <table className="order-table">
-                <thead>
-                  <tr>
-                    {canTransition && (
-                      <th>
-                        <input
-                          type="checkbox"
-                          aria-label="Select all pending orders on this page"
-                          checked={allPendingChosen}
-                          ref={(box) => {
-                            if (box) box.indeterminate = somePendingChosen && !allPendingChosen;
-                          }}
-                          disabled={selectablePending.length === 0 || unclear}
-                          onChange={(event) => chooseAllPending(event.target.checked)}
-                        />
-                      </th>
-                    )}
-                    <th>Order</th>
-                    <th>Customer</th>
-                    <th>Items</th>
-                    <th>Amount</th>
-                    <th>Payment</th>
-                    <th>Status</th>
-                    <th>Placed</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {orders.data.items.map((order) => (
-                    <OrderRow
-                      key={order.id}
-                      order={order}
-                      open={() => setSelected(order.id)}
-                      selectable={canTransition}
-                      checked={chosen.has(order.id)}
-                      disabled={
-                        order.status !== "pending" ||
-                        unclear ||
-                        (!chosen.has(order.id) && chosen.size >= 50)
-                      }
-                      toggle={(on) => choose(order, on)}
-                    />
-                  ))}
-                </tbody>
-              </table>
+      {orders.data &&
+        (items.length === 0 ? (
+          <div className="card">
+            <div className="empty">
+              <div className="ic">
+                <Icon name="search" />
+              </div>
+              <h3>No orders match</h3>
+              <p>
+                {search
+                  ? `Nothing found for “${search}”. Check the order number or phone number.`
+                  : "Try another status or date range."}
+              </p>
+              {filtered || status !== "all" ? (
+                <div className="row">
+                  <button type="button" className="btn btn-s" onClick={clearFilters}>
+                    Clear filters
+                  </button>
+                </div>
+              ) : null}
             </div>
-          )}
-          {/* Phones (parity G-A5): each order as a card; the table above is for wider screens. */}
-          {orders.data.items.length > 0 && (
-            <ul className="order-cards" aria-label="Orders">
-              {orders.data.items.map((order) => (
-                <li key={order.id}>
+          </div>
+        ) : (
+          <>
+            <div className="tbl-wrap only-d">
+              <div className="tbl-scroll">
+                <table className="tbl">
+                  <thead>
+                    <tr>
+                      {canTransition && (
+                        <th className="w1">
+                          <input
+                            type="checkbox"
+                            className="cb"
+                            aria-label="Select all pending orders on this page"
+                            checked={allPendingChosen}
+                            ref={(box) => {
+                              if (box) box.indeterminate = somePendingChosen && !allPendingChosen;
+                            }}
+                            disabled={selectablePending.length === 0 || unclear}
+                            onChange={(event) => chooseAllPending(event.target.checked)}
+                          />
+                        </th>
+                      )}
+                      <th>Order</th>
+                      <th>Customer</th>
+                      <th>Phone</th>
+                      <th className="num">Amount</th>
+                      <th>Payment</th>
+                      <th>Status</th>
+                      <th>Placed</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {items.map((order) => (
+                      <OrderRow
+                        key={order.id}
+                        order={order}
+                        open={() => setSelected(order.id)}
+                        selectable={canTransition}
+                        checked={chosen.has(order.id)}
+                        disabled={
+                          order.status !== "pending" ||
+                          unclear ||
+                          (!chosen.has(order.id) && chosen.size >= 50)
+                        }
+                        toggle={(on) => choose(order, on)}
+                      />
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <Pager
+                first={firstShown}
+                count={items.length}
+                total={shownTotal}
+                page={cursors.length + 1}
+                busy={orders.busy}
+                hasPrevious={cursors.length > 0}
+                hasNext={Boolean(orders.data.nextCursor)}
+                previous={() => setCursors((value) => value.slice(0, -1))}
+                next={() => setCursors((value) => [...value, orders.data!.nextCursor!])}
+              />
+            </div>
+            {/* Phones: the prototype's order rows (`orderRowM`) in place of the table. */}
+            <div className="only-m">
+              <div className="mlist">
+                {items.map((order) => (
                   <button
+                    key={order.id}
                     type="button"
-                    className="order-card"
+                    className="mrow"
                     onClick={() => setSelected(order.id)}
                   >
-                    <span className="order-card-line">
-                      <strong>{order.orderNumber}</strong>
-                      <span className={`order-status status-${order.status}`}>
-                        {ORDER_STATUS_LABELS[order.status]}
+                    <span className="mrow-b">
+                      <span className="mrow-t">
+                        <span className="lnk-id">{order.orderNumber}</span>
+                        <StatusBadge status={order.status} />
+                      </span>
+                      <span className="mrow-t">
+                        <b>{order.customer?.name ?? "Contact hidden"}</b>
+                        <span className="amt">{money(order.totalFils)}</span>
+                      </span>
+                      <span className="meta">
+                        <span>{when(order.createdAt)}</span>
+                        <span aria-hidden="true">·</span>
+                        <span>
+                          {order.itemCount} {order.itemCount === 1 ? "item" : "items"}
+                        </span>
+                        <span aria-hidden="true">·</span>
+                        <span>{order.areaName}</span>
                       </span>
                     </span>
-                    <span className="order-card-line">
-                      <span>{order.customer?.name ?? "Contact hidden"}</span>
-                      <strong>{money(order.totalFils)}</strong>
-                    </span>
-                    <small className="muted">
-                      {when(order.createdAt)} · {order.itemCount}{" "}
-                      {order.itemCount === 1 ? "item" : "items"} · {order.areaName}
-                    </small>
                   </button>
-                </li>
-              ))}
-            </ul>
-          )}
-          <div className="form-actions">
-            <button
-              type="button"
-              className="secondary-button"
-              disabled={cursors.length === 0 || orders.busy}
-              onClick={() => setCursors((value) => value.slice(0, -1))}
-            >
-              Previous page
-            </button>
-            <button
-              type="button"
-              className="secondary-button"
-              disabled={!orders.data.nextCursor || orders.busy}
-              onClick={() => setCursors((value) => [...value, orders.data!.nextCursor!])}
-            >
-              Next page
-            </button>
-          </div>
-        </>
-      )}
-    </section>
+                ))}
+              </div>
+              <div className="tbl-wrap orders-mpager">
+                <Pager
+                  first={firstShown}
+                  count={items.length}
+                  total={shownTotal}
+                  page={cursors.length + 1}
+                  busy={orders.busy}
+                  hasPrevious={cursors.length > 0}
+                  hasNext={Boolean(orders.data.nextCursor)}
+                  previous={() => setCursors((value) => value.slice(0, -1))}
+                  next={() => setCursors((value) => [...value, orders.data!.nextCursor!])}
+                />
+              </div>
+            </div>
+          </>
+        ))}
+    </>
+  );
+}
+
+const PAGE_SIZE = 25;
+
+/** The prototype's status badge (`stBadge`). */
+export function StatusBadge({ status }: { status: string }) {
+  return (
+    <span className={`st st-${status === "out_for_delivery" ? "ofd" : status}`}>
+      {ORDER_STATUS_LABELS[status] ?? status}
+    </span>
+  );
+}
+
+/**
+ * The prototype's table foot (`pager`). The list pages by position (keyset), so it steps back
+ * and forward; the range shown comes from the tab's count.
+ */
+function Pager(props: {
+  first: number;
+  count: number;
+  total: number | null;
+  page: number;
+  busy: boolean;
+  hasPrevious: boolean;
+  hasNext: boolean;
+  previous: () => void;
+  next: () => void;
+}) {
+  const last = props.first + props.count - 1;
+  return (
+    <div className="tbl-f">
+      <span>
+        {props.count
+          ? `Showing ${props.first.toLocaleString("en-AE")}–${last.toLocaleString("en-AE")}${props.total !== null ? ` of ${props.total.toLocaleString("en-AE")}` : ""}`
+          : "No results"}
+      </span>
+      <div className="pager">
+        <button
+          type="button"
+          aria-label="Previous page"
+          disabled={!props.hasPrevious || props.busy}
+          onClick={props.previous}
+        >
+          <Icon name="cl" size="sm" />
+        </button>
+        <button type="button" aria-current="page" aria-label={`Page ${props.page}`}>
+          {props.page}
+        </button>
+        <button
+          type="button"
+          aria-label="Next page"
+          disabled={!props.hasNext || props.busy}
+          onClick={props.next}
+        >
+          <Icon name="cr" size="sm" />
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -525,12 +647,14 @@ function OrderRow({
   disabled: boolean;
   toggle: (on: boolean) => void;
 }) {
+  // The prototype's clickable row; the order number is the keyboard way in.
   return (
-    <tr tabIndex={0} onClick={open} onKeyDown={(e) => e.key === "Enter" && open()}>
+    <tr className={checked ? "click sel" : "click"} onClick={open}>
       {selectable && (
-        <td onClick={(event) => event.stopPropagation()}>
+        <td className="w1" onClick={(event) => event.stopPropagation()}>
           <input
             type="checkbox"
+            className="cb"
             aria-label={`Select ${order.orderNumber}`}
             checked={checked}
             disabled={disabled && !checked}
@@ -539,36 +663,53 @@ function OrderRow({
         </td>
       )}
       <td>
-        <button type="button" className="order-link" onClick={open}>
+        <button
+          type="button"
+          className="lnk-id"
+          onClick={(event) => {
+            event.stopPropagation();
+            open();
+          }}
+        >
           {order.orderNumber}
         </button>
-        <small>{order.source}</small>
+        {order.source !== "storefront" && (
+          <div className="xs muted">{SOURCE_LABELS[order.source] ?? order.source}</div>
+        )}
       </td>
       <td>
         {order.customer ? (
-          <>
-            <strong>{order.customer.name}</strong>
-            <small>{order.customer.phone}</small>
-          </>
+          <b className="cust">{order.customer.name}</b>
         ) : (
           <span className="muted">Contact hidden</span>
         )}
       </td>
-      <td>{order.itemCount}</td>
-      <td>{money(order.totalFils)}</td>
-      <td>{COD_STATUS_LABELS[order.codStatus]}</td>
-      <td>
-        <span className={`order-status status-${order.status}`}>
-          {ORDER_STATUS_LABELS[order.status]}
-        </span>
+      <td className="mono muted nowrap">{order.customer?.phone ?? "—"}</td>
+      <td className="num">
+        {money(order.totalFils)}
+        <div className="xs muted">
+          {order.itemCount} {order.itemCount === 1 ? "item" : "items"}
+        </div>
       </td>
       <td>
+        <span className="small">COD</span>
+        <div className="xs muted">{COD_STATUS_LABELS[order.codStatus]}</div>
+      </td>
+      <td>
+        <StatusBadge status={order.status} />
+      </td>
+      <td className="small nowrap">
         {when(order.createdAt)}
-        <small>{order.areaName}</small>
+        <div className="xs muted">{order.areaName}</div>
       </td>
     </tr>
   );
 }
+
+const SOURCE_LABELS: Record<string, string> = {
+  storefront: "Storefront",
+  manual: "Created in admin",
+};
 
 type TransitionTarget = "confirmed" | "processing" | "out_for_delivery" | "delivered";
 const NEXT: Partial<Record<AdminOrderResponse["status"], { to: TransitionTarget; label: string }>> =
