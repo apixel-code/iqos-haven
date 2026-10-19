@@ -1,4 +1,5 @@
 "use client";
+import { confirmDialog } from "../lib/ui/confirm";
 import { useState } from "react";
 import {
   staffListResponseSchema,
@@ -123,7 +124,15 @@ export function StaffManagement() {
                         className="secondary-button"
                         disabled={pending.disabled}
                         onClick={async () => {
-                          if (!window.confirm(`Revoke the invitation for ${item.email}?`)) return;
+                          if (
+                            !(await confirmDialog({
+                              title: `Revoke the invitation for ${item.email}?`,
+                              body: "The invitation link stops working.",
+                              ok: "Revoke invitation",
+                              danger: true,
+                            }))
+                          )
+                            return;
                           const outcome = await pending.run((signal) =>
                             managementRequest(
                               "/staff/invitations/revoke",
@@ -277,42 +286,43 @@ export function StaffManagement() {
                       onSubmit={(e) => {
                         e.preventDefault();
                         const data = new FormData(e.currentTarget);
-                        if (
-                          !window.confirm(
-                            `Change ${staff.name}'s role? Their sessions will be revoked.${self ? " You may be signed out." : ""}`,
-                          )
-                        )
-                          return;
-                        void resource
-                          .run(async (signal) =>
-                            managementRequest(
-                              `/staff/${staff.id}/role`,
-                              staffResponseSchema,
-                              "POST",
-                              validate(staffRoleRequestSchema, {
-                                version: staff.version,
-                                role: data.get("role"),
-                              }),
-                              signal,
-                            ),
-                          )
-                          .then((outcome) => {
-                            if (outcome.ok) {
-                              if (self && outcome.value.role !== session?.user.role)
-                                window.location.replace("/login?reason=expired");
-                              else
-                                resource.setData((current) =>
-                                  current
-                                    ? {
-                                        ...current,
-                                        items: current.items.map((item) =>
-                                          item.id === staff.id ? outcome.value : item,
-                                        ),
-                                      }
-                                    : current,
-                                );
-                            }
-                          });
+                        void confirmDialog({
+                          title: `Change ${staff.name}'s role?`,
+                          body: `Their sessions will be revoked.${self ? " You may be signed out." : ""}`,
+                          ok: "Change role",
+                        }).then((ok) => {
+                          if (!ok) return;
+                          void resource
+                            .run(async (signal) =>
+                              managementRequest(
+                                `/staff/${staff.id}/role`,
+                                staffResponseSchema,
+                                "POST",
+                                validate(staffRoleRequestSchema, {
+                                  version: staff.version,
+                                  role: data.get("role"),
+                                }),
+                                signal,
+                              ),
+                            )
+                            .then((outcome) => {
+                              if (outcome.ok) {
+                                if (self && outcome.value.role !== session?.user.role)
+                                  window.location.replace("/login?reason=expired");
+                                else
+                                  resource.setData((current) =>
+                                    current
+                                      ? {
+                                          ...current,
+                                          items: current.items.map((item) =>
+                                            item.id === staff.id ? outcome.value : item,
+                                          ),
+                                        }
+                                      : current,
+                                  );
+                              }
+                            });
+                        });
                       }}
                     >
                       <fieldset disabled={resource.disabled}>
@@ -333,9 +343,12 @@ export function StaffManagement() {
                       disabled={resource.disabled}
                       onClick={async () => {
                         if (
-                          !window.confirm(
-                            `${staff.active ? "Deactivate" : "Reactivate"} ${staff.name}?${staff.active ? " Existing sessions will be revoked." : " Old sessions remain revoked."}${self ? " You will be signed out." : ""}`,
-                          )
+                          !(await confirmDialog({
+                            title: `${staff.active ? "Deactivate" : "Reactivate"} ${staff.name}?`,
+                            body: `${staff.active ? "Existing sessions will be revoked." : "Old sessions remain revoked."}${self ? " You will be signed out." : ""}`,
+                            ok: staff.active ? "Deactivate" : "Reactivate",
+                            danger: staff.active,
+                          }))
                         )
                           return;
                         if (staff.active) {
@@ -367,9 +380,11 @@ export function StaffManagement() {
                         disabled={resource.disabled}
                         onClick={async () => {
                           if (
-                            !window.confirm(
-                              `Email ${staff.name} a password reset link? Their current password keeps working until they use it.`,
-                            )
+                            !(await confirmDialog({
+                              title: `Email ${staff.name} a password reset link?`,
+                              body: "Their current password keeps working until they use it.",
+                              ok: "Send reset link",
+                            }))
                           )
                             return;
                           setResetSent(null);

@@ -1,4 +1,5 @@
 "use client";
+import { confirmDialog } from "../lib/ui/confirm";
 import { productReadinessSchema, type ProductReadiness } from "@ih/contracts";
 import { managementRequest } from "../lib/management";
 import { requirementLabel } from "../lib/publication";
@@ -23,7 +24,23 @@ export function ProductPublishing({
   );
   const data = readiness.data;
   const act = async (command: "publish" | "unpublish" | "trash", confirm?: string) => {
-    if (!data || (confirm && !window.confirm(confirm))) return;
+    if (!data) return;
+    if (
+      confirm &&
+      !(await confirmDialog({
+        title:
+          command === "trash"
+            ? "Move to Trash?"
+            : command === "unpublish"
+              ? "Unpublish this product?"
+              : "Publish this product?",
+        body: confirm,
+        ok:
+          command === "trash" ? "Move to Trash" : command === "unpublish" ? "Unpublish" : "Publish",
+        danger: command === "trash",
+      }))
+    )
+      return;
     const outcome = await readiness.run((signal) =>
       managementRequest(
         `/products/${productId}/${command}`,

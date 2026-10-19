@@ -1,4 +1,5 @@
 "use client";
+import { confirmDialog } from "../lib/ui/confirm";
 import { useState } from "react";
 import {
   adminCustomerResponseSchema,
@@ -180,7 +181,13 @@ export function ManualOrderPanel({
       );
       return;
     }
-    if (!window.confirm(`Create this order for ${money(quote.totalFils)}?`)) return;
+    if (
+      !(await confirmDialog({
+        title: `Create this order for ${money(quote.totalFils)}?`,
+        ok: "Create order",
+      }))
+    )
+      return;
     setBusy(true);
     setMessage("");
     try {

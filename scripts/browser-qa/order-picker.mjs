@@ -8,6 +8,7 @@ import { randomUUID } from "node:crypto";
 import { mkdirSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { autoConfirm } from "./confirm.mjs";
 
 const root = resolve(fileURLToPath(new URL(".", import.meta.url)), "../..");
 const playwrightDir = process.env.QA_PLAYWRIGHT_DIR;
@@ -113,7 +114,7 @@ async function session(email, viewport = { width: 1366, height: 900 }) {
   const page = await context.newPage();
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
-  page.on("dialog", (dialog) => void dialog.accept());
+  await autoConfirm(page);
   await page.goto(BASE + "/login");
   await page.fill('input[name="email"]', email);
   await page.fill('input[name="password"]', PASSWORD);
@@ -127,7 +128,7 @@ const picks = (page) => page.getByRole("list", { name: "Matching products" });
 
 async function openNewOrder(page) {
   await page.goto(BASE + "/workspace/orders");
-  await page.getByRole("button", { name: "New order" }).click();
+  await page.getByRole("button", { name: "Create order", exact: true }).click();
   await page.getByRole("heading", { name: "New order" }).waitFor();
 }
 async function pick(page, query, label) {
@@ -141,7 +142,8 @@ async function createOrder(page) {
   await page.getByLabel("The customer confirmed they are 18 or older.").check();
   await page.getByRole("button", { name: /Create order · AED/ }).click();
   try {
-    await page.getByRole("heading", { name: "Edit order" }).waitFor({ timeout: 15000 });
+    // The new order's detail opens (its progress card, V-A3b).
+    await page.locator(".prog").waitFor({ timeout: 15000 });
   } catch (error) {
     await page.screenshot({ path: out + "order-picker-failed.png", fullPage: true });
     throw error;
@@ -247,8 +249,10 @@ try {
   );
 
   // 3. Order edit: add a variant from the picker instead of typing its ID.
-  await page.getByRole("heading", { name: "Edit order" }).waitFor();
-  const edit = page.locator("article", { has: page.getByRole("heading", { name: "Edit order" }) });
+  // The prototype's Edit button opens the edit drawer (V-A3b).
+  await page.getByRole("button", { name: "Edit", exact: true }).click();
+  const edit = page.getByRole("dialog", { name: "Edit order" });
+  await edit.waitFor();
   check(
     "the edit has no typed variant ID field",
     (await edit.getByPlaceholder("UUID").count()) === 0,

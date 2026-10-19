@@ -1,4 +1,5 @@
 "use client";
+import { confirmDialog } from "../lib/ui/confirm";
 import {
   settingsResponseSchema,
   settingResponseSchema,
@@ -141,8 +142,13 @@ export function SettingsManagement() {
                       type="button"
                       className="secondary-button"
                       onClick={() => {
-                        if (window.confirm(`Clear ${group.title.toLowerCase()} configuration?`))
-                          void save(null);
+                        void confirmDialog({
+                          title: `Clear ${group.title.toLowerCase()} configuration?`,
+                          ok: "Clear configuration",
+                          danger: true,
+                        }).then((ok) => {
+                          if (ok) void save(null);
+                        });
                       }}
                     >
                       Clear configuration

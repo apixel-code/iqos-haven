@@ -71,7 +71,7 @@ const tabText = (page, name) => page.getByRole("tab", { name: new RegExp(`^${nam
 try {
   const { context, page, errors } = await session({ width: 1366, height: 900 });
   await page.goto(BASE + "/workspace/orders");
-  await page.locator(".tab-count").first().waitFor();
+  await page.locator("[role=tab] .c").first().waitFor();
   check(
     (await tabText(page, "All")).includes(String(counts.total)),
     "the All tab shows the number of orders",
@@ -89,8 +89,8 @@ try {
 
   await page.getByLabel("Sort").selectOption("total_desc");
   await page.waitForURL(/sort=total_desc/);
-  await page.locator(".order-table tbody tr").first().waitFor();
-  const firstRow = await page.locator(".order-table tbody tr").first().innerText();
+  await page.locator(".tbl tbody tr").first().waitFor();
+  const firstRow = await page.locator(".tbl tbody tr").first().innerText();
   check(
     firstRow.includes(formatOrderNumber(BigInt(large.orderNumber))),
     "Highest amount puts the largest order first",
@@ -101,16 +101,16 @@ try {
 
   await page.getByRole("tab", { name: /^Pending/ }).click();
   await page.waitForURL(/status=pending/);
-  await page.locator(".order-table tbody tr").first().waitFor();
+  await page.locator(".tbl tbody tr").first().waitFor();
   const selectAll = page.getByLabel("Select all pending orders on this page");
   await selectAll.check();
   await page
-    .getByRole("button", { name: new RegExp(`Confirm selected \\(${counts.pending}\\)`) })
+    .getByRole("button", { name: new RegExp(`Confirm ${counts.pending} pending`) })
     .waitFor();
   check(true, "select-all chooses every pending order on the page");
   await selectAll.uncheck();
   check(
-    (await page.getByRole("button", { name: /Confirm selected/ }).count()) === 0,
+    (await page.getByRole("button", { name: /Confirm \d+ pending/ }).count()) === 0,
     "unchecking clears the selection",
   );
   await page.screenshot({ path: out + "orders-list-1366.png", fullPage: true });
@@ -119,12 +119,9 @@ try {
 
   const phone = await session({ width: 390, height: 844 });
   await phone.page.goto(BASE + "/workspace/orders");
-  await phone.page.locator(".order-card").first().waitFor();
-  check(
-    !(await phone.page.locator(".order-table").isVisible()),
-    "on a phone the table gives way to cards",
-  );
-  const card = await phone.page.locator(".order-card").first().innerText();
+  await phone.page.locator(".mlist .mrow").first().waitFor();
+  check(!(await phone.page.locator(".tbl").isVisible()), "on a phone the table gives way to cards");
+  const card = await phone.page.locator(".mlist .mrow").first().innerText();
   check(
     /IH-\d{6,}/.test(card) && /AED/.test(card) && /item/.test(card),
     "a card shows number, amount and items",
@@ -135,7 +132,7 @@ try {
     "no sideways scrolling at 390px",
   );
   await phone.page.screenshot({ path: out + "orders-list-390.png", fullPage: true });
-  await phone.page.locator(".order-card").first().click();
+  await phone.page.locator(".mlist .mrow").first().click();
   await phone.page.waitForURL(/order=/);
   await phone.page.getByRole("heading", { name: /IH-\d{6,}/ }).waitFor();
   check(true, "tapping a card opens the order");

@@ -3,6 +3,7 @@ import { createRequire } from "node:module";
 import { mkdirSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { autoConfirm } from "./confirm.mjs";
 
 // playwright-core is not a project dependency: install it outside the repo and point
 // QA_PLAYWRIGHT_DIR at that directory (see README.md).
@@ -222,7 +223,7 @@ try {
     JSON.stringify(propagation),
   );
   // Step 51: publishing card, trash, Trash tab, restore and permanent delete
-  page.on("dialog", (dialog) => void dialog.accept());
+  await autoConfirm(page);
   await page.goto(BASE + "/workspace/products");
   await page
     .getByRole("button", { name: /Edit product/ })

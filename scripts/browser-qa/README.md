@@ -30,6 +30,10 @@ Notes: ports 3001, 4000 and 4099 (loopback QA status probe: counts only) must be
 the production admin start (the admin client only calls the same-origin `/api`). Real mobile
 touch/keyboard and reset/invite submissions are not covered.
 
+## Admin confirmations (V-A1, parity G-A13)
+
+The admin no longer uses `window.confirm`. A pass that used to accept native dialogs calls `autoConfirm(page)` from `confirm.mjs`, which clicks the confirmation dialog's confirm button as soon as it appears. `answerConfirm(page, yes)` answers the next one explicitly. Sign-in limits build up over many runs on one schema; give a long session a fresh `qa-server.cjs` schema.
+
 ## Storefront shopper journey (steps 80–82, M7 gate)
 
 `checkout.mjs` drives the whole journey at 360px against the stack served by the gate script:

@@ -44,3 +44,31 @@ export const addressLine = (order: AdminOrderResponse) => {
     .filter(Boolean)
     .join(", ");
 };
+
+/** The prototype's date choices on the orders list (Dubai days, UTC+4 all year). */
+export const ORDER_DATE_RANGES = {
+  all: "All dates",
+  today: "Today",
+  "7d": "Last 7 days",
+  "30d": "Last 30 days",
+  month: "This month",
+} as const;
+export type OrderDateRange = keyof typeof ORDER_DATE_RANGES;
+const DUBAI_OFFSET_MS = 4 * 60 * 60 * 1000;
+const DAY_MS = 24 * 60 * 60 * 1000;
+/** When the range starts, as an ISO instant (`null` for all dates); it runs up to now. */
+export function orderRangeStart(range: OrderDateRange, now: Date): string | null {
+  if (range === "all") return null;
+  const dubai = new Date(now.getTime() + DUBAI_OFFSET_MS);
+  const [y, m, d] = [dubai.getUTCFullYear(), dubai.getUTCMonth(), dubai.getUTCDate()];
+  const midnight = Date.UTC(y, m, d) - DUBAI_OFFSET_MS;
+  const start =
+    range === "today"
+      ? midnight
+      : range === "7d"
+        ? midnight - 6 * DAY_MS
+        : range === "30d"
+          ? midnight - 29 * DAY_MS
+          : Date.UTC(y, m, 1) - DUBAI_OFFSET_MS;
+  return new Date(start).toISOString();
+}

@@ -1,65 +1,70 @@
 @import "tailwindcss";
 @import "@ih/tokens/admin.theme.css";
+@import "./prototype.css";
 @source "../../../packages/ui-core/src";
 
-body {
-  @apply bg-bg text-ink font-sans antialiased;
+/* Element defaults and the old text helpers sit in the base layer, under the admin prototype's
+   rules (prototype.css, components layer), so a rebuilt screen looks like the prototype and an
+   older one still gets them where the prototype has nothing (V-A2). */
+@layer base {
+  body {
+    @apply bg-bg text-ink font-sans antialiased;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+  /* Buttons and inputs take the page font from Tailwind's preflight (base layer); an unlayered
+     rule here would override the prototype's sizes (prototype.css, components layer). */
+  button,
+  a,
+  input {
+    -webkit-tap-highlight-color: transparent;
+  }
+  button {
+    cursor: pointer;
+  }
+  button:disabled {
+    cursor: wait;
+    opacity: 0.6;
+  }
+  a {
+    text-decoration: none;
+  }
+  a:hover {
+    text-decoration: underline;
+  }
+  :focus-visible {
+    outline: 3px solid var(--accent);
+    outline-offset: 3px;
+  }
+  h1 {
+    font-size: clamp(1.5rem, 3vw, 2rem);
+    font-weight: 600;
+    letter-spacing: -0.035em;
+    line-height: 1.25;
+  }
+  h2 {
+    font-size: 1.05rem;
+    font-weight: 600;
+  }
+  .muted {
+    color: var(--ink-2);
+    font-size: 0.875rem;
+    line-height: 1.7;
+  }
+  .small {
+    font-size: 0.75rem;
+  }
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    color: var(--ink-3);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
 }
 
-* {
-  box-sizing: border-box;
-}
-button,
-input {
-  font: inherit;
-}
-button,
-a,
-input {
-  -webkit-tap-highlight-color: transparent;
-}
-button {
-  cursor: pointer;
-}
-button:disabled {
-  cursor: wait;
-  opacity: 0.6;
-}
-a {
-  text-decoration: none;
-}
-a:hover {
-  text-decoration: underline;
-}
-:focus-visible {
-  outline: 3px solid var(--accent);
-  outline-offset: 3px;
-}
-h1 {
-  font-size: clamp(1.5rem, 3vw, 2rem);
-  font-weight: 600;
-  letter-spacing: -0.035em;
-  line-height: 1.25;
-}
-h2 {
-  font-size: 1.05rem;
-  font-weight: 600;
-}
-.muted {
-  color: var(--ink-2);
-  font-size: 0.875rem;
-  line-height: 1.7;
-}
-.small {
-  font-size: 0.75rem;
-}
-.eyebrow {
-  font-family: var(--mono);
-  font-size: 0.7rem;
-  color: var(--ink-3);
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-}
 .auth-page {
   min-height: 100dvh;
   display: flex;
@@ -184,86 +189,13 @@ h2 {
   padding: 24px;
   text-align: center;
 }
-.workspace {
-  min-height: 100dvh;
-  background: var(--bg);
-  color: var(--ink);
-  display: grid;
-  grid-template-columns: 228px minmax(0, 1fr);
-}
-.sidebar {
-  min-width: 0;
-  background: var(--surface);
-  border-right: 1px solid var(--line);
-  padding: 22px 14px;
+/* The workspace shell is the admin prototype's (prototype.css, V-A1); a screen's content sits in
+   the shell's `.page`, which gives it its padding. */
+.page-content {
   display: flex;
   flex-direction: column;
-  gap: 28px;
-}
-.workspace-brand {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 0.9rem;
-  font-weight: 600;
-  padding: 0 8px;
-}
-.sidebar nav {
-  display: grid;
-  gap: 3px;
-}
-.sidebar nav a {
-  padding: 10px 12px;
-  border-radius: 7px;
-  color: var(--ink-2);
-  font-size: 0.8rem;
-}
-.sidebar nav a[aria-current="page"] {
-  background: var(--surface-2);
-  color: var(--ink);
-  font-weight: 500;
-}
-.sidebar-bottom {
-  margin-top: auto;
-  display: grid;
-  gap: 14px;
-  text-align: left;
-}
-.workspace-header {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 18px 32px;
-  border-bottom: 1px solid var(--line);
-  background: var(--surface);
-  font-size: 0.8rem;
-}
-.workspace-body {
+  gap: 20px;
   min-width: 0;
-}
-.page-content {
-  padding: 32px;
-  display: grid;
-  gap: 12px;
-}
-.section-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 16px;
-  margin-top: 16px;
-}
-.section-card {
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  display: grid;
-  gap: 10px;
-  padding: 22px;
-}
-.section-card:hover {
-  border-color: var(--ink-3);
-  text-decoration: none;
 }
 .empty-panel {
   margin-top: 16px;
@@ -620,31 +552,13 @@ h2 {
   border-radius: 4px;
 }
 
-/* Operational home (step 108) */
-.dashboard {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 16px;
-}
-.attention {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-.attention-item {
-  border: 1px solid var(--warn);
-  background: var(--warn-soft);
-  color: var(--ink);
-  border-radius: 999px;
-  padding: 6px 12px;
-  font-weight: 600;
-}
+/* Operational home (step 108): the prototype's dashboard (V-A2); analytics keeps its KPI tiles. */
 .kpi-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 12px;
 }
-.kpi {
+.kpi-grid .kpi {
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 10px;
@@ -653,23 +567,9 @@ h2 {
   padding: 16px;
   color: var(--ink);
 }
-a.kpi:hover {
-  border-color: var(--ink-3);
-  text-decoration: none;
-}
-.kpi-value {
+.kpi-grid .kpi-value {
   font-size: 1.6rem;
   font-weight: 700;
-}
-.dashboard-split {
-  display: grid;
-  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
-  gap: 16px;
-  align-items: start;
-}
-.dashboard-stack {
-  display: grid;
-  gap: 16px;
 }
 .dashboard-list {
   display: grid;
@@ -680,19 +580,6 @@ a.kpi:hover {
 ul.dashboard-list {
   list-style: none;
   padding-left: 0;
-}
-.stock-low {
-  color: var(--warn);
-  font-weight: 600;
-}
-.stock-out {
-  color: var(--err);
-  font-weight: 600;
-}
-@media (max-width: 900px) {
-  .dashboard-split {
-    grid-template-columns: minmax(0, 1fr);
-  }
 }
 
 /* Owner analytics (step 109) */
@@ -1200,4 +1087,22 @@ ul.dashboard-list {
 .leave-dialog p {
   margin: 0 0 16px;
   color: var(--ink-2);
+}
+
+/* Order panels moved into the prototype's drawers (V-A3b): the drawer is the card and carries
+   the title, so the panel's own frame and heading step aside. */
+.management-card.in-drawer {
+  border: 0;
+  padding: 0;
+  background: none;
+  box-shadow: none;
+}
+.in-drawer > .record-card {
+  border: 0;
+  padding: 0;
+  background: none;
+  box-shadow: none;
+}
+.in-drawer > .record-card > h3:first-child {
+  display: none;
 }

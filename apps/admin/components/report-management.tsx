@@ -1,4 +1,5 @@
 "use client";
+import { confirmDialog } from "../lib/ui/confirm";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   reportJobSchema,
@@ -113,9 +114,11 @@ export function ReportManagement({
     ) as ReportParams;
     if (
       PERSONAL.includes(type) &&
-      !window.confirm(
-        "This file contains customer names and phone numbers. Store it securely and do not share it outside the business. Continue?",
-      )
+      !(await confirmDialog({
+        title: "Export customer details?",
+        body: "This file contains customer names and phone numbers. Store it securely and do not share it outside the business.",
+        ok: "Export",
+      }))
     )
       return;
     // The same request retried (a lost answer) keeps its command ID, so it never doubles.

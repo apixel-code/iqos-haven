@@ -1,6 +1,8 @@
 "use client";
-import { useState } from "react";
+import { confirmDialog } from "../lib/ui/confirm";
+import { useEffect, useState } from "react";
 import {
+  EMIRATE_NAMES,
   adminOrderResponseSchema,
   adminOrderCountsResponseSchema,
   adminOrdersResponseSchema,
@@ -38,9 +40,16 @@ import {
   inputInstant,
   localInstant,
   money,
+  ORDER_DATE_RANGES,
   ORDER_STATUS_LABELS,
+  orderRangeStart,
+  type OrderDateRange,
   when,
 } from "../lib/orders";
+import { Icon, type IconName } from "./icons";
+import { Drawer } from "./overlays";
+import { toast } from "../lib/ui/toast";
+import { PageHead } from "./page-head";
 import { ManualOrderPanel } from "./manual-order";
 import { choiceLabel, OrderItemPicker } from "./order-item-picker";
 import { PackingSlip } from "./packing-slip";
@@ -90,11 +99,29 @@ export function OrderManagement({
   const urlOrder = query("order");
   const selected = isUuid(urlOrder) ? urlOrder : null;
   const setSelected = (id: string | null) => navigate({ order: id }, true);
-  const [search, setSearch] = useState("");
-  const [from, setFrom] = useState("");
-  const [to, setTo] = useState("");
   const [cursors, setCursors] = useState<string[]>([]);
-  const [creating, setCreating] = useState(false);
+  // The prototype's toolbar: search as you type (after a pause) and a date choice in Dubai days.
+  const [typed, setTyped] = useState("");
+  const [search, setSearch] = useState("");
+  const [range, setRange] = useState<OrderDateRange>("all");
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      const next = typed.trim().slice(0, 100);
+      if (next !== search) {
+        setSearch(next);
+        setCursors([]);
+      }
+    }, 350);
+    return () => window.clearTimeout(timer);
+  }, [typed, search]);
+  // The start of the chosen range, fixed when it is chosen (not moving with every render).
+  const [from, setFrom] = useState<string | null>(null);
+  // `?new=1` (the dashboard's "Create order") opens the manual order form.
+  const [creating, setCreatingState] = useState(() => canCreate && query("new") === "1");
+  const setCreating = (on: boolean) => {
+    setCreatingState(on);
+    if (!on && query("new")) navigate({ new: null });
+  };
   // Bulk confirm (step 89): chosen Pending orders with the version seen and one command ID each.
   // An unclear answer keeps the same batch, so "Retry" replays instead of confirming twice.
   const [chosen, setChosen] = useState<
@@ -108,7 +135,14 @@ export function OrderManagement({
   const [unclear, setUnclear] = useState(false);
   async function confirmChosen() {
     const batch = [...chosen.entries()];
-    if (!unclear && !window.confirm(`Confirm ${batch.length} order(s)?`)) return;
+    if (
+      !unclear &&
+      !(await confirmDialog({
+        title: `Confirm ${batch.length} ${batch.length === 1 ? "order" : "orders"}?`,
+        ok: "Confirm orders",
+      }))
+    )
+      return;
     setConfirming(true);
     setBulkMessage("");
     try {
@@ -153,8 +187,7 @@ export function OrderManagement({
   const shared = new URLSearchParams();
   if (delayed) shared.set("delayed", "true");
   if (search) shared.set("q", search);
-  if (from) shared.set("from", new Date(from).toISOString());
-  if (to) shared.set("to", new Date(to).toISOString());
+  if (from) shared.set("from", from);
   const counts = useManagementResource(
     `/orders/counts${shared.size ? `?${shared}` : ""}`,
     adminOrderCountsResponseSchema,
@@ -201,58 +234,75 @@ export function OrderManagement({
   };
   if (creating)
     return (
-      <ManualOrderPanel
-        canConfirm={canTransition}
-        canLookUp={canReadContact}
-        onCancel={() => setCreating(false)}
-        onCreated={(orderId) => {
-          setCreating(false);
-          setSelected(orderId);
-        }}
-      />
+      <>
+        <PageHead title="Orders" />
+        <ManualOrderPanel
+          canConfirm={canTransition}
+          canLookUp={canReadContact}
+          onCancel={() => setCreating(false)}
+          onCreated={(orderId) => {
+            setCreating(false);
+            setSelected(orderId);
+          }}
+        />
+      </>
     );
   if (selected)
     return (
-      <OrderDetail
-        id={selected}
-        canReadContact={canReadContact}
-        canTransition={canTransition}
-        canEdit={canEdit}
-        canCancel={canCancel}
-        canReturn={canReturn}
-        canCollect={canCollect}
-        canCorrect={canCorrect}
-        onBack={() => setSelected(null)}
-      />
+      <>
+        <OrderDetail
+          id={selected}
+          canReadContact={canReadContact}
+          canTransition={canTransition}
+          canEdit={canEdit}
+          canCancel={canCancel}
+          canReturn={canReturn}
+          canCollect={canCollect}
+          canCorrect={canCorrect}
+          onBack={() => setSelected(null)}
+        />
+      </>
     );
+  const items = orders.data?.items ?? [];
+  const shownTotal = counts.data ? counts.data[status] : null;
+  const firstShown = cursors.length * PAGE_SIZE + 1;
+  const filtered = Boolean(search || from || delayed);
+  const clearFilters = () => {
+    setTyped("");
+    setSearch("");
+    setRange("all");
+    setFrom(null);
+    navigate({ status: null, delayed: null });
+    resetPage();
+  };
   return (
-    <section className="management-card order-management">
-      <header className="card-heading">
-        <div>
-          <h2>Orders</h2>
-          <p className="muted">
-            {counts.data
-              ? `${counts.data.all} ${counts.data.all === 1 ? "order" : "orders"} · ${counts.data.pending} waiting for confirmation`
-              : "Immutable order snapshots"}
-          </p>
-        </div>
-        {canCreate ? (
-          <button type="button" className="primary-button" onClick={() => setCreating(true)}>
-            New order
-          </button>
-        ) : (
-          <span className="badge">Live order operations</span>
-        )}
-      </header>
-      {/* The status tabs are a tablist; the delayed filter is a separate toggle beside it. */}
-      <div className="order-filter-row">
-        <div className="tab-list" role="tablist" aria-label="Order status">
+    <>
+      <PageHead
+        title="Orders"
+        sub={
+          counts.data && !filtered
+            ? `${counts.data.all.toLocaleString("en-AE")} ${counts.data.all === 1 ? "order" : "orders"} · ${counts.data.pending} waiting for confirmation`
+            : counts.data
+              ? `${counts.data.pending} waiting for confirmation`
+              : undefined
+        }
+        actions={
+          canCreate && (
+            <button type="button" className="btn btn-p" onClick={() => setCreating(true)}>
+              <Icon name="plus" />
+              Create order
+            </button>
+          )
+        }
+      />
+      <div className="stack orders-head">
+        <div className="tabs" role="tablist" aria-label="Order status">
           {STATUSES.map((value) => (
             <button
               key={value}
               type="button"
               role="tab"
-              className="secondary-button"
+              className="tab"
               aria-selected={status === value}
               onClick={() => {
                 setStatus(value);
@@ -260,37 +310,45 @@ export function OrderManagement({
               }}
             >
               {value === "all" ? "All" : ORDER_STATUS_LABELS[value]}
-              {counts.data && <span className="tab-count">{counts.data[value]}</span>}
+              {counts.data && <span className="c">{counts.data[value]}</span>}
             </button>
           ))}
         </div>
-        <button
-          type="button"
-          className="secondary-button"
-          aria-pressed={delayed}
-          onClick={() => {
-            navigate({ delayed: delayed ? null : "1" });
-            resetPage();
-          }}
-        >
-          Delayed only
-        </button>
-      </div>
-      <form
-        key={`${search}|${from}|${to}`}
-        className="order-filters"
-        onSubmit={(event) => {
-          event.preventDefault();
-          const data = new FormData(event.currentTarget);
-          setSearch(String(data.get("q") ?? "").trim());
-          setFrom(String(data.get("from") ?? ""));
-          setTo(String(data.get("to") ?? ""));
-          resetPage();
-        }}
-      >
-        <label>
-          <span>Sort</span>
+        <div className="toolbar">
+          <div className="search">
+            <Icon name="search" />
+            <label className="sr" htmlFor="orders-q">
+              Search orders
+            </label>
+            <input
+              id="orders-q"
+              type="search"
+              maxLength={100}
+              placeholder={canReadContact ? "Order number, customer name or phone" : "Order number"}
+              value={typed}
+              onChange={(event) => setTyped(event.target.value)}
+            />
+          </div>
           <select
+            className="fsel"
+            aria-label="Date"
+            value={range}
+            onChange={(event) => {
+              const next = event.target.value as OrderDateRange;
+              setRange(next);
+              setFrom(orderRangeStart(next, new Date()));
+              resetPage();
+            }}
+          >
+            {Object.entries(ORDER_DATE_RANGES).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+          <select
+            className="fsel"
+            aria-label="Sort"
             value={sort}
             onChange={(event) => {
               navigate({ sort: event.target.value === "newest" ? null : event.target.value });
@@ -302,54 +360,38 @@ export function OrderManagement({
             <option value="total_desc">Highest amount</option>
             <option value="total_asc">Lowest amount</option>
           </select>
-        </label>
-        <label className="wide-field">
-          <span>Search {canReadContact ? "order number, customer or phone" : "order number"}</span>
-          <input name="q" type="search" maxLength={100} defaultValue={search} />
-        </label>
-        <label>
-          <span>Placed from</span>
-          <input name="from" type="datetime-local" defaultValue={from} />
-        </label>
-        <label>
-          <span>Placed before</span>
-          <input name="to" type="datetime-local" defaultValue={to} />
-        </label>
-        <div className="form-actions wide-field">
-          <button type="submit" className="primary-button">
-            Apply filters
-          </button>
           <button
             type="button"
-            className="secondary-button"
+            className={delayed ? "chipf chipf-on" : "chipf"}
+            aria-pressed={delayed}
             onClick={() => {
-              setSearch("");
-              setFrom("");
-              setTo("");
-              navigate({ status: null, delayed: null });
+              navigate({ delayed: delayed ? null : "1" });
               resetPage();
             }}
           >
-            Clear filters
+            Delayed only
+            {delayed && <Icon name="x" size="sm" />}
           </button>
         </div>
-      </form>
-      <ResourceNotice resource={orders} />
+      </div>
+      <ResourceNotice resource={orders} compact />
       {canTransition && (chosen.size > 0 || bulkResults.length > 0 || bulkMessage) && (
-        <div className="record-card">
+        <div className="bulk-area">
           {chosen.size > 0 && (
-            <div className="form-actions">
+            <div className="bulk" role="region" aria-label="Selected orders">
+              <span>{chosen.size} selected</span>
               <button
                 type="button"
-                className="primary-button"
+                className="btn btn-sm bulk-go"
                 disabled={confirming}
                 onClick={() => void confirmChosen()}
               >
-                {unclear ? `Retry confirming ${chosen.size}` : `Confirm selected (${chosen.size})`}
+                <Icon name="check" size="sm" />
+                {unclear ? `Retry confirming ${chosen.size}` : `Confirm ${chosen.size} pending`}
               </button>
               <button
                 type="button"
-                className="secondary-button"
+                className="btn btn-sm btn-s bulk-clear"
                 disabled={confirming}
                 onClick={() => {
                   // Safe after an unclear answer too: a fresh selection re-checks each order's
@@ -359,19 +401,24 @@ export function OrderManagement({
                   if (unclear) orders.reload();
                 }}
               >
-                {unclear ? "Discard and reload" : "Clear selection"}
+                {unclear ? "Discard and reload" : "Clear"}
               </button>
-              <small className="muted">
-                At most 50 at a time; each order is confirmed on its own.
-              </small>
             </div>
           )}
-          {bulkMessage && <p role="alert">{bulkMessage}</p>}
+          {chosen.size > 0 && (
+            <p className="small muted">At most 50 at a time; each order is confirmed on its own.</p>
+          )}
+          {bulkMessage && (
+            <div className="note err" role="alert">
+              <Icon name="alert" />
+              <p>{bulkMessage}</p>
+            </div>
+          )}
           {bulkResults.length > 0 && (
-            <ul className="record-list" aria-label="Bulk confirm results">
+            <ul className="bulk-results" aria-label="Bulk confirm results">
               {bulkResults.map((result) => (
                 <li key={result.orderId}>
-                  {result.orderNumber}:{" "}
+                  <span className="mono">{result.orderNumber}</span>:{" "}
                   {result.outcome === "confirmed"
                     ? result.replayed
                       ? "already confirmed by this action"
@@ -383,108 +430,198 @@ export function OrderManagement({
           )}
         </div>
       )}
-      {orders.data && (
-        <>
-          {orders.data.items.length === 0 ? (
-            <p className="muted">No orders match these filters.</p>
-          ) : (
-            <div className="order-table-wrap">
-              <table className="order-table">
-                <thead>
-                  <tr>
-                    {canTransition && (
-                      <th>
-                        <input
-                          type="checkbox"
-                          aria-label="Select all pending orders on this page"
-                          checked={allPendingChosen}
-                          ref={(box) => {
-                            if (box) box.indeterminate = somePendingChosen && !allPendingChosen;
-                          }}
-                          disabled={selectablePending.length === 0 || unclear}
-                          onChange={(event) => chooseAllPending(event.target.checked)}
-                        />
-                      </th>
-                    )}
-                    <th>Order</th>
-                    <th>Customer</th>
-                    <th>Items</th>
-                    <th>Amount</th>
-                    <th>Payment</th>
-                    <th>Status</th>
-                    <th>Placed</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {orders.data.items.map((order) => (
-                    <OrderRow
-                      key={order.id}
-                      order={order}
-                      open={() => setSelected(order.id)}
-                      selectable={canTransition}
-                      checked={chosen.has(order.id)}
-                      disabled={
-                        order.status !== "pending" ||
-                        unclear ||
-                        (!chosen.has(order.id) && chosen.size >= 50)
-                      }
-                      toggle={(on) => choose(order, on)}
-                    />
-                  ))}
-                </tbody>
-              </table>
+      {orders.data &&
+        (items.length === 0 ? (
+          <div className="card">
+            <div className="empty">
+              <div className="ic">
+                <Icon name="search" />
+              </div>
+              <h3>No orders match</h3>
+              <p>
+                {search
+                  ? `Nothing found for “${search}”. Check the order number or phone number.`
+                  : "Try another status or date range."}
+              </p>
+              {filtered || status !== "all" ? (
+                <div className="row">
+                  <button type="button" className="btn btn-s" onClick={clearFilters}>
+                    Clear filters
+                  </button>
+                </div>
+              ) : null}
             </div>
-          )}
-          {/* Phones (parity G-A5): each order as a card; the table above is for wider screens. */}
-          {orders.data.items.length > 0 && (
-            <ul className="order-cards" aria-label="Orders">
-              {orders.data.items.map((order) => (
-                <li key={order.id}>
+          </div>
+        ) : (
+          <>
+            <div className="tbl-wrap only-d">
+              <div className="tbl-scroll">
+                <table className="tbl">
+                  <thead>
+                    <tr>
+                      {canTransition && (
+                        <th className="w1">
+                          <input
+                            type="checkbox"
+                            className="cb"
+                            aria-label="Select all pending orders on this page"
+                            checked={allPendingChosen}
+                            ref={(box) => {
+                              if (box) box.indeterminate = somePendingChosen && !allPendingChosen;
+                            }}
+                            disabled={selectablePending.length === 0 || unclear}
+                            onChange={(event) => chooseAllPending(event.target.checked)}
+                          />
+                        </th>
+                      )}
+                      <th>Order</th>
+                      <th>Customer</th>
+                      <th>Phone</th>
+                      <th className="num">Amount</th>
+                      <th>Payment</th>
+                      <th>Status</th>
+                      <th>Placed</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {items.map((order) => (
+                      <OrderRow
+                        key={order.id}
+                        order={order}
+                        open={() => setSelected(order.id)}
+                        selectable={canTransition}
+                        checked={chosen.has(order.id)}
+                        disabled={
+                          order.status !== "pending" ||
+                          unclear ||
+                          (!chosen.has(order.id) && chosen.size >= 50)
+                        }
+                        toggle={(on) => choose(order, on)}
+                      />
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <Pager
+                first={firstShown}
+                count={items.length}
+                total={shownTotal}
+                page={cursors.length + 1}
+                busy={orders.busy}
+                hasPrevious={cursors.length > 0}
+                hasNext={Boolean(orders.data.nextCursor)}
+                previous={() => setCursors((value) => value.slice(0, -1))}
+                next={() => setCursors((value) => [...value, orders.data!.nextCursor!])}
+              />
+            </div>
+            {/* Phones: the prototype's order rows (`orderRowM`) in place of the table. */}
+            <div className="only-m">
+              <div className="mlist">
+                {items.map((order) => (
                   <button
+                    key={order.id}
                     type="button"
-                    className="order-card"
+                    className="mrow"
                     onClick={() => setSelected(order.id)}
                   >
-                    <span className="order-card-line">
-                      <strong>{order.orderNumber}</strong>
-                      <span className={`order-status status-${order.status}`}>
-                        {ORDER_STATUS_LABELS[order.status]}
+                    <span className="mrow-b">
+                      <span className="mrow-t">
+                        <span className="lnk-id">{order.orderNumber}</span>
+                        <StatusBadge status={order.status} />
+                      </span>
+                      <span className="mrow-t">
+                        <b>{order.customer?.name ?? "Contact hidden"}</b>
+                        <span className="amt">{money(order.totalFils)}</span>
+                      </span>
+                      <span className="meta">
+                        <span>{when(order.createdAt)}</span>
+                        <span aria-hidden="true">·</span>
+                        <span>
+                          {order.itemCount} {order.itemCount === 1 ? "item" : "items"}
+                        </span>
+                        <span aria-hidden="true">·</span>
+                        <span>{order.areaName}</span>
                       </span>
                     </span>
-                    <span className="order-card-line">
-                      <span>{order.customer?.name ?? "Contact hidden"}</span>
-                      <strong>{money(order.totalFils)}</strong>
-                    </span>
-                    <small className="muted">
-                      {when(order.createdAt)} · {order.itemCount}{" "}
-                      {order.itemCount === 1 ? "item" : "items"} · {order.areaName}
-                    </small>
                   </button>
-                </li>
-              ))}
-            </ul>
-          )}
-          <div className="form-actions">
-            <button
-              type="button"
-              className="secondary-button"
-              disabled={cursors.length === 0 || orders.busy}
-              onClick={() => setCursors((value) => value.slice(0, -1))}
-            >
-              Previous page
-            </button>
-            <button
-              type="button"
-              className="secondary-button"
-              disabled={!orders.data.nextCursor || orders.busy}
-              onClick={() => setCursors((value) => [...value, orders.data!.nextCursor!])}
-            >
-              Next page
-            </button>
-          </div>
-        </>
-      )}
-    </section>
+                ))}
+              </div>
+              <div className="tbl-wrap orders-mpager">
+                <Pager
+                  first={firstShown}
+                  count={items.length}
+                  total={shownTotal}
+                  page={cursors.length + 1}
+                  busy={orders.busy}
+                  hasPrevious={cursors.length > 0}
+                  hasNext={Boolean(orders.data.nextCursor)}
+                  previous={() => setCursors((value) => value.slice(0, -1))}
+                  next={() => setCursors((value) => [...value, orders.data!.nextCursor!])}
+                />
+              </div>
+            </div>
+          </>
+        ))}
+    </>
+  );
+}
+
+const PAGE_SIZE = 25;
+
+/** The prototype's status badge (`stBadge`). */
+export function StatusBadge({ status }: { status: string }) {
+  return (
+    <span className={`st st-${status === "out_for_delivery" ? "ofd" : status}`}>
+      {ORDER_STATUS_LABELS[status] ?? status}
+    </span>
+  );
+}
+
+/**
+ * The prototype's table foot (`pager`). The list pages by position (keyset), so it steps back
+ * and forward; the range shown comes from the tab's count.
+ */
+function Pager(props: {
+  first: number;
+  count: number;
+  total: number | null;
+  page: number;
+  busy: boolean;
+  hasPrevious: boolean;
+  hasNext: boolean;
+  previous: () => void;
+  next: () => void;
+}) {
+  const last = props.first + props.count - 1;
+  return (
+    <div className="tbl-f">
+      <span>
+        {props.count
+          ? `Showing ${props.first.toLocaleString("en-AE")}–${last.toLocaleString("en-AE")}${props.total !== null ? ` of ${props.total.toLocaleString("en-AE")}` : ""}`
+          : "No results"}
+      </span>
+      <div className="pager">
+        <button
+          type="button"
+          aria-label="Previous page"
+          disabled={!props.hasPrevious || props.busy}
+          onClick={props.previous}
+        >
+          <Icon name="cl" size="sm" />
+        </button>
+        <button type="button" aria-current="page" aria-label={`Page ${props.page}`}>
+          {props.page}
+        </button>
+        <button
+          type="button"
+          aria-label="Next page"
+          disabled={!props.hasNext || props.busy}
+          onClick={props.next}
+        >
+          <Icon name="cr" size="sm" />
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -512,12 +649,14 @@ function OrderRow({
   disabled: boolean;
   toggle: (on: boolean) => void;
 }) {
+  // The prototype's clickable row; the order number is the keyboard way in.
   return (
-    <tr tabIndex={0} onClick={open} onKeyDown={(e) => e.key === "Enter" && open()}>
+    <tr className={checked ? "click sel" : "click"} onClick={open}>
       {selectable && (
-        <td onClick={(event) => event.stopPropagation()}>
+        <td className="w1" onClick={(event) => event.stopPropagation()}>
           <input
             type="checkbox"
+            className="cb"
             aria-label={`Select ${order.orderNumber}`}
             checked={checked}
             disabled={disabled && !checked}
@@ -526,45 +665,63 @@ function OrderRow({
         </td>
       )}
       <td>
-        <button type="button" className="order-link" onClick={open}>
+        <button
+          type="button"
+          className="lnk-id"
+          onClick={(event) => {
+            event.stopPropagation();
+            open();
+          }}
+        >
           {order.orderNumber}
         </button>
-        <small>{order.source}</small>
+        {order.source !== "storefront" && (
+          <div className="xs muted">{SOURCE_LABELS[order.source] ?? order.source}</div>
+        )}
       </td>
       <td>
         {order.customer ? (
-          <>
-            <strong>{order.customer.name}</strong>
-            <small>{order.customer.phone}</small>
-          </>
+          <b className="cust">{order.customer.name}</b>
         ) : (
           <span className="muted">Contact hidden</span>
         )}
       </td>
-      <td>{order.itemCount}</td>
-      <td>{money(order.totalFils)}</td>
-      <td>{COD_STATUS_LABELS[order.codStatus]}</td>
-      <td>
-        <span className={`order-status status-${order.status}`}>
-          {ORDER_STATUS_LABELS[order.status]}
-        </span>
+      <td className="mono muted nowrap">{order.customer?.phone ?? "—"}</td>
+      <td className="num">
+        {money(order.totalFils)}
+        <div className="xs muted">
+          {order.itemCount} {order.itemCount === 1 ? "item" : "items"}
+        </div>
       </td>
       <td>
+        <span className="small">COD</span>
+        <div className="xs muted">{COD_STATUS_LABELS[order.codStatus]}</div>
+      </td>
+      <td>
+        <StatusBadge status={order.status} />
+      </td>
+      <td className="small nowrap">
         {when(order.createdAt)}
-        <small>{order.areaName}</small>
+        <div className="xs muted">{order.areaName}</div>
       </td>
     </tr>
   );
 }
 
+const SOURCE_LABELS: Record<string, string> = {
+  storefront: "Storefront",
+  manual: "Created in admin",
+};
+
 type TransitionTarget = "confirmed" | "processing" | "out_for_delivery" | "delivered";
-const NEXT: Partial<Record<AdminOrderResponse["status"], { to: TransitionTarget; label: string }>> =
-  {
-    pending: { to: "confirmed", label: "Confirm order" },
-    confirmed: { to: "processing", label: "Start processing" },
-    processing: { to: "out_for_delivery", label: "Mark out for delivery" },
-    out_for_delivery: { to: "delivered", label: "Mark delivered" },
-  };
+const NEXT: Partial<
+  Record<AdminOrderResponse["status"], { to: TransitionTarget; label: string; icon: IconName }>
+> = {
+  pending: { to: "confirmed", label: "Confirm order", icon: "check" },
+  confirmed: { to: "processing", label: "Start processing", icon: "pkg" },
+  processing: { to: "out_for_delivery", label: "Mark out for delivery", icon: "truck" },
+  out_for_delivery: { to: "delivered", label: "Mark delivered", icon: "check-c" },
+};
 
 function OrderDetail({
   id,
@@ -588,6 +745,8 @@ function OrderDetail({
   onBack: () => void;
 }) {
   const order = useManagementResource(`/orders/${id}`, adminOrderResponseSchema);
+  // The prototype opens these in a drawer from the head or the cards.
+  const [panel, setPanel] = useState<"whatsapp" | "edit" | "cancel" | "collection" | null>(null);
   const [pending, setPending] = useState<{
     commandId: string;
     expectedVersion: number;
@@ -602,7 +761,14 @@ function OrderDetail({
       expectedVersion: order.data.version,
       to: action.to,
     };
-    if (!activePending && !window.confirm(`${action.label} for ${order.data.orderNumber}?`)) return;
+    if (
+      !activePending &&
+      !(await confirmDialog({
+        title: `${action.label} for ${order.data.orderNumber}?`,
+        ok: action.label,
+      }))
+    )
+      return;
     setPending(command);
     const result = await order.run((signal) =>
       managementRequest(
@@ -616,120 +782,296 @@ function OrderDetail({
     if (result.ok) {
       setPending(null);
       order.reload();
+      toast(`${order.data.orderNumber}: ${ORDER_STATUS_LABELS[command.to]}`);
     }
   }
+  const data = order.data;
+  const status = data?.status;
+  const editable =
+    canEdit && status !== undefined && ["pending", "confirmed", "processing"].includes(status);
+  const cancellable =
+    status !== undefined &&
+    ((canCancel && ["pending", "confirmed", "processing"].includes(status)) ||
+      (canCancel && canReturn && status === "out_for_delivery"));
+  const collectable =
+    data !== null &&
+    ((canCollect && data.status === "delivered" && data.codStatus === "pending") ||
+      (canCorrect && data.codStatus === "collected"));
+  const whatsapp = canReadContact && status !== undefined && status !== "cancelled";
+  const close = () => setPanel(null);
+  const advance =
+    canTransition && action ? (
+      <button
+        type="button"
+        className="btn btn-p"
+        disabled={order.disabled}
+        onClick={() => void submitTransition()}
+      >
+        <Icon name={action.icon} />
+        {activePending ? `Retry: ${action.label}` : action.label}
+      </button>
+    ) : null;
   return (
-    <section className="management-card order-detail">
-      <div className="form-actions">
-        <button data-leave type="button" className="secondary-button" onClick={onBack}>
-          ← Back to orders
-        </button>
-        {/* The slip shows where to deliver, so it needs the contact (customers.read). */}
-        {order.data?.customer && (
-          <PackingSlip order={{ ...order.data, customer: order.data.customer }} />
-        )}
-      </div>
-      <ResourceNotice resource={order} />
-      {order.data && (
+    <div className="stack order-detail">
+      <button data-leave type="button" className="backlink" onClick={onBack}>
+        <Icon name="arr-l" size="sm" />
+        Orders
+      </button>
+      <ResourceNotice resource={order} compact />
+      {data && (
         <>
-          {canTransition && action && (
-            <div className="form-actions">
-              <button
-                type="button"
-                className="primary-button"
-                disabled={order.disabled}
-                onClick={() => void submitTransition()}
-              >
-                {activePending ? `Retry: ${action.label}` : action.label}
-              </button>
-              <small className="muted">
-                Uses version {activePending?.expectedVersion ?? order.data.version}; the same
-                command is retried safely.
-              </small>
+          <PageHead
+            title={
+              <>
+                <span className="mono order-no">{data.orderNumber}</span>{" "}
+                <StatusBadge status={data.status} />
+              </>
+            }
+            sub={`Placed ${when(data.createdAt)} · via ${SOURCE_LABELS[data.source] ?? data.source}`}
+            actions={
+              <>
+                {whatsapp && (
+                  <button
+                    type="button"
+                    className="btn btn-wa hide-m"
+                    onClick={() => setPanel("whatsapp")}
+                  >
+                    <Icon name="wa" />
+                    WhatsApp customer
+                  </button>
+                )}
+                {editable && (
+                  <button
+                    type="button"
+                    className="btn btn-s hide-m"
+                    onClick={() => setPanel("edit")}
+                  >
+                    <Icon name="edit" />
+                    Edit
+                  </button>
+                )}
+                {/* The slip shows where to deliver, so it needs the contact (customers.read). */}
+                {data.customer && <PackingSlip order={{ ...data, customer: data.customer }} />}
+                {cancellable && (
+                  <button
+                    type="button"
+                    className="btn btn-s danger-t"
+                    onClick={() => setPanel("cancel")}
+                  >
+                    <Icon name="x-c" />
+                    {data.status === "out_for_delivery" ? "Cancel after return" : "Cancel order"}
+                  </button>
+                )}
+              </>
+            }
+          />
+          <div className="card">
+            <div className="card-b order-progress">
+              {data.status === "cancelled" ? (
+                <div className="note">
+                  <Icon name="x-c" />
+                  <p>
+                    <b>This order was cancelled</b>
+                    {cancelEntry(data)}. Items were returned to stock.
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <div className="prog" aria-label="Order progress">
+                    {PROGRESS.map((step, index) => {
+                      const at = PROGRESS.indexOf(data.status as (typeof PROGRESS)[number]);
+                      return (
+                        <div
+                          key={step}
+                          className={`prog-s ${index < at ? "done" : index === at ? "now" : ""}`}
+                          aria-current={index === at ? "step" : undefined}
+                        >
+                          <i />
+                          <span>{ORDER_STATUS_LABELS[step]}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="row between order-next">
+                    <div>
+                      {action ? (
+                        <>
+                          <b>Next: {ORDER_STATUS_LABELS[action.to]}</b>
+                          <p className="small muted">{NEXT_HINT[data.status]}</p>
+                        </>
+                      ) : (
+                        <>
+                          <b>Order complete</b>
+                          <p className="small muted">
+                            {data.codStatus === "collected"
+                              ? "Delivered and cash collected."
+                              : "Delivered. Record the cash once it is in hand."}
+                          </p>
+                        </>
+                      )}
+                    </div>
+                    <div className="row hide-m">{advance}</div>
+                  </div>
+                  {activePending && (
+                    <p className="small muted">
+                      The same command is retried safely (version {activePending.expectedVersion}).
+                    </p>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+          <OrderDetailBody
+            order={data}
+            collect={collectable ? () => setPanel("collection") : null}
+            reviewLink={canReadContact && data.status === "delivered"}
+          />
+          {(advance || whatsapp || editable) && (
+            <div className="savebar only-m-f">
+              {advance}
+              {whatsapp && (
+                <button
+                  type="button"
+                  className="btn btn-wa btn-icon"
+                  aria-label="WhatsApp customer"
+                  onClick={() => setPanel("whatsapp")}
+                >
+                  <Icon name="wa" />
+                </button>
+              )}
+              {editable && (
+                <button
+                  type="button"
+                  className="btn btn-s btn-icon"
+                  aria-label="Edit order"
+                  onClick={() => setPanel("edit")}
+                >
+                  <Icon name="edit" />
+                </button>
+              )}
             </div>
           )}
-          {canEdit && ["pending", "confirmed", "processing"].includes(order.data.status) && (
-            <OrderEditPanel
-              key={`${order.data.id}:${order.data.version}`}
-              order={order.data}
-              canReadContact={canReadContact}
-              disabled={order.disabled}
-              save={(request) =>
-                order.run((signal) =>
-                  managementRequest(
-                    `/orders/${id}`,
-                    orderEditResponseSchema,
-                    "PATCH",
-                    request,
-                    signal,
-                  ),
-                )
-              }
-              done={order.reload}
-            />
-          )}
-          {((canCancel && ["pending", "confirmed", "processing"].includes(order.data.status)) ||
-            (canCancel && canReturn && order.data.status === "out_for_delivery")) && (
-            <OrderCancelPanel
-              key={`cancel:${order.data.id}:${order.data.version}`}
-              order={order.data}
-              disabled={order.disabled}
-              save={(request) =>
-                order.run((signal) =>
-                  managementRequest(
-                    `/orders/${id}/cancel`,
-                    orderCancelResponseSchema,
-                    "POST",
-                    request,
-                    signal,
-                  ),
-                )
-              }
-              done={order.reload}
-            />
-          )}
-          {((canCollect &&
-            order.data.status === "delivered" &&
-            order.data.codStatus === "pending") ||
-            (canCorrect && order.data.codStatus === "collected")) && (
-            <OrderCollectionPanel
-              key={`collection:${order.data.id}:${order.data.version}`}
-              order={order.data}
-              disabled={order.disabled}
-              record={(request) =>
-                order.run((signal) =>
-                  managementRequest(
-                    `/orders/${id}/collection`,
-                    orderCollectionResponseSchema,
-                    "POST",
-                    request,
-                    signal,
-                  ),
-                )
-              }
-              correct={(request) =>
-                order.run((signal) =>
-                  managementRequest(
-                    `/orders/${id}/collection/corrections`,
-                    orderCollectionResponseSchema,
-                    "POST",
-                    request,
-                    signal,
-                  ),
-                )
-              }
-              done={order.reload}
-            />
-          )}
-          {canReadContact && order.data.status !== "cancelled" && (
-            <OrderWhatsappPanel id={id} version={order.data.version} />
-          )}
-          {canReadContact && order.data.status === "delivered" && <ReviewLinkPanel id={id} />}
-          <OrderDetailBody order={order.data} />
+          <Drawer open={panel === "whatsapp" && whatsapp} onClose={close} title="WhatsApp customer">
+            <div className="management-card in-drawer">
+              <OrderWhatsappPanel id={id} version={data.version} />
+            </div>
+          </Drawer>
+          <Drawer open={panel === "edit" && editable} onClose={close} title="Edit order" wide>
+            <div className="management-card in-drawer">
+              <OrderEditPanel
+                key={`${data.id}:${data.version}`}
+                order={data}
+                canReadContact={canReadContact}
+                disabled={order.disabled}
+                save={(request) =>
+                  order.run((signal) =>
+                    managementRequest(
+                      `/orders/${id}`,
+                      orderEditResponseSchema,
+                      "PATCH",
+                      request,
+                      signal,
+                    ),
+                  )
+                }
+                done={() => {
+                  close();
+                  order.reload();
+                  toast("Order updated");
+                }}
+              />
+            </div>
+          </Drawer>
+          <Drawer
+            open={panel === "cancel" && cancellable}
+            onClose={close}
+            title={data.status === "out_for_delivery" ? "Cancel after return" : "Cancel order"}
+            wide={data.status === "out_for_delivery"}
+          >
+            <div className="management-card in-drawer">
+              <OrderCancelPanel
+                key={`cancel:${data.id}:${data.version}`}
+                order={data}
+                disabled={order.disabled}
+                save={(request) =>
+                  order.run((signal) =>
+                    managementRequest(
+                      `/orders/${id}/cancel`,
+                      orderCancelResponseSchema,
+                      "POST",
+                      request,
+                      signal,
+                    ),
+                  )
+                }
+                done={() => {
+                  close();
+                  order.reload();
+                  toast(`${data.orderNumber} cancelled`);
+                }}
+              />
+            </div>
+          </Drawer>
+          <Drawer
+            open={panel === "collection" && collectable}
+            onClose={close}
+            title={data.codStatus === "collected" ? "Correct cash record" : "Record cash collected"}
+          >
+            <div className="management-card in-drawer">
+              <OrderCollectionPanel
+                key={`collection:${data.id}:${data.version}`}
+                order={data}
+                disabled={order.disabled}
+                record={(request) =>
+                  order.run((signal) =>
+                    managementRequest(
+                      `/orders/${id}/collection`,
+                      orderCollectionResponseSchema,
+                      "POST",
+                      request,
+                      signal,
+                    ),
+                  )
+                }
+                correct={(request) =>
+                  order.run((signal) =>
+                    managementRequest(
+                      `/orders/${id}/collection/corrections`,
+                      orderCollectionResponseSchema,
+                      "POST",
+                      request,
+                      signal,
+                    ),
+                  )
+                }
+                done={() => {
+                  close();
+                  order.reload();
+                  toast("Cash record saved");
+                }}
+              />
+            </div>
+          </Drawer>
         </>
       )}
-    </section>
+    </div>
   );
+}
+
+/** The prototype's progress steps (`prog`); Cancelled is not a step. */
+const PROGRESS = ["pending", "confirmed", "processing", "out_for_delivery", "delivered"] as const;
+const NEXT_HINT: Partial<Record<AdminOrderResponse["status"], string>> = {
+  pending: "Check the order, then confirm it with the customer.",
+  confirmed: "Pick and pack the items.",
+  processing: "Hand the parcel to the courier.",
+  out_for_delivery: "Mark it delivered when the customer has it. Cash is recorded separately.",
+};
+/** " on 18 Oct 2026, 4:21 PM by Owner · Reason: …" from the history entry that cancelled it. */
+function cancelEntry(order: AdminOrderResponse) {
+  const entry = [...order.history].reverse().find((item) => item.toStatus === "cancelled");
+  if (!entry) return "";
+  const who = entry.actorName ?? (entry.actorKind === "customer" ? "the customer" : "the system");
+  return ` on ${when(entry.createdAt)} by ${who}${entry.reason ? ` · Reason: ${entry.reason}` : ""}`;
 }
 
 function sameAddress(order: AdminOrderResponse, data: FormData) {
@@ -868,7 +1210,15 @@ function ReviewLinkPanel({ id }: { id: string }) {
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   async function create() {
-    if (link && !window.confirm("Create a new link? The previous link stops working.")) return;
+    if (
+      link &&
+      !(await confirmDialog({
+        title: "Create a new link?",
+        body: "The previous link stops working.",
+        ok: "Create new link",
+      }))
+    )
+      return;
     setBusy(true);
     setMessage("");
     try {
@@ -979,9 +1329,14 @@ function OrderCollectionPanel({
                 reference,
                 collectedAt: at,
               });
-              if (!window.confirm(`Correct the cash record of ${order.orderNumber}?`)) return;
-              setMessage("");
-              void correct(request).then((result) => result.ok && done());
+              void confirmDialog({
+                title: `Correct the cash record of ${order.orderNumber}?`,
+                ok: "Correct record",
+              }).then((ok) => {
+                if (!ok) return;
+                setMessage("");
+                void correct(request).then((result) => result.ok && done());
+              });
             } else {
               const request = validate(orderCollectionRequestSchema, {
                 expectedVersion: order.version,
@@ -994,14 +1349,15 @@ function OrderCollectionPanel({
                 amountFils !== order.totalFils
                   ? ` This differs from the order total of ${money(order.totalFils)}.`
                   : "";
-              if (
-                !window.confirm(
-                  `Record ${money(amountFils)} collected for ${order.orderNumber}?${differs}`,
-                )
-              )
-                return;
-              setMessage("");
-              void record(request).then((result) => result.ok && done());
+              void confirmDialog({
+                title: `Record ${money(amountFils)} collected for ${order.orderNumber}?`,
+                ...(differs ? { body: differs.trim() } : {}),
+                ok: "Record cash",
+              }).then((ok) => {
+                if (!ok) return;
+                setMessage("");
+                void record(request).then((result) => result.ok && done());
+              });
             }
           } catch {
             setMessage(
@@ -1132,9 +1488,17 @@ function OrderCancelPanel({
               );
               return;
             }
-            if (!window.confirm(`Cancel ${order.orderNumber}? This cannot be undone.`)) return;
-            setMessage("");
-            void save(request).then((result) => result.ok && done());
+            void confirmDialog({
+              title: `Cancel ${order.orderNumber}?`,
+              body: "This cannot be undone.",
+              ok: "Cancel order",
+              cancel: "Keep order",
+              danger: true,
+            }).then((ok) => {
+              if (!ok) return;
+              setMessage("");
+              void save(request).then((result) => result.ok && done());
+            });
           }}
         >
           {returned &&
@@ -1396,164 +1760,324 @@ function editDiffLines(diff: OrderEditDiff) {
   return lines;
 }
 
-function OrderDetailBody({ order }: { order: AdminOrderResponse }) {
+function OrderDetailBody({
+  order,
+  collect,
+  reviewLink,
+}: {
+  order: AdminOrderResponse;
+  /** Opens the cash record (null when this user may not record or correct it now). */
+  collect: (() => void) | null;
+  reviewLink: boolean;
+}) {
+  const units = order.items.reduce((sum, item) => sum + item.quantity, 0);
+  const address = order.customer?.address;
+  const at = PROGRESS.indexOf(order.status as (typeof PROGRESS)[number]);
   return (
-    <>
-      <header className="card-heading">
-        <div>
-          <h2>{order.orderNumber}</h2>
-          <p className="muted">
-            Placed {when(order.createdAt)} · {order.source} · version {order.version}
-          </p>
-        </div>
-        <span className={`order-status status-${order.status}`}>
-          {ORDER_STATUS_LABELS[order.status]}
-        </span>
-      </header>
-      <div className="order-detail-grid">
-        <article className="record-card">
-          <h3>Customer & delivery</h3>
-          {order.customer ? (
-            <>
-              <strong>{order.customer.name}</strong>
-              <a href={`tel:${order.customer.phone}`}>{order.customer.phone}</a>
-              <p>{addressLine(order)}</p>
-              {order.customer.address.makani && <p>Makani: {order.customer.address.makani}</p>}
-              {order.customer.address.notes && (
-                <p className="muted">{order.customer.address.notes}</p>
-              )}
-            </>
-          ) : (
-            <p className="muted">Customer contact requires Customers permission.</p>
-          )}
-          <p className="muted">{order.deliveryEtaText}</p>
-        </article>
-        <article className="record-card">
-          <h3>Payment</h3>
-          <p>{COD_STATUS_LABELS[order.codStatus]}</p>
-          <dl className="order-totals">
-            <div>
-              <dt>Merchandise</dt>
-              <dd>{money(order.merchandiseSubtotalFils)}</dd>
+    <div className="split">
+      <div className="stack">
+        <section className="card" aria-labelledby="items-h">
+          <div className="card-h">
+            <h2 id="items-h">
+              Items{" "}
+              <span className="sub">
+                · {units} {units === 1 ? "unit" : "units"}
+              </span>
+            </h2>
+          </div>
+          <div className="card-b">
+            <div className="items">
+              {order.items.map((item) => (
+                <div className="it" key={item.id}>
+                  <div className="it-t">
+                    <b>{item.productName}</b>
+                    <small className="mono">{item.sku}</small>
+                    <small>
+                      {[item.brandName, Object.values(item.attributes).join(" · ") || null]
+                        .filter(Boolean)
+                        .join(" · ")}{" "}
+                      · {item.quantity} × {money(item.unitPriceFils)}
+                    </small>
+                  </div>
+                  <div className="r">
+                    <b>{money(item.totalFils)}</b>
+                  </div>
+                </div>
+              ))}
             </div>
-            <div>
-              <dt>Discount</dt>
-              <dd>−{money(order.discountFils)}</dd>
+            <hr className="hr sum-hr" />
+            <div className="sum">
+              <div>
+                <span className="muted">Subtotal</span>
+                <span>{money(order.merchandiseSubtotalFils)}</span>
+              </div>
+              <div>
+                <span className="muted">
+                  Discount
+                  {order.coupon && (
+                    <>
+                      {" "}
+                      <span className="coupon">{order.coupon.code}</span>{" "}
+                      {order.coupon.percentBps / 100}%
+                    </>
+                  )}
+                </span>
+                <span className={order.discountFils ? "neg" : undefined}>
+                  {order.discountFils ? `− ${money(order.discountFils)}` : "—"}
+                </span>
+              </div>
+              <div>
+                <span className="muted">Delivery</span>
+                <span>{money(order.deliveryFeeFils)}</span>
+              </div>
+              <div className="tot">
+                <span>
+                  {order.status === "cancelled" ? "Total (cancelled)" : "Total to collect"}
+                </span>
+                <span>{money(order.totalFils)}</span>
+              </div>
             </div>
-            <div>
-              <dt>Delivery</dt>
-              <dd>{money(order.deliveryFeeFils)}</dd>
+          </div>
+        </section>
+        {order.returnItems.length > 0 && (
+          <section className="card" aria-labelledby="return-h">
+            <div className="card-h">
+              <h2 id="return-h">Return</h2>
             </div>
-            <div>
-              <dt>Total</dt>
-              <dd>
-                <strong>{money(order.totalFils)}</strong>
-              </dd>
+            <div className="card-b">
+              <ul className="plain-list">
+                {order.returnItems.map((item) => (
+                  <li key={item.sku}>
+                    <span className="mono">{item.sku}</span>: {item.quantity} sent ·{" "}
+                    {item.resellableQuantity} back in stock · {item.damagedQuantity} damaged
+                  </li>
+                ))}
+              </ul>
             </div>
-          </dl>
-          {order.coupon && (
-            <p className="muted">
-              Coupon {order.coupon.code} · {order.coupon.percentBps / 100}%
-            </p>
-          )}
-          {order.collectionRecords.length > 0 && (
-            <ol className="order-history">
-              {order.collectionRecords.map((entry, index) => (
-                <li key={entry.id}>
-                  <span className="badge">
-                    {entry.kind === "recorded" ? "Recorded" : "Corrected"}
-                    {index === order.collectionRecords.length - 1 ? " · in effect" : ""}
+          </section>
+        )}
+        <section className="card" aria-labelledby="timeline-h">
+          <div className="card-h">
+            <h2 id="timeline-h">Timeline</h2>
+          </div>
+          <div className="card-b">
+            <div className="tl">
+              {order.history.map((entry) => (
+                <div className="tl-i" key={entry.id}>
+                  <span
+                    className={`tl-d st-${entry.toStatus === "out_for_delivery" ? "ofd" : entry.toStatus}`}
+                  >
+                    <Icon name={STATUS_ICON[entry.toStatus] ?? "info"} />
                   </span>
                   <div>
-                    <strong>
-                      {money(entry.amountFils)} · received {when(entry.collectedAt)}
-                    </strong>
+                    <b>{ORDER_STATUS_LABELS[entry.toStatus]}</b>
                     <small>
-                      {entry.actor.name} · {when(entry.recordedAt)}
-                      {entry.reference ? ` · ${entry.reference}` : ""}
+                      {when(entry.createdAt)} ·{" "}
+                      {entry.actorName ??
+                        (entry.actorKind === "customer" ? "Customer checkout" : "System")}
+                      {entry.reason ? ` · ${entry.reason}` : ""}
                     </small>
-                    {entry.reason && <p>{entry.reason}</p>}
                   </div>
-                </li>
+                </div>
               ))}
-            </ol>
-          )}
-        </article>
-      </div>
-      <article className="record-card">
-        <h3>Items</h3>
-        <div className="record-list">
-          {order.items.map((item) => (
-            <div className="order-item" key={item.id}>
-              <div>
-                <strong>{item.productName}</strong>
-                <small>
-                  {item.brandName} · {item.categoryName} · {item.sku}
-                </small>
-                <small>{Object.values(item.attributes).join(" · ") || "Standard"}</small>
-              </div>
-              <div>
-                {item.quantity} × {money(item.unitPriceFils)}
-                <strong>{money(item.totalFils)}</strong>
+              {order.status !== "cancelled" &&
+                PROGRESS.slice(at + 1).map((step) => (
+                  <div className="tl-i future" key={step}>
+                    <span className="tl-d">
+                      <Icon name={STATUS_ICON[step] ?? "info"} />
+                    </span>
+                    <div>
+                      <b>{ORDER_STATUS_LABELS[step]}</b>
+                    </div>
+                  </div>
+                ))}
+            </div>
+          </div>
+        </section>
+        {order.edits.length > 0 && (
+          <section className="card" aria-labelledby="edits-h">
+            <div className="card-h">
+              <h2 id="edits-h">Edit history</h2>
+            </div>
+            <div className="card-b">
+              <div className="tl">
+                {order.edits.map((edit) => (
+                  <div className="tl-i" key={edit.id}>
+                    <span className="tl-d">
+                      <Icon name="edit" />
+                    </span>
+                    <div>
+                      <b>
+                        {edit.actor.name} · v{edit.orderVersion}
+                      </b>
+                      <small>{when(edit.editedAt)}</small>
+                      {editDiffLines(edit.diff).map((line) => (
+                        <small key={line}>{line}</small>
+                      ))}
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
-          ))}
-        </div>
-      </article>
-      {order.returnItems.length > 0 && (
-        <article className="record-card">
-          <h3>Return</h3>
-          <ul className="record-list">
-            {order.returnItems.map((item) => (
-              <li key={item.sku}>
-                {item.sku}: {item.quantity} sent · {item.resellableQuantity} back in stock ·{" "}
-                {item.damagedQuantity} damaged
-              </li>
-            ))}
-          </ul>
-        </article>
-      )}
-      {order.edits.length > 0 && (
-        <article className="record-card">
-          <h3>Edit history</h3>
-          <ol className="order-history">
-            {order.edits.map((edit) => (
-              <li key={edit.id}>
-                <span className="badge">v{edit.orderVersion}</span>
-                <div>
-                  <strong>{edit.actor.name}</strong>
-                  <small>{when(edit.editedAt)}</small>
-                  {editDiffLines(edit.diff).map((line) => (
-                    <p key={line}>{line}</p>
-                  ))}
+          </section>
+        )}
+      </div>
+      <div className="stack">
+        <section className="card" aria-labelledby="customer-h">
+          <div className="card-h">
+            <h2 id="customer-h">Customer</h2>
+            {/* The order read carries no customer ID, so there is no profile link here yet. */}
+          </div>
+          <div className="card-b cust-b">
+            {order.customer ? (
+              <>
+                <div className="row cust-row">
+                  <span className="av" aria-hidden="true">
+                    {order.customer.name
+                      .split(/\s+/)
+                      .slice(0, 2)
+                      .map((part) => part[0]?.toUpperCase())
+                      .join("")}
+                  </span>
+                  <div className="cust-n">
+                    <b>{order.customer.name}</b>
+                    <span className="mono small muted">{order.customer.phone}</span>
+                  </div>
+                  <CopyPhone phone={order.customer.phone} />
                 </div>
-              </li>
-            ))}
-          </ol>
-        </article>
-      )}
-      <article className="record-card">
-        <h3>History</h3>
-        <ol className="order-history">
-          {order.history.map((entry) => (
-            <li key={entry.id}>
-              <span className={`order-status status-${entry.toStatus}`}>
-                {ORDER_STATUS_LABELS[entry.toStatus]}
-              </span>
-              <div>
-                <strong>
-                  {entry.actorName ??
-                    (entry.actorKind === "customer" ? "Customer checkout" : "System")}
-                </strong>
-                <small>
-                  {when(entry.createdAt)} · version {entry.orderVersion}
-                </small>
-                {entry.reason && <p>{entry.reason}</p>}
+                <div className="row">
+                  <a className="btn btn-s cust-call" href={`tel:${order.customer.phone}`}>
+                    <Icon name="phone" />
+                    Call
+                  </a>
+                </div>
+              </>
+            ) : (
+              <div className="note">
+                <Icon name="lock" />
+                <p>Customer contact needs the Customers permission.</p>
               </div>
-            </li>
-          ))}
-        </ol>
-      </article>
-    </>
+            )}
+          </div>
+        </section>
+        <section className="card" aria-labelledby="delivery-h">
+          <div className="card-h">
+            <h2 id="delivery-h">Delivery</h2>
+          </div>
+          <div className="card-b">
+            <dl className="kv kv-flat">
+              <dt>Area</dt>
+              <dd>
+                {order.area.name},{" "}
+                {EMIRATE_NAMES[order.area.emirate as keyof typeof EMIRATE_NAMES] ??
+                  order.area.emirate}
+              </dd>
+              {address && (
+                <>
+                  <dt>Address</dt>
+                  <dd>{addressLine(order)}</dd>
+                  {address.makani && (
+                    <>
+                      <dt>Makani</dt>
+                      <dd className="mono">{address.makani}</dd>
+                    </>
+                  )}
+                  <dt>Notes</dt>
+                  <dd>{address.notes ? address.notes : <span className="muted">None</span>}</dd>
+                </>
+              )}
+              <dt>Promise</dt>
+              <dd>{order.deliveryEtaText}</dd>
+              <dt>Charge</dt>
+              <dd>{money(order.deliveryFeeFils)}</dd>
+            </dl>
+          </div>
+        </section>
+        <section className="card" aria-labelledby="payment-h">
+          <div className="card-h">
+            <h2 id="payment-h">Payment</h2>
+          </div>
+          <div className="card-b">
+            <dl className="kv kv-flat">
+              <dt>Method</dt>
+              <dd>
+                <Icon name="cash" size="sm" /> Cash on delivery
+              </dd>
+              <dt>Status</dt>
+              <dd>
+                <span
+                  className={`tag ${order.codStatus === "collected" ? "ok" : order.codStatus === "not_collected" ? "muted" : "low"}`}
+                >
+                  {COD_STATUS_LABELS[order.codStatus]}
+                </span>
+              </dd>
+              <dt>Amount</dt>
+              <dd>{money(order.totalFils)}</dd>
+            </dl>
+            {order.collectionRecords.length > 0 && (
+              <div className="tl cash-tl">
+                {order.collectionRecords.map((entry, index) => (
+                  <div className="tl-i" key={entry.id}>
+                    <span className="tl-d st-delivered">
+                      <Icon name="cash" />
+                    </span>
+                    <div>
+                      <b>
+                        {entry.kind === "recorded" ? "Recorded" : "Corrected"}{" "}
+                        {money(entry.amountFils)}
+                        {index === order.collectionRecords.length - 1 ? " · in effect" : ""}
+                      </b>
+                      <small>
+                        Received {when(entry.collectedAt)} · {entry.actor.name}
+                        {entry.reference ? ` · ${entry.reference}` : ""}
+                      </small>
+                      {entry.reason && <small>{entry.reason}</small>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            {collect && (
+              <button type="button" className="btn btn-p pay-btn" onClick={collect}>
+                {order.codStatus === "collected" ? "Correct cash record" : "Record COD collection"}
+              </button>
+            )}
+          </div>
+        </section>
+        {reviewLink && <ReviewLinkPanel id={order.id} />}
+      </div>
+    </div>
+  );
+}
+
+/** Status icons of the prototype's timeline (`ST[s].i`). */
+const STATUS_ICON: Record<string, IconName> = {
+  pending: "clock",
+  confirmed: "check",
+  processing: "pkg",
+  out_for_delivery: "truck",
+  delivered: "check-c",
+  cancelled: "x-c",
+};
+
+function CopyPhone({ phone }: { phone: string }) {
+  return (
+    <button
+      type="button"
+      className="ibtn cust-copy"
+      aria-label="Copy phone number"
+      onClick={() => {
+        const done = () => toast("Phone number copied");
+        try {
+          navigator.clipboard
+            .writeText(phone)
+            .then(done, () => toast("Copy the number by hand", { kind: "info" }));
+        } catch {
+          toast("Copy the number by hand", { kind: "info" });
+        }
+      }}
+    >
+      <Icon name="copy" />
+    </button>
   );
 }

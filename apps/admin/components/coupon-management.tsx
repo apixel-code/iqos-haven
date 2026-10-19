@@ -1,4 +1,5 @@
 "use client";
+import { confirmDialog } from "../lib/ui/confirm";
 import { useState } from "react";
 import { couponResponseSchema, couponsResponseSchema, type CouponResponse } from "@ih/contracts";
 import {
@@ -139,9 +140,12 @@ export function CouponManagement() {
   async function move(coupon: CouponResponse, action: "trash" | "restore") {
     if (
       action === "trash" &&
-      !window.confirm(
-        `Move ${coupon.code} to Trash? It stops working at once. Orders that already used it keep their discount. You can restore it from Trash.`,
-      )
+      !(await confirmDialog({
+        title: `Move ${coupon.code} to Trash?`,
+        body: "It stops working at once. Orders that already used it keep their discount. You can restore it from Trash.",
+        ok: "Move to Trash",
+        danger: true,
+      }))
     )
       return;
     const outcome = await coupons.run((signal) =>

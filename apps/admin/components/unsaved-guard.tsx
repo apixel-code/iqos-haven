@@ -1,5 +1,6 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
+import { confirmDialog } from "../lib/ui/confirm";
 import {
   SAVED_EVENT,
   declareUnsaved,
@@ -31,9 +32,6 @@ function snapshot(region: Element) {
  * the workspace shell. The browser's Back button is not intercepted.
  */
 export function UnsavedChangesGuard() {
-  const dialog = useRef<HTMLDialogElement>(null);
-  const [leaving, setLeaving] = useState<{ what: string; proceed: () => void } | null>(null);
-
   useEffect(() => {
     const baselines = new WeakMap<Element, string>();
     const submitted = new Map<Element, string>();
@@ -84,18 +82,23 @@ export function UnsavedChangesGuard() {
       if (!what) return;
       event.preventDefault();
       event.stopPropagation();
-      setLeaving({
-        what,
-        proceed: () => {
-          // The changes are discarded: forget them, then repeat the click unguarded.
-          for (const found of dirtyRegions()) baselines.set(found, snapshot(found));
-          bypass = true;
-          try {
-            (target as HTMLElement).click();
-          } finally {
-            bypass = false;
-          }
-        },
+      // The prototype's confirmation dialog (parity G-A13); the safe choice has the focus.
+      void confirmDialog({
+        title: "Leave without saving?",
+        body: unsavedMessage(what),
+        ok: "Discard changes",
+        cancel: "Keep editing",
+        danger: true,
+      }).then((discard) => {
+        if (!discard) return;
+        // The changes are discarded: forget them, then repeat the click unguarded.
+        for (const found of dirtyRegions()) baselines.set(found, snapshot(found));
+        bypass = true;
+        try {
+          (target as HTMLElement).click();
+        } finally {
+          bypass = false;
+        }
       });
     };
     const onBeforeUnload = (event: BeforeUnloadEvent) => {
@@ -121,46 +124,7 @@ export function UnsavedChangesGuard() {
     };
   }, []);
 
-  useEffect(() => {
-    if (leaving && !dialog.current?.open) dialog.current?.showModal();
-  }, [leaving]);
-
-  const close = () => {
-    dialog.current?.close();
-    setLeaving(null);
-  };
-  return (
-    <dialog
-      ref={dialog}
-      className="leave-dialog"
-      aria-labelledby="leave-title"
-      aria-describedby="leave-body"
-      onClose={() => setLeaving(null)}
-    >
-      {leaving && (
-        <>
-          <h2 id="leave-title">Leave without saving?</h2>
-          <p id="leave-body">{unsavedMessage(leaving.what)}</p>
-          <div className="form-actions">
-            <button type="button" className="secondary-button" autoFocus onClick={close}>
-              Keep editing
-            </button>
-            <button
-              type="button"
-              className="danger-button"
-              onClick={() => {
-                const { proceed } = leaving;
-                close();
-                proceed();
-              }}
-            >
-              Discard changes
-            </button>
-          </div>
-        </>
-      )}
-    </dialog>
-  );
+  return null;
 }
 
 /** For editors whose unsaved state lives in React: pass a name while there is some, else null. */

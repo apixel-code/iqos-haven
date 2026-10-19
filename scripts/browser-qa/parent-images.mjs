@@ -6,6 +6,7 @@ import { createRequire } from "node:module";
 import { mkdirSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { autoConfirm } from "./confirm.mjs";
 
 const root = resolve(fileURLToPath(new URL(".", import.meta.url)), "../..");
 const playwrightDir = process.env.QA_PLAYWRIGHT_DIR;
@@ -53,7 +54,7 @@ async function session(email) {
   const page = await context.newPage();
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
-  page.on("dialog", (dialog) => void dialog.accept());
+  await autoConfirm(page);
   await page.goto(BASE + "/login");
   await page.fill('input[name="email"]', email);
   await page.fill('input[name="password"]', PASSWORD);

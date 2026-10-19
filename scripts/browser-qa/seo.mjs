@@ -5,6 +5,7 @@ import { createRequire } from "node:module";
 import { mkdirSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { answerConfirm } from "./confirm.mjs";
 
 const root = resolve(fileURLToPath(new URL(".", import.meta.url)), "../..");
 const playwrightDir = process.env.QA_PLAYWRIGHT_DIR;
@@ -84,12 +85,12 @@ try {
   );
 
   // Dismissing the question changes nothing.
-  page.once("dialog", (dialog) => void dialog.dismiss());
   await page.getByRole("radio", { name: /Public pages/ }).click();
+  await answerConfirm(page, false);
   await page.waitForTimeout(500);
   check("dismissing keeps the store closed", (await readPublicSeoPolicy(db)).indexing === "closed");
-  page.once("dialog", (dialog) => void dialog.accept());
   await page.getByRole("radio", { name: /Public pages/ }).click();
+  await answerConfirm(page, true);
   await page.getByText("Saved. The storefront follows within a minute.").waitFor();
   check(
     "accepting offers the public pages",
@@ -106,8 +107,8 @@ try {
     (await db.auditLog.count({ where: { action: "seo.policy_updated" } })) >= 1,
   );
   await page.screenshot({ path: out + "seo.png", fullPage: true });
-  page.once("dialog", (dialog) => void dialog.accept());
   await page.getByRole("radio", { name: /Closed/ }).click();
+  await answerConfirm(page, true);
   await page.getByText("Saved. The storefront follows within a minute.").waitFor();
   check("closing again works", (await readPublicSeoPolicy(db)).indexing === "closed");
   await page.setViewportSize({ width: 390, height: 844 });

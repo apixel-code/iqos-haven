@@ -8,6 +8,7 @@ import {
   type ResponseContract,
 } from "../lib/management";
 import { useSessionChecking } from "./session-shell";
+import { Icon } from "./icons";
 export function useManagementResource<T>(path: string, schema: ResponseContract<T>) {
   const checking = useSessionChecking();
   const [snapshot, setSnapshot] = useState<{ path: string; revision: number; value: T } | null>(
@@ -112,9 +113,29 @@ export function useManagementResource<T>(path: string, schema: ResponseContract<
 }
 export function ResourceNotice({
   resource,
+  compact = false,
 }: {
   resource: { message: string; busy: boolean; denied: boolean; reload: () => void };
+  /** Rebuilt screens (ADR 0097): the reload button only when there is a problem to recover from. */
+  compact?: boolean;
 }) {
+  if (compact)
+    return (
+      <div className={resource.message ? "note err res-note" : "res-note"}>
+        <div role="status" aria-live="polite">
+          {resource.message || (resource.busy ? <span className="sr">Loading…</span> : "")}
+        </div>
+        {resource.message && (
+          <button type="button" className="btn btn-s btn-sm" onClick={resource.reload}>
+            <Icon name="refresh" size="sm" />
+            Reload
+          </button>
+        )}
+        {resource.denied && (
+          <p className="muted">Access unavailable. Return to your workspace or sign in again.</p>
+        )}
+      </div>
+    );
   return (
     <div className="resource-toolbar">
       <div role="status" aria-live="polite">

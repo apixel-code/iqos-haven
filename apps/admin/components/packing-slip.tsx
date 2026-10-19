@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef } from "react";
+import { Icon } from "./icons";
 import { EMIRATE_NAMES, type AdminOrderResponse } from "@ih/contracts";
 import { money, ORDER_STATUS_LABELS, when } from "../lib/orders";
 
@@ -34,11 +35,8 @@ export function PackingSlip({
         : money(order.totalFils);
   return (
     <>
-      <button
-        type="button"
-        className="secondary-button"
-        onClick={() => dialog.current?.showModal()}
-      >
+      <button type="button" className="btn btn-s" onClick={() => dialog.current?.showModal()}>
+        <Icon name="printer" />
         Packing slip
       </button>
       <dialog ref={dialog} className="slip-dialog" aria-labelledby={`slip-${order.id}`}>

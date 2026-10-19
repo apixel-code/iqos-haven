@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { notificationDestination } from "../lib/links";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -9,6 +10,17 @@ import {
   type InboxResponse,
 } from "@ih/contracts";
 import { when } from "../lib/orders";
+import { toast } from "../lib/ui/toast";
+import { Icon, type IconName } from "./icons";
+import { Pop } from "./pop";
+
+/** The prototype's notification icons by kind (`notifItem`), keyed by the type's prefix. */
+const KIND: Record<string, { icon: IconName; tone: "info" | "warn" | "ok" }> = {
+  order: { icon: "orders", tone: "info" },
+  inventory: { icon: "layers", tone: "warn" },
+  review: { icon: "star", tone: "info" },
+  system: { icon: "info", tone: "ok" },
+};
 
 async function call<T>(
   path: string,
@@ -80,94 +92,123 @@ export function NotificationBell({ onSignedOut }: { onSignedOut: () => void }) {
   }, [refresh, onSignedOut]);
 
   const unread = inbox?.unreadCount ?? 0;
+  const router = useRouter();
+  const markRead = (id: string) =>
+    call(`/${id}/read`, notificationReadResponseSchema, {})
+      .then(refresh)
+      .catch(() => setFailed(true));
   return (
-    <div
-      className="notification-bell"
-      // Escape closes the panel from the bell or from inside it, and focus goes back to the bell.
-      onKeyDown={(event) => {
-        if (event.key !== "Escape" || !open) return;
-        event.stopPropagation();
-        setOpen(false);
-        bell.current?.focus();
-      }}
-    >
+    <>
+      {/* The prototype's bell (`#bell`): the count as a dot, in the accessible name too. */}
       <button
         ref={bell}
         type="button"
-        className="secondary-button"
+        className="ibtn bell"
         aria-expanded={open}
+        aria-label={unread > 0 ? `Notifications, ${unread} unread` : "Notifications"}
         onClick={() => setOpen((value) => !value)}
       >
-        {/* The visible text ("Notifications" and the count) is the accessible name (WCAG 2.5.3). */}
-        Notifications
+        <Icon name="bell" />
         {unread > 0 && (
-          <>
-            {" "}
-            <span className="badge">{unread}</span>
-            <span className="sr-only"> unread</span>
-          </>
+          <span className="dot" aria-hidden="true">
+            {unread > 99 ? "99+" : unread}
+          </span>
         )}
       </button>
-      {open && (
-        <div className="record-card notification-panel" role="dialog" aria-label="Notifications">
-          {failed && <p role="alert">Notifications could not be loaded. Try again shortly.</p>}
-          {inbox && inbox.items.length === 0 && <p className="muted">No notifications yet.</p>}
-          {inbox && inbox.items.length > 0 && (
-            <>
-              <ul className="record-list">
-                {inbox.items.map((item) => (
-                  <li key={item.id} className={item.readAt ? "muted" : undefined}>
-                    <strong>{item.title}</strong>
-                    <small>
-                      {item.body} · {when(item.createdAt)}
-                    </small>
-                    <span>
-                      {(() => {
-                        const target = notificationDestination(item.link);
-                        return (
-                          target && (
-                            <Link href={target.href} onClick={() => setOpen(false)}>
-                              {target.label}
-                            </Link>
-                          )
-                        );
-                      })()}{" "}
-                      {!item.readAt && (
-                        <button
-                          type="button"
-                          className="text-button"
-                          onClick={() =>
-                            void call(`/${item.id}/read`, notificationReadResponseSchema, {})
-                              .then(refresh)
-                              .catch(() => setFailed(true))
-                          }
-                        >
-                          Mark read
-                        </button>
-                      )}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-              {unread > 0 && (
-                <button
-                  type="button"
-                  className="secondary-button"
-                  onClick={() =>
-                    void call("/read-all", notificationsReadAllResponseSchema, {
-                      upTo: inbox.items[0]!.id,
-                    })
-                      .then(refresh)
-                      .catch(() => setFailed(true))
-                  }
-                >
-                  Mark all read
-                </button>
-              )}
-            </>
+      <Pop
+        anchor={bell}
+        open={open}
+        onClose={() => setOpen(false)}
+        label="Notifications"
+        className="notif"
+      >
+        <div className="notif-h">
+          <h3>Notifications</h3>
+          {inbox && unread > 0 && (
+            <button
+              type="button"
+              className="btn btn-g btn-sm"
+              onClick={() =>
+                void call("/read-all", notificationsReadAllResponseSchema, {
+                  upTo: inbox.items[0]!.id,
+                })
+                  .then(() => {
+                    refresh();
+                    toast("All notifications marked as read");
+                  })
+                  .catch(() => setFailed(true))
+              }
+            >
+              Mark all as read
+            </button>
           )}
         </div>
-      )}
-    </div>
+        <div className="notif-l">
+          {failed && (
+            <p role="alert" className="notif-msg">
+              Notifications could not be loaded. Try again shortly.
+            </p>
+          )}
+          {inbox && inbox.items.length === 0 && (
+            <div className="empty">
+              <div className="ic">
+                <Icon name="bell" />
+              </div>
+              <h3>You&apos;re all caught up</h3>
+              <p>No notifications yet. New orders and stock alerts will appear here.</p>
+            </div>
+          )}
+          {inbox?.items.slice(0, 8).map((item) => {
+            const target = notificationDestination(item.link);
+            // What it links to decides the icon; else the type ("order.new" → "order").
+            const about = target?.href.startsWith("/workspace/orders")
+              ? "order"
+              : target?.href.startsWith("/workspace/inventory")
+                ? "inventory"
+                : target?.href.startsWith("/workspace/reviews")
+                  ? "review"
+                  : item.type.split(".")[0]!;
+            const kind = KIND[about] ?? KIND.system!;
+            return (
+              <button
+                key={item.id}
+                type="button"
+                className={item.readAt ? "ni read" : "ni"}
+                onClick={() => {
+                  if (!item.readAt) void markRead(item.id);
+                  if (target) {
+                    setOpen(false);
+                    router.push(target.href);
+                  }
+                }}
+              >
+                <span className={`ic ic-${kind.tone}`}>
+                  <Icon name={kind.icon} />
+                </span>
+                <span>
+                  <b>{item.title}</b>
+                  <small>{item.body}</small>
+                  <small>{when(item.createdAt)}</small>
+                </span>
+                {!item.readAt && (
+                  <span className="ud">
+                    <span className="sr">Unread. Mark read</span>
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+        <div className="notif-f">
+          <Link
+            href="/workspace/notifications"
+            className="btn btn-g btn-sm"
+            onClick={() => setOpen(false)}
+          >
+            View all notifications
+          </Link>
+        </div>
+      </Pop>
+    </>
   );
 }

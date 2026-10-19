@@ -109,11 +109,17 @@ try {
   await keeper.getByRole("button", { name: "Approve" }).click();
   await page.locator("article", { hasText: "Keeper " + tag }).waitFor({ state: "detached" });
   check("approved review leaves the Pending tab", true);
+  // The card leaves as the list reloads; the average follows with the same read.
   check(
     "published average updates",
-    (await page.locator("header p.muted").first().innerText()).includes(
-      "5.0 average from 1 published",
-    ),
+    await page
+      .locator("header p.muted", { hasText: "5.0 average from 1 published" })
+      .first()
+      .waitFor({ timeout: 10000 })
+      .then(
+        () => true,
+        () => false,
+      ),
   );
   await page
     .locator("article", { hasText: "Spam " + tag })

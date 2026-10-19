@@ -112,8 +112,8 @@ try {
   await page.reload();
   await detailOf(page, number(late));
   check("reloading keeps the order open", true);
-  await page.getByRole("button", { name: "← Back to orders" }).click();
-  await page.getByRole("heading", { name: "Orders", exact: true }).nth(1).waitFor();
+  await page.locator("button.backlink").click();
+  await page.getByRole("tablist", { name: "Order status" }).waitFor();
   check("Back to orders drops the order from the URL", !page.url().includes("order="));
   await page.goBack();
   await detailOf(page, number(late));
@@ -121,7 +121,7 @@ try {
 
   // 2. Dashboard links keep their filters.
   await page.goto(BASE + "/");
-  await page.getByRole("link", { name: /pending to confirm/ }).click();
+  await page.getByRole("link", { name: /pending orders? to confirm/ }).click();
   await page.waitForURL(/status=pending/);
   await page.getByText(number(fresh)).first().waitFor();
   let ids = await listIds(page);
@@ -166,9 +166,10 @@ try {
   // 3. Bell and inbox.
   await page.goto(BASE + "/");
   await page.getByRole("button", { name: /Notifications/ }).click();
+  // The prototype's panel (V-A1): a notification is one button that opens what it is about.
   await page
     .getByRole("dialog", { name: "Notifications" })
-    .getByRole("link", { name: "Open order" })
+    .locator('button.ni:has(use[href="#i-orders"])')
     .first()
     .click();
   await detailOf(page, number(late));

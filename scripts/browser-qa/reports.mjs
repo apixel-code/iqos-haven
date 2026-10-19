@@ -6,6 +6,7 @@ import { randomUUID } from "node:crypto";
 import { mkdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { answerConfirm } from "./confirm.mjs";
 
 const root = resolve(fileURLToPath(new URL(".", import.meta.url)), "../..");
 const playwrightDir = process.env.QA_PLAYWRIGHT_DIR;
@@ -83,18 +84,21 @@ try {
 
   // Personal data asks first; dismissing sends nothing.
   await page.locator('select[name="type"]').selectOption("customers");
-  let asked = 0;
-  page.once("dialog", (dialog) => {
-    asked++;
-    void dialog.dismiss();
-  });
   const before = await db.reportJob.count();
   await page.getByRole("button", { name: "Request report" }).click();
+  const asked = await page
+    .getByRole("dialog", { name: "Export customer details?" })
+    .waitFor({ timeout: 3000 })
+    .then(
+      () => 1,
+      () => 0,
+    );
+  await answerConfirm(page, false);
   await page.waitForTimeout(500);
   check("customer data asks before requesting", asked === 1);
   check("dismissing it requests nothing", (await db.reportJob.count()) === before);
-  page.once("dialog", (dialog) => void dialog.accept());
   await page.getByRole("button", { name: "Request report" }).click();
+  await answerConfirm(page, true);
   await page.getByText("Ready: download it below within 15 minutes.").waitFor();
   // The list reloads after the answer: wait for the new row, not the first link.
   const customerRow = page.locator("tr", { hasText: "Customers" }).first();
