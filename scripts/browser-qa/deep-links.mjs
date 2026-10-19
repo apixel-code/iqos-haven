@@ -121,7 +121,7 @@ try {
 
   // 2. Dashboard links keep their filters.
   await page.goto(BASE + "/");
-  await page.getByRole("link", { name: /pending to confirm/ }).click();
+  await page.getByRole("link", { name: /pending orders? to confirm/ }).click();
   await page.waitForURL(/status=pending/);
   await page.getByText(number(fresh)).first().waitFor();
   let ids = await listIds(page);

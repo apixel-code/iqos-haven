@@ -48,7 +48,12 @@ export function ProductManagement({ permissions }: { permissions: readonly strin
   const canSeo = permissions.includes("seo.write");
   // An existing product opens from the URL (`?product=`, parity G-A2); a new one is local.
   const { get, navigate } = useUrlQuery();
-  const [creating, setCreating] = useState(false);
+  // `?new=1` (the dashboard's "Add product") opens a new draft.
+  const [creating, setCreatingState] = useState(() => canWrite && get("new") === "1");
+  const setCreating = (on: boolean) => {
+    setCreatingState(on);
+    if (!on && get("new")) navigate({ new: null });
+  };
   const urlProduct = get("product");
   const editing: string | "new" | null = creating ? "new" : isUuid(urlProduct) ? urlProduct : null;
   const setEditing = (id: string | "new" | null) => {

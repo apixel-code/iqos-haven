@@ -79,11 +79,16 @@ try {
   const owner = await session("owner.qa@iqoshaven.test");
   const { page } = owner;
   await page.goto(BASE + "/");
-  await page.getByText("Today’s orders").waitFor();
+  // The prototype's dashboard (V-A2): KPI tiles, the attention strip, booked sales.
+  await page.locator(".kpis .kpi").first().waitFor();
   const home = await page.locator("main").innerText();
-  check("home shows open order counts", /Pending\s+\d+/.test(home), home.slice(0, 300));
-  check("home names the pending orders to confirm", /pending to confirm/.test(home));
-  check("Owner sees booked sales with freshness", /Booked sales[\s\S]*As of /.test(home));
+  check(
+    "home shows open order counts",
+    /Pending orders[\s\S]{0,20}\d+/.test(home),
+    home.slice(0, 300),
+  );
+  check("home names the pending orders to confirm", /pending orders? to confirm/.test(home));
+  check("Owner sees booked sales with freshness", /Booked sales[\s\S]*as of /i.test(home));
   check("recent orders are listed", (await page.getByText(/IH-\d{6,}/).count()) >= 2);
   await page.screenshot({ path: out + "dashboard-owner.png", fullPage: true });
 
@@ -125,7 +130,7 @@ try {
   check("analytics fits 390px without sideways scrolling", await noSideScroll(page));
   await page.screenshot({ path: out + "analytics-390.png", fullPage: true });
   await page.goto(BASE + "/");
-  await page.getByText("Today’s orders").waitFor();
+  await page.locator(".kpis .kpi").first().waitFor();
   check("home fits 390px without sideways scrolling", await noSideScroll(page));
   await page.screenshot({ path: out + "dashboard-390.png", fullPage: true });
   // The Notifications nav item opens the inbox, not a placeholder (step 115).

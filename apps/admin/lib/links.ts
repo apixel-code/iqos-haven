@@ -1,7 +1,8 @@
 /**
  * Deep links inside the admin (parity G-A2, ADR 0081). Each screen reads its own query
  * parameter: `orders?order=`, `?status=`, `?delayed=1`; `products?product=`;
- * `inventory?variant=`, `?state=`; `customers?customer=`. Only UUIDs are put into a link, never free text.
+ * `inventory?variant=`, `?state=`; `customers?customer=`; `orders?new=1`, `products?new=1`. Only
+ * UUIDs are put into a link, never free text.
  */
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export const isUuid = (value: string | null | undefined): value is string =>
@@ -15,6 +16,9 @@ export const ordersHref = (filter: { status?: string; delayed?: boolean } = {}) 
   return params.size ? `/workspace/orders?${params}` : "/workspace/orders";
 };
 export const productHref = (id: string) => `/workspace/products?product=${id}`;
+/** Opens the manual order form or a new product draft (the dashboard's quick actions). */
+export const newOrderHref = "/workspace/orders?new=1";
+export const newProductHref = "/workspace/products?new=1";
 export const variantStockHref = (id: string) => `/workspace/inventory?variant=${id}`;
 
 /** Where a notification's stored link (an API-side path) leads in this admin. */

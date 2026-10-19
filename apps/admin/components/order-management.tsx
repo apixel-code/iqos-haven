@@ -95,7 +95,12 @@ export function OrderManagement({
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [cursors, setCursors] = useState<string[]>([]);
-  const [creating, setCreating] = useState(false);
+  // `?new=1` (the dashboard's "Create order") opens the manual order form.
+  const [creating, setCreatingState] = useState(() => canCreate && query("new") === "1");
+  const setCreating = (on: boolean) => {
+    setCreatingState(on);
+    if (!on && query("new")) navigate({ new: null });
+  };
   // Bulk confirm (step 89): chosen Pending orders with the version seen and one command ID each.
   // An unclear answer keeps the same batch, so "Retry" replays instead of confirming twice.
   const [chosen, setChosen] = useState<

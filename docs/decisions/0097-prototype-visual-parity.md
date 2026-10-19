@@ -217,6 +217,29 @@ The admin parity work starts here. It follows the storefront's method: the proto
   - A destructive question starts on Cancel ("Keep editing"); any other starts on the answer.
   - The browser passes answer it through `scripts/browser-qa/confirm.mjs` (`autoConfirm`, `answerConfirm`).
 
+## V-A2 (admin dashboard), 2026-10-19
+
+- **Layout:** the prototype's `VIEWS.dashboard`, in order:
+  1. The attention strip (`attn`) or "All caught up".
+  2. Four `kpis` tiles.
+  3. The quick actions (`qa`).
+  4. Recent orders in a table from 720 px and as order rows (`mrow`) on a phone, beside Needs attention and Low stock (`split wide`, `list`).
+  5. A `grid g2` row: the open orders' status bar (`sbar`/`sleg`), the best-selling products ranking (`rank`), and Booked sales for the Owner or "Your access" for Staff.
+- **Data:** all of it comes from `GET /v1/admin/dashboard`, sections the API leaves out (`null`) are not drawn, and no figure is invented.
+  - **The Owner's tiles** are the prototype's Revenue, Orders, Avg. order value and Pending, for today against yesterday from the daily tables. A day not computed yet says so instead of showing a change.
+  - **Staff's tiles** are the prototype's operational set: today's orders, processing, out for delivery and pending.
+- **Not carried over:**
+  - The prototype's date-range picker and revenue chart: the dashboard read has today and yesterday only, and Analytics has the charts and ranges.
+  - Best-selling brands: not in the dashboard read.
+  - The recent-orders "Confirm" button: confirming needs the order's version and a command, so it stays in the order screen.
+- **Quick actions:**
+  - "Create order" and "Add product" open their forms through new `?new=1` links (`newOrderHref`, `newProductHref`); the orders and products screens read them.
+  - Each action shows only for the rights it needs.
+- **CSS (affects every admin screen):**
+  - `globals.css`' element rules (`h1`, `a:hover`, …) and the old `.muted`, `.small` and `.eyebrow` now sit in `@layer base`, under the prototype's rules. Unlayered, they overrode the prototype's page heads and text sizes.
+  - `prototype.css` sets the prototype's root `box-sizing: border-box` (from its first style block). Its `* { box-sizing: inherit }` otherwise fell back to content-box, and padded lists and nav items overflowed.
+  - The old shell rules (`.workspace`, `.sidebar` …) and the old dashboard rules are gone. `.page-content` no longer adds a second padding inside the shell's `.page`. The analytics tiles keep their rules, scoped to `.kpi-grid`.
+
 ## Consequences
 
 - The look comes from the approved source instead of being re-imagined in utilities, so later screens are mostly markup work.

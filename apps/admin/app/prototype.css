@@ -3828,4 +3828,105 @@
     display: flex;
     flex-direction: column;
   }
+
+  /* ---------- admin: dashboard (V-A2, ADR 0097) ---------- */
+  .dash {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+  .attn-i,
+  .kpi,
+  .li,
+  .rank-i,
+  .sleg a,
+  .mrow,
+  .lnk-id {
+    color: inherit;
+    text-decoration: none;
+  }
+  .sleg a {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .live-tag {
+    height: 18px;
+    font-size: 10.5px;
+  }
+  .err-t {
+    color: var(--err);
+    font-weight: 600;
+  }
+  .warn-t {
+    color: var(--warn);
+    font-weight: 600;
+  }
+  .link-btn {
+    color: inherit;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    font-weight: 500;
+  }
+  .li-ic {
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
+    display: grid;
+    place-items: center;
+    flex: none;
+  }
+  .card .list {
+    margin-top: 8px;
+  }
+  .card-note {
+    padding: 0 18px 16px;
+    font-size: 12px;
+    color: var(--ink-3);
+  }
+  .card-b .card-note {
+    padding: 4px 0 0;
+  }
+  .dash-empty {
+    padding: 8px 18px 18px;
+  }
+  .dash-tbl {
+    margin-top: 12px;
+  }
+  .dash-rows {
+    margin-top: 8px;
+  }
+  .sales-days {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .sales-day {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .dash-time {
+    margin: 0;
+  }
+
+  /* admin: controls that are links here (buttons in the prototype) are not underlined. */
+  a.btn,
+  a.nav-a,
+  a.kpi,
+  a.attn-i,
+  a.li,
+  a.rank-i,
+  a.mrow,
+  .sleg a,
+  .bnav a,
+  .side-logo,
+  .mlogo {
+    text-decoration: none;
+  }
+
+  /* admin: the prototype's root box model (its first <style> block): everything inherits it. */
+  :root {
+    box-sizing: border-box;
+  }
 }
