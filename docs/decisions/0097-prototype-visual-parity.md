@@ -257,6 +257,27 @@ The orders screens come in three PRs: V-A3a (the list), V-A3b (the order detail 
 - **Notices:** `ResourceNotice` has a `compact` form for rebuilt screens: a live region, plus a Reload button only when something failed.
 - **Page heads:** screens that draw the prototype's page head themselves are listed in `WorkspaceSection` (`OWN_HEAD`), starting with orders.
 
+## V-A3b (admin order detail), 2026-10-19
+
+- **Layout:** the prototype's `VIEWS.order`:
+  - **Top:** the back link, then a head with the order number, its status badge, "Placed … · via Storefront" and the actions (WhatsApp customer, Edit, Packing slip, Cancel).
+  - **Progress card:** the five steps (`prog`), "Next: …" with the step's hint, and the advance button.
+  - **`split` columns:** Items with the totals (`items`, `sum`), the return, the Timeline with the steps still to come (`tl`) and the edit history on the left. Customer, Delivery (`kv`), Payment with the cash records and the review link on the right.
+  - **Phone:** an action bar (`savebar`) above the bottom navigation.
+- **Drawers:** WhatsApp, Edit, Cancel and the cash record open in the prototype's drawers.
+  - Their forms and logic are unchanged (versions, command IDs, retries, the separate cash collection).
+  - The drawer carries the title, so the panel's own frame and heading step aside (`.in-drawer`).
+  - After a save the drawer closes, the order reloads and a toast says what happened.
+- **Kept as built:** the advance button stays one step at a time, and Delivered stays separate from cash collection ("Record COD collection", or the Owner's "Correct cash record").
+- **Not carried over:**
+  - The prototype's "Change status" menu: only the next step exists.
+  - The customer's "previous orders" note and the Profile link: the order read carries no customer ID.
+  - The prototype's in-line WhatsApp link: the WhatsApp drawer keeps the server-built templates.
+- **Wording:** the edit is reached through "Edit". Tests that waited for an always-visible "Edit order" heading now open the drawer first.
+- **Fixed:**
+  - In dark mode, the WhatsApp green needs dark text (`--bg`).
+  - a11y scans of a drawer wait for its slide-in: half-faded colours read as low contrast.
+
 ## Consequences
 
 - The look comes from the approved source instead of being re-imagined in utilities, so later screens are mostly markup work.

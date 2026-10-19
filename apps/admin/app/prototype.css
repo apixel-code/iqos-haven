@@ -3995,4 +3995,98 @@
     align-items: center;
     justify-content: space-between;
   }
+
+  /* ---------- admin: order detail (V-A3b, ADR 0097) ---------- */
+  .order-detail {
+    gap: 16px;
+  }
+  .order-no {
+    font-family: var(--mono);
+    font-size: 0.92em;
+  }
+  .ph-t h1 .st {
+    vertical-align: middle;
+  }
+  .order-progress {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .order-next {
+    align-items: center;
+  }
+  .order-next b {
+    font-size: 15px;
+  }
+  .danger-t {
+    color: var(--err);
+  }
+  /* admin: order items are snapshots without a picture: two columns. */
+  .items .it {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .sum-hr {
+    margin: 14px 0;
+  }
+  .plain-list {
+    margin: 0;
+    padding-left: 18px;
+    font-size: 13px;
+  }
+  .cust-b {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .cust-row {
+    flex-wrap: nowrap;
+  }
+  .cust-n {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .cust-copy {
+    margin-left: auto;
+  }
+  .cust-call {
+    flex: 1;
+  }
+  .kv-flat {
+    margin: 0;
+  }
+  .cash-tl {
+    margin-top: 14px;
+  }
+  .pay-btn {
+    margin-top: 16px;
+    width: 100%;
+  }
+  /* admin: on a phone the order's action bar sits above the bottom navigation. */
+  @media (max-width: 719px) {
+    .order-detail .savebar {
+      bottom: calc(64px + env(safe-area-inset-bottom, 0px));
+      border-radius: var(--r-md);
+    }
+  }
+  /* admin: a panel in a drawer: the drawer is the card and carries the title. */
+  .drawer .modal-b > .record-card {
+    border: 0;
+    padding: 0;
+    background: none;
+    box-shadow: none;
+  }
+  .drawer .modal-b > .record-card > h3:first-child {
+    display: none;
+  }
+
+  /* admin: the dark theme's lighter WhatsApp green needs dark text (WCAG 1.4.3). */
+  :root[data-theme="dark"] .btn-wa {
+    color: var(--bg);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) .btn-wa {
+      color: var(--bg);
+    }
+  }
 }

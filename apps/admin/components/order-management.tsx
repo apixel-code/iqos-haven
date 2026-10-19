@@ -2,6 +2,7 @@
 import { confirmDialog } from "../lib/ui/confirm";
 import { useEffect, useState } from "react";
 import {
+  EMIRATE_NAMES,
   adminOrderResponseSchema,
   adminOrderCountsResponseSchema,
   adminOrdersResponseSchema,
@@ -45,7 +46,9 @@ import {
   type OrderDateRange,
   when,
 } from "../lib/orders";
-import { Icon } from "./icons";
+import { Icon, type IconName } from "./icons";
+import { Drawer } from "./overlays";
+import { toast } from "../lib/ui/toast";
 import { PageHead } from "./page-head";
 import { ManualOrderPanel } from "./manual-order";
 import { choiceLabel, OrderItemPicker } from "./order-item-picker";
@@ -247,7 +250,6 @@ export function OrderManagement({
   if (selected)
     return (
       <>
-        <PageHead title="Orders" />
         <OrderDetail
           id={selected}
           canReadContact={canReadContact}
@@ -712,13 +714,14 @@ const SOURCE_LABELS: Record<string, string> = {
 };
 
 type TransitionTarget = "confirmed" | "processing" | "out_for_delivery" | "delivered";
-const NEXT: Partial<Record<AdminOrderResponse["status"], { to: TransitionTarget; label: string }>> =
-  {
-    pending: { to: "confirmed", label: "Confirm order" },
-    confirmed: { to: "processing", label: "Start processing" },
-    processing: { to: "out_for_delivery", label: "Mark out for delivery" },
-    out_for_delivery: { to: "delivered", label: "Mark delivered" },
-  };
+const NEXT: Partial<
+  Record<AdminOrderResponse["status"], { to: TransitionTarget; label: string; icon: IconName }>
+> = {
+  pending: { to: "confirmed", label: "Confirm order", icon: "check" },
+  confirmed: { to: "processing", label: "Start processing", icon: "pkg" },
+  processing: { to: "out_for_delivery", label: "Mark out for delivery", icon: "truck" },
+  out_for_delivery: { to: "delivered", label: "Mark delivered", icon: "check-c" },
+};
 
 function OrderDetail({
   id,
@@ -742,6 +745,8 @@ function OrderDetail({
   onBack: () => void;
 }) {
   const order = useManagementResource(`/orders/${id}`, adminOrderResponseSchema);
+  // The prototype opens these in a drawer from the head or the cards.
+  const [panel, setPanel] = useState<"whatsapp" | "edit" | "cancel" | "collection" | null>(null);
   const [pending, setPending] = useState<{
     commandId: string;
     expectedVersion: number;
@@ -777,120 +782,296 @@ function OrderDetail({
     if (result.ok) {
       setPending(null);
       order.reload();
+      toast(`${order.data.orderNumber}: ${ORDER_STATUS_LABELS[command.to]}`);
     }
   }
+  const data = order.data;
+  const status = data?.status;
+  const editable =
+    canEdit && status !== undefined && ["pending", "confirmed", "processing"].includes(status);
+  const cancellable =
+    status !== undefined &&
+    ((canCancel && ["pending", "confirmed", "processing"].includes(status)) ||
+      (canCancel && canReturn && status === "out_for_delivery"));
+  const collectable =
+    data !== null &&
+    ((canCollect && data.status === "delivered" && data.codStatus === "pending") ||
+      (canCorrect && data.codStatus === "collected"));
+  const whatsapp = canReadContact && status !== undefined && status !== "cancelled";
+  const close = () => setPanel(null);
+  const advance =
+    canTransition && action ? (
+      <button
+        type="button"
+        className="btn btn-p"
+        disabled={order.disabled}
+        onClick={() => void submitTransition()}
+      >
+        <Icon name={action.icon} />
+        {activePending ? `Retry: ${action.label}` : action.label}
+      </button>
+    ) : null;
   return (
-    <section className="management-card order-detail">
-      <div className="form-actions">
-        <button data-leave type="button" className="secondary-button" onClick={onBack}>
-          ← Back to orders
-        </button>
-        {/* The slip shows where to deliver, so it needs the contact (customers.read). */}
-        {order.data?.customer && (
-          <PackingSlip order={{ ...order.data, customer: order.data.customer }} />
-        )}
-      </div>
-      <ResourceNotice resource={order} />
-      {order.data && (
+    <div className="stack order-detail">
+      <button data-leave type="button" className="backlink" onClick={onBack}>
+        <Icon name="arr-l" size="sm" />
+        Orders
+      </button>
+      <ResourceNotice resource={order} compact />
+      {data && (
         <>
-          {canTransition && action && (
-            <div className="form-actions">
-              <button
-                type="button"
-                className="primary-button"
-                disabled={order.disabled}
-                onClick={() => void submitTransition()}
-              >
-                {activePending ? `Retry: ${action.label}` : action.label}
-              </button>
-              <small className="muted">
-                Uses version {activePending?.expectedVersion ?? order.data.version}; the same
-                command is retried safely.
-              </small>
+          <PageHead
+            title={
+              <>
+                <span className="mono order-no">{data.orderNumber}</span>{" "}
+                <StatusBadge status={data.status} />
+              </>
+            }
+            sub={`Placed ${when(data.createdAt)} · via ${SOURCE_LABELS[data.source] ?? data.source}`}
+            actions={
+              <>
+                {whatsapp && (
+                  <button
+                    type="button"
+                    className="btn btn-wa hide-m"
+                    onClick={() => setPanel("whatsapp")}
+                  >
+                    <Icon name="wa" />
+                    WhatsApp customer
+                  </button>
+                )}
+                {editable && (
+                  <button
+                    type="button"
+                    className="btn btn-s hide-m"
+                    onClick={() => setPanel("edit")}
+                  >
+                    <Icon name="edit" />
+                    Edit
+                  </button>
+                )}
+                {/* The slip shows where to deliver, so it needs the contact (customers.read). */}
+                {data.customer && <PackingSlip order={{ ...data, customer: data.customer }} />}
+                {cancellable && (
+                  <button
+                    type="button"
+                    className="btn btn-s danger-t"
+                    onClick={() => setPanel("cancel")}
+                  >
+                    <Icon name="x-c" />
+                    {data.status === "out_for_delivery" ? "Cancel after return" : "Cancel order"}
+                  </button>
+                )}
+              </>
+            }
+          />
+          <div className="card">
+            <div className="card-b order-progress">
+              {data.status === "cancelled" ? (
+                <div className="note">
+                  <Icon name="x-c" />
+                  <p>
+                    <b>This order was cancelled</b>
+                    {cancelEntry(data)}. Items were returned to stock.
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <div className="prog" aria-label="Order progress">
+                    {PROGRESS.map((step, index) => {
+                      const at = PROGRESS.indexOf(data.status as (typeof PROGRESS)[number]);
+                      return (
+                        <div
+                          key={step}
+                          className={`prog-s ${index < at ? "done" : index === at ? "now" : ""}`}
+                          aria-current={index === at ? "step" : undefined}
+                        >
+                          <i />
+                          <span>{ORDER_STATUS_LABELS[step]}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="row between order-next">
+                    <div>
+                      {action ? (
+                        <>
+                          <b>Next: {ORDER_STATUS_LABELS[action.to]}</b>
+                          <p className="small muted">{NEXT_HINT[data.status]}</p>
+                        </>
+                      ) : (
+                        <>
+                          <b>Order complete</b>
+                          <p className="small muted">
+                            {data.codStatus === "collected"
+                              ? "Delivered and cash collected."
+                              : "Delivered. Record the cash once it is in hand."}
+                          </p>
+                        </>
+                      )}
+                    </div>
+                    <div className="row hide-m">{advance}</div>
+                  </div>
+                  {activePending && (
+                    <p className="small muted">
+                      The same command is retried safely (version {activePending.expectedVersion}).
+                    </p>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+          <OrderDetailBody
+            order={data}
+            collect={collectable ? () => setPanel("collection") : null}
+            reviewLink={canReadContact && data.status === "delivered"}
+          />
+          {(advance || whatsapp || editable) && (
+            <div className="savebar only-m-f">
+              {advance}
+              {whatsapp && (
+                <button
+                  type="button"
+                  className="btn btn-wa btn-icon"
+                  aria-label="WhatsApp customer"
+                  onClick={() => setPanel("whatsapp")}
+                >
+                  <Icon name="wa" />
+                </button>
+              )}
+              {editable && (
+                <button
+                  type="button"
+                  className="btn btn-s btn-icon"
+                  aria-label="Edit order"
+                  onClick={() => setPanel("edit")}
+                >
+                  <Icon name="edit" />
+                </button>
+              )}
             </div>
           )}
-          {canEdit && ["pending", "confirmed", "processing"].includes(order.data.status) && (
-            <OrderEditPanel
-              key={`${order.data.id}:${order.data.version}`}
-              order={order.data}
-              canReadContact={canReadContact}
-              disabled={order.disabled}
-              save={(request) =>
-                order.run((signal) =>
-                  managementRequest(
-                    `/orders/${id}`,
-                    orderEditResponseSchema,
-                    "PATCH",
-                    request,
-                    signal,
-                  ),
-                )
-              }
-              done={order.reload}
-            />
-          )}
-          {((canCancel && ["pending", "confirmed", "processing"].includes(order.data.status)) ||
-            (canCancel && canReturn && order.data.status === "out_for_delivery")) && (
-            <OrderCancelPanel
-              key={`cancel:${order.data.id}:${order.data.version}`}
-              order={order.data}
-              disabled={order.disabled}
-              save={(request) =>
-                order.run((signal) =>
-                  managementRequest(
-                    `/orders/${id}/cancel`,
-                    orderCancelResponseSchema,
-                    "POST",
-                    request,
-                    signal,
-                  ),
-                )
-              }
-              done={order.reload}
-            />
-          )}
-          {((canCollect &&
-            order.data.status === "delivered" &&
-            order.data.codStatus === "pending") ||
-            (canCorrect && order.data.codStatus === "collected")) && (
-            <OrderCollectionPanel
-              key={`collection:${order.data.id}:${order.data.version}`}
-              order={order.data}
-              disabled={order.disabled}
-              record={(request) =>
-                order.run((signal) =>
-                  managementRequest(
-                    `/orders/${id}/collection`,
-                    orderCollectionResponseSchema,
-                    "POST",
-                    request,
-                    signal,
-                  ),
-                )
-              }
-              correct={(request) =>
-                order.run((signal) =>
-                  managementRequest(
-                    `/orders/${id}/collection/corrections`,
-                    orderCollectionResponseSchema,
-                    "POST",
-                    request,
-                    signal,
-                  ),
-                )
-              }
-              done={order.reload}
-            />
-          )}
-          {canReadContact && order.data.status !== "cancelled" && (
-            <OrderWhatsappPanel id={id} version={order.data.version} />
-          )}
-          {canReadContact && order.data.status === "delivered" && <ReviewLinkPanel id={id} />}
-          <OrderDetailBody order={order.data} />
+          <Drawer open={panel === "whatsapp" && whatsapp} onClose={close} title="WhatsApp customer">
+            <div className="management-card in-drawer">
+              <OrderWhatsappPanel id={id} version={data.version} />
+            </div>
+          </Drawer>
+          <Drawer open={panel === "edit" && editable} onClose={close} title="Edit order" wide>
+            <div className="management-card in-drawer">
+              <OrderEditPanel
+                key={`${data.id}:${data.version}`}
+                order={data}
+                canReadContact={canReadContact}
+                disabled={order.disabled}
+                save={(request) =>
+                  order.run((signal) =>
+                    managementRequest(
+                      `/orders/${id}`,
+                      orderEditResponseSchema,
+                      "PATCH",
+                      request,
+                      signal,
+                    ),
+                  )
+                }
+                done={() => {
+                  close();
+                  order.reload();
+                  toast("Order updated");
+                }}
+              />
+            </div>
+          </Drawer>
+          <Drawer
+            open={panel === "cancel" && cancellable}
+            onClose={close}
+            title={data.status === "out_for_delivery" ? "Cancel after return" : "Cancel order"}
+            wide={data.status === "out_for_delivery"}
+          >
+            <div className="management-card in-drawer">
+              <OrderCancelPanel
+                key={`cancel:${data.id}:${data.version}`}
+                order={data}
+                disabled={order.disabled}
+                save={(request) =>
+                  order.run((signal) =>
+                    managementRequest(
+                      `/orders/${id}/cancel`,
+                      orderCancelResponseSchema,
+                      "POST",
+                      request,
+                      signal,
+                    ),
+                  )
+                }
+                done={() => {
+                  close();
+                  order.reload();
+                  toast(`${data.orderNumber} cancelled`);
+                }}
+              />
+            </div>
+          </Drawer>
+          <Drawer
+            open={panel === "collection" && collectable}
+            onClose={close}
+            title={data.codStatus === "collected" ? "Correct cash record" : "Record cash collected"}
+          >
+            <div className="management-card in-drawer">
+              <OrderCollectionPanel
+                key={`collection:${data.id}:${data.version}`}
+                order={data}
+                disabled={order.disabled}
+                record={(request) =>
+                  order.run((signal) =>
+                    managementRequest(
+                      `/orders/${id}/collection`,
+                      orderCollectionResponseSchema,
+                      "POST",
+                      request,
+                      signal,
+                    ),
+                  )
+                }
+                correct={(request) =>
+                  order.run((signal) =>
+                    managementRequest(
+                      `/orders/${id}/collection/corrections`,
+                      orderCollectionResponseSchema,
+                      "POST",
+                      request,
+                      signal,
+                    ),
+                  )
+                }
+                done={() => {
+                  close();
+                  order.reload();
+                  toast("Cash record saved");
+                }}
+              />
+            </div>
+          </Drawer>
         </>
       )}
-    </section>
+    </div>
   );
+}
+
+/** The prototype's progress steps (`prog`); Cancelled is not a step. */
+const PROGRESS = ["pending", "confirmed", "processing", "out_for_delivery", "delivered"] as const;
+const NEXT_HINT: Partial<Record<AdminOrderResponse["status"], string>> = {
+  pending: "Check the order, then confirm it with the customer.",
+  confirmed: "Pick and pack the items.",
+  processing: "Hand the parcel to the courier.",
+  out_for_delivery: "Mark it delivered when the customer has it. Cash is recorded separately.",
+};
+/** " on 18 Oct 2026, 4:21 PM by Owner · Reason: …" from the history entry that cancelled it. */
+function cancelEntry(order: AdminOrderResponse) {
+  const entry = [...order.history].reverse().find((item) => item.toStatus === "cancelled");
+  if (!entry) return "";
+  const who = entry.actorName ?? (entry.actorKind === "customer" ? "the customer" : "the system");
+  return ` on ${when(entry.createdAt)} by ${who}${entry.reason ? ` · Reason: ${entry.reason}` : ""}`;
 }
 
 function sameAddress(order: AdminOrderResponse, data: FormData) {
@@ -1579,164 +1760,324 @@ function editDiffLines(diff: OrderEditDiff) {
   return lines;
 }
 
-function OrderDetailBody({ order }: { order: AdminOrderResponse }) {
+function OrderDetailBody({
+  order,
+  collect,
+  reviewLink,
+}: {
+  order: AdminOrderResponse;
+  /** Opens the cash record (null when this user may not record or correct it now). */
+  collect: (() => void) | null;
+  reviewLink: boolean;
+}) {
+  const units = order.items.reduce((sum, item) => sum + item.quantity, 0);
+  const address = order.customer?.address;
+  const at = PROGRESS.indexOf(order.status as (typeof PROGRESS)[number]);
   return (
-    <>
-      <header className="card-heading">
-        <div>
-          <h2>{order.orderNumber}</h2>
-          <p className="muted">
-            Placed {when(order.createdAt)} · {order.source} · version {order.version}
-          </p>
-        </div>
-        <span className={`order-status status-${order.status}`}>
-          {ORDER_STATUS_LABELS[order.status]}
-        </span>
-      </header>
-      <div className="order-detail-grid">
-        <article className="record-card">
-          <h3>Customer & delivery</h3>
-          {order.customer ? (
-            <>
-              <strong>{order.customer.name}</strong>
-              <a href={`tel:${order.customer.phone}`}>{order.customer.phone}</a>
-              <p>{addressLine(order)}</p>
-              {order.customer.address.makani && <p>Makani: {order.customer.address.makani}</p>}
-              {order.customer.address.notes && (
-                <p className="muted">{order.customer.address.notes}</p>
-              )}
-            </>
-          ) : (
-            <p className="muted">Customer contact requires Customers permission.</p>
-          )}
-          <p className="muted">{order.deliveryEtaText}</p>
-        </article>
-        <article className="record-card">
-          <h3>Payment</h3>
-          <p>{COD_STATUS_LABELS[order.codStatus]}</p>
-          <dl className="order-totals">
-            <div>
-              <dt>Merchandise</dt>
-              <dd>{money(order.merchandiseSubtotalFils)}</dd>
+    <div className="split">
+      <div className="stack">
+        <section className="card" aria-labelledby="items-h">
+          <div className="card-h">
+            <h2 id="items-h">
+              Items{" "}
+              <span className="sub">
+                · {units} {units === 1 ? "unit" : "units"}
+              </span>
+            </h2>
+          </div>
+          <div className="card-b">
+            <div className="items">
+              {order.items.map((item) => (
+                <div className="it" key={item.id}>
+                  <div className="it-t">
+                    <b>{item.productName}</b>
+                    <small className="mono">{item.sku}</small>
+                    <small>
+                      {[item.brandName, Object.values(item.attributes).join(" · ") || null]
+                        .filter(Boolean)
+                        .join(" · ")}{" "}
+                      · {item.quantity} × {money(item.unitPriceFils)}
+                    </small>
+                  </div>
+                  <div className="r">
+                    <b>{money(item.totalFils)}</b>
+                  </div>
+                </div>
+              ))}
             </div>
-            <div>
-              <dt>Discount</dt>
-              <dd>−{money(order.discountFils)}</dd>
+            <hr className="hr sum-hr" />
+            <div className="sum">
+              <div>
+                <span className="muted">Subtotal</span>
+                <span>{money(order.merchandiseSubtotalFils)}</span>
+              </div>
+              <div>
+                <span className="muted">
+                  Discount
+                  {order.coupon && (
+                    <>
+                      {" "}
+                      <span className="coupon">{order.coupon.code}</span>{" "}
+                      {order.coupon.percentBps / 100}%
+                    </>
+                  )}
+                </span>
+                <span className={order.discountFils ? "neg" : undefined}>
+                  {order.discountFils ? `− ${money(order.discountFils)}` : "—"}
+                </span>
+              </div>
+              <div>
+                <span className="muted">Delivery</span>
+                <span>{money(order.deliveryFeeFils)}</span>
+              </div>
+              <div className="tot">
+                <span>
+                  {order.status === "cancelled" ? "Total (cancelled)" : "Total to collect"}
+                </span>
+                <span>{money(order.totalFils)}</span>
+              </div>
             </div>
-            <div>
-              <dt>Delivery</dt>
-              <dd>{money(order.deliveryFeeFils)}</dd>
+          </div>
+        </section>
+        {order.returnItems.length > 0 && (
+          <section className="card" aria-labelledby="return-h">
+            <div className="card-h">
+              <h2 id="return-h">Return</h2>
             </div>
-            <div>
-              <dt>Total</dt>
-              <dd>
-                <strong>{money(order.totalFils)}</strong>
-              </dd>
+            <div className="card-b">
+              <ul className="plain-list">
+                {order.returnItems.map((item) => (
+                  <li key={item.sku}>
+                    <span className="mono">{item.sku}</span>: {item.quantity} sent ·{" "}
+                    {item.resellableQuantity} back in stock · {item.damagedQuantity} damaged
+                  </li>
+                ))}
+              </ul>
             </div>
-          </dl>
-          {order.coupon && (
-            <p className="muted">
-              Coupon {order.coupon.code} · {order.coupon.percentBps / 100}%
-            </p>
-          )}
-          {order.collectionRecords.length > 0 && (
-            <ol className="order-history">
-              {order.collectionRecords.map((entry, index) => (
-                <li key={entry.id}>
-                  <span className="badge">
-                    {entry.kind === "recorded" ? "Recorded" : "Corrected"}
-                    {index === order.collectionRecords.length - 1 ? " · in effect" : ""}
+          </section>
+        )}
+        <section className="card" aria-labelledby="timeline-h">
+          <div className="card-h">
+            <h2 id="timeline-h">Timeline</h2>
+          </div>
+          <div className="card-b">
+            <div className="tl">
+              {order.history.map((entry) => (
+                <div className="tl-i" key={entry.id}>
+                  <span
+                    className={`tl-d st-${entry.toStatus === "out_for_delivery" ? "ofd" : entry.toStatus}`}
+                  >
+                    <Icon name={STATUS_ICON[entry.toStatus] ?? "info"} />
                   </span>
                   <div>
-                    <strong>
-                      {money(entry.amountFils)} · received {when(entry.collectedAt)}
-                    </strong>
+                    <b>{ORDER_STATUS_LABELS[entry.toStatus]}</b>
                     <small>
-                      {entry.actor.name} · {when(entry.recordedAt)}
-                      {entry.reference ? ` · ${entry.reference}` : ""}
+                      {when(entry.createdAt)} ·{" "}
+                      {entry.actorName ??
+                        (entry.actorKind === "customer" ? "Customer checkout" : "System")}
+                      {entry.reason ? ` · ${entry.reason}` : ""}
                     </small>
-                    {entry.reason && <p>{entry.reason}</p>}
                   </div>
-                </li>
+                </div>
               ))}
-            </ol>
-          )}
-        </article>
-      </div>
-      <article className="record-card">
-        <h3>Items</h3>
-        <div className="record-list">
-          {order.items.map((item) => (
-            <div className="order-item" key={item.id}>
-              <div>
-                <strong>{item.productName}</strong>
-                <small>
-                  {item.brandName} · {item.categoryName} · {item.sku}
-                </small>
-                <small>{Object.values(item.attributes).join(" · ") || "Standard"}</small>
-              </div>
-              <div>
-                {item.quantity} × {money(item.unitPriceFils)}
-                <strong>{money(item.totalFils)}</strong>
+              {order.status !== "cancelled" &&
+                PROGRESS.slice(at + 1).map((step) => (
+                  <div className="tl-i future" key={step}>
+                    <span className="tl-d">
+                      <Icon name={STATUS_ICON[step] ?? "info"} />
+                    </span>
+                    <div>
+                      <b>{ORDER_STATUS_LABELS[step]}</b>
+                    </div>
+                  </div>
+                ))}
+            </div>
+          </div>
+        </section>
+        {order.edits.length > 0 && (
+          <section className="card" aria-labelledby="edits-h">
+            <div className="card-h">
+              <h2 id="edits-h">Edit history</h2>
+            </div>
+            <div className="card-b">
+              <div className="tl">
+                {order.edits.map((edit) => (
+                  <div className="tl-i" key={edit.id}>
+                    <span className="tl-d">
+                      <Icon name="edit" />
+                    </span>
+                    <div>
+                      <b>
+                        {edit.actor.name} · v{edit.orderVersion}
+                      </b>
+                      <small>{when(edit.editedAt)}</small>
+                      {editDiffLines(edit.diff).map((line) => (
+                        <small key={line}>{line}</small>
+                      ))}
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
-          ))}
-        </div>
-      </article>
-      {order.returnItems.length > 0 && (
-        <article className="record-card">
-          <h3>Return</h3>
-          <ul className="record-list">
-            {order.returnItems.map((item) => (
-              <li key={item.sku}>
-                {item.sku}: {item.quantity} sent · {item.resellableQuantity} back in stock ·{" "}
-                {item.damagedQuantity} damaged
-              </li>
-            ))}
-          </ul>
-        </article>
-      )}
-      {order.edits.length > 0 && (
-        <article className="record-card">
-          <h3>Edit history</h3>
-          <ol className="order-history">
-            {order.edits.map((edit) => (
-              <li key={edit.id}>
-                <span className="badge">v{edit.orderVersion}</span>
-                <div>
-                  <strong>{edit.actor.name}</strong>
-                  <small>{when(edit.editedAt)}</small>
-                  {editDiffLines(edit.diff).map((line) => (
-                    <p key={line}>{line}</p>
-                  ))}
+          </section>
+        )}
+      </div>
+      <div className="stack">
+        <section className="card" aria-labelledby="customer-h">
+          <div className="card-h">
+            <h2 id="customer-h">Customer</h2>
+            {/* The order read carries no customer ID, so there is no profile link here yet. */}
+          </div>
+          <div className="card-b cust-b">
+            {order.customer ? (
+              <>
+                <div className="row cust-row">
+                  <span className="av" aria-hidden="true">
+                    {order.customer.name
+                      .split(/\s+/)
+                      .slice(0, 2)
+                      .map((part) => part[0]?.toUpperCase())
+                      .join("")}
+                  </span>
+                  <div className="cust-n">
+                    <b>{order.customer.name}</b>
+                    <span className="mono small muted">{order.customer.phone}</span>
+                  </div>
+                  <CopyPhone phone={order.customer.phone} />
                 </div>
-              </li>
-            ))}
-          </ol>
-        </article>
-      )}
-      <article className="record-card">
-        <h3>History</h3>
-        <ol className="order-history">
-          {order.history.map((entry) => (
-            <li key={entry.id}>
-              <span className={`order-status status-${entry.toStatus}`}>
-                {ORDER_STATUS_LABELS[entry.toStatus]}
-              </span>
-              <div>
-                <strong>
-                  {entry.actorName ??
-                    (entry.actorKind === "customer" ? "Customer checkout" : "System")}
-                </strong>
-                <small>
-                  {when(entry.createdAt)} · version {entry.orderVersion}
-                </small>
-                {entry.reason && <p>{entry.reason}</p>}
+                <div className="row">
+                  <a className="btn btn-s cust-call" href={`tel:${order.customer.phone}`}>
+                    <Icon name="phone" />
+                    Call
+                  </a>
+                </div>
+              </>
+            ) : (
+              <div className="note">
+                <Icon name="lock" />
+                <p>Customer contact needs the Customers permission.</p>
               </div>
-            </li>
-          ))}
-        </ol>
-      </article>
-    </>
+            )}
+          </div>
+        </section>
+        <section className="card" aria-labelledby="delivery-h">
+          <div className="card-h">
+            <h2 id="delivery-h">Delivery</h2>
+          </div>
+          <div className="card-b">
+            <dl className="kv kv-flat">
+              <dt>Area</dt>
+              <dd>
+                {order.area.name},{" "}
+                {EMIRATE_NAMES[order.area.emirate as keyof typeof EMIRATE_NAMES] ??
+                  order.area.emirate}
+              </dd>
+              {address && (
+                <>
+                  <dt>Address</dt>
+                  <dd>{addressLine(order)}</dd>
+                  {address.makani && (
+                    <>
+                      <dt>Makani</dt>
+                      <dd className="mono">{address.makani}</dd>
+                    </>
+                  )}
+                  <dt>Notes</dt>
+                  <dd>{address.notes ? address.notes : <span className="muted">None</span>}</dd>
+                </>
+              )}
+              <dt>Promise</dt>
+              <dd>{order.deliveryEtaText}</dd>
+              <dt>Charge</dt>
+              <dd>{money(order.deliveryFeeFils)}</dd>
+            </dl>
+          </div>
+        </section>
+        <section className="card" aria-labelledby="payment-h">
+          <div className="card-h">
+            <h2 id="payment-h">Payment</h2>
+          </div>
+          <div className="card-b">
+            <dl className="kv kv-flat">
+              <dt>Method</dt>
+              <dd>
+                <Icon name="cash" size="sm" /> Cash on delivery
+              </dd>
+              <dt>Status</dt>
+              <dd>
+                <span
+                  className={`tag ${order.codStatus === "collected" ? "ok" : order.codStatus === "not_collected" ? "muted" : "low"}`}
+                >
+                  {COD_STATUS_LABELS[order.codStatus]}
+                </span>
+              </dd>
+              <dt>Amount</dt>
+              <dd>{money(order.totalFils)}</dd>
+            </dl>
+            {order.collectionRecords.length > 0 && (
+              <div className="tl cash-tl">
+                {order.collectionRecords.map((entry, index) => (
+                  <div className="tl-i" key={entry.id}>
+                    <span className="tl-d st-delivered">
+                      <Icon name="cash" />
+                    </span>
+                    <div>
+                      <b>
+                        {entry.kind === "recorded" ? "Recorded" : "Corrected"}{" "}
+                        {money(entry.amountFils)}
+                        {index === order.collectionRecords.length - 1 ? " · in effect" : ""}
+                      </b>
+                      <small>
+                        Received {when(entry.collectedAt)} · {entry.actor.name}
+                        {entry.reference ? ` · ${entry.reference}` : ""}
+                      </small>
+                      {entry.reason && <small>{entry.reason}</small>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            {collect && (
+              <button type="button" className="btn btn-p pay-btn" onClick={collect}>
+                {order.codStatus === "collected" ? "Correct cash record" : "Record COD collection"}
+              </button>
+            )}
+          </div>
+        </section>
+        {reviewLink && <ReviewLinkPanel id={order.id} />}
+      </div>
+    </div>
+  );
+}
+
+/** Status icons of the prototype's timeline (`ST[s].i`). */
+const STATUS_ICON: Record<string, IconName> = {
+  pending: "clock",
+  confirmed: "check",
+  processing: "pkg",
+  out_for_delivery: "truck",
+  delivered: "check-c",
+  cancelled: "x-c",
+};
+
+function CopyPhone({ phone }: { phone: string }) {
+  return (
+    <button
+      type="button"
+      className="ibtn cust-copy"
+      aria-label="Copy phone number"
+      onClick={() => {
+        const done = () => toast("Phone number copied");
+        try {
+          navigator.clipboard
+            .writeText(phone)
+            .then(done, () => toast("Copy the number by hand", { kind: "info" }));
+        } catch {
+          toast("Copy the number by hand", { kind: "info" });
+        }
+      }}
+    >
+      <Icon name="copy" />
+    </button>
   );
 }

@@ -142,7 +142,8 @@ async function createOrder(page) {
   await page.getByLabel("The customer confirmed they are 18 or older.").check();
   await page.getByRole("button", { name: /Create order · AED/ }).click();
   try {
-    await page.getByRole("heading", { name: "Edit order" }).waitFor({ timeout: 15000 });
+    // The new order's detail opens (its progress card, V-A3b).
+    await page.locator(".prog").waitFor({ timeout: 15000 });
   } catch (error) {
     await page.screenshot({ path: out + "order-picker-failed.png", fullPage: true });
     throw error;
@@ -248,8 +249,10 @@ try {
   );
 
   // 3. Order edit: add a variant from the picker instead of typing its ID.
-  await page.getByRole("heading", { name: "Edit order" }).waitFor();
-  const edit = page.locator("article", { has: page.getByRole("heading", { name: "Edit order" }) });
+  // The prototype's Edit button opens the edit drawer (V-A3b).
+  await page.getByRole("button", { name: "Edit", exact: true }).click();
+  const edit = page.getByRole("dialog", { name: "Edit order" });
+  await edit.waitFor();
   check(
     "the edit has no typed variant ID field",
     (await edit.getByPlaceholder("UUID").count()) === 0,

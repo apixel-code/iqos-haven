@@ -121,8 +121,17 @@ try {
       await scan(page, `${section} ${tag}`);
     }
     await page.goto(`${BASE}/workspace/orders?order=${seeded.orderId}`);
-    await page.getByRole("heading", { name: "Edit order" }).waitFor();
+    await page.locator(".prog").waitFor();
     await scan(page, `order detail ${tag}`);
+    // The edit drawer (V-A3b) is checked open as well.
+    if (await page.getByRole("button", { name: "Edit", exact: true }).isVisible()) {
+      await page.getByRole("button", { name: "Edit", exact: true }).click();
+      await page.getByRole("dialog", { name: "Edit order" }).waitFor();
+      // After the slide-in: mid-animation colours are half faded and read as low contrast.
+      await page.waitForTimeout(400);
+      await scan(page, `order edit ${tag}`);
+      await page.keyboard.press("Escape");
+    }
     await page.goto(`${BASE}/workspace/orders`);
     await page.getByRole("button", { name: "Create order", exact: true }).click();
     await page.getByRole("heading", { name: "New order" }).waitFor();

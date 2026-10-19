@@ -1088,3 +1088,21 @@ ul.dashboard-list {
   margin: 0 0 16px;
   color: var(--ink-2);
 }
+
+/* Order panels moved into the prototype's drawers (V-A3b): the drawer is the card and carries
+   the title, so the panel's own frame and heading step aside. */
+.management-card.in-drawer {
+  border: 0;
+  padding: 0;
+  background: none;
+  box-shadow: none;
+}
+.in-drawer > .record-card {
+  border: 0;
+  padding: 0;
+  background: none;
+  box-shadow: none;
+}
+.in-drawer > .record-card > h3:first-child {
+  display: none;
+}
