@@ -278,6 +278,29 @@ The orders screens come in three PRs: V-A3a (the list), V-A3b (the order detail 
   - In dark mode, the WhatsApp green needs dark text (`--bg`).
   - a11y scans of a drawer wait for its slide-in: half-faded colours read as low contrast.
 
+## V-A3c (admin manual order and order edit), 2026-10-19
+
+- **Manual order:** the prototype's `VIEWS["order-new"]` wizard (`wizard`/`wz`):
+  1. **Customer:** UAE mobile with "Find customer by phone", the returning-customer card with saved addresses ("Use this address" fills the Delivery step), and the name.
+  2. **Products:** the picker and the lines with their quantities.
+  3. **Delivery:** the area and address fields.
+  4. **Review:** the summary, coupon, payment (COD), "Customer already confirmed" with how it was confirmed, and the 18+ check.
+
+  Around the steps: an order summary beside them, and the `savebar` with the total, Back or Cancel, and Continue or "Create order · AED …".
+  - A step's details are checked before going on.
+  - Entering Review asks the server for the total.
+  - The fields are kept in React state, so going back and forth loses nothing.
+  - The quote, the idempotency key, the confirmation dialog and the request are unchanged, and the unsaved-changes guard covers the order through `useUnsavedChanges`.
+
+- **Order edit:** stays in the drawer from the detail screen, with its form rebuilt in the prototype's fields (Items with quantities, the picker, coupon, the delivery address, the operational note). Its field names, and so `editCommand`, are unchanged.
+- **Not carried over (traps, not rules here):**
+  - The edit page's free status change, the Owner's manual discount percentage and the delivery-charge override.
+  - The manual order's custom delivery charge: one flat fee (BI-03).
+  - Online payment.
+- **Fixed:**
+  - On a phone the prototype hides the names of the steps that are not current; each step button keeps its name in `aria-label`.
+  - A prototype label inside an older card keeps its layout (`.management-card label.label`).
+
 ## Consequences
 
 - The look comes from the approved source instead of being re-imagined in utilities, so later screens are mostly markup work.
