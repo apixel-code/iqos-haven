@@ -390,6 +390,33 @@ The orders screens come in three PRs: V-A3a (the list), V-A3b (the order detail 
   - Changing the alert level in the drawer. It is the option's field, saved with its version in the product editor.
   - Export CSV. Reports has the inventory report.
 
+## V-A6 (admin categories and brands), 2026-10-22
+
+- **Both screens:**
+  - The back link to Products.
+  - The page head with New category or New brand.
+  - The tabs, with Trash.
+  - A search box filtering the loaded page.
+  - Empty states, and a cursor pager that also steps back.
+- **Categories:** the prototype's `VIEWS.categories` list:
+  - Each row has the image tile (or a folder icon), the name, the `/category/` link, the published product count and the display order.
+  - The "Show in store" switch (hidden on a phone, as in the prototype), Edit, and Move to trash.
+  - Trash rows have Restore and the Owner's Delete permanently.
+- **Brands:** the prototype's `VIEWS.brands` card grid:
+  - Each card has the logo (or an award icon), the name with an Active/Inactive tag, the description, the published product count and the `/brand/` link.
+  - The "Show in store" switch, Edit, and Move to trash in the card foot.
+- **Drawer:** the prototype's `beBody`/`ceBody`:
+  - The logo or image, uploaded in the drawer.
+  - The name, a slug in an affix (read-only for staff once it exists), the description for brands, display order, and Active.
+  - SEO title and description for the Owner.
+  - Create brand/category or Save changes.
+- **The switch:** it sends the same update with only `active` changed. SEO fields and the image are left out, so they stay as they are.
+- **Images:** the image field is the prototype's drop zone, with the preview, "Replace image" and "Remove image". List thumbnails come from the same signed preview link. The upload and processing flow is unchanged.
+- **Not carried over:**
+  - Tab counts. The lists are paged, with no totals.
+  - The prototype's up/down arrows for categories. Order is the display-order number: categories without one share 0, so swapping places would change nothing visible. The number is edited in the drawer.
+  - The brand card's link to its products. The products list does not take a brand from the URL.
+
 ## Consequences
 
 - The look comes from the approved source instead of being re-imagined in utilities, so later screens are mostly markup work.

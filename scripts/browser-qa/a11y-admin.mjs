@@ -127,6 +127,13 @@ try {
       await page.waitForLoadState("networkidle");
       await scan(page, `${section} ${tag}`);
     }
+    // The brand drawer (V-A6), checked open after its slide-in.
+    await page.goto(`${BASE}/workspace/brands`);
+    await page.getByRole("button", { name: "New brand" }).click();
+    await page.getByRole("dialog", { name: "New brand" }).waitFor();
+    await page.waitForTimeout(400);
+    await scan(page, `new brand ${tag}`);
+    await page.keyboard.press("Escape");
     // The "Update stock" drawer (V-A5), checked open after its slide-in.
     await page.goto(`${BASE}/workspace/inventory`);
     const update = page.getByRole("button", { name: /^Update stock of / }).first();
