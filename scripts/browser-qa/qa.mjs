@@ -180,32 +180,48 @@ try {
   await page.fill('input[name="q"]', `ORBE-HALO-7K-QA-${run}`.toUpperCase());
   await page.press('input[name="q"]', "Enter");
   await page.waitForTimeout(1000);
-  const card = page.locator("article.record-card").first();
-  await card.getByRole("button", { name: "Set count" }).click();
-  await card.locator('input[name="target"]').fill("12");
-  await card.locator('textarea[name="note"]').fill("Opening count");
-  await card.getByRole("button", { name: "Set count" }).last().click();
-  await card.getByText(/12 in stock/).waitFor({ timeout: 10000 });
+  // Every change goes through the "Update stock" drawer (V-A5).
+  const card = page.locator(".inv-row:visible").first();
+  const drawer = page.getByRole("dialog", { name: "Update stock" });
+  const stockIs = (n) =>
+    card
+      .locator(".stock-n")
+      .filter({ hasText: new RegExp(`^${n}$`) })
+      .waitFor({ timeout: 10000 });
+  await card.getByRole("button", { name: /Update stock/ }).click();
+  await drawer.getByRole("button", { name: "Set exact count" }).click();
+  await drawer.locator('input[name="target"]').fill("12");
+  await drawer.locator('textarea[name="note"]').fill("Opening count");
+  await drawer.getByRole("button", { name: "Save stock" }).click();
+  await stockIs(12);
   check("set count records stock through the ledger", true);
-  await card.getByRole("button", { name: "Remove stock" }).click();
-  await card.locator('input[name="quantity"]').fill("2");
-  await card.locator('select[name="reason"]').selectOption("DAMAGE");
-  await card.locator('textarea[name="note"]').fill("Leaking");
-  await card.getByRole("button", { name: "Remove stock" }).last().click();
-  await card.getByText(/10 in stock/).waitFor({ timeout: 10000 });
-  await card.getByRole("button", { name: "History" }).click();
-  await card.getByText(/Damaged · Leaking/).waitFor({ timeout: 10000 });
+  await card.getByRole("button", { name: /Update stock/ }).click();
+  await drawer.getByRole("button", { name: "Remove", exact: true }).click();
+  await drawer.locator('input[name="quantity"]').fill("2");
+  await drawer.locator('select[name="reason"]').selectOption("DAMAGE");
+  await drawer.locator('textarea[name="note"]').fill("Leaking");
+  await drawer.getByRole("button", { name: "Save stock" }).click();
+  await stockIs(10);
+  await card.getByRole("button", { name: /Stock history/ }).click();
+  const historyDrawer = page.getByRole("dialog", { name: "Stock history" });
+  await historyDrawer.getByText(/Damaged · Leaking/).waitFor({ timeout: 10000 });
   check("damage removal shown in history with note and actor", true);
   await shot(page, "03-stock");
+  await page.keyboard.press("Escape");
+  await historyDrawer.waitFor({ state: "hidden" });
   // Steps 53–54: selling out shows the state, raises one alert event, and stays listed
   const probe = async () => (await fetch("http://127.0.0.1:4099")).json();
   const lowBefore = (await probe()).lowStockEvents;
-  await card.getByRole("button", { name: "Remove stock" }).click();
-  await card.locator('input[name="quantity"]').fill("10");
-  await card.locator('select[name="reason"]').selectOption("DAMAGE");
-  await card.locator('textarea[name="note"]').fill("Batch recalled");
-  await card.getByRole("button", { name: "Remove stock" }).last().click();
-  await card.getByText(/Out of stock · 0 in stock/).waitFor({ timeout: 10000 });
+  await card.getByRole("button", { name: /Update stock/ }).click();
+  await drawer.getByRole("button", { name: "Remove", exact: true }).click();
+  await drawer.locator('input[name="quantity"]').fill("10");
+  await drawer.locator('select[name="reason"]').selectOption("DAMAGE");
+  await drawer.locator('textarea[name="note"]').fill("Batch recalled");
+  // The balance it would leave is previewed before saving.
+  await drawer.getByText("10 → 0").waitFor();
+  await drawer.getByRole("button", { name: "Save stock" }).click();
+  await stockIs(0);
+  await card.getByText("Out of stock").waitFor({ timeout: 10000 });
   check("sold-out variant stays listed as Out of stock", true);
   check(
     "selling out raised exactly one low-stock event",

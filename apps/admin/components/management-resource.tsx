@@ -9,6 +9,9 @@ import {
 } from "../lib/management";
 import { useSessionChecking } from "./session-shell";
 import { Icon } from "./icons";
+/** The message after a successful change; every other message reports a problem. */
+export const SAVED_MESSAGE = "Change saved.";
+
 export function useManagementResource<T>(path: string, schema: ResponseContract<T>) {
   const checking = useSessionChecking();
   const [snapshot, setSnapshot] = useState<{ path: string; revision: number; value: T } | null>(
@@ -78,7 +81,7 @@ export function useManagementResource<T>(path: string, schema: ResponseContract<
     try {
       const value = await work(active.signal);
       if (generation.current !== epoch || active.signal.aborted) return { ok: false };
-      setMessage("Change saved.");
+      setMessage(SAVED_MESSAGE);
       return { ok: true, value };
     } catch (error) {
       if (generation.current === epoch && !active.signal.aborted) failure(error, true);
@@ -119,13 +122,15 @@ export function ResourceNotice({
   /** Rebuilt screens (ADR 0097): the reload button only when there is a problem to recover from. */
   compact?: boolean;
 }) {
-  if (compact)
+  if (compact) {
+    const saved = resource.message === SAVED_MESSAGE;
     return (
-      <div className={resource.message ? "note err res-note" : "res-note"}>
+      <div className={resource.message ? `note ${saved ? "ok" : "err"} res-note` : "res-note"}>
+        {saved && <Icon name="check-c" />}
         <div role="status" aria-live="polite">
           {resource.message || (resource.busy ? <span className="sr">Loading…</span> : "")}
         </div>
-        {resource.message && (
+        {resource.message && !saved && (
           <button type="button" className="btn btn-s btn-sm" onClick={resource.reload}>
             <Icon name="refresh" size="sm" />
             Reload
@@ -136,6 +141,7 @@ export function ResourceNotice({
         )}
       </div>
     );
+  }
   return (
     <div className="resource-toolbar">
       <div role="status" aria-live="polite">

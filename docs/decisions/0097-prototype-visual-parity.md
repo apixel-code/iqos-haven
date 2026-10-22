@@ -361,6 +361,35 @@ The orders screens come in three PRs: V-A3a (the list), V-A3b (the order detail 
 
 - **Not carried over:** "Add sample image" (demo only).
 
+## V-A5 (admin inventory), 2026-10-22
+
+- **List:** the prototype's `VIEWS.inventory`:
+  - Page head.
+  - Stock-state tabs (All, In stock, Low stock, Out of stock) with the prototype's coloured dots.
+  - "Search product or SKU", searching as you type; Enter searches at once.
+  - A `tbl` of stock lines: product with its option, SKU, Published/Draft (and Inactive), the count coloured by state, the alert level, the stock tag, and "Update stock" and "History".
+  - On a phone, `mrow` rows. Empty states per tab.
+  - A cursor pager that also steps back.
+  - The linked single stock line (`?variant=`, parity G-A2) shows as a note with "Show all stock".
+- **Update stock drawer:** the prototype's `adjBody`:
+  - The item with an "Open" link to its product.
+  - The `seg` choice of Add stock, Remove or Set exact count.
+  - A stepper with quick amounts.
+  - The balance it leaves (`stockAfter`), with its future state (`stockStateFor`, the server's rule, unit-tested).
+  - The out-of-stock note, a refusal to remove more than is on hand, the removal reason, and the note.
+
+  The requests, command IDs (one per opened change, renewed when the payload changes) and ledger rules are unchanged. A saved change raises the prototype's toast, "SKU: before → after".
+
+- **History:** a drawer with the movements (change, reason and note, who, when, balance after).
+- **Fixed for every rebuilt screen:** a compact notice showed "Change saved." as an error with Reload. It now shows as a success note without Reload (`SAVED_MESSAGE`).
+- **Not carried over:**
+  - Counts on the tabs and the units total. The inventory API returns no counts.
+  - The category filter. The API filters by product, not category.
+  - Thumbnails. Stock lines carry no image.
+  - The quick stepper in the table. Removing or setting stock always needs a note, so every change goes through the drawer.
+  - Changing the alert level in the drawer. It is the option's field, saved with its version in the product editor.
+  - Export CSV. Reports has the inventory report.
+
 ## Consequences
 
 - The look comes from the approved source instead of being re-imagined in utilities, so later screens are mostly markup work.

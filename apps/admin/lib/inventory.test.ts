@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { FormValidationError } from "./management";
-import { addCommand, removeCommand, setCommand } from "./inventory";
+import { addCommand, removeCommand, setCommand, stockAfter, stockStateFor } from "./inventory";
 
 const id = "0199c0de-0000-7000-8000-000000000001";
 const data = (entries: Record<string, string>) => {
@@ -40,5 +40,19 @@ describe("inventory form commands", () => {
       () => setCommand(id, 3, data({ target: "4" })),
     ])
       expect(run).toThrow(FormValidationError);
+  });
+});
+
+describe("stock preview", () => {
+  it("follows the server's states: out at zero, low at or below the alert", () => {
+    expect(stockStateFor(0, 5)).toBe("out");
+    expect(stockStateFor(5, 5)).toBe("low");
+    expect(stockStateFor(6, 5)).toBe("in_stock");
+    expect(stockStateFor(1, 0)).toBe("in_stock");
+  });
+  it("computes the balance after each kind of change", () => {
+    expect(stockAfter("add", 3, 10)).toBe(13);
+    expect(stockAfter("remove", 3, 5)).toBe(-2);
+    expect(stockAfter("set", 3, 0)).toBe(0);
   });
 });
