@@ -57,118 +57,126 @@ export function ProductVariants({
     );
   const missing = view ? missingCombinations(view) : [];
   return (
-    <section className="management-card">
-      <header className="card-heading">
+    <>
+      <div className="card-h">
         <h2>Options & variants</h2>
-        <span className="badge">{view ? `${view.variants.length} variants` : "Loading"}</span>
-      </header>
-      <ResourceNotice resource={resource} />
-      {view && (
-        <fieldset disabled={resource.disabled || !canWrite}>
-          <form
-            data-unsaved="this product's options"
-            onSubmit={(e) => {
-              e.preventDefault();
-              const data = new FormData(e.currentTarget);
-              const options = OPTION_NAMES.flatMap((name) => {
-                const values = parseOptionValues(String(data.get(name) ?? ""));
-                return values.length ? [{ name, values }] : [];
-              });
-              void request("/options", "PUT", () => ({
-                productVersion: view.productVersion,
-                options,
-              })).then((ok) => {
-                // Only a real change bumps the product version and needs the editor reloaded.
-                if (ok && ok.productVersion !== view.productVersion) onProductChanged();
-              });
-            }}
-            key={`options-${view.productVersion}`}
-          >
-            <p className="muted">
-              One value per line or comma separated. Which options a product has can only change
-              before its first variant; values can be added later, and removed while unused.
-            </p>
-            <div className="form-grid">
-              {OPTION_NAMES.map((name) => (
-                <label key={name}>
-                  <span>{name[0]!.toUpperCase() + name.slice(1)} values</span>
-                  <textarea
-                    name={name}
-                    rows={3}
-                    maxLength={5000}
-                    defaultValue={
-                      view.options.find((option) => option.name === name)?.values.join("\n") ?? ""
-                    }
-                  />
-                </label>
-              ))}
-            </div>
-            {canWrite && (
-              <button type="submit" className="secondary-button">
-                Save options
-              </button>
-            )}
-          </form>
-          {canWrite && missing.length > 0 && (
-            <div className="form-actions">
-              <button
-                type="button"
-                className="primary-button"
-                onClick={async () => {
-                  const offset = view.variants.length;
-                  for (const [index, attributes] of missing.entries()) {
-                    const ok = await request("/variants", "POST", () => ({
-                      sku: suggestSku(productSlug, attributes, offset + index),
-                      attributes,
-                      priceOverrideFils: null,
-                      lowStockThreshold: 0,
-                      active: true,
-                    }));
-                    if (!ok) break;
-                  }
+        <span className="tag">{view ? `${view.variants.length} variants` : "Loading"}</span>
+      </div>
+      {/* The option and variant forms keep their own layout inside the prototype's card (V-A4b). */}
+      <div className="card-b">
+        <div className="management-card in-drawer">
+          <ResourceNotice resource={resource} compact />
+          {view && (
+            <fieldset disabled={resource.disabled || !canWrite}>
+              <form
+                data-unsaved="this product's options"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const data = new FormData(e.currentTarget);
+                  const options = OPTION_NAMES.flatMap((name) => {
+                    const values = parseOptionValues(String(data.get(name) ?? ""));
+                    return values.length ? [{ name, values }] : [];
+                  });
+                  void request("/options", "PUT", () => ({
+                    productVersion: view.productVersion,
+                    options,
+                  })).then((ok) => {
+                    // Only a real change bumps the product version and needs the editor reloaded.
+                    if (ok && ok.productVersion !== view.productVersion) onProductChanged();
+                  });
                 }}
+                key={`options-${view.productVersion}`}
               >
-                Add {missing.length} missing {missing.length === 1 ? "combination" : "combinations"}
-              </button>
-            </div>
+                <p className="muted">
+                  One value per line or comma separated. Which options a product has can only change
+                  before its first variant; values can be added later, and removed while unused.
+                </p>
+                <div className="form-grid">
+                  {OPTION_NAMES.map((name) => (
+                    <label key={name}>
+                      <span>{name[0]!.toUpperCase() + name.slice(1)} values</span>
+                      <textarea
+                        name={name}
+                        rows={3}
+                        maxLength={5000}
+                        defaultValue={
+                          view.options.find((option) => option.name === name)?.values.join("\n") ??
+                          ""
+                        }
+                      />
+                    </label>
+                  ))}
+                </div>
+                {canWrite && (
+                  <button type="submit" className="secondary-button">
+                    Save options
+                  </button>
+                )}
+              </form>
+              {canWrite && missing.length > 0 && (
+                <div className="form-actions">
+                  <button
+                    type="button"
+                    className="primary-button"
+                    onClick={async () => {
+                      const offset = view.variants.length;
+                      for (const [index, attributes] of missing.entries()) {
+                        const ok = await request("/variants", "POST", () => ({
+                          sku: suggestSku(productSlug, attributes, offset + index),
+                          attributes,
+                          priceOverrideFils: null,
+                          lowStockThreshold: 0,
+                          active: true,
+                        }));
+                        if (!ok) break;
+                      }
+                    }}
+                  >
+                    Add {missing.length} missing{" "}
+                    {missing.length === 1 ? "combination" : "combinations"}
+                  </button>
+                </div>
+              )}
+              <div className="record-list">
+                {view.variants.map((variant) => (
+                  <VariantCard
+                    key={`${variant.id}-${variant.version}`}
+                    variant={variant}
+                    canWrite={canWrite}
+                    onSave={(body) => request(`/variants/${variant.id}`, "PATCH", body)}
+                  />
+                ))}
+              </div>
+              {view.variants.length === 0 && (
+                <p className="muted">
+                  No variants yet. A product without options needs one variant before it can be
+                  sold.
+                </p>
+              )}
+              {canWrite && view.options.length === 0 && view.variants.length === 0 && (
+                <button
+                  type="button"
+                  className="secondary-button"
+                  onClick={() =>
+                    void request("/variants", "POST", () =>
+                      validate(variantCreateRequestSchema, {
+                        sku: suggestSku(productSlug, {}),
+                        attributes: {},
+                        priceOverrideFils: null,
+                        lowStockThreshold: 0,
+                        active: true,
+                      }),
+                    )
+                  }
+                >
+                  Add single variant
+                </button>
+              )}
+            </fieldset>
           )}
-          <div className="record-list">
-            {view.variants.map((variant) => (
-              <VariantCard
-                key={`${variant.id}-${variant.version}`}
-                variant={variant}
-                canWrite={canWrite}
-                onSave={(body) => request(`/variants/${variant.id}`, "PATCH", body)}
-              />
-            ))}
-          </div>
-          {view.variants.length === 0 && (
-            <p className="muted">
-              No variants yet. A product without options needs one variant before it can be sold.
-            </p>
-          )}
-          {canWrite && view.options.length === 0 && view.variants.length === 0 && (
-            <button
-              type="button"
-              className="secondary-button"
-              onClick={() =>
-                void request("/variants", "POST", () =>
-                  validate(variantCreateRequestSchema, {
-                    sku: suggestSku(productSlug, {}),
-                    attributes: {},
-                    priceOverrideFils: null,
-                    lowStockThreshold: 0,
-                    active: true,
-                  }),
-                )
-              }
-            >
-              Add single variant
-            </button>
-          )}
-        </fieldset>
-      )}
-    </section>
+        </div>
+      </div>
+    </>
   );
 }
 

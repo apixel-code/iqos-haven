@@ -72,6 +72,8 @@ await pool.query("INSERT INTO notification_receipts (notification_id, user_id) V
   note.id,
   owner.id,
 ]);
+const editProduct = (await pool.query("SELECT id FROM products WHERE deleted_at IS NULL LIMIT 1"))
+  .rows[0].id;
 const SECTIONS = [
   "orders",
   "products",
@@ -137,6 +139,17 @@ try {
     await page.getByRole("heading", { name: "Create order" }).waitFor();
     await page.waitForLoadState("networkidle");
     await scan(page, `new order ${tag}`);
+    // The product editor (V-A4b): a saved product with its cards, and a new one.
+    await page.goto(`${BASE}/workspace/products?product=${editProduct}`);
+    await page.getByRole("heading", { name: "Options & variants" }).waitFor();
+    await page.waitForLoadState("networkidle");
+    await scan(page, `product editor ${tag}`);
+    await page.goto(`${BASE}/workspace/products?new=1`);
+    await page.getByRole("heading", { name: "Basic information" }).waitFor();
+    await page.waitForLoadState("networkidle");
+    // The theme's colour transition must finish first: half-way colours read as low contrast.
+    await page.waitForTimeout(400);
+    await scan(page, `new product ${tag}`);
     check(`no page errors ${tag}`, errors.length === 0, errors.join("; "));
     await context.close();
   }

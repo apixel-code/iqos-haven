@@ -319,6 +319,30 @@ The orders screens come in three PRs: V-A3a (the list), V-A3b (the order detail 
   - The older G-A8 list styles (`.product-row`, `.product-thumb`, `.stock-tag`) are removed; they overrode the table.
   - Both stock columns stay hidden without `inventory.read`, as before.
 
+## V-A4b (admin product editor), 2026-10-22
+
+- **Layout:** the prototype's `VIEWS.product`:
+  - The back link and a page head with the product's link and status.
+  - The section jump bar (`secnav`).
+  - A `split` of cards:
+    - Left column: Basic information, Images, Description & specifications, Options & variants, Search engine listing.
+    - Right column: Publishing and Price.
+  - The `savebar` with Cancel and Save draft / Save changes. On a phone it sits above the bottom navigation.
+- **One form across the cards:** the product's own fields join one hidden `<form>` through the `form` attribute. The image, option and publishing cards between them keep their own forms and requests, and the field names and commands are unchanged. Each product card is its own unsaved-changes region with the same name.
+- **Fields as in the prototype:**
+  - `field`/`label` with `req` and `opt` markers.
+  - Specifications in a two-column grid.
+  - The description, meta title and meta description show the prototype's character counts. They are a guide; the server's limits stay.
+  - The slug in an `/p/` affix.
+  - The price and compare-at price in AED affixes.
+- **Publishing card:** the prototype's look over the real readiness check: a Draft/Published tag, the missing requirements with an icon, and Publish, Move to draft and Move to trash as prototype buttons. The commands are unchanged.
+- **Images and options:** placed in the prototype's cards. Their inner forms keep the older layout until V-A4c.
+- **Not carried over:**
+  - The prototype's Draft/Published radios and its Publish button in the save bar. Publishing stays a separate, checked command.
+  - A product-wide stock quantity and alert. Stock is per option and changes only through the stock ledger; Inventory is linked instead.
+  - A custom social-share image.
+  - The "Google preview" name. Product pages are not indexed (BI-05), so the preview is labelled as a page title preview, with `/p/` URLs and "· Iqos Haven" titles as the store builds them.
+
 ## Consequences
 
 - The look comes from the approved source instead of being re-imagined in utilities, so later screens are mostly markup work.

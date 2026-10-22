@@ -1,7 +1,7 @@
 "use client";
 import { confirmDialog } from "../lib/ui/confirm";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState, type ReactNode } from "react";
 import {
   brandsResponseSchema,
   categoriesResponseSchema,
@@ -615,6 +615,17 @@ function TrashedActions({
   );
 }
 
+/** The editor's sections, for the prototype's jump bar (`secnav`). */
+const SECTIONS = [
+  ["pe-basic", "Basics"],
+  ["pe-media", "Images"],
+  ["pe-desc", "Description"],
+  ["pe-options", "Options"],
+  ["pe-seo", "SEO"],
+  ["pe-pub", "Publishing"],
+  ["pe-price", "Price"],
+] as const;
+
 function ProductEditor({
   id,
   canWrite,
@@ -637,53 +648,72 @@ function ProductEditor({
   const brands = useManagementResource("/brands?limit=100", brandsResponseSchema);
   const categories = useManagementResource("/categories?limit=100", categoriesResponseSchema);
   const row = id ? product.data : null;
+  const back = (
+    <button
+      data-leave
+      type="button"
+      className="backlink"
+      aria-label="Back to products"
+      onClick={onBack}
+    >
+      <Icon name="arr-l" size="sm" />
+      Products
+    </button>
+  );
   if (id && !row)
     return (
-      <section className="management-card">
-        <ResourceNotice resource={product} />
-        <button data-leave type="button" className="secondary-button" onClick={onBack}>
-          Back to products
-        </button>
-      </section>
+      <div className="stack product-editor">
+        {back}
+        <ResourceNotice resource={product} compact />
+      </div>
     );
   return (
-    <>
-      <ProductForm
-        key={row ? `${row.id}-${row.version}` : "new"}
-        row={row}
-        resource={product}
-        canWrite={canWrite}
-        canSeo={canSeo}
-        brands={brands.data?.items ?? []}
-        categories={categories.data?.items ?? []}
-        onSaved={(saved) => {
-          if (id) product.setData(saved);
-          else onDone(saved.id);
-        }}
-        onBack={onBack}
-      />
-      {row && (
-        <ProductPublishing
-          key={`${row.id}-${row.version}`}
-          productId={row.id}
-          permissions={permissions}
-          onChanged={product.reload}
-        />
-      )}
-      {row && <ProductImages productId={row.id} canWrite={canWrite} />}
-      {row && (
-        <ProductVariants
-          productId={row.id}
-          productSlug={row.slug}
-          canWrite={canWrite}
-          onProductChanged={product.reload}
-        />
-      )}
-    </>
+    <ProductForm
+      key={row ? `${row.id}-${row.version}` : "new"}
+      back={back}
+      row={row}
+      resource={product}
+      canWrite={canWrite}
+      canSeo={canSeo}
+      brands={brands.data?.items ?? []}
+      categories={categories.data?.items ?? []}
+      onSaved={(saved) => {
+        if (id) product.setData(saved);
+        else onDone(saved.id);
+      }}
+      onBack={onBack}
+      publishing={
+        row && (
+          <ProductPublishing
+            key={`${row.id}-${row.version}`}
+            productId={row.id}
+            permissions={permissions}
+            onChanged={product.reload}
+          />
+        )
+      }
+      images={row && <ProductImages productId={row.id} canWrite={canWrite} />}
+      variants={
+        row && (
+          <ProductVariants
+            productId={row.id}
+            productSlug={row.slug}
+            canWrite={canWrite}
+            onProductChanged={product.reload}
+          />
+        )
+      }
+    />
   );
 }
 
+/**
+ * The prototype's product editor (`VIEWS.product`): cards in two columns and a save bar. The
+ * product's own fields belong to one form through the `form` attribute, so the image, option
+ * and publishing cards between them keep their own forms and requests.
+ */
 function ProductForm({
+  back,
   row,
   resource,
   canWrite,
@@ -692,7 +722,11 @@ function ProductForm({
   categories,
   onSaved,
   onBack,
+  publishing,
+  images,
+  variants,
 }: {
+  back: ReactNode;
   row: ProductResponse | null;
   resource: ReturnType<typeof useManagementResource<ProductResponse | null>>;
   canWrite: boolean;
@@ -701,11 +735,18 @@ function ProductForm({
   categories: ReadonlyArray<{ id: string; name: string }>;
   onSaved: (product: ProductResponse) => void;
   onBack: () => void;
+  publishing: ReactNode;
+  images: ReactNode;
+  variants: ReactNode;
 }) {
+  const form = useId();
   const [type, setType] = useState<"disposable" | "kit">(row?.type ?? "disposable");
   const [name, setName] = useState(row?.name ?? "");
   const [slug, setSlug] = useState(row?.slug ?? "");
   const [touched, setTouched] = useState(Boolean(row));
+  const [description, setDescription] = useState(row?.description ?? "");
+  const [seoTitle, setSeoTitle] = useState(row?.seo?.title ?? "");
+  const [seoDescription, setSeoDescription] = useState(row?.seo?.description ?? "");
   const specs = (row?.specs ?? { extra: [] }) as Record<string, unknown> & {
     extra: Array<{ label: string; value: string }>;
   };
@@ -715,23 +756,49 @@ function ProductForm({
     list: ReadonlyArray<{ id: string; name: string }>,
     current?: { id: string; name: string },
   ) => (current && !list.some((item) => item.id === current.id) ? [current, ...list] : list);
+  const locked = resource.disabled || !canWrite;
+  const unsaved = row ? row.name : "this new product";
+  const title = `${seoTitle || name || "Product name"} · Iqos Haven`;
+  const later = (what: string) => (
+    <div className="card-b">
+      <p className="small muted">Save the draft first, then add {what}.</p>
+    </div>
+  );
   return (
-    <section className="management-card">
-      <header className="card-heading">
-        <h2>{row ? row.name : "Add product"}</h2>
-        <span className="badge">
-          {row
-            ? `${row.status === "published" ? "Published" : "Draft"} · v${row.version}`
-            : "Draft"}
-        </span>
-      </header>
-      <p className="muted">
-        Products are saved as drafts. Publishing opens once images and variants are in place. The
-        price you enter is the final price the customer pays.
-      </p>
-      <ResourceNotice resource={resource} />
+    <div className="stack product-editor">
+      {back}
+      <PageHead
+        title={row ? row.name : "Add product"}
+        sub={
+          row ? (
+            <>
+              <span className="mono">/p/{row.slug}</span> ·{" "}
+              {row.status === "published" ? "Published" : "Draft"}
+            </>
+          ) : (
+            "Fill in the basics and save the draft, then add images and options and publish."
+          )
+        }
+      />
+      <nav className="secnav" aria-label="Sections">
+        {SECTIONS.map(([target, label]) => (
+          <button
+            key={target}
+            type="button"
+            onClick={() =>
+              document
+                .getElementById(target)
+                ?.scrollIntoView({ behavior: "smooth", block: "start" })
+            }
+          >
+            {label}
+          </button>
+        ))}
+      </nav>
+      <ResourceNotice resource={resource} compact />
       <form
-        data-unsaved={row ? row.name : "this new product"}
+        id={form}
+        hidden
         onSubmit={async (e) => {
           e.preventDefault();
           const data = new FormData(e.currentTarget);
@@ -754,197 +821,514 @@ function ProductForm({
           );
           if (outcome.ok) onSaved(outcome.value);
         }}
-      >
-        <fieldset disabled={resource.disabled || !canWrite}>
-          <div className="form-grid">
-            <label>
-              <span>Product name *</span>
-              <input
-                name="name"
-                required
-                maxLength={150}
-                value={name}
-                onChange={(e) => {
-                  setName(e.target.value);
-                  if (!touched) setSlug(slugify(e.target.value));
-                }}
-              />
-            </label>
-            <label>
-              <span>Slug (/products/…) *</span>
-              <input
-                name="slug"
-                required
-                maxLength={150}
-                // Changing an existing link makes a redirect: the Owner's (step 101).
-                readOnly={Boolean(row) && !canSeo}
-                value={slug}
-                onChange={(e) => {
-                  setTouched(true);
-                  setSlug(e.target.value);
-                }}
-              />
-            </label>
-            <label>
-              <span>Type *</span>
-              <select
-                name="type"
-                value={type}
-                onChange={(e) => setType(e.target.value as "disposable" | "kit")}
-              >
-                <option value="disposable">Disposable</option>
-                <option value="kit">Kit</option>
-              </select>
-            </label>
-            <label>
-              <span>Brand *</span>
-              <select name="brandId" required defaultValue={row?.brand.id ?? ""}>
-                <option value="">Choose brand</option>
-                {withCurrent(brands, row?.brand).map((brand) => (
-                  <option key={brand.id} value={brand.id}>
-                    {brand.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              <span>Category *</span>
-              <select name="categoryId" required defaultValue={row?.category.id ?? ""}>
-                <option value="">Choose category</option>
-                {withCurrent(categories, row?.category).map((category) => (
-                  <option key={category.id} value={category.id}>
-                    {category.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            {type === "disposable" && (
-              <label>
-                <span>Puffs (approx.)</span>
-                <input
-                  name="puffCount"
-                  inputMode="numeric"
-                  maxLength={7}
-                  defaultValue={row?.puffCount ?? ""}
+      />
+      <div className="split">
+        <div className="stack">
+          <section className="card" id="pe-basic" data-unsaved={unsaved}>
+            <div className="card-h">
+              <h2>Basic information</h2>
+            </div>
+            <fieldset className="card-b plain-fs" disabled={locked}>
+              <div className="fgrid c2">
+                <div className="field span2">
+                  <label className="label" htmlFor="pe-name">
+                    <span>
+                      Product name{" "}
+                      <span className="req" aria-hidden="true">
+                        *
+                      </span>
+                    </span>
+                  </label>
+                  <input
+                    id="pe-name"
+                    className="input"
+                    form={form}
+                    name="name"
+                    required
+                    maxLength={150}
+                    autoComplete="off"
+                    placeholder="e.g. Orbe Halo 7K"
+                    value={name}
+                    onChange={(e) => {
+                      setName(e.target.value);
+                      if (!touched) setSlug(slugify(e.target.value));
+                    }}
+                  />
+                </div>
+                <Choice
+                  id="pe-cat"
+                  form={form}
+                  name="categoryId"
+                  label="Category"
+                  empty="Choose category"
+                  options={withCurrent(categories, row?.category)}
+                  initial={row?.category.id ?? ""}
                 />
-              </label>
-            )}
-            <label>
-              <span>Price (AED) *</span>
-              <input
-                name="price"
-                required
-                inputMode="decimal"
-                maxLength={12}
-                defaultValue={row ? filsToAed(row.basePriceFils) : ""}
-              />
-            </label>
-            <label>
-              <span>Compare-at price (AED, optional)</span>
-              <input
-                name="compareAt"
-                inputMode="decimal"
-                maxLength={12}
-                defaultValue={row?.compareAtPriceFils ? filsToAed(row.compareAtPriceFils) : ""}
-              />
-              <small className="muted">Shown as the previous price; must be above the price.</small>
-            </label>
-            <label className="wide-field">
-              <span>Description</span>
-              <textarea
-                name="description"
-                rows={4}
-                maxLength={5000}
-                defaultValue={row?.description ?? ""}
-              />
-            </label>
-            <label>
-              <input type="checkbox" name="isNew" defaultChecked={row?.isNew ?? false} /> Show
-              &ldquo;New&rdquo; badge
-            </label>
-          </div>
-          <h3>Specifications</h3>
-          <div className="form-grid">
-            {type === "disposable" ? (
-              <>
-                <SpecInput name="liquidMl" label="E-liquid (ml)" value={value("liquidMl")} />
-                <SpecInput name="batteryMah" label="Battery (mAh)" value={value("batteryMah")} />
-                <SpecInput name="charging" label="Charging" value={value("charging")} />
-                <label>
+                <Choice
+                  id="pe-brand"
+                  form={form}
+                  name="brandId"
+                  label="Brand"
+                  empty="Choose brand"
+                  options={withCurrent(brands, row?.brand)}
+                  initial={row?.brand.id ?? ""}
+                />
+                <div className="field">
+                  <label className="label" htmlFor="pe-type">
+                    <span>
+                      Type{" "}
+                      <span className="req" aria-hidden="true">
+                        *
+                      </span>
+                    </span>
+                  </label>
+                  <select
+                    id="pe-type"
+                    className="select"
+                    form={form}
+                    name="type"
+                    value={type}
+                    onChange={(e) => setType(e.target.value as "disposable" | "kit")}
+                  >
+                    <option value="disposable">Disposable</option>
+                    <option value="kit">Kit</option>
+                  </select>
+                </div>
+                {type === "disposable" ? (
+                  <div className="field">
+                    <label className="label" htmlFor="pe-puffs">
+                      <span>
+                        Puffs <span className="opt">approx.</span>
+                      </span>
+                    </label>
+                    <input
+                      id="pe-puffs"
+                      className="input"
+                      form={form}
+                      name="puffCount"
+                      inputMode="numeric"
+                      maxLength={7}
+                      defaultValue={row?.puffCount ?? ""}
+                    />
+                  </div>
+                ) : (
+                  <div />
+                )}
+                <label className="check-row span2">
                   <input
                     type="checkbox"
-                    name="specs.rechargeable"
-                    defaultChecked={specs.rechargeable === true}
-                  />{" "}
-                  Rechargeable
-                </label>
-              </>
-            ) : (
-              <>
-                <SpecInput name="batteryMah" label="Battery (mAh)" value={value("batteryMah")} />
-                <SpecInput name="maxOutputW" label="Max output (W)" value={value("maxOutputW")} />
-                <SpecInput
-                  name="podCapacityMl"
-                  label="Pod capacity (ml)"
-                  value={value("podCapacityMl")}
-                />
-                <SpecInput name="coilOhm" label="Coil (Ω)" value={value("coilOhm")} />
-                <SpecInput name="charging" label="Charging" value={value("charging")} />
-                <SpecInput name="display" label="Display" value={value("display")} />
-                <SpecInput name="inTheBox" label="In the box" value={value("inTheBox")} />
-              </>
-            )}
-            <label className="wide-field">
-              <span>Other specifications (one per line, &ldquo;Label: value&rdquo;)</span>
-              <textarea
-                name="specs.extra"
-                rows={3}
-                maxLength={2000}
-                defaultValue={formatExtraSpecs(specs.extra ?? [])}
-              />
-            </label>
-          </div>
-          {canSeo && (
-            <>
-              <h3>Search engine listing</h3>
-              <div className="form-grid">
-                <label>
-                  <span>SEO title (optional)</span>
-                  <input name="seo.title" maxLength={120} defaultValue={row?.seo?.title ?? ""} />
-                </label>
-                <label className="wide-field">
-                  <span>SEO description (optional)</span>
-                  <textarea
-                    name="seo.description"
-                    rows={2}
-                    maxLength={320}
-                    defaultValue={row?.seo?.description ?? ""}
+                    form={form}
+                    name="isNew"
+                    defaultChecked={row?.isNew ?? false}
                   />
+                  Show the &ldquo;New&rdquo; badge on the store
                 </label>
               </div>
-            </>
-          )}
-          <div className="form-actions">
-            {canWrite && (
-              <button className="primary-button" type="submit">
-                {row ? "Save changes" : "Save draft"}
-              </button>
+            </fieldset>
+          </section>
+          <section className="card" id="pe-media">
+            {images ?? (
+              <>
+                <div className="card-h">
+                  <h2>Images</h2>
+                </div>
+                {later("images")}
+              </>
             )}
-            <button data-leave type="button" className="secondary-button" onClick={onBack}>
-              Back to products
-            </button>
-          </div>
-        </fieldset>
-      </form>
-    </section>
+          </section>
+          <section className="card" id="pe-desc" data-unsaved={unsaved}>
+            <div className="card-h">
+              <h2>Description & specifications</h2>
+            </div>
+            <fieldset className="card-b form plain-fs" disabled={locked}>
+              <div className="field">
+                <label className="label" htmlFor="pe-d">
+                  <span>Description</span>
+                  <Count value={description} max={5000} />
+                </label>
+                <textarea
+                  id="pe-d"
+                  className="textarea"
+                  form={form}
+                  name="description"
+                  rows={5}
+                  maxLength={5000}
+                  placeholder="What it is, who it suits, what is in the box."
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                />
+              </div>
+              <div className="field">
+                <span className="label">
+                  <span>
+                    Specifications <span className="opt">Shown as a table on the product page</span>
+                  </span>
+                </span>
+                <div className="fgrid c2">
+                  {type === "disposable" ? (
+                    <>
+                      <SpecInput
+                        form={form}
+                        name="liquidMl"
+                        label="E-liquid (ml)"
+                        value={value("liquidMl")}
+                      />
+                      <SpecInput
+                        form={form}
+                        name="batteryMah"
+                        label="Battery (mAh)"
+                        value={value("batteryMah")}
+                      />
+                      <SpecInput
+                        form={form}
+                        name="charging"
+                        label="Charging"
+                        value={value("charging")}
+                      />
+                      <label className="check-row spec-check">
+                        <input
+                          type="checkbox"
+                          form={form}
+                          name="specs.rechargeable"
+                          defaultChecked={specs.rechargeable === true}
+                        />
+                        Rechargeable
+                      </label>
+                    </>
+                  ) : (
+                    <>
+                      <SpecInput
+                        form={form}
+                        name="batteryMah"
+                        label="Battery (mAh)"
+                        value={value("batteryMah")}
+                      />
+                      <SpecInput
+                        form={form}
+                        name="maxOutputW"
+                        label="Max output (W)"
+                        value={value("maxOutputW")}
+                      />
+                      <SpecInput
+                        form={form}
+                        name="podCapacityMl"
+                        label="Pod capacity (ml)"
+                        value={value("podCapacityMl")}
+                      />
+                      <SpecInput
+                        form={form}
+                        name="coilOhm"
+                        label="Coil (Ω)"
+                        value={value("coilOhm")}
+                      />
+                      <SpecInput
+                        form={form}
+                        name="charging"
+                        label="Charging"
+                        value={value("charging")}
+                      />
+                      <SpecInput
+                        form={form}
+                        name="display"
+                        label="Display"
+                        value={value("display")}
+                      />
+                      <SpecInput
+                        form={form}
+                        name="inTheBox"
+                        label="In the box"
+                        value={value("inTheBox")}
+                      />
+                    </>
+                  )}
+                </div>
+              </div>
+              <div className="field">
+                <label className="label" htmlFor="pe-extra">
+                  <span>
+                    Other specifications <span className="opt">One per line, “Label: value”</span>
+                  </span>
+                </label>
+                <textarea
+                  id="pe-extra"
+                  className="textarea"
+                  form={form}
+                  name="specs.extra"
+                  rows={3}
+                  maxLength={2000}
+                  defaultValue={formatExtraSpecs(specs.extra ?? [])}
+                />
+              </div>
+            </fieldset>
+          </section>
+          <section className="card" id="pe-options">
+            {variants ?? (
+              <>
+                <div className="card-h">
+                  <h2>Options & variants</h2>
+                </div>
+                {later("options such as flavour and nicotine strength")}
+              </>
+            )}
+          </section>
+          <section className="card" id="pe-seo" data-unsaved={unsaved}>
+            <div className="card-h">
+              <h2>Search engine listing</h2>
+            </div>
+            <fieldset className="card-b form plain-fs" disabled={locked}>
+              <div className="serp" aria-label="Page title preview">
+                <div className="u">iqoshaven.com › p › {slug || "product-url"}</div>
+                <div className="t">
+                  {title.slice(0, 62)}
+                  {title.length > 62 ? "…" : ""}
+                </div>
+                <div className="d">
+                  {(
+                    seoDescription ||
+                    description ||
+                    "Add a meta description to control the text shown under the title."
+                  ).slice(0, 158)}
+                </div>
+              </div>
+              <p className="help">
+                Product pages stay out of search engines at launch; the title names the browser tab.
+              </p>
+              <div className="field">
+                <label className="label" htmlFor="pe-slug">
+                  <span>
+                    URL slug{" "}
+                    <span className="req" aria-hidden="true">
+                      *
+                    </span>
+                  </span>
+                </label>
+                <div className="affix">
+                  <span>/p/</span>
+                  <input
+                    id="pe-slug"
+                    className="input mono"
+                    form={form}
+                    name="slug"
+                    required
+                    maxLength={150}
+                    // Changing an existing link makes a redirect: the Owner's (step 101).
+                    readOnly={Boolean(row) && !canSeo}
+                    value={slug}
+                    onChange={(e) => {
+                      setTouched(true);
+                      setSlug(e.target.value);
+                    }}
+                  />
+                </div>
+                <p className="help">
+                  Lowercase letters, numbers and hyphens.
+                  {row ? " Changing it keeps the old link working as a redirect." : ""}
+                </p>
+              </div>
+              {canSeo && (
+                <>
+                  <div className="field">
+                    <label className="label" htmlFor="pe-st">
+                      <span>Meta title</span>
+                      <Count value={seoTitle} max={60} />
+                    </label>
+                    <input
+                      id="pe-st"
+                      className="input"
+                      form={form}
+                      name="seo.title"
+                      maxLength={120}
+                      placeholder="Defaults to the product name"
+                      value={seoTitle}
+                      onChange={(e) => setSeoTitle(e.target.value)}
+                    />
+                  </div>
+                  <div className="field">
+                    <label className="label" htmlFor="pe-sd">
+                      <span>Meta description</span>
+                      <Count value={seoDescription} max={160} />
+                    </label>
+                    <textarea
+                      id="pe-sd"
+                      className="textarea"
+                      form={form}
+                      name="seo.description"
+                      rows={2}
+                      maxLength={320}
+                      placeholder="Defaults to the start of the description"
+                      value={seoDescription}
+                      onChange={(e) => setSeoDescription(e.target.value)}
+                    />
+                  </div>
+                </>
+              )}
+            </fieldset>
+          </section>
+        </div>
+        <div className="stack">
+          <section className="card" id="pe-pub">
+            {publishing ?? (
+              <>
+                <div className="card-h">
+                  <h2>Publishing</h2>
+                  <span className="tag">Draft</span>
+                </div>
+                <div className="card-b">
+                  <p className="small muted">
+                    New products are saved as drafts, hidden from the store. Publishing opens once
+                    images and options are in place.
+                  </p>
+                </div>
+              </>
+            )}
+          </section>
+          <section className="card" id="pe-price" data-unsaved={unsaved}>
+            <div className="card-h">
+              <h2>Price</h2>
+            </div>
+            <fieldset className="card-b form plain-fs" disabled={locked}>
+              <div className="field">
+                <label className="label" htmlFor="pe-price-in">
+                  <span>
+                    Price{" "}
+                    <span className="req" aria-hidden="true">
+                      *
+                    </span>
+                  </span>
+                </label>
+                <div className="affix">
+                  <span>AED</span>
+                  <input
+                    id="pe-price-in"
+                    className="input"
+                    form={form}
+                    name="price"
+                    required
+                    inputMode="decimal"
+                    maxLength={12}
+                    defaultValue={row ? filsToAed(row.basePriceFils) : ""}
+                  />
+                </div>
+                <p className="help">The final price the customer pays; options can override it.</p>
+              </div>
+              <div className="field">
+                <label className="label" htmlFor="pe-compare">
+                  <span>
+                    Compare-at price <span className="opt">Optional</span>
+                  </span>
+                </label>
+                <div className="affix">
+                  <span>AED</span>
+                  <input
+                    id="pe-compare"
+                    className="input"
+                    form={form}
+                    name="compareAt"
+                    inputMode="decimal"
+                    maxLength={12}
+                    defaultValue={row?.compareAtPriceFils ? filsToAed(row.compareAtPriceFils) : ""}
+                  />
+                </div>
+                <p className="help">
+                  Shown struck through as the previous price; must be above the price.
+                </p>
+              </div>
+              <p className="help">
+                Stock is counted per option in <Link href="/workspace/inventory">Inventory</Link>.
+                At 0 the product stays published and shows <b>Out of Stock</b>.
+              </p>
+            </fieldset>
+          </section>
+        </div>
+      </div>
+      <div className="savebar">
+        <button data-leave type="button" className="btn btn-s" onClick={onBack}>
+          Cancel
+        </button>
+        {canWrite && (
+          <button type="submit" form={form} className="btn btn-p" disabled={resource.disabled}>
+            <Icon name="check" />
+            {row ? "Save changes" : "Save draft"}
+          </button>
+        )}
+      </div>
+    </div>
   );
 }
 
-function SpecInput({ name, label, value }: { name: string; label: string; value: string }) {
+/** A required brand or category choice in the prototype's field. */
+function Choice(props: {
+  id: string;
+  form: string;
+  name: string;
+  label: string;
+  empty: string;
+  options: ReadonlyArray<{ id: string; name: string }>;
+  initial: string;
+}) {
   return (
-    <label>
-      <span>{label}</span>
-      <input name={`specs.${name}`} maxLength={300} defaultValue={value} />
-    </label>
+    <div className="field">
+      <label className="label" htmlFor={props.id}>
+        <span>
+          {props.label}{" "}
+          <span className="req" aria-hidden="true">
+            *
+          </span>
+        </span>
+      </label>
+      <select
+        id={props.id}
+        className="select"
+        form={props.form}
+        name={props.name}
+        required
+        defaultValue={props.initial}
+      >
+        <option value="">{props.empty}</option>
+        {props.options.map((option) => (
+          <option key={option.id} value={option.id}>
+            {option.name}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
+/** The prototype's character count (`cc`); past the guide it turns red, the field still takes it. */
+function Count({ value, max }: { value: string; max: number }) {
+  return (
+    <span className={value.length > max ? "cc over" : "cc"} aria-hidden="true">
+      {value.length}/{max}
+    </span>
+  );
+}
+
+function SpecInput({
+  form,
+  name,
+  label,
+  value,
+}: {
+  form: string;
+  name: string;
+  label: string;
+  value: string;
+}) {
+  const id = `pe-spec-${name}`;
+  return (
+    <div className="field">
+      <label className="label" htmlFor={id}>
+        {label}
+      </label>
+      <input
+        id={id}
+        className="input"
+        form={form}
+        name={`specs.${name}`}
+        maxLength={300}
+        defaultValue={value}
+      />
+    </div>
   );
 }
