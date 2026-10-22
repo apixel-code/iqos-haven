@@ -72,8 +72,13 @@ await pool.query("INSERT INTO notification_receipts (notification_id, user_id) V
   note.id,
   owner.id,
 ]);
-const editProduct = (await pool.query("SELECT id FROM products WHERE deleted_at IS NULL LIMIT 1"))
-  .rows[0].id;
+// Prefer a product with images (after qa.mjs on this schema), so the image tiles are checked too.
+const editProduct = (
+  await pool.query(
+    `SELECT p.id FROM products p WHERE p.deleted_at IS NULL
+     ORDER BY EXISTS (SELECT 1 FROM product_images i WHERE i.product_id = p.id) DESC LIMIT 1`,
+  )
+).rows[0].id;
 const SECTIONS = [
   "orders",
   "products",
@@ -144,6 +149,15 @@ try {
     await page.getByRole("heading", { name: "Options & variants" }).waitFor();
     await page.waitForLoadState("networkidle");
     await scan(page, `product editor ${tag}`);
+    // The alt text dialog of the first image (V-A4c), when the product has one.
+    const altButton = page.getByRole("button", { name: "Alt text of image 1" });
+    if (await altButton.isVisible()) {
+      await altButton.click();
+      await page.getByRole("dialog", { name: "Alt text" }).waitFor();
+      await page.waitForTimeout(400);
+      await scan(page, `image alt text ${tag}`);
+      await page.keyboard.press("Escape");
+    }
     await page.goto(`${BASE}/workspace/products?new=1`);
     await page.getByRole("heading", { name: "Basic information" }).waitFor();
     await page.waitForLoadState("networkidle");

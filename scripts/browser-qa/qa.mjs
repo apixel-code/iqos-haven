@@ -106,27 +106,23 @@ try {
   await page.getByRole("button", { name: /Add 4 missing combinations/ }).click();
   await page.getByText("4 variants").waitFor({ timeout: 20000 });
   check("four flavour × nicotine variants generated", true);
-  const defaults = await page.getByText(/Default · Active/).count();
+  const defaults = await page.locator(".variant-row .default-tag").count();
   check("exactly one default variant", defaults === 1, `${defaults}`);
 
   // Step 54: a SKU already used by another variant is refused with a clear message
-  const variantForms = page
-    .locator("form.record-card")
-    .filter({ has: page.locator('input[name="sku"]') });
+  // Each variant is its own form (V-A4c).
+  const variantForms = page.locator("form.variant-row");
   const second = variantForms.nth(1);
   const takenSku = await variantForms.nth(0).locator('input[name="sku"]').inputValue();
   await second.locator('input[name="sku"]').fill(takenSku);
-  await second.getByRole("button", { name: "Save variant" }).click();
+  await second.getByRole("button", { name: /Save variant/ }).click();
   await page
     .getByText(/already used/)
     .first()
     .waitFor({ timeout: 10000 });
   check("duplicate SKU refused with an explanation", true);
   // The editor stays open and the variant was not saved (still version 1).
-  check(
-    "refused SKU edit changed nothing",
-    /· v1\s*$/.test(await second.locator(".badge").innerText()),
-  );
+  check("refused SKU edit changed nothing", (await second.getAttribute("data-version")) === "1");
 
   // Images
   const image = await sharp({
@@ -144,14 +140,14 @@ try {
   await add.waitFor({ timeout: 45000 });
   check("upload processed by the worker (ready to add)", true);
   await add.click();
-  await page.getByText(/Primary ·/).waitFor({ timeout: 15000 });
+  await page.locator(".mtile .prim").waitFor({ timeout: 15000 });
   const thumbLoaded = await page
-    .locator('img[alt="Product image"], img[alt]')
+    .locator(".mtile img")
     .first()
     .evaluate((img) => img.complete && img.naturalWidth > 0)
     .catch(() => false);
   check("gallery thumbnail loads from a signed derivative link", thumbLoaded);
-  const thumbSrc = await page.locator(".record-card img").first().getAttribute("src");
+  const thumbSrc = await page.locator(".mtile img").first().getAttribute("src");
   check(
     "thumbnail is a signed media-bucket WebP, not quarantine",
     !!thumbSrc &&
@@ -159,6 +155,13 @@ try {
       thumbSrc.includes("X-Amz-Signature") &&
       !thumbSrc.includes("quarantine"),
   );
+  // Alt text is edited in the prototype's dialog from the tile (V-A4c).
+  await page.getByRole("button", { name: "Alt text of image 1" }).click();
+  const altDialog = page.getByRole("dialog", { name: "Alt text" });
+  await altDialog.getByLabel("Alt text").fill("Orbe Halo 7K, front view");
+  await altDialog.getByRole("button", { name: "Save alt text" }).click();
+  await page.locator('.mtile img[alt="Orbe Halo 7K, front view"]').waitFor({ timeout: 10000 });
+  check("alt text saved from the image dialog", true);
   // Bad upload: a GIF renamed as image is refused before upload.
   await page.setInputFiles('input[type="file"]', {
     name: "anim.gif",

@@ -4278,4 +4278,89 @@
     color: inherit;
     text-decoration: underline;
   }
+
+  /* ---------- Additions: product images and variants (V-A4c) ---------- */
+  .mtile .noalt {
+    position: absolute;
+    left: 6px;
+    bottom: 44px;
+    background: var(--warn-soft);
+    color: var(--warn);
+    font-size: 10.5px;
+    font-weight: 600;
+    padding: 2px 7px;
+    border-radius: 5px;
+  }
+  .mtile .ctl button:disabled {
+    opacity: 0.45;
+  }
+  .upload-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .upload-list .note {
+    align-items: center;
+  }
+  .upload-list .note p {
+    flex: 1;
+  }
+  .alt-preview {
+    width: 100%;
+    max-height: 240px;
+    object-fit: contain;
+    border-radius: var(--r-sm);
+    background: var(--surface-2);
+  }
+  .vlist {
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--line);
+    border-radius: var(--r-md);
+  }
+  .variant-row {
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .variant-row + .variant-row {
+    border-top: 1px solid var(--line);
+  }
+  .vr-h {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .vr-h .row {
+    gap: 6px;
+  }
+  .vr-f {
+    display: grid;
+    gap: 10px;
+    grid-template-columns: 1fr;
+  }
+  @media (min-width: 720px) {
+    .vr-f {
+      grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) minmax(0, 0.8fr);
+    }
+  }
+  .vr-a {
+    grid-column: 1 / -1;
+    display: flex;
+    gap: 16px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .vr-a .btn {
+    margin-left: auto;
+  }
+  .vr-a .check-row input {
+    margin-top: 0;
+  }
 }

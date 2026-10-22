@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useId, useState } from "react";
 import {
   OPTION_NAMES,
   productVariantsResponseSchema,
@@ -14,6 +14,7 @@ import {
   suggestSku,
 } from "../lib/variants";
 import { variantCreateRequestSchema, variantUpdateRequestSchema } from "@ih/contracts";
+import { Icon } from "./icons";
 import { ResourceNotice, useManagementResource } from "./management-resource";
 
 /**
@@ -56,46 +57,50 @@ export function ProductVariants({
       ),
     );
   const missing = view ? missingCombinations(view) : [];
+  const locked = resource.disabled || !canWrite;
   return (
     <>
       <div className="card-h">
         <h2>Options & variants</h2>
         <span className="tag">{view ? `${view.variants.length} variants` : "Loading"}</span>
       </div>
-      {/* The option and variant forms keep their own layout inside the prototype's card (V-A4b). */}
-      <div className="card-b">
-        <div className="management-card in-drawer">
-          <ResourceNotice resource={resource} compact />
-          {view && (
-            <fieldset disabled={resource.disabled || !canWrite}>
-              <form
-                data-unsaved="this product's options"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  const data = new FormData(e.currentTarget);
-                  const options = OPTION_NAMES.flatMap((name) => {
-                    const values = parseOptionValues(String(data.get(name) ?? ""));
-                    return values.length ? [{ name, values }] : [];
-                  });
-                  void request("/options", "PUT", () => ({
-                    productVersion: view.productVersion,
-                    options,
-                  })).then((ok) => {
-                    // Only a real change bumps the product version and needs the editor reloaded.
-                    if (ok && ok.productVersion !== view.productVersion) onProductChanged();
-                  });
-                }}
-                key={`options-${view.productVersion}`}
-              >
-                <p className="muted">
-                  One value per line or comma separated. Which options a product has can only change
-                  before its first variant; values can be added later, and removed while unused.
-                </p>
-                <div className="form-grid">
+      <div className="card-b form">
+        <ResourceNotice resource={resource} compact />
+        {view && (
+          <>
+            <form
+              data-unsaved="this product's options"
+              className="form"
+              key={`options-${view.productVersion}`}
+              onSubmit={(e) => {
+                e.preventDefault();
+                const data = new FormData(e.currentTarget);
+                const options = OPTION_NAMES.flatMap((name) => {
+                  const values = parseOptionValues(String(data.get(name) ?? ""));
+                  return values.length ? [{ name, values }] : [];
+                });
+                void request("/options", "PUT", () => ({
+                  productVersion: view.productVersion,
+                  options,
+                })).then((ok) => {
+                  // Only a real change bumps the product version and needs the editor reloaded.
+                  if (ok && ok.productVersion !== view.productVersion) onProductChanged();
+                });
+              }}
+            >
+              <fieldset className="plain-fs form" disabled={locked}>
+                <div className="fgrid c2">
                   {OPTION_NAMES.map((name) => (
-                    <label key={name}>
-                      <span>{name[0]!.toUpperCase() + name.slice(1)} values</span>
+                    <div className="field" key={name}>
+                      <label className="label" htmlFor={`opt-${name}`}>
+                        <span>
+                          {name[0]!.toUpperCase() + name.slice(1)} values{" "}
+                          <span className="opt">Optional</span>
+                        </span>
+                      </label>
                       <textarea
+                        id={`opt-${name}`}
+                        className="textarea"
                         name={name}
                         rows={3}
                         maxLength={5000}
@@ -104,96 +109,109 @@ export function ProductVariants({
                           ""
                         }
                       />
-                    </label>
+                    </div>
                   ))}
                 </div>
+                <p className="help">
+                  One value per line or comma separated. Which options a product has can only change
+                  before its first variant; values can be added later, and removed while unused.
+                </p>
                 {canWrite && (
-                  <button type="submit" className="secondary-button">
-                    Save options
-                  </button>
+                  <div className="row">
+                    <button type="submit" className="btn btn-s">
+                      Save options
+                    </button>
+                    {missing.length > 0 && (
+                      <button
+                        type="button"
+                        className="btn btn-p"
+                        onClick={async () => {
+                          const offset = view.variants.length;
+                          for (const [index, attributes] of missing.entries()) {
+                            const ok = await request("/variants", "POST", () => ({
+                              sku: suggestSku(productSlug, attributes, offset + index),
+                              attributes,
+                              priceOverrideFils: null,
+                              lowStockThreshold: 0,
+                              active: true,
+                            }));
+                            if (!ok) break;
+                          }
+                        }}
+                      >
+                        <Icon name="plus" />
+                        Add {missing.length} missing{" "}
+                        {missing.length === 1 ? "combination" : "combinations"}
+                      </button>
+                    )}
+                    {view.options.length === 0 && view.variants.length === 0 && (
+                      <button
+                        type="button"
+                        className="btn btn-p"
+                        onClick={() =>
+                          void request("/variants", "POST", () =>
+                            validate(variantCreateRequestSchema, {
+                              sku: suggestSku(productSlug, {}),
+                              attributes: {},
+                              priceOverrideFils: null,
+                              lowStockThreshold: 0,
+                              active: true,
+                            }),
+                          )
+                        }
+                      >
+                        <Icon name="plus" />
+                        Add single variant
+                      </button>
+                    )}
+                  </div>
                 )}
-              </form>
-              {canWrite && missing.length > 0 && (
-                <div className="form-actions">
-                  <button
-                    type="button"
-                    className="primary-button"
-                    onClick={async () => {
-                      const offset = view.variants.length;
-                      for (const [index, attributes] of missing.entries()) {
-                        const ok = await request("/variants", "POST", () => ({
-                          sku: suggestSku(productSlug, attributes, offset + index),
-                          attributes,
-                          priceOverrideFils: null,
-                          lowStockThreshold: 0,
-                          active: true,
-                        }));
-                        if (!ok) break;
-                      }
-                    }}
-                  >
-                    Add {missing.length} missing{" "}
-                    {missing.length === 1 ? "combination" : "combinations"}
-                  </button>
-                </div>
-              )}
-              <div className="record-list">
+              </fieldset>
+            </form>
+            {view.variants.length === 0 ? (
+              <p className="small muted">
+                No variants yet. A product without options needs one variant before it can be sold.
+              </p>
+            ) : (
+              <div className="vlist">
                 {view.variants.map((variant) => (
-                  <VariantCard
+                  <VariantRow
                     key={`${variant.id}-${variant.version}`}
                     variant={variant}
                     canWrite={canWrite}
+                    locked={locked}
                     onSave={(body) => request(`/variants/${variant.id}`, "PATCH", body)}
                   />
                 ))}
               </div>
-              {view.variants.length === 0 && (
-                <p className="muted">
-                  No variants yet. A product without options needs one variant before it can be
-                  sold.
-                </p>
-              )}
-              {canWrite && view.options.length === 0 && view.variants.length === 0 && (
-                <button
-                  type="button"
-                  className="secondary-button"
-                  onClick={() =>
-                    void request("/variants", "POST", () =>
-                      validate(variantCreateRequestSchema, {
-                        sku: suggestSku(productSlug, {}),
-                        attributes: {},
-                        priceOverrideFils: null,
-                        lowStockThreshold: 0,
-                        active: true,
-                      }),
-                    )
-                  }
-                >
-                  Add single variant
-                </button>
-              )}
-            </fieldset>
-          )}
-        </div>
+            )}
+          </>
+        )}
       </div>
     </>
   );
 }
 
-function VariantCard({
+/** One variant: its name, stock and default state, then its own fields. Stock changes in Inventory. */
+function VariantRow({
   variant,
   canWrite,
+  locked,
   onSave,
 }: {
   variant: VariantResponse;
   canWrite: boolean;
+  locked: boolean;
   onSave: (body: () => unknown) => Promise<unknown>;
 }) {
+  const id = useId();
   const [makeDefault, setMakeDefault] = useState(variant.isDefault);
+  const name = describeAttributes(variant.attributes);
   return (
     <form
+      className="variant-row"
+      data-version={variant.version}
       data-unsaved={`option ${variant.sku}`}
-      className="record-card"
       onSubmit={(e) => {
         e.preventDefault();
         const data = new FormData(e.currentTarget);
@@ -210,57 +228,86 @@ function VariantCard({
         );
       }}
     >
-      <header className="card-heading">
-        <strong>{describeAttributes(variant.attributes)}</strong>
-        <span className="badge">
-          {variant.isDefault ? "Default · " : ""}
-          {variant.active ? "Active" : "Inactive"} · {variant.stockOnHand} in stock · v
-          {variant.version}
+      <div className="vr-h">
+        <b>{name}</b>
+        <span className="row">
+          {variant.isDefault && <span className="tag pub default-tag">Default</span>}
+          {!variant.active && <span className="tag">Inactive</span>}
+          <span className={variant.stockOnHand > 0 ? "tag ok" : "tag out"}>
+            {variant.stockOnHand} in stock
+          </span>
         </span>
-      </header>
-      <div className="form-grid">
-        <label>
-          <span>SKU *</span>
-          <input name="sku" required maxLength={64} defaultValue={variant.sku} />
-        </label>
-        <label>
-          <span>Price override (AED, optional)</span>
+      </div>
+      <fieldset className="plain-fs vr-f" disabled={locked}>
+        <div className="field">
+          <label className="label" htmlFor={`${id}-sku`}>
+            SKU
+          </label>
           <input
-            name="price"
-            inputMode="decimal"
-            maxLength={12}
-            defaultValue={
-              variant.priceOverrideFils === null ? "" : filsToAed(variant.priceOverrideFils)
-            }
+            id={`${id}-sku`}
+            className="input mono"
+            name="sku"
+            required
+            maxLength={64}
+            defaultValue={variant.sku}
           />
-        </label>
-        <label>
-          <span>Low-stock alert at</span>
+        </div>
+        <div className="field">
+          <label className="label" htmlFor={`${id}-price`}>
+            <span>
+              Price <span className="opt">Override</span>
+            </span>
+          </label>
+          <div className="affix">
+            <span>AED</span>
+            <input
+              id={`${id}-price`}
+              className="input"
+              name="price"
+              inputMode="decimal"
+              maxLength={12}
+              placeholder="Product price"
+              defaultValue={
+                variant.priceOverrideFils === null ? "" : filsToAed(variant.priceOverrideFils)
+              }
+            />
+          </div>
+        </div>
+        <div className="field">
+          <label className="label" htmlFor={`${id}-alert`}>
+            Low-stock alert at
+          </label>
           <input
+            id={`${id}-alert`}
+            className="input"
             name="threshold"
             inputMode="numeric"
             maxLength={7}
             defaultValue={variant.lowStockThreshold}
           />
-        </label>
-        <label>
-          <input type="checkbox" name="active" defaultChecked={variant.active} /> Active
-        </label>
-        <label>
-          <input
-            type="checkbox"
-            checked={makeDefault}
-            disabled={variant.isDefault}
-            onChange={(e) => setMakeDefault(e.target.checked)}
-          />{" "}
-          Default variant
-        </label>
-      </div>
-      {canWrite && (
-        <button type="submit" className="secondary-button">
-          Save variant
-        </button>
-      )}
+        </div>
+        <div className="vr-a">
+          <label className="check-row">
+            <input type="checkbox" name="active" defaultChecked={variant.active} />
+            Active
+          </label>
+          {!variant.isDefault && (
+            <label className="check-row">
+              <input
+                type="checkbox"
+                checked={makeDefault}
+                onChange={(e) => setMakeDefault(e.target.checked)}
+              />
+              Make default
+            </label>
+          )}
+          {canWrite && (
+            <button type="submit" className="btn btn-s btn-sm" aria-label={`Save variant ${name}`}>
+              Save
+            </button>
+          )}
+        </div>
+      </fieldset>
     </form>
   );
 }

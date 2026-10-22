@@ -1,6 +1,6 @@
 "use client";
 import { confirmDialog } from "../lib/ui/confirm";
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import {
   mediaAssetSchema,
   mediaUploadResponseSchema,
@@ -9,9 +9,11 @@ import {
   type ProductGalleryResponse,
 } from "@ih/contracts";
 import { managementRequest, validate } from "../lib/management";
-import { moved, rejectionMessage, uploadForm, uploadRequestFor } from "../lib/media";
+import { moved, movedTo, rejectionMessage, uploadForm, uploadRequestFor } from "../lib/media";
 import { galleryUpdateRequestSchema } from "@ih/contracts";
+import { Icon } from "./icons";
 import { ResourceNotice, useManagementResource } from "./management-resource";
+import { Modal } from "./overlays";
 
 /**
  * Product images (steps 48–50). Files go straight to private quarantine storage with a
@@ -26,6 +28,11 @@ export function ProductImages({ productId, canWrite }: { productId: string; canW
   // Only uploads the worker is handling drive polling; a pending grant just waits for its file.
   const processing = data?.uploads.some((u) => u.state === "uploaded" || u.state === "processing");
   const { busy, setData } = gallery;
+  const [editing, setEditing] = useState<GalleryImage | null>(null);
+  const [dragging, setDragging] = useState<string | null>(null);
+  const [over, setOver] = useState<number | null>(null);
+  const [dropping, setDropping] = useState(false);
+  const altForm = useId();
 
   // Poll quietly with its own request: never reload the resource (that would unmount the card)
   // and never while another action runs (that would abort it).
@@ -87,6 +94,50 @@ export function ProductImages({ productId, canWrite }: { productId: string; canW
 
   const images = data?.images ?? [];
   const order = images.map((image) => image.id);
+  const reorder = (imageIds: string[]) =>
+    save((signal) =>
+      managementRequest(
+        `/products/${productId}/images/order`,
+        productGalleryResponseSchema,
+        "PUT",
+        { imageIds },
+        signal,
+      ),
+    );
+  const update = (image: GalleryImage, alt: string, isPrimary: boolean) =>
+    save((signal) =>
+      managementRequest(
+        `/products/${productId}/images/${image.id}`,
+        productGalleryResponseSchema,
+        "PATCH",
+        validate(galleryUpdateRequestSchema, { version: image.version, alt, isPrimary }),
+        signal,
+      ),
+    );
+  const remove = async (image: GalleryImage) => {
+    if (
+      !(await confirmDialog({
+        title: "Remove this image?",
+        body: "It is taken off the product. To use it again, upload the file again.",
+        ok: "Remove image",
+        danger: true,
+      }))
+    )
+      return;
+    void save((signal) =>
+      managementRequest(
+        `/products/${productId}/images/${image.id}/remove`,
+        productGalleryResponseSchema,
+        "POST",
+        { version: image.version },
+        signal,
+      ),
+    );
+  };
+  const uploadAll = async (files: FileList | null) => {
+    for (const file of Array.from(files ?? [])) await upload(file);
+  };
+  const locked = gallery.disabled || !canWrite;
   return (
     <>
       <div className="card-h">
@@ -94,219 +145,258 @@ export function ProductImages({ productId, canWrite }: { productId: string; canW
           Images <span className="sub">· {images.length}/8</span>
         </h2>
       </div>
-      {/* The upload and image forms keep their own layout inside the prototype's card (V-A4b). */}
-      <div className="card-b">
-        <div className="management-card in-drawer">
-          <p className="muted">
-            PNG, JPG or WebP, 200–8000 px on each side, up to 8 MB each (square images of at least
-            1000 px look best). Images are checked and cleaned before use. The first image is the
-            primary image on product cards.
+      <div className="card-b form">
+        <ResourceNotice resource={gallery} compact />
+        {note && (
+          <p role="status" className="note warn">
+            <Icon name="alert" />
+            {note}
           </p>
-          <ResourceNotice resource={gallery} compact />
-          {note && (
-            <p role="status" className="muted">
-              {note}
-            </p>
-          )}
-          {data && (
-            <fieldset disabled={gallery.disabled || !canWrite}>
-              {canWrite && (
-                <label>
-                  <span>Add images</span>
-                  <input
-                    type="file"
-                    accept="image/jpeg,image/png,image/webp"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      e.target.value = "";
-                      if (file) void upload(file);
-                    }}
-                  />
-                </label>
-              )}
-              {data.uploads.length > 0 && (
-                <ul className="record-list">
-                  {data.uploads.map((item) => (
-                    <li key={item.id}>
-                      {item.state === "uploaded" || item.state === "processing"
-                        ? "Checking and processing the image…"
-                        : item.state === "pending"
-                          ? "Waiting for the file to arrive…"
-                          : item.state === "ready"
-                            ? "Processed and ready to add."
-                            : item.state === "expired"
-                              ? "The upload took too long. Choose the file again."
-                              : `Not added: ${rejectionMessage(item.error)} Choose the file again.`}{" "}
-                      {item.state === "ready" && canWrite && (
+        )}
+        {images.length > 0 && (
+          <div className="media">
+            {images.map((image, index) => (
+              <div
+                key={`${image.id}-${image.version}`}
+                className={`mtile${dragging === image.id ? " dragging" : ""}${over === index && dragging !== image.id ? " over" : ""}`}
+                draggable={!locked}
+                onDragStart={(event) => {
+                  event.dataTransfer.effectAllowed = "move";
+                  setDragging(image.id);
+                }}
+                onDragOver={(event) => {
+                  if (!dragging) return;
+                  event.preventDefault();
+                  setOver(index);
+                }}
+                onDragLeave={() => setOver((value) => (value === index ? null : value))}
+                onDrop={(event) => {
+                  event.preventDefault();
+                  const id = dragging;
+                  setDragging(null);
+                  setOver(null);
+                  if (id && id !== image.id) void reorder(movedTo(order, id, index));
+                }}
+                onDragEnd={() => {
+                  setDragging(null);
+                  setOver(null);
+                }}
+              >
+                {/* Signed preview of the sanitized thumbnail; expires after a few minutes.
+                    next/image would fetch the private link server-side, which must not happen. */}
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={image.urls.thumb}
+                  alt={image.alt || `Product image ${index + 1}`}
+                  width={image.width}
+                  height={image.height}
+                />
+                {image.isPrimary && <span className="prim">Primary</span>}
+                {!image.alt && <span className="noalt">No alt text</span>}
+                {canWrite && (
+                  <>
+                    <span className="grip" aria-hidden="true">
+                      <Icon name="grip" />
+                    </span>
+                    <div className="ctl">
+                      <button
+                        type="button"
+                        aria-label={`Move image ${index + 1} left`}
+                        disabled={locked || index === 0}
+                        onClick={() => void reorder(moved(order, image.id, -1))}
+                      >
+                        <Icon name="cl" />
+                      </button>
+                      {!image.isPrimary && (
                         <button
                           type="button"
-                          className="secondary-button"
-                          onClick={() =>
-                            void save((signal) =>
-                              managementRequest(
-                                `/products/${productId}/images`,
-                                productGalleryResponseSchema,
-                                "POST",
-                                { mediaAssetId: item.id },
-                                signal,
-                              ),
-                            )
-                          }
+                          aria-label={`Make image ${index + 1} the primary image`}
+                          disabled={locked}
+                          onClick={() => void update(image, image.alt, true)}
                         >
-                          Add to gallery
+                          <Icon name="star" />
                         </button>
                       )}
-                    </li>
-                  ))}
-                </ul>
-              )}
-              {images.length === 0 && <p className="muted">No images yet.</p>}
-              <div className="record-list">
-                {images.map((image) => (
-                  <ImageCard
-                    key={`${image.id}-${image.version}`}
-                    image={image}
-                    canWrite={canWrite}
-                    first={order[0] === image.id}
-                    last={order.at(-1) === image.id}
-                    onSave={(alt, isPrimary) =>
-                      save((signal) =>
-                        managementRequest(
-                          `/products/${productId}/images/${image.id}`,
-                          productGalleryResponseSchema,
-                          "PATCH",
-                          validate(galleryUpdateRequestSchema, {
-                            version: image.version,
-                            alt,
-                            isPrimary,
-                          }),
-                          signal,
-                        ),
-                      )
-                    }
-                    onMove={(offset) =>
-                      save((signal) =>
-                        managementRequest(
-                          `/products/${productId}/images/order`,
-                          productGalleryResponseSchema,
-                          "PUT",
-                          { imageIds: moved(order, image.id, offset) },
-                          signal,
-                        ),
-                      )
-                    }
-                    onRemove={async () => {
-                      if (
-                        !(await confirmDialog({
-                          title: "Remove this image?",
-                          body: "It is taken off the product. To use it again, upload the file again.",
-                          ok: "Remove image",
-                          danger: true,
-                        }))
-                      )
-                        return;
+                      <button
+                        type="button"
+                        aria-label={`Alt text of image ${index + 1}`}
+                        disabled={locked}
+                        onClick={() => setEditing(image)}
+                      >
+                        <Icon name="edit" />
+                      </button>
+                      <button
+                        type="button"
+                        aria-label={`Move image ${index + 1} right`}
+                        disabled={locked || index === images.length - 1}
+                        onClick={() => void reorder(moved(order, image.id, 1))}
+                      >
+                        <Icon name="cr" />
+                      </button>
+                      <button
+                        type="button"
+                        aria-label={`Remove image ${index + 1}`}
+                        disabled={locked}
+                        onClick={() => void remove(image)}
+                      >
+                        <Icon name="trash" />
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+        {data && data.uploads.length > 0 && (
+          <ul className="upload-list">
+            {data.uploads.map((item) => (
+              <li
+                key={item.id}
+                className={
+                  item.state === "rejected" || item.state === "expired" ? "note err" : "note"
+                }
+              >
+                <Icon
+                  name={
+                    item.state === "ready"
+                      ? "check-c"
+                      : item.state === "rejected" || item.state === "expired"
+                        ? "alert"
+                        : "clock"
+                  }
+                />
+                <p>
+                  {item.state === "uploaded" || item.state === "processing"
+                    ? "Checking and processing the image…"
+                    : item.state === "pending"
+                      ? "Waiting for the file to arrive…"
+                      : item.state === "ready"
+                        ? "Processed and ready to add."
+                        : item.state === "expired"
+                          ? "The upload took too long. Choose the file again."
+                          : `Not added: ${rejectionMessage(item.error)} Choose the file again.`}
+                </p>
+                {item.state === "ready" && canWrite && (
+                  <button
+                    type="button"
+                    className="btn btn-s btn-sm"
+                    disabled={locked}
+                    onClick={() =>
                       void save((signal) =>
                         managementRequest(
-                          `/products/${productId}/images/${image.id}/remove`,
+                          `/products/${productId}/images`,
                           productGalleryResponseSchema,
                           "POST",
-                          { version: image.version },
+                          { mediaAssetId: item.id },
                           signal,
                         ),
-                      );
-                    }}
-                  />
-                ))}
-              </div>
-            </fieldset>
-          )}
-        </div>
+                      )
+                    }
+                  >
+                    <Icon name="plus" size="sm" />
+                    Add to gallery
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+        {canWrite && data && (
+          <label
+            className={dropping ? "drop over" : "drop"}
+            onDragOver={(event) => {
+              if (dragging || locked) return;
+              event.preventDefault();
+              setDropping(true);
+            }}
+            onDragLeave={() => setDropping(false)}
+            onDrop={(event) => {
+              if (dragging || locked) return;
+              event.preventDefault();
+              setDropping(false);
+              void uploadAll(event.dataTransfer.files);
+            }}
+          >
+            <span className="ic">
+              <Icon name="upload" size="lg" />
+            </span>
+            <b>Drag images here or browse</b>
+            <span className="small muted">
+              PNG, JPG or WebP · 200–8000 px a side, square from 1000 px looks best · up to 8 MB
+              each · up to 8 images
+            </span>
+            <input
+              type="file"
+              className="sr"
+              accept="image/jpeg,image/png,image/webp"
+              multiple
+              disabled={locked}
+              onChange={(e) => {
+                const files = e.target.files;
+                void uploadAll(files).finally(() => {
+                  e.target.value = "";
+                });
+              }}
+            />
+          </label>
+        )}
+        {data && (
+          <p className="help">
+            {images.length === 0 ? "No images yet. " : ""}
+            Images are checked and cleaned before use. The primary image shows on product cards;
+            drag the tiles or use the arrows to reorder.
+          </p>
+        )}
       </div>
-    </>
-  );
-}
-
-function ImageCard({
-  image,
-  canWrite,
-  first,
-  last,
-  onSave,
-  onMove,
-  onRemove,
-}: {
-  image: GalleryImage;
-  canWrite: boolean;
-  first: boolean;
-  last: boolean;
-  onSave: (alt: string, isPrimary: boolean) => Promise<void>;
-  onMove: (offset: -1 | 1) => Promise<void>;
-  onRemove: () => void;
-}) {
-  return (
-    <form
-      data-unsaved="this image's alt text"
-      className="record-card"
-      onSubmit={(e) => {
-        e.preventDefault();
-        void onSave(String(new FormData(e.currentTarget).get("alt") ?? "").trim(), image.isPrimary);
-      }}
-    >
-      <header className="card-heading">
-        {/* Signed preview of the sanitized thumbnail; expires after a few minutes. next/image would
-            fetch the private link server-side through its optimizer, which must not happen. */}
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={image.urls.thumb}
-          alt={image.alt || "Product image"}
-          width={96}
-          height={96}
-          style={{ objectFit: "contain" }}
-        />
-        <span className="badge">
-          {image.isPrimary ? "Primary · " : ""}
-          {image.width}×{image.height}
-        </span>
-      </header>
-      <label>
-        <span>Alt text (describes the image for screen readers)</span>
-        <input name="alt" maxLength={500} defaultValue={image.alt} />
-      </label>
-      {canWrite && (
-        <div className="form-actions">
-          <button type="submit" className="secondary-button">
-            Save alt text
-          </button>
-          {!image.isPrimary && (
-            <button
-              type="button"
-              className="secondary-button"
-              onClick={() => void onSave(image.alt, true)}
-            >
-              Make primary
+      <Modal
+        open={editing !== null}
+        onClose={() => setEditing(null)}
+        title="Alt text"
+        sub="Describes the image for people using screen readers."
+        foot={
+          <>
+            <button type="button" className="btn btn-s" onClick={() => setEditing(null)}>
+              Cancel
             </button>
-          )}
-          <button
-            type="button"
-            className="secondary-button"
-            disabled={first}
-            onClick={() => void onMove(-1)}
+            <button type="submit" form={altForm} className="btn btn-p" disabled={locked}>
+              Save alt text
+            </button>
+          </>
+        }
+      >
+        {editing && (
+          <form
+            id={altForm}
+            data-unsaved="this image's alt text"
+            className="form"
+            onSubmit={(e) => {
+              e.preventDefault();
+              const image = editing;
+              const alt = String(new FormData(e.currentTarget).get("alt") ?? "").trim();
+              setEditing(null);
+              void update(image, alt, image.isPrimary);
+            }}
           >
-            Move up
-          </button>
-          <button
-            type="button"
-            className="secondary-button"
-            disabled={last}
-            onClick={() => void onMove(1)}
-          >
-            Move down
-          </button>
-          <button type="button" className="danger-button" onClick={onRemove}>
-            Remove
-          </button>
-        </div>
-      )}
-    </form>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img className="alt-preview" src={editing.urls.medium} alt="" />
+            <div className="field">
+              <label className="label" htmlFor="alt-text">
+                Alt text
+              </label>
+              <input
+                id="alt-text"
+                className="input"
+                name="alt"
+                maxLength={500}
+                defaultValue={editing.alt}
+                data-autofocus=""
+                placeholder="e.g. Orbe Halo 7K in Grape Ice, front view"
+              />
+            </div>
+          </form>
+        )}
+      </Modal>
+    </>
   );
 }
