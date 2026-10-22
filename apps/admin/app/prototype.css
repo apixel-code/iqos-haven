@@ -4177,4 +4177,57 @@
     align-items: center;
     gap: 12px;
   }
+
+  /* ---------- Additions: products list (V-A4a) ---------- */
+  /* A picture tile with no image yet: the prototype's art tile, plain. */
+  .thumb {
+    background: var(--surface-2);
+    color: var(--ink-3);
+    display: grid;
+    place-items: center;
+  }
+  .thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+  .thumb > svg.i {
+    width: 18px;
+    height: 18px;
+  }
+  .mrow-in {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    width: 100%;
+    min-width: 0;
+  }
+  .mrow.product-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .mrow.product-row .row {
+    gap: 6px;
+    margin-top: 2px;
+  }
+  .product-row .cust {
+    white-space: nowrap;
+  }
+  .trash-acts {
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    justify-content: flex-end;
+  }
+  .mrow-a .trash-acts {
+    justify-content: flex-start;
+  }
+  .trash-acts .check-row {
+    align-items: center;
+    font-size: 12.5px;
+  }
+  .trash-acts .check-row input {
+    margin-top: 0;
+  }
 }

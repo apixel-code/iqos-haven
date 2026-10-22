@@ -1,6 +1,7 @@
 "use client";
 import { confirmDialog } from "../lib/ui/confirm";
-import { useState } from "react";
+import Link from "next/link";
+import { useEffect, useState } from "react";
 import {
   brandsResponseSchema,
   categoriesResponseSchema,
@@ -16,7 +17,10 @@ import { slugify } from "../lib/catalogue";
 import { filsToAed, managementRequest, type ResponseContract } from "../lib/management";
 import { formatExtraSpecs, productCreateCommand, productUpdateCommand } from "../lib/products";
 import { isUuid } from "../lib/links";
+import { money, when } from "../lib/orders";
+import { Icon } from "./icons";
 import { ResourceNotice, useManagementResource } from "./management-resource";
+import { PageHead } from "./page-head";
 import { useUrlQuery } from "./use-url-query";
 import { ProductVariants } from "./product-variants";
 import { ProductImages } from "./product-images";
@@ -86,10 +90,22 @@ function ProductList({
   const [status, setStatus] = useState<Status>("all");
   const [brandId, setBrandId] = useState("");
   const [categoryId, setCategoryId] = useState("");
+  // The prototype's search as you type (after a pause); Enter is not needed.
+  const [typed, setTyped] = useState("");
   const [q, setQ] = useState("");
   const [stock, setStock] = useState<StockFilter>("");
   const [sort, setSort] = useState<ProductSort>("newest");
-  const [cursor, setCursor] = useState<string | null>(null);
+  const [cursors, setCursors] = useState<string[]>([]);
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      const next = typed.trim().slice(0, 100);
+      if (next !== q) {
+        setQ(next);
+        setCursors([]);
+      }
+    }, 350);
+    return () => window.clearTimeout(timer);
+  }, [typed, q]);
   // Stock levels are `inventory.read` data: the API strips them and refuses the filter without it.
   const canSeeStock = permissions.includes("inventory.read");
   const brands = useManagementResource("/brands?limit=100", brandsResponseSchema);
@@ -100,67 +116,104 @@ function ProductList({
   if (q) params.set("q", q);
   if (stock && canSeeStock) params.set("stock", stock);
   if (sort !== "newest") params.set("sort", sort);
+  const cursor = cursors.at(-1);
   if (cursor) params.set("after", cursor);
   const products = useManagementResource(`/products?${params}`, productsResponseSchema);
   const reset = (apply: () => void) => {
     apply();
-    setCursor(null);
+    setCursors([]);
   };
+  const trash = status === "trashed";
+  const items = products.data?.items ?? [];
+  const chips = [
+    categoryId && {
+      key: "category",
+      label: categories.data?.items.find((item) => item.id === categoryId)?.name ?? "Category",
+      clear: () => reset(() => setCategoryId("")),
+    },
+    brandId && {
+      key: "brand",
+      label: brands.data?.items.find((item) => item.id === brandId)?.name ?? "Brand",
+      clear: () => reset(() => setBrandId("")),
+    },
+    stock && { key: "stock", label: STOCK_LABELS[stock], clear: () => reset(() => setStock("")) },
+  ].filter((chip): chip is { key: string; label: string; clear: () => void } => Boolean(chip));
+  const filtered = Boolean(q || brandId || categoryId || stock);
+  const clearAll = () =>
+    reset(() => {
+      setTyped("");
+      setQ("");
+      setBrandId("");
+      setCategoryId("");
+      setStock("");
+    });
   return (
-    <section className="management-card">
-      <header className="card-heading">
-        <h2>Products</h2>
-        {canWrite && (
-          <button type="button" className="primary-button" onClick={() => onOpen("new")}>
-            Add product
-          </button>
-        )}
-      </header>
-      <div className="tab-list" role="tablist" aria-label="Product status">
-        {(["all", "published", "draft", "trashed"] as const).map((value) => (
-          <button
-            key={value}
-            type="button"
-            role="tab"
-            className="secondary-button"
-            aria-selected={status === value}
-            onClick={() => reset(() => setStatus(value))}
+    <>
+      <PageHead
+        title="Products"
+        sub="Products are drafts until published; publishing opens once images and options are in place."
+        actions={
+          <>
+            <Link className="btn btn-s hide-m" href="/workspace/categories">
+              <Icon name="folder" />
+              Categories
+            </Link>
+            <Link className="btn btn-s hide-m" href="/workspace/brands">
+              <Icon name="award" />
+              Brands
+            </Link>
+            {canWrite && (
+              <button type="button" className="btn btn-p" onClick={() => onOpen("new")}>
+                <Icon name="plus" />
+                Add product
+              </button>
+            )}
+          </>
+        }
+      />
+      <div className="stack orders-head">
+        <div className="tabs" role="tablist" aria-label="Product status">
+          {(["all", "published", "draft", "trashed"] as const).map((value) => (
+            <button
+              key={value}
+              type="button"
+              role="tab"
+              className="tab"
+              aria-selected={status === value}
+              onClick={() => reset(() => setStatus(value))}
+            >
+              {value === "trashed" && <Icon name="trash" size="sm" />}
+              {value === "all"
+                ? "All"
+                : value === "published"
+                  ? "Published"
+                  : value === "draft"
+                    ? "Drafts"
+                    : "Trash"}
+            </button>
+          ))}
+        </div>
+        <div className="toolbar">
+          <div className="search">
+            <Icon name="search" />
+            <label className="sr" htmlFor="products-q">
+              Search name or SKU
+            </label>
+            <input
+              id="products-q"
+              type="search"
+              maxLength={100}
+              placeholder="Search name or SKU"
+              value={typed}
+              onChange={(event) => setTyped(event.target.value)}
+            />
+          </div>
+          <select
+            className="fsel"
+            aria-label="Category"
+            value={categoryId}
+            onChange={(e) => reset(() => setCategoryId(e.target.value))}
           >
-            {value === "all"
-              ? "All"
-              : value === "published"
-                ? "Published"
-                : value === "draft"
-                  ? "Drafts"
-                  : "Trash"}
-          </button>
-        ))}
-      </div>
-      <form
-        className="form-grid"
-        onSubmit={(e) => {
-          e.preventDefault();
-          reset(() => setQ(String(new FormData(e.currentTarget).get("q") ?? "").trim()));
-        }}
-      >
-        <label>
-          <span>Search name or SKU</span>
-          <input name="q" type="search" maxLength={100} defaultValue={q} />
-        </label>
-        <label>
-          <span>Brand</span>
-          <select value={brandId} onChange={(e) => reset(() => setBrandId(e.target.value))}>
-            <option value="">All brands</option>
-            {brands.data?.items.map((brand) => (
-              <option key={brand.id} value={brand.id}>
-                {brand.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          <span>Category</span>
-          <select value={categoryId} onChange={(e) => reset(() => setCategoryId(e.target.value))}>
             <option value="">All categories</option>
             {categories.data?.items.map((category) => (
               <option key={category.id} value={category.id}>
@@ -168,11 +221,23 @@ function ProductList({
               </option>
             ))}
           </select>
-        </label>
-        {canSeeStock && (
-          <label>
-            <span>Stock</span>
+          <select
+            className="fsel"
+            aria-label="Brand"
+            value={brandId}
+            onChange={(e) => reset(() => setBrandId(e.target.value))}
+          >
+            <option value="">All brands</option>
+            {brands.data?.items.map((brand) => (
+              <option key={brand.id} value={brand.id}>
+                {brand.name}
+              </option>
+            ))}
+          </select>
+          {canSeeStock && (
             <select
+              className="fsel"
+              aria-label="Stock"
               value={stock}
               onChange={(e) => reset(() => setStock(e.target.value as StockFilter))}
             >
@@ -183,11 +248,10 @@ function ProductList({
                 </option>
               ))}
             </select>
-          </label>
-        )}
-        <label>
-          <span>Sort</span>
+          )}
           <select
+            className="fsel"
+            aria-label="Sort"
             value={sort}
             onChange={(e) => reset(() => setSort(e.target.value as ProductSort))}
           >
@@ -197,88 +261,293 @@ function ProductList({
               </option>
             ))}
           </select>
-        </label>
-      </form>
-      <ResourceNotice resource={products} />
-      {products.data && (
-        <>
-          {products.data.items.length === 0 && (
-            <p className="muted">No matching products. Try a different name, SKU or filter.</p>
-          )}
-          <div className="record-list">
-            {products.data.items.map((product) => (
-              <article className="record-card product-row" key={product.id}>
-                {product.thumbnailUrl ? (
-                  // Signed, short-lived thumbnail from the API; decorative next to the name.
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img className="product-thumb" src={product.thumbnailUrl} alt="" />
-                ) : (
-                  <span className="product-thumb" aria-hidden="true" />
-                )}
-                <div className="product-row-body">
-                  <header className="card-heading">
-                    <strong>{product.name}</strong>
-                    <span className="badge">
-                      {product.status === "published" ? "Published" : "Draft"} · AED{" "}
-                      {filsToAed(product.basePriceFils)}
-                    </span>
-                  </header>
-                  <p className="muted">
-                    {product.brand.name} · {product.category.name} ·{" "}
-                    {product.type === "kit" ? "Kit" : "Disposable"}
-                    {product.isNew ? " · New" : ""}
-                  </p>
-                  {product.stock && (
-                    <p className="product-stock">
-                      <span className={`stock-tag stock-${product.stock.state}`}>
-                        {STOCK_LABELS[product.stock.state]}
-                      </span>{" "}
-                      {product.stock.onHand} on hand
-                    </p>
+          {chips.map((chip) => (
+            <span className="chipf" key={chip.key}>
+              {chip.label}
+              <button type="button" aria-label={`Clear ${chip.label}`} onClick={chip.clear}>
+                <Icon name="x" size="sm" />
+              </button>
+            </span>
+          ))}
+        </div>
+      </div>
+      <ResourceNotice resource={products} compact />
+      {trash && items.length > 0 && (
+        <div className="note">
+          <Icon name="info" />
+          <p>
+            Products in Trash are hidden from the store. Restore them as drafts, or delete them
+            permanently (Owner). Past orders keep their details.
+          </p>
+        </div>
+      )}
+      {products.data &&
+        (items.length === 0 ? (
+          <div className="card">
+            <div className="empty">
+              <div className="ic">
+                <Icon name={trash ? "trash" : "search"} />
+              </div>
+              <h3>{trash ? "Trash is empty" : "No matching products"}</h3>
+              <p>
+                {trash
+                  ? "Products you move to Trash appear here, ready to restore."
+                  : "Try a different name, SKU or filter."}
+              </p>
+              {!trash && (filtered || canWrite) && (
+                <div className="row">
+                  {filtered && (
+                    <button type="button" className="btn btn-s" onClick={clearAll}>
+                      Clear filters
+                    </button>
                   )}
-                  {status === "trashed" ? (
-                    <TrashedActions
-                      product={product}
-                      permissions={permissions}
-                      run={products.run}
-                      onDone={() => products.reload()}
-                    />
-                  ) : (
-                    <div className="form-actions">
-                      <button
-                        type="button"
-                        className="secondary-button"
-                        onClick={() => onOpen(product.id)}
-                      >
-                        {canWrite ? "Edit product" : "View product"}
-                      </button>
-                    </div>
+                  {canWrite && (
+                    <button type="button" className="btn btn-p" onClick={() => onOpen("new")}>
+                      <Icon name="plus" />
+                      Add product
+                    </button>
                   )}
                 </div>
-              </article>
-            ))}
+              )}
+            </div>
           </div>
-          <div className="form-actions">
-            <button
-              className="secondary-button"
-              type="button"
-              disabled={!cursor || products.busy}
-              onClick={() => setCursor(null)}
-            >
-              First page
-            </button>
-            <button
-              className="secondary-button"
-              type="button"
-              disabled={!products.data.nextCursor || products.busy}
-              onClick={() => setCursor(products.data!.nextCursor)}
-            >
-              Next page
-            </button>
-          </div>
-        </>
+        ) : (
+          <>
+            <div className="tbl-wrap only-d">
+              <div className="tbl-scroll">
+                <table className="tbl">
+                  <thead>
+                    <tr>
+                      <th>Product</th>
+                      <th>Category</th>
+                      <th className="num">Price</th>
+                      {canSeeStock && <th className="num">Stock</th>}
+                      {canSeeStock && <th>Stock status</th>}
+                      <th>{trash ? "In Trash" : "Visibility"}</th>
+                      <th className="w1">
+                        <span className="sr">Actions</span>
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {items.map((product) => (
+                      <tr
+                        key={product.id}
+                        className={trash ? "product-row" : "product-row click"}
+                        onClick={trash ? undefined : () => onOpen(product.id)}
+                      >
+                        <td>
+                          <div className="cellp">
+                            <Thumb url={product.thumbnailUrl} />
+                            <div>
+                              <b>{product.name}</b>
+                              <small>
+                                {product.brand.name} ·{" "}
+                                {product.type === "kit" ? "Kit" : "Disposable"}
+                                {product.isNew ? " · New" : ""}
+                              </small>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="small">{product.category.name}</td>
+                        <td className="num">{money(product.basePriceFils)}</td>
+                        {canSeeStock && (
+                          <td className="num">
+                            {product.stock ? (
+                              <span className="cust">{product.stock.onHand} on hand</span>
+                            ) : (
+                              "—"
+                            )}
+                          </td>
+                        )}
+                        {canSeeStock && (
+                          <td>{product.stock && <StockTag state={product.stock.state} />}</td>
+                        )}
+                        <td>
+                          {trash ? (
+                            <span className="small muted">
+                              {product.trashedAt ? when(product.trashedAt) : "Trashed"}
+                            </span>
+                          ) : (
+                            <span className={product.status === "published" ? "tag pub" : "tag"}>
+                              {product.status === "published" ? "Published" : "Draft"}
+                            </span>
+                          )}
+                        </td>
+                        <td className="w1" onClick={(event) => event.stopPropagation()}>
+                          {trash ? (
+                            <TrashedActions
+                              product={product}
+                              permissions={permissions}
+                              run={products.run}
+                              onDone={() => products.reload()}
+                            />
+                          ) : (
+                            <button
+                              type="button"
+                              className="btn btn-s btn-sm"
+                              aria-label={`${canWrite ? "Edit product" : "View product"} ${product.name}`}
+                              onClick={() => onOpen(product.id)}
+                            >
+                              <Icon name={canWrite ? "edit" : "eye"} size="sm" />
+                              {canWrite ? "Edit" : "View"}
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <ProductPager
+                count={items.length}
+                page={cursors.length + 1}
+                busy={products.busy}
+                hasPrevious={cursors.length > 0}
+                hasNext={Boolean(products.data.nextCursor)}
+                previous={() => setCursors((value) => value.slice(0, -1))}
+                next={() => setCursors((value) => [...value, products.data!.nextCursor!])}
+              />
+            </div>
+            {/* Phones: the prototype's product rows in place of the table. */}
+            <div className="only-m">
+              <div className="mlist">
+                {items.map((product) =>
+                  trash ? (
+                    <div key={product.id} className="mrow product-row">
+                      <ProductRowM product={product} trash />
+                      <div className="mrow-a">
+                        <TrashedActions
+                          product={product}
+                          permissions={permissions}
+                          run={products.run}
+                          onDone={() => products.reload()}
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      key={product.id}
+                      type="button"
+                      className="mrow product-row"
+                      onClick={() => onOpen(product.id)}
+                    >
+                      <ProductRowM product={product} trash={false} />
+                    </button>
+                  ),
+                )}
+              </div>
+              <div className="tbl-wrap orders-mpager">
+                <ProductPager
+                  count={items.length}
+                  page={cursors.length + 1}
+                  busy={products.busy}
+                  hasPrevious={cursors.length > 0}
+                  hasNext={Boolean(products.data.nextCursor)}
+                  previous={() => setCursors((value) => value.slice(0, -1))}
+                  next={() => setCursors((value) => [...value, products.data!.nextCursor!])}
+                />
+              </div>
+            </div>
+          </>
+        ))}
+    </>
+  );
+}
+
+/** The prototype's phone product row (`prodRowM`): picture, name, price, stock and visibility. */
+function ProductRowM({ product, trash }: { product: ProductSummary; trash: boolean }) {
+  return (
+    <span className="mrow-in">
+      <Thumb url={product.thumbnailUrl} large />
+      <span className="mrow-b">
+        <span className="mrow-t">
+          <b>{product.name}</b>
+          <span className="amt">{money(product.basePriceFils)}</span>
+        </span>
+        <span className="meta">
+          <span>{product.brand.name}</span>
+          {product.stock && (
+            <>
+              <span aria-hidden="true">·</span>
+              <span>{product.stock.onHand} on hand</span>
+            </>
+          )}
+        </span>
+        <span className="row">
+          {product.stock && <StockTag state={product.stock.state} />}
+          {!trash && (
+            <span className={product.status === "published" ? "tag pub" : "tag"}>
+              {product.status === "published" ? "Published" : "Draft"}
+            </span>
+          )}
+        </span>
+      </span>
+    </span>
+  );
+}
+
+/** A product picture (signed, short-lived thumbnail) or the prototype's empty tile. */
+function Thumb({ url, large = false }: { url: string | null; large?: boolean }) {
+  return (
+    <span className={large ? "thumb lg" : "thumb"} aria-hidden="true">
+      {url ? (
+        // Signed, short-lived thumbnail from the API; decorative next to the name.
+        // eslint-disable-next-line @next/next/no-img-element
+        <img className="product-thumb" src={url} alt="" />
+      ) : (
+        <Icon name="image" />
       )}
-    </section>
+    </span>
+  );
+}
+
+/** The prototype's stock tag (`stockTag`). */
+function StockTag({ state }: { state: keyof typeof STOCK_LABELS }) {
+  return (
+    <span className={`tag ${state === "in_stock" ? "ok" : state === "low" ? "low" : "out"}`}>
+      {STOCK_LABELS[state]}
+    </span>
+  );
+}
+
+/** The prototype's table foot; the list pages by position, so it steps back and forward. */
+function ProductPager(props: {
+  count: number;
+  page: number;
+  busy: boolean;
+  hasPrevious: boolean;
+  hasNext: boolean;
+  previous: () => void;
+  next: () => void;
+}) {
+  return (
+    <div className="tbl-f">
+      <span>
+        {props.count} {props.count === 1 ? "product" : "products"} on this page
+      </span>
+      <div className="pager">
+        <button
+          type="button"
+          aria-label="Previous page"
+          disabled={!props.hasPrevious || props.busy}
+          onClick={props.previous}
+        >
+          <Icon name="cl" size="sm" />
+        </button>
+        <button type="button" aria-current="page" aria-label={`Page ${props.page}`}>
+          {props.page}
+        </button>
+        <button
+          type="button"
+          aria-label="Next page"
+          disabled={!props.hasNext || props.busy}
+          onClick={props.next}
+        >
+          <Icon name="cr" size="sm" />
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -306,25 +575,26 @@ function TrashedActions({
     if (outcome.ok) onDone();
   };
   return (
-    <div className="form-actions">
+    <div className="row trash-acts">
       {permissions.includes("catalog.trash") && (
-        <button type="button" className="secondary-button" onClick={() => void act("restore")}>
+        <button type="button" className="btn btn-s btn-sm" onClick={() => void act("restore")}>
+          <Icon name="restore" size="sm" />
           Restore as draft
         </button>
       )}
       {permissions.includes("catalog.purge") && (
         <>
-          <label>
+          <label className="check-row small">
             <input
               type="checkbox"
               checked={understood}
               onChange={(e) => setUnderstood(e.target.checked)}
-            />{" "}
+            />
             I understand this cannot be undone
           </label>
           <button
             type="button"
-            className="danger-button"
+            className="btn btn-ds btn-sm"
             disabled={!understood}
             onClick={() => {
               void confirmDialog({
