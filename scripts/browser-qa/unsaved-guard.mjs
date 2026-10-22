@@ -73,10 +73,7 @@ try {
 
   // Typed into a new product, then Back: asked, Keep editing keeps the text.
   await page.getByRole("button", { name: "Add product" }).click();
-  await page
-    .getByLabel(/name \*/i)
-    .first()
-    .fill("Half-typed product");
+  await page.getByLabel("Product name").first().fill("Half-typed product");
   await page.getByRole("button", { name: "Back to products" }).first().click();
   await leave.waitFor();
   check(
@@ -99,10 +96,7 @@ try {
   await page.screenshot({ path: out + "unsaved-guard-1366.png" });
   await leave.getByRole("button", { name: "Keep editing" }).click();
   check(
-    (await page
-      .getByLabel(/name \*/i)
-      .first()
-      .inputValue()) === "Half-typed product",
+    (await page.getByLabel("Product name").first().inputValue()) === "Half-typed product",
     "Keep editing leaves the typed text in place",
   );
 
@@ -160,10 +154,7 @@ try {
   const phone = await session({ width: 390, height: 844 });
   await phone.page.goto(BASE + "/workspace/products");
   await phone.page.getByRole("button", { name: "Add product" }).click();
-  await phone.page
-    .getByLabel(/name \*/i)
-    .first()
-    .fill("Phone draft");
+  await phone.page.getByLabel("Product name").first().fill("Phone draft");
   await phone.page.getByRole("button", { name: "Back to products" }).first().click();
   const phoneDialog = phone.page.getByRole("dialog", { name: "Leave without saving?" });
   await phoneDialog.waitFor();

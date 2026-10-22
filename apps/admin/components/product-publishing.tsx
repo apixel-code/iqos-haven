@@ -3,6 +3,7 @@ import { confirmDialog } from "../lib/ui/confirm";
 import { productReadinessSchema, type ProductReadiness } from "@ih/contracts";
 import { managementRequest } from "../lib/management";
 import { requirementLabel } from "../lib/publication";
+import { Icon } from "./icons";
 import { ResourceNotice, useManagementResource } from "./management-resource";
 
 /**
@@ -55,69 +56,77 @@ export function ProductPublishing({
       onChanged();
     }
   };
+  const canPublish = permissions.includes("catalog.publish");
   return (
-    <section className="management-card">
-      <header className="card-heading">
+    <>
+      <div className="card-h">
         <h2>Publishing</h2>
-        <span className="badge">
-          {data ? (data.status === "published" ? "Published" : "Draft") : "…"}
-        </span>
-      </header>
-      <ResourceNotice resource={readiness} />
-      {data && (
-        <fieldset disabled={readiness.disabled}>
-          {data.ready ? (
-            <p className="muted">
-              Ready. Published products are visible in the store; with no stock they show Out of
-              Stock and stay published.
-            </p>
-          ) : (
-            <>
-              <p className="muted">Before this product can be published:</p>
-              <ul>
-                {data.missing.map((requirement) => (
-                  <li key={requirement}>{requirementLabel(requirement)}</li>
-                ))}
-              </ul>
-            </>
-          )}
-          <div className="form-actions">
-            {permissions.includes("catalog.publish") && data.status === "draft" && (
-              <button
-                type="button"
-                className="primary-button"
-                disabled={!data.ready}
-                onClick={() => void act("publish")}
-              >
-                Publish
-              </button>
+        {data && (
+          <span className={data.status === "published" ? "tag pub" : "tag"}>
+            {data.status === "published" ? "Published" : "Draft"}
+          </span>
+        )}
+      </div>
+      <div className="card-b">
+        <ResourceNotice resource={readiness} compact />
+        {data && (
+          <fieldset className="plain-fs stack" disabled={readiness.disabled}>
+            {data.ready ? (
+              <p className="small muted">
+                {data.status === "published"
+                  ? "Visible on the store. With no stock it shows Out of Stock and stays published."
+                  : "Ready to publish. With no stock it shows Out of Stock and stays published."}
+              </p>
+            ) : (
+              <>
+                <p className="small muted">Before this product can be published:</p>
+                <ul className="checklist">
+                  {data.missing.map((requirement) => (
+                    <li key={requirement}>
+                      <Icon name="x-c" size="sm" />
+                      {requirementLabel(requirement)}
+                    </li>
+                  ))}
+                </ul>
+              </>
             )}
-            {permissions.includes("catalog.publish") && data.status === "published" && (
-              <button
-                type="button"
-                className="secondary-button"
-                onClick={() => void act("unpublish")}
-              >
-                Move to draft
-              </button>
-            )}
-            {permissions.includes("catalog.trash") && (
-              <button
-                type="button"
-                className="danger-button"
-                onClick={() =>
-                  void act(
-                    "trash",
-                    "Move this product to trash? It is hidden from the store and admin lists. You can restore it from Trash.",
-                  )
-                }
-              >
-                Move to trash
-              </button>
-            )}
-          </div>
-        </fieldset>
-      )}
-    </section>
+            <div className="row">
+              {canPublish && data.status === "draft" && (
+                <button
+                  type="button"
+                  className="btn btn-p"
+                  disabled={!data.ready}
+                  onClick={() => void act("publish")}
+                >
+                  <Icon name="globe" />
+                  Publish
+                </button>
+              )}
+              {canPublish && data.status === "published" && (
+                <button type="button" className="btn btn-s" onClick={() => void act("unpublish")}>
+                  <Icon name="eye-off" />
+                  Move to draft
+                </button>
+              )}
+              {permissions.includes("catalog.trash") && (
+                <button
+                  type="button"
+                  className="btn btn-ds"
+                  onClick={() =>
+                    void act(
+                      "trash",
+                      "Move this product to trash? It is hidden from the store and admin lists. You can restore it from Trash.",
+                    )
+                  }
+                >
+                  <Icon name="trash" />
+                  Move to trash
+                </button>
+              )}
+            </div>
+          </fieldset>
+        )}
+      </div>
+    </>
   );
 }

@@ -88,135 +88,141 @@ export function ProductImages({ productId, canWrite }: { productId: string; canW
   const images = data?.images ?? [];
   const order = images.map((image) => image.id);
   return (
-    <section className="management-card">
-      <header className="card-heading">
-        <h2>Images</h2>
-        <span className="badge">{images.length}/8</span>
-      </header>
-      <p className="muted">
-        PNG, JPG or WebP, 200–8000 px on each side, up to 8 MB each (square images of at least 1000
-        px look best). Images are checked and cleaned before use. The first image is the primary
-        image on product cards.
-      </p>
-      <ResourceNotice resource={gallery} />
-      {note && (
-        <p role="status" className="muted">
-          {note}
-        </p>
-      )}
-      {data && (
-        <fieldset disabled={gallery.disabled || !canWrite}>
-          {canWrite && (
-            <label>
-              <span>Add images</span>
-              <input
-                type="file"
-                accept="image/jpeg,image/png,image/webp"
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  e.target.value = "";
-                  if (file) void upload(file);
-                }}
-              />
-            </label>
+    <>
+      <div className="card-h">
+        <h2>
+          Images <span className="sub">· {images.length}/8</span>
+        </h2>
+      </div>
+      {/* The upload and image forms keep their own layout inside the prototype's card (V-A4b). */}
+      <div className="card-b">
+        <div className="management-card in-drawer">
+          <p className="muted">
+            PNG, JPG or WebP, 200–8000 px on each side, up to 8 MB each (square images of at least
+            1000 px look best). Images are checked and cleaned before use. The first image is the
+            primary image on product cards.
+          </p>
+          <ResourceNotice resource={gallery} compact />
+          {note && (
+            <p role="status" className="muted">
+              {note}
+            </p>
           )}
-          {data.uploads.length > 0 && (
-            <ul className="record-list">
-              {data.uploads.map((item) => (
-                <li key={item.id}>
-                  {item.state === "uploaded" || item.state === "processing"
-                    ? "Checking and processing the image…"
-                    : item.state === "pending"
-                      ? "Waiting for the file to arrive…"
-                      : item.state === "ready"
-                        ? "Processed and ready to add."
-                        : item.state === "expired"
-                          ? "The upload took too long. Choose the file again."
-                          : `Not added: ${rejectionMessage(item.error)} Choose the file again.`}{" "}
-                  {item.state === "ready" && canWrite && (
-                    <button
-                      type="button"
-                      className="secondary-button"
-                      onClick={() =>
-                        void save((signal) =>
-                          managementRequest(
-                            `/products/${productId}/images`,
-                            productGalleryResponseSchema,
-                            "POST",
-                            { mediaAssetId: item.id },
-                            signal,
-                          ),
-                        )
-                      }
-                    >
-                      Add to gallery
-                    </button>
-                  )}
-                </li>
-              ))}
-            </ul>
+          {data && (
+            <fieldset disabled={gallery.disabled || !canWrite}>
+              {canWrite && (
+                <label>
+                  <span>Add images</span>
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      e.target.value = "";
+                      if (file) void upload(file);
+                    }}
+                  />
+                </label>
+              )}
+              {data.uploads.length > 0 && (
+                <ul className="record-list">
+                  {data.uploads.map((item) => (
+                    <li key={item.id}>
+                      {item.state === "uploaded" || item.state === "processing"
+                        ? "Checking and processing the image…"
+                        : item.state === "pending"
+                          ? "Waiting for the file to arrive…"
+                          : item.state === "ready"
+                            ? "Processed and ready to add."
+                            : item.state === "expired"
+                              ? "The upload took too long. Choose the file again."
+                              : `Not added: ${rejectionMessage(item.error)} Choose the file again.`}{" "}
+                      {item.state === "ready" && canWrite && (
+                        <button
+                          type="button"
+                          className="secondary-button"
+                          onClick={() =>
+                            void save((signal) =>
+                              managementRequest(
+                                `/products/${productId}/images`,
+                                productGalleryResponseSchema,
+                                "POST",
+                                { mediaAssetId: item.id },
+                                signal,
+                              ),
+                            )
+                          }
+                        >
+                          Add to gallery
+                        </button>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {images.length === 0 && <p className="muted">No images yet.</p>}
+              <div className="record-list">
+                {images.map((image) => (
+                  <ImageCard
+                    key={`${image.id}-${image.version}`}
+                    image={image}
+                    canWrite={canWrite}
+                    first={order[0] === image.id}
+                    last={order.at(-1) === image.id}
+                    onSave={(alt, isPrimary) =>
+                      save((signal) =>
+                        managementRequest(
+                          `/products/${productId}/images/${image.id}`,
+                          productGalleryResponseSchema,
+                          "PATCH",
+                          validate(galleryUpdateRequestSchema, {
+                            version: image.version,
+                            alt,
+                            isPrimary,
+                          }),
+                          signal,
+                        ),
+                      )
+                    }
+                    onMove={(offset) =>
+                      save((signal) =>
+                        managementRequest(
+                          `/products/${productId}/images/order`,
+                          productGalleryResponseSchema,
+                          "PUT",
+                          { imageIds: moved(order, image.id, offset) },
+                          signal,
+                        ),
+                      )
+                    }
+                    onRemove={async () => {
+                      if (
+                        !(await confirmDialog({
+                          title: "Remove this image?",
+                          body: "It is taken off the product. To use it again, upload the file again.",
+                          ok: "Remove image",
+                          danger: true,
+                        }))
+                      )
+                        return;
+                      void save((signal) =>
+                        managementRequest(
+                          `/products/${productId}/images/${image.id}/remove`,
+                          productGalleryResponseSchema,
+                          "POST",
+                          { version: image.version },
+                          signal,
+                        ),
+                      );
+                    }}
+                  />
+                ))}
+              </div>
+            </fieldset>
           )}
-          {images.length === 0 && <p className="muted">No images yet.</p>}
-          <div className="record-list">
-            {images.map((image) => (
-              <ImageCard
-                key={`${image.id}-${image.version}`}
-                image={image}
-                canWrite={canWrite}
-                first={order[0] === image.id}
-                last={order.at(-1) === image.id}
-                onSave={(alt, isPrimary) =>
-                  save((signal) =>
-                    managementRequest(
-                      `/products/${productId}/images/${image.id}`,
-                      productGalleryResponseSchema,
-                      "PATCH",
-                      validate(galleryUpdateRequestSchema, {
-                        version: image.version,
-                        alt,
-                        isPrimary,
-                      }),
-                      signal,
-                    ),
-                  )
-                }
-                onMove={(offset) =>
-                  save((signal) =>
-                    managementRequest(
-                      `/products/${productId}/images/order`,
-                      productGalleryResponseSchema,
-                      "PUT",
-                      { imageIds: moved(order, image.id, offset) },
-                      signal,
-                    ),
-                  )
-                }
-                onRemove={async () => {
-                  if (
-                    !(await confirmDialog({
-                      title: "Remove this image?",
-                      body: "It is taken off the product. To use it again, upload the file again.",
-                      ok: "Remove image",
-                      danger: true,
-                    }))
-                  )
-                    return;
-                  void save((signal) =>
-                    managementRequest(
-                      `/products/${productId}/images/${image.id}/remove`,
-                      productGalleryResponseSchema,
-                      "POST",
-                      { version: image.version },
-                      signal,
-                    ),
-                  );
-                }}
-              />
-            ))}
-          </div>
-        </fieldset>
-      )}
-    </section>
+        </div>
+      </div>
+    </>
   );
 }
 
