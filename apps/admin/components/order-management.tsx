@@ -235,7 +235,6 @@ export function OrderManagement({
   if (creating)
     return (
       <>
-        <PageHead title="Orders" />
         <ManualOrderPanel
           canConfirm={canTransition}
           canLookUp={canReadContact}
@@ -1572,17 +1571,54 @@ function OrderEditPanel({
   const commerce = order.status === "pending" || order.status === "confirmed";
   const [validationMessage, setValidationMessage] = useState("");
   const [added, setAdded] = useState<OrderItemChoice[]>([]);
+  const field = (
+    name: string,
+    label: string,
+    value: string,
+    options: { max: number; required?: boolean; mono?: boolean } = { max: 150 },
+  ) => (
+    <div className="field">
+      <label className="label" htmlFor={`e-${name}`}>
+        {label}
+        {options.required ? (
+          <>
+            {" "}
+            <span className="req" aria-hidden="true">
+              *
+            </span>
+          </>
+        ) : (
+          <>
+            {" "}
+            <span className="opt">Optional</span>
+          </>
+        )}
+      </label>
+      <input
+        id={`e-${name}`}
+        name={name}
+        className={options.mono ? "input mono" : "input"}
+        maxLength={options.max}
+        required={options.required}
+        defaultValue={value}
+      />
+    </div>
+  );
   return (
-    <article className="record-card">
+    // The prototype's edit form (`order-edit`) in the drawer: the drawer carries the title.
+    <article className="record-card edit-form">
       <h3>Edit order</h3>
-      <p className="muted">
-        {commerce
-          ? "Quantities, items, coupon, delivery address and the operational note can be changed before processing. Set a quantity to zero to remove an item; add one from the product search."
-          : "Only the operational note can change while this order is processing."}
-      </p>
+      <div className={commerce ? "note info" : "note"}>
+        <Icon name="info" />
+        <p>
+          {commerce
+            ? "Quantities, items, coupon, delivery address and the operational note can be changed before processing. Set a quantity to zero to remove an item."
+            : "Only the operational note can change while this order is processing."}
+        </p>
+      </div>
       <form
         data-unsaved={`order ${order.orderNumber}`}
-        className="form-grid"
+        className="stack edit-stack"
         onSubmit={(event) => {
           event.preventDefault();
           let request: OrderEditRequest;
@@ -1597,144 +1633,163 @@ function OrderEditPanel({
         }}
       >
         {commerce && (
-          <>
-            {order.items.map((item) => (
-              <label key={item.id}>
-                <span>
-                  {item.productName} · {item.sku}
-                </span>
-                <input
-                  name={`quantity.${item.variantId}`}
-                  type="number"
-                  min={0}
-                  max={10}
-                  step={1}
-                  defaultValue={item.quantity}
-                  required
-                />
-              </label>
-            ))}
-            {added.map((choice) => (
-              <div key={choice.variantId} className="order-line wide-field">
-                <label>
-                  <span>
-                    Added: {choice.brandName} {choice.productName} · {choiceLabel(choice)} ·{" "}
-                    {money(choice.unitPriceFils)}
-                  </span>
-                  <input
-                    name={`added.${choice.variantId}`}
-                    type="number"
-                    min={1}
-                    max={10}
-                    step={1}
-                    defaultValue={1}
-                    required
-                    aria-label={`Quantity of ${choice.productName}`}
-                  />
-                </label>
-                <span />
-                <button
-                  type="button"
-                  className="secondary-button"
-                  onClick={() => setAdded(added.filter((entry) => entry !== choice))}
-                >
-                  Remove
-                </button>
-              </div>
-            ))}
-            <OrderItemPicker
-              disabled={disabled}
-              taken={
-                new Set([
-                  ...order.items.flatMap((item) => (item.variantId ? [item.variantId] : [])),
-                  ...added.map((choice) => choice.variantId),
-                ])
-              }
-              onPick={(choice) => setAdded([...added, choice])}
-            />
-            <label>
-              <span>Coupon code</span>
-              <input
-                name="couponCode"
-                type="text"
-                maxLength={32}
-                defaultValue={order.coupon?.code ?? ""}
+          <section aria-labelledby="e-items-h">
+            <span className="sect-t" id="e-items-h">
+              Items
+            </span>
+            <div className="items edit-items">
+              {order.items.map((item) => (
+                <div className="it" key={item.id}>
+                  <div>
+                    <b>{item.productName}</b>
+                    <small className="mono">{item.sku}</small>
+                    <small>{money(item.unitPriceFils)} each</small>
+                  </div>
+                  <div className="r">
+                    <input
+                      className="input qty-input"
+                      name={`quantity.${item.variantId}`}
+                      type="number"
+                      min={0}
+                      max={10}
+                      step={1}
+                      defaultValue={item.quantity}
+                      required
+                      aria-label={`Quantity of ${item.productName} · ${item.sku}`}
+                    />
+                  </div>
+                </div>
+              ))}
+              {added.map((choice) => (
+                <div className="it" key={choice.variantId}>
+                  <div>
+                    <b>
+                      {choice.productName} <span className="tag info">Added</span>
+                    </b>
+                    <small>
+                      {choice.brandName} · {choiceLabel(choice)} · {money(choice.unitPriceFils)}
+                    </small>
+                  </div>
+                  <div className="r no-line-r">
+                    <input
+                      className="input qty-input"
+                      name={`added.${choice.variantId}`}
+                      type="number"
+                      min={1}
+                      max={10}
+                      step={1}
+                      defaultValue={1}
+                      required
+                      aria-label={`Quantity of ${choice.productName}`}
+                    />
+                    <button
+                      type="button"
+                      className="ibtn"
+                      aria-label={`Remove ${choice.productName}`}
+                      onClick={() => setAdded(added.filter((entry) => entry !== choice))}
+                    >
+                      <Icon name="trash" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="edit-picker">
+              <OrderItemPicker
+                disabled={disabled}
+                taken={
+                  new Set([
+                    ...order.items.flatMap((item) => (item.variantId ? [item.variantId] : [])),
+                    ...added.map((choice) => choice.variantId),
+                  ])
+                }
+                onPick={(choice) => setAdded([...added, choice])}
               />
-            </label>
-            {canReadContact && order.customer && order.area.id && (
-              <>
-                <label>
-                  <span>Address type</span>
-                  <select name="address.type" defaultValue={order.customer.address.type}>
-                    <option value="apartment">Apartment</option>
-                    <option value="villa">Villa</option>
-                    <option value="office">Office</option>
-                  </select>
-                </label>
-                <label>
-                  <span>Building</span>
-                  <input
-                    name="address.building"
-                    maxLength={150}
-                    defaultValue={order.customer.address.building}
-                    required
-                  />
-                </label>
-                <label>
-                  <span>Unit</span>
-                  <input
-                    name="address.unit"
-                    maxLength={50}
-                    defaultValue={order.customer.address.unit ?? ""}
-                  />
-                </label>
-                <label>
-                  <span>Street</span>
-                  <input
-                    name="address.street"
-                    maxLength={150}
-                    defaultValue={order.customer.address.street ?? ""}
-                  />
-                </label>
-                <label>
-                  <span>Makani</span>
-                  <input
-                    name="address.makani"
-                    maxLength={10}
-                    defaultValue={order.customer.address.makani ?? ""}
-                  />
-                </label>
-                <label className="wide-field">
-                  <span>Delivery notes</span>
-                  <textarea
-                    name="address.notes"
-                    maxLength={500}
-                    rows={2}
-                    defaultValue={order.customer.address.notes ?? ""}
-                  />
-                </label>
-              </>
-            )}
-          </>
+            </div>
+            <div className="fgrid c2">
+              {field("couponCode", "Coupon code", order.coupon?.code ?? "", {
+                max: 32,
+                mono: true,
+              })}
+            </div>
+          </section>
         )}
-        <label className="wide-field">
-          <span>Operational note</span>
+        {commerce && canReadContact && order.customer && order.area.id && (
+          <section aria-labelledby="e-delivery-h">
+            <span className="sect-t" id="e-delivery-h">
+              Delivery address
+            </span>
+            <div className="fgrid c2">
+              <div className="field">
+                <label className="label" htmlFor="e-type">
+                  Address type
+                </label>
+                <select
+                  id="e-type"
+                  className="select"
+                  name="address.type"
+                  defaultValue={order.customer.address.type}
+                >
+                  <option value="apartment">Apartment</option>
+                  <option value="villa">Villa</option>
+                  <option value="office">Office</option>
+                </select>
+              </div>
+              {field("address.building", "Building", order.customer.address.building, {
+                max: 150,
+                required: true,
+              })}
+              {field("address.unit", "Unit", order.customer.address.unit ?? "", { max: 50 })}
+              {field("address.street", "Street", order.customer.address.street ?? "", { max: 150 })}
+              {field("address.makani", "Makani", order.customer.address.makani ?? "", {
+                max: 10,
+                mono: true,
+              })}
+              <div className="field span2">
+                <label className="label" htmlFor="e-notes">
+                  Delivery notes <span className="opt">Optional</span>
+                </label>
+                <textarea
+                  id="e-notes"
+                  className="textarea"
+                  name="address.notes"
+                  maxLength={500}
+                  rows={2}
+                  defaultValue={order.customer.address.notes ?? ""}
+                />
+              </div>
+            </div>
+          </section>
+        )}
+        <div className="field">
+          <label className="label" htmlFor="e-op">
+            Operational note <span className="opt">Optional</span>
+          </label>
           <textarea
+            id="e-op"
+            className="textarea"
             name="operationalNote"
             maxLength={500}
             rows={3}
             defaultValue={order.operationalNote ?? ""}
           />
-        </label>
-        <div className="form-actions wide-field">
-          <button type="submit" className="primary-button" disabled={disabled}>
+          <p className="help">For the team only; the customer never sees it.</p>
+        </div>
+        {validationMessage && (
+          <div className="note err" role="alert">
+            <Icon name="alert" />
+            <p>{validationMessage}</p>
+          </div>
+        )}
+        <div className="row edit-actions">
+          <button type="submit" className="btn btn-p" disabled={disabled}>
+            <Icon name="check" />
             Save order edit
           </button>
-          <small className="muted">
-            Uses order version {order.version}; concurrent changes are refused.
-          </small>
+          <span className="small muted">
+            Uses order version {order.version}; changes made meanwhile are refused.
+          </span>
         </div>
-        {validationMessage && <p className="form-error wide-field">{validationMessage}</p>}
       </form>
     </article>
   );

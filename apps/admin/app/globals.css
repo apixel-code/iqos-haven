@@ -1106,3 +1106,11 @@ ul.dashboard-list {
 .in-drawer > .record-card > h3:first-child {
   display: none;
 }
+/* A prototype field label inside an older card keeps the prototype's layout (V-A3c). */
+.management-card label.label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  font-size: 13px;
+}

@@ -4089,4 +4089,92 @@
       color: var(--bg);
     }
   }
+
+  /* ---------- admin: manual order and order edit (V-A3c, ADR 0097) ---------- */
+  .order-new {
+    gap: 16px;
+  }
+  .nowrap-row {
+    flex-wrap: nowrap;
+  }
+  .nowrap-row .input {
+    flex: 1;
+    min-width: 0;
+  }
+  .customer-found {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .pick-t {
+    flex: 1;
+    min-width: 0;
+  }
+  .saved-addr {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .saved-addr li {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: var(--r-sm);
+    font-size: 13px;
+  }
+  .no-lines {
+    margin-top: 8px;
+  }
+  .no-line-r {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .qty-input {
+    width: 76px;
+    text-align: center;
+  }
+  .upper {
+    text-transform: uppercase;
+  }
+  .check-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    font-size: 13.5px;
+    font-weight: 500;
+  }
+  .check-row input {
+    margin-top: 3px;
+  }
+  .confirm-evidence {
+    margin-top: 12px;
+  }
+  .no-total {
+    font-size: 16px;
+  }
+  .savebar .msg {
+    margin-right: auto;
+    display: flex;
+    flex-direction: column;
+  }
+  .edit-stack {
+    gap: 22px;
+    margin-top: 16px;
+  }
+  .edit-stack section {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .edit-actions {
+    align-items: center;
+    gap: 12px;
+  }
 }

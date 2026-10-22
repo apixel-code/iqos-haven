@@ -134,7 +134,7 @@ try {
     }
     await page.goto(`${BASE}/workspace/orders`);
     await page.getByRole("button", { name: "Create order", exact: true }).click();
-    await page.getByRole("heading", { name: "New order" }).waitFor();
+    await page.getByRole("heading", { name: "Create order" }).waitFor();
     await page.waitForLoadState("networkidle");
     await scan(page, `new order ${tag}`);
     check(`no page errors ${tag}`, errors.length === 0, errors.join("; "));
@@ -186,10 +186,10 @@ try {
   // Form errors: an empty required field in a management form is reported and reachable.
   await page.goto(BASE + "/workspace/orders");
   await page.getByRole("button", { name: "Create order", exact: true }).click();
-  await page.getByRole("heading", { name: "New order" }).waitFor();
+  await page.getByRole("heading", { name: "Create order" }).waitFor();
   const missing = await page.evaluate(() => {
-    const form = document.querySelector("main form");
-    const required = [...(form?.querySelectorAll("[required]") ?? [])];
+    // The wizard's current step (V-A3c); each step's fields carry labels.
+    const required = [...document.querySelectorAll("main [required]")];
     return required.every((field) => {
       const label = field.closest("label") ?? document.querySelector(`label[for="${field.id}"]`);
       return Boolean(label?.textContent?.trim());

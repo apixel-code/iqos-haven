@@ -129,15 +129,18 @@ const picks = (page) => page.getByRole("list", { name: "Matching products" });
 async function openNewOrder(page) {
   await page.goto(BASE + "/workspace/orders");
   await page.getByRole("button", { name: "Create order", exact: true }).click();
-  await page.getByRole("heading", { name: "New order" }).waitFor();
+  await page.getByRole("heading", { name: "Create order" }).waitFor();
 }
+// The prototype's wizard (V-A3c): Customer, Products, Delivery, Review.
+const next = (page) => page.getByRole("button", { name: "Continue" }).click();
 async function pick(page, query, label) {
   await page.getByLabel("Search products").first().fill(query);
   await picks(page).getByRole("button", { name: label }).waitFor();
   await picks(page).getByRole("button", { name: label }).click();
 }
 async function createOrder(page) {
-  await page.getByRole("button", { name: "Get total" }).click();
+  // From Delivery to Review: the total is asked for on the way in.
+  await next(page);
   await page.getByRole("button", { name: /Create order · AED/ }).waitFor();
   await page.getByLabel("The customer confirmed they are 18 or older.").check();
   await page.getByRole("button", { name: /Create order · AED/ }).click();
@@ -174,9 +177,7 @@ try {
   await page.getByText(/New customer: no orders under/).waitFor();
   check("an unknown number is a new customer", true);
   await page.getByLabel("Full name").fill("Picker Customer");
-  await page.getByLabel("Area").selectOption(area.id);
-  await page.getByLabel("Building or villa").fill("Marina Tower 9");
-  await page.getByLabel("Unit (not for a villa)").fill("1203");
+  await next(page);
   await page.getByLabel("Search products").fill("Picker Pod " + tag);
   await picks(page).getByText(/mango/).waitFor();
   const list = await picks(page).innerText();
@@ -200,6 +201,10 @@ try {
   );
   await page.getByLabel(/Quantity of Picker Pod/).fill("2");
   await page.screenshot({ path: out + "order-picker-new.png", fullPage: true });
+  await next(page);
+  await page.getByLabel("Area").selectOption(area.id);
+  await page.getByLabel("Building or villa").fill("Marina Tower 9");
+  await page.getByLabel("Unit (not for a villa)").fill("1203");
   await createOrder(page);
   const first = await latestOrder();
   check(
@@ -219,13 +224,15 @@ try {
     (await page.getByLabel("Full name").inputValue()) === "Picker Customer",
   );
   await page.getByRole("button", { name: "Use this address" }).first().click();
+  await next(page);
+  await pick(page, "Picker Brand " + tag, /Add .*ice/);
+  await next(page);
   check(
     "the saved address fills area and building",
     (await page.getByLabel("Area").inputValue()) === area.id &&
       (await page.getByLabel("Building or villa").inputValue()) === "Marina Tower 9" &&
       (await page.getByLabel("Unit (not for a villa)").inputValue()) === "1203",
   );
-  await pick(page, "Picker Brand " + tag, /Add .*ice/);
   await page.screenshot({ path: out + "order-picker-returning.png", fullPage: true });
   await createOrder(page);
   const second = await latestOrder();
@@ -285,6 +292,9 @@ try {
   // 4. Phone width.
   await page.setViewportSize({ width: 390, height: 844 });
   await openNewOrder(page);
+  await page.getByLabel("UAE mobile").fill(phone);
+  await page.getByLabel("Full name").fill("Picker Customer");
+  await next(page);
   await page.getByLabel("Search products").fill("Picker Pod " + tag);
   await picks(page).getByText(/mango/).waitFor();
   check("the manual order fits 390px without sideways scrolling", await noSideScroll(page));
