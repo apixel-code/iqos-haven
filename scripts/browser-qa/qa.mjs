@@ -241,23 +241,24 @@ try {
   await page.waitForTimeout(1200);
   await page.goto(BASE + "/workspace/products");
   await page.getByRole("tab", { name: "Trash" }).click();
-  const trashed = page.locator("article.record-card", { hasText: `Orbe Halo 7K QA ${run}` });
+  const trashed = page.locator(".product-row:visible", { hasText: `Orbe Halo 7K QA ${run}` });
   await trashed.waitFor({ timeout: 10000 });
   check("trashed product listed in Trash", true);
   await trashed.getByRole("checkbox").check();
   await trashed.getByRole("button", { name: "Delete permanently" }).click();
   await page.getByText(/stock history/).waitFor({ timeout: 10000 });
   check("purge refused for a product with stock history", true);
-  await page.getByRole("button", { name: "Reload current values" }).first().click();
+  // The products list shows a refusal in its notice, with a Reload button to recover.
+  await page.getByRole("button", { name: "Reload", exact: true }).first().click();
   await page.waitForTimeout(1000);
   await page
-    .locator("article.record-card", { hasText: `Orbe Halo 7K QA ${run}` })
+    .locator(".product-row:visible", { hasText: `Orbe Halo 7K QA ${run}` })
     .getByRole("button", { name: "Restore as draft" })
     .click();
   await page.waitForTimeout(1200);
   await page.getByRole("tab", { name: "Drafts" }).click();
   await page
-    .locator("article.record-card", { hasText: `Orbe Halo 7K QA ${run}` })
+    .locator(".product-row:visible", { hasText: `Orbe Halo 7K QA ${run}` })
     .waitFor({ timeout: 10000 });
   check("restored product back in Drafts", true);
   // A product without history can be purged by the Owner.
@@ -275,7 +276,7 @@ try {
   await page.waitForTimeout(1200);
   await page.goto(BASE + "/workspace/products");
   await page.getByRole("tab", { name: "Trash" }).click();
-  const purgeCard = page.locator("article.record-card", { hasText: `Purge QA ${run}` });
+  const purgeCard = page.locator(".product-row:visible", { hasText: `Purge QA ${run}` });
   await purgeCard.waitFor({ timeout: 10000 });
   check(
     "delete permanently disabled until confirmed",

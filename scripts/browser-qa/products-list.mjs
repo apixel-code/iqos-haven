@@ -126,11 +126,14 @@ async function session(viewport) {
   return { context, page, errors };
 }
 const names = (page) =>
-  page.locator(".product-row strong").evaluateAll((els) => els.map((el) => el.textContent));
+  // Table rows on a wide screen, phone rows at 390px: only one of the two is shown.
+  page
+    .locator(".product-row:visible")
+    .evaluateAll((els) => els.map((el) => el.querySelector("b")?.textContent));
 async function search(page, text) {
   const box = page.getByLabel("Search name or SKU");
+  // The list searches as you type, after a short pause.
   await box.fill(text);
-  await box.press("Enter");
 }
 async function settle(page, expected) {
   for (let i = 0; i < 40; i++) {
@@ -151,7 +154,7 @@ try {
     "an option SKU finds its product",
     bySku.join(),
   );
-  const lowRow = await page.locator(".product-row").first().innerText();
+  const lowRow = await page.locator(".product-row:visible").first().innerText();
   check(
     /Low stock/.test(lowRow) && /3 on hand/.test(lowRow),
     "the row shows the stock state",
@@ -159,33 +162,36 @@ try {
   );
 
   await search(page, tag);
-  await page.getByLabel("Stock").selectOption("out");
+  await page.getByLabel("Stock", { exact: true }).selectOption("out");
   const outOnly = await settle(page, [gone.name]);
   check(outOnly.length === 1 && outOnly[0] === gone.name, "Out of stock filters", outOnly.join());
-  await page.getByLabel("Stock").selectOption("");
+  await page.getByLabel("Stock", { exact: true }).selectOption("");
 
-  await page.getByLabel("Sort").selectOption("price_desc");
+  await page.getByLabel("Sort", { exact: true }).selectOption("price_desc");
   const byPrice = await settle(page, [plenty.name, gone.name, low.name]);
   check(
     JSON.stringify(byPrice) === JSON.stringify([plenty.name, gone.name, low.name]),
     "Price high to low orders the list",
     byPrice.join(),
   );
-  await page.getByLabel("Sort").selectOption("name");
+  await page.getByLabel("Sort", { exact: true }).selectOption("name");
   const byName = await settle(page, [gone.name, low.name, plenty.name]);
   check(
     JSON.stringify(byName) === JSON.stringify([gone.name, low.name, plenty.name]),
     "Name A–Z orders the list",
     byName.join(),
   );
-  const thumb = page.locator(".product-row", { hasText: plenty.name }).locator("img.product-thumb");
+  const thumb = page
+    .locator(".product-row:visible", { hasText: plenty.name })
+    .locator("img.product-thumb");
   await thumb.waitFor({ timeout: 10000 });
   check(
     await thumb.evaluate((img) => img.complete && img.naturalWidth > 0),
     "the main image's thumbnail loads",
   );
   check(
-    (await page.locator(".product-row", { hasText: low.name }).locator("img").count()) === 0,
+    (await page.locator(".product-row:visible", { hasText: low.name }).locator("img").count()) ===
+      0,
     "a product without images shows a placeholder",
   );
   await page.screenshot({ path: out + "products-list-1366.png", fullPage: true });

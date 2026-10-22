@@ -20,7 +20,7 @@ import { sections } from "../lib/navigation";
 import { Icon } from "./icons";
 import { PageHead } from "./page-head";
 /** Screens that draw the prototype's page head themselves. */
-const OWN_HEAD = new Set(["orders"]);
+const OWN_HEAD = new Set(["orders", "products"]);
 
 export function WorkspaceSection({ sectionKey }: { sectionKey: string }) {
   const session = useSession();

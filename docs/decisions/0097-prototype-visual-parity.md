@@ -301,6 +301,24 @@ The orders screens come in three PRs: V-A3a (the list), V-A3b (the order detail 
   - On a phone the prototype hides the names of the steps that are not current; each step button keeps its name in `aria-label`.
   - A prototype label inside an older card keeps its layout (`.management-card label.label`).
 
+## V-A4a (admin products list), 2026-10-22
+
+- **List:** the prototype's `VIEWS.products`:
+  - A page head with Categories, Brands and Add product.
+  - Tabs All, Published, Drafts and Trash.
+  - A toolbar with "Search name or SKU", which now searches as you type after a short pause. Category, brand, stock and sort use `fsel` selects, and a `chipf` chip clears each active filter.
+  - The Trash note.
+  - A `tbl` with the picture, the name with brand and type, category, price, stock, stock status, and visibility (or the time it went to Trash).
+  - On a phone, `mrow` rows. Empty states with Clear filters / Add product.
+  - The cursor pager, in the `tbl-f` foot.
+- **Trash actions:** "Restore as draft", the "I understand this cannot be undone" check and "Delete permanently" (Owner) stay as they were, restyled as prototype buttons. Permanent delete still asks through `confirmDialog`.
+- **Not carried over:**
+  - Tab counts. The products API returns no counts per status, and counting on the client would show only the current page.
+  - Its demo art tiles: a product without a picture shows a plain image tile.
+- **Fixed:**
+  - The older G-A8 list styles (`.product-row`, `.product-thumb`, `.stock-tag`) are removed; they overrode the table.
+  - Both stock columns stay hidden without `inventory.read`, as before.
+
 ## Consequences
 
 - The look comes from the approved source instead of being re-imagined in utilities, so later screens are mostly markup work.

@@ -1022,50 +1022,6 @@ ul.dashboard-list {
   border: 0;
 }
 
-/* Products list rows (parity G-A8): thumbnail beside the details, stock state tag. */
-.product-row {
-  display: grid;
-  grid-template-columns: 56px minmax(0, 1fr);
-  gap: 12px;
-  align-items: start;
-}
-.product-row-body {
-  min-width: 0;
-}
-.product-thumb {
-  display: block;
-  width: 56px;
-  height: 56px;
-  border-radius: 8px;
-  object-fit: cover;
-  background: var(--surface-2);
-  border: 1px solid var(--line);
-}
-.product-stock {
-  margin: 4px 0 0;
-  font-size: 0.78rem;
-  color: var(--ink-2);
-}
-.stock-tag {
-  display: inline-block;
-  padding: 2px 7px;
-  border-radius: 5px;
-  font-weight: 600;
-  font-size: 0.7rem;
-}
-.stock-in_stock {
-  color: var(--ok);
-  background: var(--ok-soft);
-}
-.stock-low {
-  color: var(--warn);
-  background: var(--warn-soft);
-}
-.stock-out {
-  color: var(--err);
-  background: color-mix(in srgb, var(--err) 12%, transparent);
-}
-
 /* Unsaved-changes dialog (parity G-A9). */
 .leave-dialog {
   /* The global reset zeroes margins; a modal dialog centres itself with auto margins. */
