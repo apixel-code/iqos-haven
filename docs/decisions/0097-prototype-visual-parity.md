@@ -343,6 +343,24 @@ The orders screens come in three PRs: V-A3a (the list), V-A3b (the order detail 
   - A custom social-share image.
   - The "Google preview" name. Product pages are not indexed (BI-05), so the preview is labelled as a page title preview, with `/p/` URLs and "· Iqos Haven" titles as the store builds them.
 
+## V-A4c (admin product images and variants), 2026-10-22
+
+- **Images:** the prototype's `peMedia`:
+  - A grid of square tiles (`media`/`mtile`) with the Primary badge, the drag grip, and controls for move left, make primary, alt text, move right and remove.
+  - A drop zone (`drop`) that takes several files, chosen or dragged in. They are uploaded one after the other through the same signed, private flow.
+  - Tiles reorder by drag and drop as well as with the arrows. Both send the same order command. `movedTo` is unit-tested.
+  - Alt text is edited in the prototype's dialog from the tile. A tile without alt text says so.
+  - Uploads still being processed, ready to add, or refused show as notes with "Add to gallery".
+- **Primary image:** the "Primary" badge follows the image marked primary, not simply the first one. The order and the primary choice are separate, as the API has them.
+- **Options & variants:** prototype fields for the option values, with "Save options" and "Add N missing combinations" or "Add single variant" beside them. Each variant is a compact block, its own form, in a bordered list:
+  - Its name, Default, Inactive and stock tags.
+  - SKU, a price override in an AED affix, and the low-stock alert.
+  - Active, Make default and Save.
+
+  The prototype marks variants as a future option; they exist here (steps 45–47), so they are drawn in its idiom. A table with editable cells did not fit the card at desktop width.
+
+- **Not carried over:** "Add sample image" (demo only).
+
 ## Consequences
 
 - The look comes from the approved source instead of being re-imagined in utilities, so later screens are mostly markup work.
