@@ -62,11 +62,12 @@ try {
 
   // Brands
   await page.goto(BASE + "/workspace/brands");
-  await page.getByText("New brand").click();
-  await page.fill('details input[name="name"]', `Orbe QA ${run}`);
+  // New brands and categories open in the prototype's drawer (V-A6).
+  await page.getByRole("button", { name: "New brand" }).click();
+  await page.fill('dialog[open] input[name="name"]', `Orbe QA ${run}`);
   check(
     "brand slug suggested from name",
-    (await page.inputValue('details input[name="slug"]')) === `orbe-qa-${run}`,
+    (await page.inputValue('dialog[open] input[name="slug"]')) === `orbe-qa-${run}`,
   );
   await page.getByRole("button", { name: "Create brand" }).click();
   await page.getByText(`Orbe QA ${run}`).first().waitFor({ timeout: 10000 });
@@ -75,8 +76,8 @@ try {
 
   // Categories
   await page.goto(BASE + "/workspace/categories");
-  await page.getByText("New category").click();
-  await page.fill('details input[name="name"]', `Disposables QA ${run}`);
+  await page.getByRole("button", { name: "New category" }).click();
+  await page.fill('dialog[open] input[name="name"]', `Disposables QA ${run}`);
   await page.getByRole("button", { name: "Create category" }).click();
   await page.getByText(`Disposables QA ${run}`).first().waitFor({ timeout: 10000 });
   check("category created and listed", true);

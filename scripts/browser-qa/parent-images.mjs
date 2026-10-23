@@ -68,9 +68,10 @@ const brandRow = async (name) =>
 try {
   const { context, page, errors } = await session("staff.qa@iqoshaven.test");
   await page.goto(BASE + "/workspace/brands");
-  await page.getByText("New brand").click();
+  await page.getByRole("button", { name: "New brand" }).click();
   const name = `Logo QA ${tag}`;
-  const form = page.locator("details form").first();
+  // The brand drawer (V-A6): its Create button sits in the drawer's foot.
+  const form = page.getByRole("dialog", { name: "New brand" });
   await form.getByLabel(/name \*/i).fill(name);
   await form.locator('input[type="file"]').setInputFiles({
     name: "logo.png",
@@ -89,8 +90,12 @@ try {
   const created = await brandRow(name);
   check(Boolean(created?.logo), "the brand is saved with its logo", JSON.stringify(created));
 
-  // Remove it from the brand's own form.
-  const card = page.locator("form.record-card", { hasText: name });
+  // Remove it in the brand's edit drawer.
+  await page
+    .locator(".brand-card", { hasText: name })
+    .getByRole("button", { name: `Edit ${name}` })
+    .click();
+  const card = page.getByRole("dialog", { name: "Edit brand" });
   await card.locator(".parent-image-preview").waitFor({ timeout: 15000 });
   check(true, "the saved logo shows in the brand's form");
   await card.getByRole("button", { name: "Remove image" }).click();
@@ -110,11 +115,11 @@ try {
   // The Owner trashes and deletes it for good.
   const owner = await session("owner.qa@iqoshaven.test");
   await owner.page.goto(BASE + "/workspace/brands");
-  const ownerCard = owner.page.locator("form.record-card", { hasText: name });
-  await ownerCard.getByRole("button", { name: "Move to trash" }).click();
+  const ownerCard = owner.page.locator(".brand-card", { hasText: name });
+  await ownerCard.getByRole("button", { name: `Move ${name} to trash` }).click();
   await ownerCard.waitFor({ state: "detached" });
   await owner.page.getByRole("tab", { name: "Trash" }).click();
-  const trashed = owner.page.locator("article.record-card", { hasText: name });
+  const trashed = owner.page.locator(".brand-card", { hasText: name });
   await trashed.getByRole("button", { name: "Delete permanently" }).click();
   await trashed.waitFor({ state: "detached", timeout: 15000 });
   check(!(await brandRow(name)), "the Owner deletes a trashed, unused brand permanently");

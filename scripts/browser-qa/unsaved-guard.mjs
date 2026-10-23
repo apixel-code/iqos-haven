@@ -113,10 +113,15 @@ try {
 
   // A saved edit is not unsaved any more.
   await page.goto(BASE + "/workspace/brands");
-  const card = page.locator("form.record-card", { hasText: tag });
-  await card.getByLabel(/name \*/i).fill(tag + " renamed");
+  // Brands are edited in the prototype's drawer (V-A6).
+  await page
+    .locator(".brand-card", { hasText: tag })
+    .getByRole("button", { name: /^Edit / })
+    .click();
+  const card = page.getByRole("dialog", { name: "Edit brand" });
+  await card.getByLabel("Brand name").fill(tag + " renamed");
   await card.getByRole("button", { name: "Save changes" }).click();
-  await page.locator("form.record-card", { hasText: tag + " renamed" }).waitFor();
+  await page.locator(".brand-card", { hasText: tag + " renamed" }).waitFor();
   for (let i = 0; i < 30; i++) {
     const row = (await pool.query("SELECT name FROM brands WHERE slug=$1", [tag.toLowerCase()]))
       .rows[0];
