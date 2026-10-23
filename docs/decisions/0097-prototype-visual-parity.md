@@ -361,6 +361,62 @@ The orders screens come in three PRs: V-A3a (the list), V-A3b (the order detail 
 
 - **Not carried over:** "Add sample image" (demo only).
 
+## V-A5 (admin inventory), 2026-10-22
+
+- **List:** the prototype's `VIEWS.inventory`:
+  - Page head.
+  - Stock-state tabs (All, In stock, Low stock, Out of stock) with the prototype's coloured dots.
+  - "Search product or SKU", searching as you type; Enter searches at once.
+  - A `tbl` of stock lines: product with its option, SKU, Published/Draft (and Inactive), the count coloured by state, the alert level, the stock tag, and "Update stock" and "History".
+  - On a phone, `mrow` rows. Empty states per tab.
+  - A cursor pager that also steps back.
+  - The linked single stock line (`?variant=`, parity G-A2) shows as a note with "Show all stock".
+- **Update stock drawer:** the prototype's `adjBody`:
+  - The item with an "Open" link to its product.
+  - The `seg` choice of Add stock, Remove or Set exact count.
+  - A stepper with quick amounts.
+  - The balance it leaves (`stockAfter`), with its future state (`stockStateFor`, the server's rule, unit-tested).
+  - The out-of-stock note, a refusal to remove more than is on hand, the removal reason, and the note.
+
+  The requests, command IDs (one per opened change, renewed when the payload changes) and ledger rules are unchanged. A saved change raises the prototype's toast, "SKU: before → after".
+
+- **History:** a drawer with the movements (change, reason and note, who, when, balance after).
+- **Fixed for every rebuilt screen:** a compact notice showed "Change saved." as an error with Reload. It now shows as a success note without Reload (`SAVED_MESSAGE`).
+- **Not carried over:**
+  - Counts on the tabs and the units total. The inventory API returns no counts.
+  - The category filter. The API filters by product, not category.
+  - Thumbnails. Stock lines carry no image.
+  - The quick stepper in the table. Removing or setting stock always needs a note, so every change goes through the drawer.
+  - Changing the alert level in the drawer. It is the option's field, saved with its version in the product editor.
+  - Export CSV. Reports has the inventory report.
+
+## V-A6 (admin categories and brands), 2026-10-22
+
+- **Both screens:**
+  - The back link to Products.
+  - The page head with New category or New brand.
+  - The tabs, with Trash.
+  - A search box filtering the loaded page.
+  - Empty states, and a cursor pager that also steps back.
+- **Categories:** the prototype's `VIEWS.categories` list:
+  - Each row has the image tile (or a folder icon), the name, the `/category/` link, the published product count and the display order.
+  - The "Show in store" switch (hidden on a phone, as in the prototype), Edit, and Move to trash.
+  - Trash rows have Restore and the Owner's Delete permanently.
+- **Brands:** the prototype's `VIEWS.brands` card grid:
+  - Each card has the logo (or an award icon), the name with an Active/Inactive tag, the description, the published product count and the `/brand/` link.
+  - The "Show in store" switch, Edit, and Move to trash in the card foot.
+- **Drawer:** the prototype's `beBody`/`ceBody`:
+  - The logo or image, uploaded in the drawer.
+  - The name, a slug in an affix (read-only for staff once it exists), the description for brands, display order, and Active.
+  - SEO title and description for the Owner.
+  - Create brand/category or Save changes.
+- **The switch:** it sends the same update with only `active` changed. SEO fields and the image are left out, so they stay as they are.
+- **Images:** the image field is the prototype's drop zone, with the preview, "Replace image" and "Remove image". List thumbnails come from the same signed preview link. The upload and processing flow is unchanged.
+- **Not carried over:**
+  - Tab counts. The lists are paged, with no totals.
+  - The prototype's up/down arrows for categories. Order is the display-order number: categories without one share 0, so swapping places would change nothing visible. The number is edited in the drawer.
+  - The brand card's link to its products. The products list does not take a brand from the URL.
+
 ## Consequences
 
 - The look comes from the approved source instead of being re-imagined in utilities, so later screens are mostly markup work.

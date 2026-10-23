@@ -127,6 +127,22 @@ try {
       await page.waitForLoadState("networkidle");
       await scan(page, `${section} ${tag}`);
     }
+    // The brand drawer (V-A6), checked open after its slide-in.
+    await page.goto(`${BASE}/workspace/brands`);
+    await page.getByRole("button", { name: "New brand" }).click();
+    await page.getByRole("dialog", { name: "New brand" }).waitFor();
+    await page.waitForTimeout(400);
+    await scan(page, `new brand ${tag}`);
+    await page.keyboard.press("Escape");
+    // The "Update stock" drawer (V-A5), checked open after its slide-in.
+    await page.goto(`${BASE}/workspace/inventory`);
+    const update = page.getByRole("button", { name: /^Update stock of / }).first();
+    await update.waitFor();
+    await update.click();
+    await page.getByRole("dialog", { name: "Update stock" }).waitFor();
+    await page.waitForTimeout(400);
+    await scan(page, `update stock ${tag}`);
+    await page.keyboard.press("Escape");
     await page.goto(`${BASE}/workspace/orders?order=${seeded.orderId}`);
     await page.locator(".prog").waitFor();
     await scan(page, `order detail ${tag}`);
