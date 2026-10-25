@@ -56,15 +56,11 @@ It warns on:
 3. Password rules: at least 12 characters, at most 128, and it must not contain the email, the name, the brand or common words. It is stored only as an argon2id hash.
 4. The command refuses if any Owner exists, active or deactivated. It locks the Owner-role row, so concurrent runs cannot each create one. Creation is audited as `staff.owner_bootstrapped`, with personal fields redacted.
 5. Before go-live, run `pnpm identity:benchmark` on the production runtime and set `ARGON2_MEMORY_KIB` / `ARGON2_TIME_COST` / `ARGON2_PARALLELISM` to about 250–750 ms per hash within the memory budget. The defaults (64 MiB, t=3, p=1) measured about 64 ms on a 2026 Apple-silicon laptop. Existing hashes keep verifying, and `needsRehash` upgrades them at the next login.
-6. If the Owner becomes unavailable, recovery is a separate, audited operational process. Re-running bootstrap is never the recovery path.
+6. If the Owner becomes unavailable, see Unavailable Owner recovery below. Re-running bootstrap is never the recovery path.
 
 ## Unavailable Owner recovery
 
-1. Record the incident ID, operator, affected account ID and authorization from the business through the approved secure recovery channel (BI-11); keep passwords and token URLs out of incident notes. Preserve current audit/history and use the intended environment.
-2. If the active Owner can receive verified mail, use the configured password-reset flow. Successful reset is audited and revokes sessions/sibling reset links; log in again. Delivery prerequisites from steps 33–34 apply. Do not change the password through SQL or rerun first-Owner bootstrap.
-3. If another active Owner is available, that Owner may reactivate the saved account or change its fixed role through the step-36 versioned commands. Reload the current version, use the admin origin and log in again after the change. These commands recheck authority, serialize the last-Owner invariant and atomically audit/revoke old sessions and capabilities. Reissue needed invitations explicitly; revoked links stay revoked.
-4. If no authorized Owner can authenticate or receive reset mail, normal API recovery is blocked. Before release, provision and rehearse a separately authorized operational recovery procedure against the chosen infrastructure. Any recovery tool must lock the seeded Owner role before sorted affected-user rows, preserve an active Owner, require an incident reason, increment versions, revoke sessions/reset/issued invitations and write audit/outbox atomically. Reset credentials only through the reviewed hasher and secret input channel; never add a default password or change immutable role grants. A public bypass/recovery CLI is not provided by this step.
-5. Verify the restored account's seeded permissions and fresh session, old-session/link rejection and recovery audit/event IDs. Record the outcome and rotate compromised credentials through the secrets runbook. Production recovery evidence remains a release prerequisite; no recovery was performed on real identities here.
+See [staff-and-owner-recovery.md](staff-and-owner-recovery.md): password reset, another Owner in the admin, and the break-glass `pnpm ops:owner-recovery` when no Owner can sign in. Re-running bootstrap is never the recovery path.
 
 ## Approved settings configuration (step 38)
 

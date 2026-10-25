@@ -8,6 +8,7 @@ export * from "./effect-runner";
 export * from "./reconciler";
 export * from "./scheduled-runs";
 export * from "./identity";
+export * from "./owner-recovery";
 export * from "./sessions";
 
 export * from "./password-reset";

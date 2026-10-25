@@ -44,7 +44,7 @@ export async function invalidateStaffCapabilities(
   tx: Tx,
   context: CommandContext,
   id: string,
-  reason: "deactivated" | "admin_revoked",
+  reason: "deactivated" | "admin_revoked" | "owner_recovered",
 ) {
   await tx.$executeRaw(
     Prisma.sql`UPDATE sessions SET revoked_at = statement_timestamp(), revoke_reason = ${reason} WHERE user_id = ${id}::uuid AND revoked_at IS NULL`,
