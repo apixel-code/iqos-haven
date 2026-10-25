@@ -11,3 +11,11 @@ onlyBuiltDependencies:
   - unrs-resolver
   - prisma
   - "@prisma/engines"
+# Security floors for transitive packages (ADR 0001, 2026-10-25): each stays on its own major,
+# raised only past the advisory. multer/body-parser come from @nestjs/platform-express, an
+# optional NestJS peer the API never loads (it runs on Fastify).
+overrides:
+  "fast-uri@>=3.0.0 <3.1.9": "^3.1.9"
+  "fast-uri@>=4.0.0 <4.2.3": "^4.2.3"
+  "multer@>=2.0.0 <2.5.0": "^2.5.0"
+  "body-parser@>=2.0.0 <2.4.0": "^2.4.0"

@@ -23,21 +23,21 @@
     "@ih/domain": "workspace:*",
     "@ih/logger": "workspace:*",
     "@ih/platform": "workspace:*",
-    "@nestjs/common": "12.1.2",
-    "@nestjs/core": "12.1.2",
-    "@nestjs/platform-fastify": "12.1.2",
-    "fastify": "5.8.4",
+    "@nestjs/common": "12.2.0",
+    "@nestjs/core": "12.2.0",
+    "@nestjs/platform-fastify": "12.2.0",
+    "fastify": "5.12.7",
     "ioredis": "6.0.0",
     "nestjs-pino": "5.3.1",
     "pino-http": "11.0.0",
     "reflect-metadata": "0.2.2",
     "rxjs": "7.8.2",
-    "zod": "4.6.5"
+    "zod": "4.6.7"
   },
   "devDependencies": {
     "@nestjs/cli": "12.0.8",
     "@nestjs/schematics": "12.0.6",
-    "@nestjs/testing": "12.1.2",
+    "@nestjs/testing": "12.2.0",
     "@swc/core": "1.16.13",
     "unplugin-swc": "2.0.0"
   }
