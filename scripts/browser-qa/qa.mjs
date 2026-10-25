@@ -62,11 +62,12 @@ try {
 
   // Brands
   await page.goto(BASE + "/workspace/brands");
-  await page.getByText("New brand").click();
-  await page.fill('details input[name="name"]', `Orbe QA ${run}`);
+  // New brands and categories open in the prototype's drawer (V-A6).
+  await page.getByRole("button", { name: "New brand" }).click();
+  await page.fill('dialog[open] input[name="name"]', `Orbe QA ${run}`);
   check(
     "brand slug suggested from name",
-    (await page.inputValue('details input[name="slug"]')) === `orbe-qa-${run}`,
+    (await page.inputValue('dialog[open] input[name="slug"]')) === `orbe-qa-${run}`,
   );
   await page.getByRole("button", { name: "Create brand" }).click();
   await page.getByText(`Orbe QA ${run}`).first().waitFor({ timeout: 10000 });
@@ -75,8 +76,8 @@ try {
 
   // Categories
   await page.goto(BASE + "/workspace/categories");
-  await page.getByText("New category").click();
-  await page.fill('details input[name="name"]', `Disposables QA ${run}`);
+  await page.getByRole("button", { name: "New category" }).click();
+  await page.fill('dialog[open] input[name="name"]', `Disposables QA ${run}`);
   await page.getByRole("button", { name: "Create category" }).click();
   await page.getByText(`Disposables QA ${run}`).first().waitFor({ timeout: 10000 });
   check("category created and listed", true);
@@ -106,27 +107,23 @@ try {
   await page.getByRole("button", { name: /Add 4 missing combinations/ }).click();
   await page.getByText("4 variants").waitFor({ timeout: 20000 });
   check("four flavour × nicotine variants generated", true);
-  const defaults = await page.getByText(/Default · Active/).count();
+  const defaults = await page.locator(".variant-row .default-tag").count();
   check("exactly one default variant", defaults === 1, `${defaults}`);
 
   // Step 54: a SKU already used by another variant is refused with a clear message
-  const variantForms = page
-    .locator("form.record-card")
-    .filter({ has: page.locator('input[name="sku"]') });
+  // Each variant is its own form (V-A4c).
+  const variantForms = page.locator("form.variant-row");
   const second = variantForms.nth(1);
   const takenSku = await variantForms.nth(0).locator('input[name="sku"]').inputValue();
   await second.locator('input[name="sku"]').fill(takenSku);
-  await second.getByRole("button", { name: "Save variant" }).click();
+  await second.getByRole("button", { name: /Save variant/ }).click();
   await page
     .getByText(/already used/)
     .first()
     .waitFor({ timeout: 10000 });
   check("duplicate SKU refused with an explanation", true);
   // The editor stays open and the variant was not saved (still version 1).
-  check(
-    "refused SKU edit changed nothing",
-    /· v1\s*$/.test(await second.locator(".badge").innerText()),
-  );
+  check("refused SKU edit changed nothing", (await second.getAttribute("data-version")) === "1");
 
   // Images
   const image = await sharp({
@@ -144,14 +141,14 @@ try {
   await add.waitFor({ timeout: 45000 });
   check("upload processed by the worker (ready to add)", true);
   await add.click();
-  await page.getByText(/Primary ·/).waitFor({ timeout: 15000 });
+  await page.locator(".mtile .prim").waitFor({ timeout: 15000 });
   const thumbLoaded = await page
-    .locator('img[alt="Product image"], img[alt]')
+    .locator(".mtile img")
     .first()
     .evaluate((img) => img.complete && img.naturalWidth > 0)
     .catch(() => false);
   check("gallery thumbnail loads from a signed derivative link", thumbLoaded);
-  const thumbSrc = await page.locator(".record-card img").first().getAttribute("src");
+  const thumbSrc = await page.locator(".mtile img").first().getAttribute("src");
   check(
     "thumbnail is a signed media-bucket WebP, not quarantine",
     !!thumbSrc &&
@@ -159,6 +156,13 @@ try {
       thumbSrc.includes("X-Amz-Signature") &&
       !thumbSrc.includes("quarantine"),
   );
+  // Alt text is edited in the prototype's dialog from the tile (V-A4c).
+  await page.getByRole("button", { name: "Alt text of image 1" }).click();
+  const altDialog = page.getByRole("dialog", { name: "Alt text" });
+  await altDialog.getByLabel("Alt text").fill("Orbe Halo 7K, front view");
+  await altDialog.getByRole("button", { name: "Save alt text" }).click();
+  await page.locator('.mtile img[alt="Orbe Halo 7K, front view"]').waitFor({ timeout: 10000 });
+  check("alt text saved from the image dialog", true);
   // Bad upload: a GIF renamed as image is refused before upload.
   await page.setInputFiles('input[type="file"]', {
     name: "anim.gif",
@@ -177,32 +181,48 @@ try {
   await page.fill('input[name="q"]', `ORBE-HALO-7K-QA-${run}`.toUpperCase());
   await page.press('input[name="q"]', "Enter");
   await page.waitForTimeout(1000);
-  const card = page.locator("article.record-card").first();
-  await card.getByRole("button", { name: "Set count" }).click();
-  await card.locator('input[name="target"]').fill("12");
-  await card.locator('textarea[name="note"]').fill("Opening count");
-  await card.getByRole("button", { name: "Set count" }).last().click();
-  await card.getByText(/12 in stock/).waitFor({ timeout: 10000 });
+  // Every change goes through the "Update stock" drawer (V-A5).
+  const card = page.locator(".inv-row:visible").first();
+  const drawer = page.getByRole("dialog", { name: "Update stock" });
+  const stockIs = (n) =>
+    card
+      .locator(".stock-n")
+      .filter({ hasText: new RegExp(`^${n}$`) })
+      .waitFor({ timeout: 10000 });
+  await card.getByRole("button", { name: /Update stock/ }).click();
+  await drawer.getByRole("button", { name: "Set exact count" }).click();
+  await drawer.locator('input[name="target"]').fill("12");
+  await drawer.locator('textarea[name="note"]').fill("Opening count");
+  await drawer.getByRole("button", { name: "Save stock" }).click();
+  await stockIs(12);
   check("set count records stock through the ledger", true);
-  await card.getByRole("button", { name: "Remove stock" }).click();
-  await card.locator('input[name="quantity"]').fill("2");
-  await card.locator('select[name="reason"]').selectOption("DAMAGE");
-  await card.locator('textarea[name="note"]').fill("Leaking");
-  await card.getByRole("button", { name: "Remove stock" }).last().click();
-  await card.getByText(/10 in stock/).waitFor({ timeout: 10000 });
-  await card.getByRole("button", { name: "History" }).click();
-  await card.getByText(/Damaged · Leaking/).waitFor({ timeout: 10000 });
+  await card.getByRole("button", { name: /Update stock/ }).click();
+  await drawer.getByRole("button", { name: "Remove", exact: true }).click();
+  await drawer.locator('input[name="quantity"]').fill("2");
+  await drawer.locator('select[name="reason"]').selectOption("DAMAGE");
+  await drawer.locator('textarea[name="note"]').fill("Leaking");
+  await drawer.getByRole("button", { name: "Save stock" }).click();
+  await stockIs(10);
+  await card.getByRole("button", { name: /Stock history/ }).click();
+  const historyDrawer = page.getByRole("dialog", { name: "Stock history" });
+  await historyDrawer.getByText(/Damaged · Leaking/).waitFor({ timeout: 10000 });
   check("damage removal shown in history with note and actor", true);
   await shot(page, "03-stock");
+  await page.keyboard.press("Escape");
+  await historyDrawer.waitFor({ state: "hidden" });
   // Steps 53–54: selling out shows the state, raises one alert event, and stays listed
   const probe = async () => (await fetch("http://127.0.0.1:4099")).json();
   const lowBefore = (await probe()).lowStockEvents;
-  await card.getByRole("button", { name: "Remove stock" }).click();
-  await card.locator('input[name="quantity"]').fill("10");
-  await card.locator('select[name="reason"]').selectOption("DAMAGE");
-  await card.locator('textarea[name="note"]').fill("Batch recalled");
-  await card.getByRole("button", { name: "Remove stock" }).last().click();
-  await card.getByText(/Out of stock · 0 in stock/).waitFor({ timeout: 10000 });
+  await card.getByRole("button", { name: /Update stock/ }).click();
+  await drawer.getByRole("button", { name: "Remove", exact: true }).click();
+  await drawer.locator('input[name="quantity"]').fill("10");
+  await drawer.locator('select[name="reason"]').selectOption("DAMAGE");
+  await drawer.locator('textarea[name="note"]').fill("Batch recalled");
+  // The balance it would leave is previewed before saving.
+  await drawer.getByText("10 → 0").waitFor();
+  await drawer.getByRole("button", { name: "Save stock" }).click();
+  await stockIs(0);
+  await card.getByText("Out of stock").waitFor({ timeout: 10000 });
   check("sold-out variant stays listed as Out of stock", true);
   check(
     "selling out raised exactly one low-stock event",

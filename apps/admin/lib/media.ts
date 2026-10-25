@@ -38,6 +38,14 @@ export function rejectionMessage(code: string | null): string {
 }
 
 /** Moves one image id up or down; returns the new full order. */
+/** The order with `id` moved to position `target` (drag and drop); out of range changes nothing. */
+export function movedTo(ids: readonly string[], id: string, target: number): string[] {
+  const index = ids.indexOf(id);
+  if (index < 0 || target < 0 || target >= ids.length || target === index) return [...ids];
+  const next = ids.filter((item) => item !== id);
+  next.splice(target, 0, id);
+  return next;
+}
 export function moved(ids: readonly string[], id: string, offset: -1 | 1): string[] {
   const index = ids.indexOf(id);
   const target = index + offset;

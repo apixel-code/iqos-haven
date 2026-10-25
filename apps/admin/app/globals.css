@@ -645,18 +645,20 @@ ul.dashboard-list {
 }
 .column-chart svg {
   width: 100%;
-  height: auto;
+  /* V-A10: a steady chart height at every width instead of the viewBox's ratio. */
+  height: clamp(140px, 22vw, 260px);
   overflow: visible;
 }
 .chart-axis {
   stroke: var(--line);
   stroke-width: 1;
 }
+/* Single-series columns in the prototype's chart colour (V-A10). */
 .chart-bar {
-  fill: var(--accent);
+  fill: var(--chart);
 }
 .chart-bar.is-active {
-  fill: var(--accent-ink);
+  fill: var(--ink);
 }
 .column-chart g:focus {
   outline: none;
@@ -1069,4 +1071,19 @@ ul.dashboard-list {
   justify-content: space-between;
   gap: 6px;
   font-size: 13px;
+}
+
+/* Storefront content preview (V-A12): each hero slide in the store's own colours. Unlayered,
+   after `.preview-hero`, so it wins over that older card background. */
+.ct-hero-navy {
+  background: #152033;
+  color: #fff;
+}
+.ct-hero-lilac {
+  background: #e7e2f7;
+  color: #12161b;
+}
+.ct-hero-coral {
+  background: #d2462f;
+  color: #fff;
 }

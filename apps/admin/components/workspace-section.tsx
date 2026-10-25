@@ -20,7 +20,19 @@ import { sections } from "../lib/navigation";
 import { Icon } from "./icons";
 import { PageHead } from "./page-head";
 /** Screens that draw the prototype's page head themselves. */
-const OWN_HEAD = new Set(["orders", "products"]);
+const OWN_HEAD = new Set([
+  "orders",
+  "products",
+  "inventory",
+  "brands",
+  "categories",
+  "customers",
+  "reviews",
+  "discounts",
+  "analytics",
+  "reports",
+  "content",
+]);
 
 export function WorkspaceSection({ sectionKey }: { sectionKey: string }) {
   const session = useSession();
@@ -74,7 +86,7 @@ export function WorkspaceSection({ sectionKey }: { sectionKey: string }) {
       ) : sectionKey === "analytics" ? (
         <AnalyticsManagement />
       ) : sectionKey === "customers" ? (
-        <CustomerManagement />
+        <CustomerManagement permissions={session.permissions} />
       ) : sectionKey === "content" ? (
         <ContentManagement />
       ) : sectionKey === "reviews" ? (

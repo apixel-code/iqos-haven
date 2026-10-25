@@ -1,6 +1,6 @@
 "use client";
 import { confirmDialog } from "../lib/ui/confirm";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "../lib/ui/toast";
 import { Icon } from "./icons";
 import { PageHead } from "./page-head";
@@ -70,11 +70,14 @@ const STEPS = ["Customer", "Products", "Delivery", "Review"] as const;
 export function ManualOrderPanel({
   canConfirm,
   canLookUp,
+  initialPhone,
   onCreated,
   onCancel,
 }: {
   canConfirm: boolean;
   canLookUp: boolean;
+  /** From a customer's "New order" (V-A7): the phone is filled in and looked up at once. */
+  initialPhone?: string;
   onCreated: (orderId: string) => void;
   onCancel: () => void;
 }) {
@@ -82,7 +85,7 @@ export function ManualOrderPanel({
   const [step, setStep] = useState(0);
   const [lines, setLines] = useState<Line[]>([]);
   const [name, setName] = useState("");
-  const [phone, setPhone] = useState("");
+  const [phone, setPhone] = useState(initialPhone ?? "");
   const [lookup, setLookup] = useState<Lookup | null>(null);
   const [lookupMessage, setLookupMessage] = useState("");
   const [address, setAddress] = useState<Address>(EMPTY_ADDRESS);
@@ -119,6 +122,16 @@ export function ManualOrderPanel({
   const setField = (field: keyof Address, value: string) =>
     setAddress((current) => ({ ...current, [field]: value }));
 
+  // A customer's "New order" starts with that customer found, as in the prototype.
+  const prefilled = useRef(false);
+  useEffect(() => {
+    if (prefilled.current || !initialPhone || !canLookUp) return;
+    const frame = requestAnimationFrame(() => {
+      prefilled.current = true;
+      void findCustomer();
+    });
+    return () => cancelAnimationFrame(frame);
+  });
   async function findCustomer() {
     let e164: string;
     try {

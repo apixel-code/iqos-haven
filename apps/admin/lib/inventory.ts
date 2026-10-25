@@ -56,3 +56,16 @@ export const reasonLabel: Record<string, string> = {
   ORDER_CANCEL: "Back in stock from a cancelled order",
   ORDER_RETURN: "Returned item put back in stock",
 };
+
+export type StockState = "in_stock" | "low" | "out";
+/** The server's rule (`stockState` in @ih/db): out at zero, low at or below the alert. */
+export function stockStateFor(stock: number, threshold: number): StockState {
+  if (stock <= 0) return "out";
+  return stock <= threshold ? "low" : "in_stock";
+}
+/** The preview in the update drawer: the balance a change would leave (negative = too many). */
+export function stockAfter(mode: "add" | "remove" | "set", current: number, quantity: number) {
+  if (mode === "add") return current + quantity;
+  if (mode === "remove") return current - quantity;
+  return quantity;
+}

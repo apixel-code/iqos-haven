@@ -120,7 +120,7 @@ try {
   await page.getByRole("tab", { name: "Products & brands" }).click();
   await page.getByText("Best-selling brands").waitFor();
   await page.getByRole("tab", { name: "Sales" }).click();
-  await page.getByText("Per day").waitFor();
+  await page.getByRole("heading", { name: "Per day", exact: true }).waitFor();
   await page.getByRole("button", { name: "Last 7 days" }).click();
   await page.getByText(/days are not computed yet/).waitFor();
   check("days not computed are named, not drawn as zero", true);

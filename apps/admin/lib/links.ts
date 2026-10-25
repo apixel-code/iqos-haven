@@ -18,6 +18,9 @@ export const ordersHref = (filter: { status?: string; delayed?: boolean } = {}) 
 export const productHref = (id: string) => `/workspace/products?product=${id}`;
 /** Opens the manual order form or a new product draft (the dashboard's quick actions). */
 export const newOrderHref = "/workspace/orders?new=1";
+/** A customer's "New order" (V-A7): the manual order with their phone filled in. */
+export const newOrderForPhone = (phone: string) =>
+  `${newOrderHref}&phone=${encodeURIComponent(phone)}`;
 export const newProductHref = "/workspace/products?new=1";
 export const variantStockHref = (id: string) => `/workspace/inventory?variant=${id}`;
 

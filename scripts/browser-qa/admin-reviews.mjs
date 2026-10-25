@@ -113,7 +113,7 @@ try {
   check(
     "published average updates",
     await page
-      .locator("header p.muted", { hasText: "5.0 average from 1 published" })
+      .locator(".ph p", { hasText: "5.0 average from 1 published" })
       .first()
       .waitFor({ timeout: 10000 })
       .then(
@@ -154,6 +154,20 @@ try {
       ]),
     JSON.stringify(statuses.rows),
   );
+  // "Approve all" (V-A8): two new pending reviews approved in one go, each on its version.
+  await review(4, "Batch A " + tag);
+  await review(3, "Batch B " + tag);
+  await page.getByLabel("Rating").selectOption("");
+  await page.getByRole("tab", { name: /Pending/ }).click();
+  await page.locator("article", { hasText: "Batch A " + tag }).waitFor();
+  await page.getByRole("button", { name: "Approve all 2" }).click();
+  await page.locator("[data-confirm-ok]").click();
+  await page.getByText("No reviews waiting").waitFor({ timeout: 15000 });
+  const batch = await pool.query(
+    "SELECT count(*)::int AS n FROM reviews WHERE title LIKE $1 AND status='approved'",
+    ["Batch %" + tag],
+  );
+  check("Approve all approves every listed review", batch.rows[0].n === 2, `${batch.rows[0].n}`);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.getByRole("tab", { name: /Approved/ }).click();
   await page.locator("article").first().waitFor();

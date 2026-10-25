@@ -10,13 +10,22 @@ import {
 import { ApiError } from "../lib/auth";
 import { managementError, managementRequest } from "../lib/management";
 import { rejectionMessage, uploadForm, uploadRequestFor } from "../lib/media";
+import { Icon, type IconName } from "./icons";
 
 /**
  * Brand logo or category image (parity G-A7, ADR 0091): upload, wait for processing, preview,
  * remove. The chosen image travels in the form as `imageAssetId` (empty = none) and is saved with
  * the brand or category; a replaced image is released by the server.
  */
-export function ParentImage({ initial, label }: { initial: string | null; label: string }) {
+export function ParentImage({
+  initial,
+  label,
+  hint = "Optional",
+}: {
+  initial: string | null;
+  label: string;
+  hint?: string;
+}) {
   const [assetId, setAssetId] = useState<string | null>(initial);
   const [status, setStatus] = useState<CatalogueImageResponse | null>(null);
   const [busy, setBusy] = useState(false);
@@ -83,53 +92,109 @@ export function ParentImage({ initial, label }: { initial: string | null; label:
 
   const current = status?.id === assetId ? status : null;
   const rejected = current?.state === "rejected" || current?.state === "expired";
+  const picker = (text: string, drop: boolean) => (
+    <label className={drop ? "drop drop-sm" : "btn btn-s btn-sm"}>
+      <Icon name="upload" size={drop ? undefined : "sm"} />
+      <span className={drop ? "small" : undefined}>{busy ? "Uploading…" : text}</span>
+      <input
+        type="file"
+        accept={IMAGE_TYPES.join(",")}
+        className="sr"
+        disabled={busy}
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+          event.target.value = "";
+          if (file) void upload(file);
+        }}
+      />
+    </label>
+  );
   return (
-    <fieldset className="wide-field parent-image">
-      <legend>{label} (optional)</legend>
+    <div className="field parent-image">
+      <span className="label">
+        <span>
+          {label} <span className="opt">{hint}</span>
+        </span>
+      </span>
       {/* Empty clears it on save; the server only accepts a processed catalogue image. */}
       <input type="hidden" name="imageAssetId" value={rejected ? "" : (assetId ?? "")} />
-      {assetId && current?.url && (
-        // A short-lived signed link to the processed preview.
-        // eslint-disable-next-line @next/next/no-img-element
-        <img className="parent-image-preview" src={current.url} alt="" />
+      {assetId ? (
+        <div className="row parent-image-row">
+          {current?.url ? (
+            // A short-lived signed link to the processed preview.
+            // eslint-disable-next-line @next/next/no-img-element
+            <img className="parent-image-preview" src={current.url} alt="" />
+          ) : (
+            <span className="parent-image-wait" aria-hidden="true" />
+          )}
+          <div className="row">
+            {picker("Replace image", false)}
+            <button
+              type="button"
+              className="btn btn-s btn-sm"
+              disabled={busy}
+              onClick={() => {
+                setAssetId(null);
+                setStatus(null);
+              }}
+            >
+              Remove image
+            </button>
+          </div>
+        </div>
+      ) : (
+        picker("Upload image", true)
       )}
       {assetId && current && current.state !== "ready" && (
-        <p className="muted small" role="status">
+        <p className="help" role="status">
           {rejected
             ? rejectionMessage(current.error)
             : "Processing the image… it can be saved once it is ready."}
         </p>
       )}
-      <div className="form-actions">
-        <label className="secondary-button">
-          {busy ? "Uploading…" : assetId ? "Replace image" : "Upload image"}
-          <input
-            type="file"
-            accept={IMAGE_TYPES.join(",")}
-            className="sr-only"
-            disabled={busy}
-            onChange={(event) => {
-              const file = event.target.files?.[0];
-              event.target.value = "";
-              if (file) void upload(file);
-            }}
-          />
-        </label>
-        {assetId && (
-          <button
-            type="button"
-            className="secondary-button"
-            disabled={busy}
-            onClick={() => {
-              setAssetId(null);
-              setStatus(null);
-            }}
-          >
-            Remove image
-          </button>
-        )}
-      </div>
-      {note && <p role="alert">{note}</p>}
-    </fieldset>
+      {note && (
+        <p className="errm" role="alert">
+          <Icon name="alert" />
+          {note}
+        </p>
+      )}
+    </div>
+  );
+}
+
+/**
+ * A brand logo or category image in a list (V-A6): the signed preview of its processed image,
+ * or the prototype's plain tile with an icon.
+ */
+export function ParentThumb({
+  assetId,
+  icon,
+  className,
+}: {
+  assetId: string | null;
+  icon: IconName;
+  className: string;
+}) {
+  const [shown, setShown] = useState<{ id: string; url: string | null } | null>(null);
+  useEffect(() => {
+    if (!assetId) return;
+    let stop = false;
+    managementRequest(`/catalogue-images/${assetId}`, catalogueImageResponseSchema)
+      .then((value) => !stop && setShown({ id: assetId, url: value.url ?? null }))
+      .catch(() => !stop && setShown({ id: assetId, url: null }));
+    return () => {
+      stop = true;
+    };
+  }, [assetId]);
+  const url = assetId && shown?.id === assetId ? shown.url : null;
+  return (
+    <span className={className} aria-hidden="true">
+      {url ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={url} alt="" />
+      ) : (
+        <Icon name={icon} />
+      )}
+    </span>
   );
 }
