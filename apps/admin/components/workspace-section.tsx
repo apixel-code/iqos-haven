@@ -35,6 +35,7 @@ const OWN_HEAD = new Set([
   "seo",
   "settings",
   "delivery",
+  "staff",
 ]);
 
 export function WorkspaceSection({ sectionKey }: { sectionKey: string }) {

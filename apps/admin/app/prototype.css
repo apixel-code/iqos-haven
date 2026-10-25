@@ -4917,4 +4917,34 @@
   .card > form {
     display: contents;
   }
+
+  /* ---------- Additions: staff and roles (V-A15) ---------- */
+  /* The email under the name is the phone's copy; the table has its own column from 720 px. */
+  @media (min-width: 720px) {
+    .staff-row .cellp small.only-m {
+      display: none;
+    }
+  }
+  .staff-pending-b {
+    padding-top: 8px;
+    padding-bottom: 0;
+  }
+  .inv-row .li-b small {
+    display: block;
+    color: var(--ink-3);
+    font-size: 12px;
+    white-space: normal;
+  }
+  .role-h {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .staff-group {
+    background: var(--surface-2);
+    border: 0;
+  }
+  .staff-save {
+    align-self: flex-start;
+  }
 }

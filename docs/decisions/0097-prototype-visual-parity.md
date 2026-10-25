@@ -574,6 +574,24 @@ The orders screens come in three PRs: V-A3a (the list), V-A3b (the order detail 
   - The new-order email preview. Email layouts live in the worker.
   - The prototype's one savebar for all groups. Each group keeps its own version and Save.
 
+## V-A15 (admin staff and roles), 2026-10-25
+
+- **Layout:** the prototype's `VIEWS.staff`:
+  - A page head with Add staff.
+  - The team `tbl`: initials avatar, name (you), email, a role tag with its icon, status, last active, and a row menu (`staffMenu`) with Edit, Send password reset and Deactivate/Reactivate.
+  - Pending invitations as a list with Revoke.
+  - The Owner and Staff role cards.
+  - The access summary (`perm`) with allowed/not allowed marks.
+- **Access summary:** read from the real grants. `ROLE_PERMISSIONS` is re-exported from `@ih/domain` through `@ih/contracts`, and each area names the permission that unlocks it (`ACCESS_AREAS`, `roleCan`, unit-tested). Nothing is hand-set, so the table cannot drift from the API's guards.
+- **Drawers:**
+  - Add staff queues an invitation: name, email, Staff/Owner `radios`, and the Owner warning.
+  - Edit keeps profile (Save profile) and role (Change role, with its confirmation) as separate commands with their versions.
+  - Activation and the reset stay in the menu with their confirmations. A change to one's own email, role or access still signs out.
+- **QA environment fixed:** `qa-server.cjs` now gives the API fresh invitation and password-reset keys per run. Without them the invite answered 503 (correctly, for an unconfigured server). That was the "staff-access invite" failure carried as known since step 54. It was not a product bug. `staff-access.mjs` now passes, and covers the edit drawer and deactivate/reactivate.
+- **Not carried over:**
+  - "Account active" inside the invite drawer. A new account is active once the invitation is accepted.
+  - Custom roles (not at launch).
+
 ## Consequences
 
 - The look comes from the approved source instead of being re-imagined in utilities, so later screens are mostly markup work.

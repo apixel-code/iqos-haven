@@ -23,6 +23,8 @@ APP_ENV=staging API_INTERNAL_URL=https://api.internal.invalid pnpm --filter @ih/
 QA_PLAYWRIGHT_DIR=/tmp/ih-qa node scripts/browser-qa/qa.mjs   # PASS/FAIL per check; screenshots in /tmp/ih-qa/shots
 ```
 
+The QA server gives the API fresh invitation and password-reset keys each run, so staff invitations and resets work (an unconfigured API answers them with 503).
+
 Afterwards stop both servers and drop the schema:
 `node scripts/browser-qa/qa-server.cjs --drop ih_test_<id>`.
 

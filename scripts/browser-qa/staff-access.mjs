@@ -63,19 +63,18 @@ try {
   await page.click('button[type="submit"]');
   await page.waitForURL((url) => !url.pathname.startsWith("/login"), { timeout: 15000 });
   await page.goto(BASE + "/workspace/staff");
-  const pendingCard = page.locator("section.management-card", {
+  const pendingCard = page.locator("section.card", {
     has: page.getByRole("heading", { name: "Pending invitations" }),
   });
   await pendingCard.waitFor();
 
-  // Invite: it appears in the pending list with its expiry.
-  const form = page.locator("section.management-card", {
-    has: page.getByRole("heading", { name: "Invite a team member" }),
-  });
+  // Invite from the prototype's Add staff drawer (V-A15): it appears in the pending list.
+  await page.getByRole("button", { name: "Add staff" }).click();
+  const form = page.getByRole("dialog", { name: "Add staff member" });
   await form.getByLabel(/Full name/).fill("Invitee " + tag);
   await form.getByLabel(/Email/).fill(email);
-  await form.getByRole("button", { name: "Queue invitation" }).click();
-  const row = pendingCard.locator("article.record-card", { hasText: email });
+  await form.getByRole("button", { name: "Send invite" }).click();
+  const row = pendingCard.locator(".inv-row", { hasText: email });
   await row.waitFor({ timeout: 10000 });
   const text = await row.innerText();
   check(
@@ -97,10 +96,10 @@ try {
       "SELECT count(*)::int AS n FROM password_reset_tokens r JOIN staff_users u ON u.id=r.user_id WHERE u.email='staff.qa@iqoshaven.test'",
     )
   ).rows[0].n;
-  const staffCard = page.locator("article.record-card", {
-    has: page.getByRole("heading", { name: "Staff QA" }),
-  });
-  await staffCard.getByRole("button", { name: "Send password reset" }).click();
+  // The row menu (V-A15) holds the reset, edit and deactivate actions.
+  const menu = () => page.getByRole("button", { name: "Actions for Staff QA" }).click();
+  await menu();
+  await page.getByRole("menuitem", { name: "Send password reset" }).click();
   await page
     .getByRole("status")
     .filter({ hasText: "Password reset link queued for staff.qa@iqoshaven.test" })
@@ -111,6 +110,49 @@ try {
     )
   ).rows[0].n;
   check(after === before + 1, "Send password reset issues one link", `${before} → ${after}`);
+
+  // Edit the profile in the drawer: the name is saved with its version.
+  await menu();
+  await page.getByRole("menuitem", { name: "Edit" }).click();
+  const edit = page.getByRole("dialog", { name: "Edit staff member" });
+  await edit.getByLabel(/Full name/).fill("Staff QA " + tag);
+  await edit.getByRole("button", { name: "Save profile" }).click();
+  let named = "";
+  for (let i = 0; i < 40; i++) {
+    named = (await pool.query("SELECT name FROM staff_users WHERE email='staff.qa@iqoshaven.test'"))
+      .rows[0].name;
+    if (named === "Staff QA " + tag) break;
+    await page.waitForTimeout(250);
+  }
+  check(named === "Staff QA " + tag, "the edit drawer saves the name", named);
+  // Put the name back so later passes find "Staff QA".
+  await page.getByRole("button", { name: `Actions for Staff QA ${tag}` }).click();
+  await page.getByRole("menuitem", { name: "Edit" }).click();
+  await edit.getByLabel(/Full name/).fill("Staff QA");
+  await edit.getByRole("button", { name: "Save profile" }).click();
+  await page.locator(".staff-row", { hasText: "Staff QA" }).first().waitFor();
+
+  // Deactivate and reactivate from the menu.
+  const active = async () =>
+    (await pool.query("SELECT active FROM staff_users WHERE email='staff.qa@iqoshaven.test'"))
+      .rows[0].active;
+  for (
+    let i = 0;
+    i < 40 &&
+    (await pool.query("SELECT name FROM staff_users WHERE email='staff.qa@iqoshaven.test'")).rows[0]
+      .name !== "Staff QA";
+    i++
+  )
+    await page.waitForTimeout(250);
+  await menu();
+  await page.getByRole("menuitem", { name: "Deactivate account" }).click();
+  for (let i = 0; i < 40 && (await active()); i++) await page.waitForTimeout(250);
+  check(!(await active()), "Deactivate account turns the account off");
+  await page.locator(".staff-row", { hasText: "Deactivated" }).waitFor();
+  await menu();
+  await page.getByRole("menuitem", { name: "Reactivate account" }).click();
+  for (let i = 0; i < 40 && !(await active()); i++) await page.waitForTimeout(250);
+  check(await active(), "Reactivate account turns it back on");
   check(
     await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1),
     "no sideways scrolling",
