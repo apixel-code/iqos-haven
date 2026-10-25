@@ -540,6 +540,19 @@ The orders screens come in three PRs: V-A3a (the list), V-A3b (the order detail 
   - The prototype's live preview of unsaved edits. The preview is the saved draft as the store resolves it, which is what publishing would show.
   - Coupon highlighting in the offers section. The content model has no coupon field.
 
+## V-A13 (admin SEO), 2026-10-25
+
+- **Layout:** the prototype's `VIEWS.seo`:
+  - A page head, and KPI tiles: store indexing, product indexing Off (BI-05), pages checked, and pages that need attention.
+  - The search-engine policy (Closed / Public pages) as `radios`/`ropt`, with the confirmation as before.
+  - "What is active" as a list with Active/Inactive tags and each feature's note.
+  - The SEO issues as a `tbl`, with a search box and a page-type filter. Each row has the page and its address, the issue tag with its icon, the detail, and Edit.
+  - Empty states.
+- **Edit:** opens where the SEO fields really live: the product's editor (`?product=`), or the brand or category list.
+- **Not carried over:**
+  - The prototype's in-place SEO drawer and its page list for Home and Shop. Our SEO fields belong to each product, brand and category (ADR 0079), and the fixed pages have no editable SEO.
+  - "Store indexing On" and the custom share image. Indexing is policy-only, and product indexing is never a switch (BI-05).
+
 ## Consequences
 
 - The look comes from the approved source instead of being re-imagined in utilities, so later screens are mostly markup work.

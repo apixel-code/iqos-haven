@@ -4850,4 +4850,32 @@
       padding-left: 12px;
     }
   }
+
+  /* ---------- Additions: SEO (V-A13) ---------- */
+  .ok-t {
+    color: var(--ok);
+  }
+  .kpi-v.warn-t {
+    font-weight: 600;
+  }
+  .seo-features .li-b {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    white-space: normal;
+  }
+  .seo-features .li-b small {
+    color: var(--ink-3);
+    font-size: 12.5px;
+  }
+  .seo-toolbar {
+    padding: 0 18px 12px;
+  }
+  .seo-detail {
+    max-width: 320px;
+    overflow-wrap: anywhere;
+  }
+  .plain-fs > legend.label {
+    margin-bottom: 8px;
+  }
 }

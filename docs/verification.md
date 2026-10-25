@@ -2692,3 +2692,13 @@ ADR 0001 (dated note). Marina approved. Stacked on the Next.js 16.4.3 upgrade; n
 | Build   | `turbo run build --concurrency=1` 12/12; `pnpm db:generate` with Prisma 7.10.1.                                                                                                                                                                                         |
 | Suites  | `pnpm verify` PASS (age preview 2250); `pnpm test:int` PASS (api 54, worker 19, db 18, platform 1 files); `pnpm test:gate` PASS (2586) — on the dependency changes, and again stacked on Next.js 16.4.3: build 12/12, `pnpm verify` PASS, `pnpm test:gate` PASS (2586). |
 | Browser | On a fresh schema: `qa.mjs` 30/31 (known stale publish check), `reports` PASS.                                                                                                                                                                                          |
+
+## Visual parity V-A13 — admin SEO like the prototype (2026-10-25, local)
+
+ADR 0097 (V-A13 section). Admin only; no API or migration change.
+
+| Item    | Evidence                                                                                                                                                                                                                            |
+| ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Browser | On a fresh schema: `seo` (Search engines heading, Closed checked, What is active, no product switch, SEO issues row, Public pages asks then saves, sitemap active, audited, back to Closed, Staff refused) PASS; `a11y-admin` PASS. |
+| Look    | Screenshot at 1366 px: as in the prototype.                                                                                                                                                                                         |
+| Suites  | `pnpm verify` PASS (age preview 2250). `pnpm test:gate` PASS (2586).                                                                                                                                                                |
