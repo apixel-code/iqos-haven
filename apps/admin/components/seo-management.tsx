@@ -1,5 +1,6 @@
 "use client";
 import { confirmDialog } from "../lib/ui/confirm";
+import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import {
   seoIssuesResponseSchema,
@@ -7,6 +8,9 @@ import {
   type SeoIssuesResponse,
   type SeoOverview,
 } from "@ih/contracts";
+import { productHref } from "../lib/links";
+import { Icon } from "./icons";
+import { PageHead } from "./page-head";
 
 const ISSUE_LABELS: Record<SeoIssuesResponse["items"][number]["kind"], string> = {
   missing_title: "No SEO title (the name is used)",
@@ -92,113 +96,255 @@ export function SeoManagement({ canReport }: { canReport: boolean }) {
     }
   }
 
+  const [q, setQ] = useState("");
+  const [entity, setEntity] = useState<"" | keyof typeof ENTITY_LABELS>("");
+  const items = (issues?.items ?? []).filter(
+    (item) =>
+      (!entity || item.entity === entity) &&
+      (!q.trim() || item.name.toLowerCase().includes(q.trim().toLowerCase())),
+  );
+  const pages = issues
+    ? issues.checked.products + issues.checked.brands + issues.checked.categories
+    : null;
+  const pagesWithIssues = issues ? new Set(issues.items.map((item) => item.id)).size : null;
+  const saved = notice?.startsWith("Saved");
   return (
-    <div className="dashboard">
+    <>
+      <PageHead
+        title="SEO"
+        sub="What search engines may see, and the titles and descriptions of the pages shoppers reach."
+      />
       {notice && (
-        <p className="notice" role="status">
-          {notice}
-        </p>
+        <div className={saved ? "note ok" : "note err"} role="status">
+          <Icon name={saved ? "check-c" : "alert"} />
+          <p>{notice}</p>
+        </div>
       )}
       {overview && (
-        <section className="management-card" aria-labelledby="seo-policy">
-          <h2 id="seo-policy">Search engines</h2>
-          <fieldset className="seo-choices" disabled={busy}>
-            <legend className="muted small">What search engines may be offered</legend>
-            <label className="seo-choice">
-              <input
-                type="radio"
-                name="indexing"
-                checked={overview.policy.indexing === "closed"}
-                onChange={() => void choose("closed")}
-              />
-              <span>
-                <b>Closed</b> — nothing is offered; robots.txt disallows the whole store.
+        <div className="kpis">
+          <div className="kpi">
+            <span className="kpi-l">Store indexing</span>
+            <span className="kpi-v kpi-v-sm">
+              {overview.policy.indexing === "closed" ? "Closed" : "Public pages"}
+            </span>
+            <span className="kpi-f">
+              <span className="delta-c">
+                {overview.policy.indexing === "closed"
+                  ? "robots.txt disallows the store"
+                  : "policy pages only"}
               </span>
-            </label>
-            <label className="seo-choice">
-              <input
-                type="radio"
-                name="indexing"
-                checked={overview.policy.indexing === "public_pages"}
-                onChange={() => void choose("public_pages")}
-              />
-              <span>
-                <b>Public pages</b> — responsible use, terms and privacy may be indexed and are
-                listed in sitemap.xml. Products, brands and categories stay hidden.
-              </span>
-            </label>
-          </fieldset>
-          <p className="muted small">
-            {overview.updatedAt
-              ? `Last changed ${dubaiTime(overview.updatedAt)}.`
-              : "Never changed."}{" "}
-            Product indexing needs a separate decision (business input BI-05) and is not offered
-            here.
-          </p>
-        </section>
+            </span>
+          </div>
+          <div className="kpi">
+            <span className="kpi-l">Product indexing</span>
+            <span className="kpi-v kpi-v-sm">Off</span>
+            <span className="kpi-f">
+              <span className="delta-c">Needs business decision BI-05</span>
+            </span>
+          </div>
+          {issues && (
+            <>
+              <div className="kpi">
+                <span className="kpi-l">Pages checked</span>
+                <span className="kpi-v">{pages}</span>
+                <span className="kpi-f">
+                  <span className="delta-c">published products, brands, categories</span>
+                </span>
+              </div>
+              <div className="kpi">
+                <span className="kpi-l">Need attention</span>
+                <span className={pagesWithIssues ? "kpi-v warn-t" : "kpi-v ok-t"}>
+                  {pagesWithIssues}
+                </span>
+                <span className="kpi-f">
+                  <span className="delta-c">missing, too long or repeated</span>
+                </span>
+              </div>
+            </>
+          )}
+        </div>
       )}
       {overview && (
-        <section className="management-card" aria-labelledby="seo-features">
-          <h2 id="seo-features">What is active</h2>
-          <ul className="dashboard-list">
-            {overview.features.map((feature) => (
-              <li key={feature.key}>
-                <span className={feature.state === "active" ? "seo-active" : "seo-inactive"}>
-                  {feature.state === "active" ? "Active" : "Inactive"}
-                </span>{" "}
-                <b>{feature.label}</b>
-                <br />
-                <span className="muted small">{feature.note}</span>
-              </li>
-            ))}
-          </ul>
-        </section>
+        <div className="grid g2 an-split">
+          <section className="card" aria-labelledby="seo-policy">
+            <div className="card-h">
+              <h2 id="seo-policy">Search engines</h2>
+            </div>
+            <div className="card-b form">
+              <fieldset className="plain-fs" disabled={busy}>
+                <legend className="label">What search engines may be offered</legend>
+                <div className="radios">
+                  <label className="ropt">
+                    <input
+                      type="radio"
+                      name="indexing"
+                      checked={overview.policy.indexing === "closed"}
+                      onChange={() => void choose("closed")}
+                    />
+                    <span>
+                      <b>Closed</b>
+                      <small>Nothing is offered; robots.txt disallows the whole store.</small>
+                    </span>
+                  </label>
+                  <label className="ropt">
+                    <input
+                      type="radio"
+                      name="indexing"
+                      checked={overview.policy.indexing === "public_pages"}
+                      onChange={() => void choose("public_pages")}
+                    />
+                    <span>
+                      <b>Public pages</b>
+                      <small>
+                        Responsible use, terms and privacy may be indexed and are listed in
+                        sitemap.xml. Products, brands and categories stay hidden.
+                      </small>
+                    </span>
+                  </label>
+                </div>
+              </fieldset>
+              <p className="help">
+                {overview.updatedAt
+                  ? `Last changed ${dubaiTime(overview.updatedAt)}.`
+                  : "Never changed."}{" "}
+                Product indexing needs a separate decision (business input BI-05) and is not offered
+                here.
+              </p>
+            </div>
+          </section>
+          <section className="card" aria-labelledby="seo-features">
+            <div className="card-h">
+              <h2 id="seo-features">What is active</h2>
+            </div>
+            <ul className="list an-list seo-features">
+              {overview.features.map((feature) => (
+                <li className="li" key={feature.key}>
+                  <span className="li-b">
+                    <span className="row tag-gap">
+                      {feature.state === "active" ? (
+                        <span className="tag ok">
+                          <Icon name="check" size="sm" />
+                          Active
+                        </span>
+                      ) : (
+                        <span className="tag">Inactive</span>
+                      )}
+                      <b>{feature.label}</b>
+                    </span>
+                    <small>{feature.note}</small>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        </div>
       )}
       {canReport && issues && (
-        <section className="management-card" aria-labelledby="seo-issues">
-          <div className="inline-row">
-            <h2 id="seo-issues">SEO issues</h2>
-            <button className="text-button" type="button" onClick={load}>
+        <section className="tbl-wrap" aria-labelledby="seo-issues">
+          <div className="card-h an-tbl-h">
+            <div>
+              <h2 id="seo-issues">SEO issues</h2>
+              <p className="sub">
+                Checked at {dubaiTime(issues.generatedAt)}. Titles over {issues.limits.title} and
+                descriptions over {issues.limits.description} characters are cut short in search
+                results. Fix them on the page itself.
+              </p>
+            </div>
+            <button className="btn btn-g btn-sm" type="button" onClick={load}>
+              <Icon name="refresh" size="sm" />
               Check again
             </button>
           </div>
-          <p className="muted small">
-            Checked {issues.checked.products} published products, {issues.checked.brands} brands and{" "}
-            {issues.checked.categories} categories at {dubaiTime(issues.generatedAt)}. Titles over{" "}
-            {issues.limits.title} and descriptions over {issues.limits.description} characters are
-            cut short in search results. Fix them on the page itself.
-          </p>
-          {issues.items.length ? (
+          <div className="toolbar seo-toolbar">
+            <div className="search">
+              <Icon name="search" />
+              <label className="sr" htmlFor="seo-q">
+                Search pages
+              </label>
+              <input
+                id="seo-q"
+                type="search"
+                placeholder="Search pages"
+                value={q}
+                maxLength={100}
+                onChange={(event) => setQ(event.target.value)}
+              />
+            </div>
+            <select
+              className="fsel"
+              aria-label="Page type"
+              value={entity}
+              onChange={(event) => setEntity(event.target.value as typeof entity)}
+            >
+              <option value="">All page types</option>
+              {(Object.keys(ENTITY_LABELS) as Array<keyof typeof ENTITY_LABELS>).map((key) => (
+                <option key={key} value={key}>
+                  {ENTITY_LABELS[key]}
+                </option>
+              ))}
+            </select>
+          </div>
+          {items.length ? (
             // Scrolls sideways on a phone, so it takes keyboard focus (WCAG 2.1.1, axe).
-            <div className="order-table-wrap" role="region" aria-label="Page issues" tabIndex={0}>
-              <table className="order-table">
+            <div className="tbl-scroll" role="region" aria-label="Page issues" tabIndex={0}>
+              <table className="tbl">
                 <thead>
                   <tr>
-                    <th>Issue</th>
                     <th>Page</th>
-                    <th>Address</th>
-                    <th>Detail</th>
+                    <th>Issue</th>
+                    <th className="hide-m">Detail</th>
+                    <th className="w1">
+                      <span className="sr">Edit</span>
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
-                  {issues.items.map((item) => (
+                  {items.map((item) => (
                     <tr key={`${item.kind}:${item.id}`}>
-                      <td>{ISSUE_LABELS[item.kind]}</td>
                       <td>
-                        {ENTITY_LABELS[item.entity]}: {item.name}
+                        <b className="cust">{item.name}</b>
+                        <div className="mono xs muted">
+                          /{item.slug} · {ENTITY_LABELS[item.entity]}
+                        </div>
                       </td>
-                      <td>{item.slug}</td>
-                      <td>{item.detail ?? "—"}</td>
+                      <td>
+                        <span className="tag low">
+                          <Icon name="alert" size="sm" />
+                          {ISSUE_LABELS[item.kind]}
+                        </span>
+                      </td>
+                      <td className="small hide-m seo-detail">{item.detail ?? "—"}</td>
+                      <td className="w1">
+                        <Link className="btn btn-g btn-sm" href={editHref(item)}>
+                          Edit
+                        </Link>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
           ) : (
-            <p className="muted">No issues found.</p>
+            <div className="empty dash-empty">
+              <div className="ic">
+                <Icon name="check-c" />
+              </div>
+              <h3>{issues.items.length ? "No matching pages" : "Nothing needs attention"}</h3>
+              <p>
+                {issues.items.length
+                  ? "Try another page type or name."
+                  : "Every page has a title and description of the right length."}
+              </p>
+            </div>
           )}
         </section>
       )}
-    </div>
+    </>
   );
+}
+
+/** Where a page's SEO fields are edited: the product itself, or the brand or category list. */
+function editHref(item: SeoIssuesResponse["items"][number]) {
+  if (item.entity === "product") return productHref(item.id);
+  return item.entity === "brand" ? "/workspace/brands" : "/workspace/categories";
 }
