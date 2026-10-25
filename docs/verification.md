@@ -2670,3 +2670,25 @@ ADR 0097 (V-A12 section). Admin only; no API or migration change.
 | Browser | On a fresh schema: `content-editor` (not set up, markup refused, save draft, never published, preview text, publish Live, featured products added and a hidden one blocks publish, remove and publish, hero button and image chosen and previewed, second slide, discard changes, staff refused) PASS; `unsaved-guard` PASS; `a11y-admin` PASS. |
 | Look    | Screenshots of the hero and featured sections at 1366 px and the editor at 390 px: as in the prototype; slide previews in the store's colours.                                                                                                                                                                                                  |
 | Suites  | `pnpm verify` PASS (age preview 2250). `pnpm test:gate` PASS (2586).                                                                                                                                                                                                                                                                            |
+
+## Next.js 16.4.0 → 16.4.3 security upgrade (2026-10-25, local)
+
+ADR 0001 (dated note). Marina approved. `next` and `eslint-config-next` in admin and storefront; no code change.
+
+| Item    | Evidence                                                                                                                                                                                        |
+| ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Audit   | `pnpm audit --prod`: the two critical Next.js advisories (GHSA-2464-fhr4-w9xw, GHSA-673q-mjm6-r5xr) and the high one are gone; critical 0. Other packages' findings remain (separate decision). |
+| Build   | `turbo run build --concurrency=1`: 12/12, no security stop. (A parallel build was killed for memory on this machine.)                                                                           |
+| Suites  | `pnpm verify` PASS (age preview 2250). `pnpm test:gate` PASS (2586).                                                                                                                            |
+| Browser | On a fresh schema: `qa.mjs` 30/31 (known stale publish check), `a11y-admin` PASS, `deep-links` PASS.                                                                                            |
+
+## Remaining `pnpm audit` findings fixed (2026-10-25, local)
+
+ADR 0001 (dated note). Marina approved. Stacked on the Next.js 16.4.3 upgrade; no code change.
+
+| Item    | Evidence                                                                                                                                                                                                                                                                |
+| ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Audit   | `pnpm audit` (all dependencies, dev included): "No known vulnerabilities found". Before: 10 high, 11 moderate, 5 low besides Next.js.                                                                                                                                   |
+| Build   | `turbo run build --concurrency=1` 12/12; `pnpm db:generate` with Prisma 7.10.1.                                                                                                                                                                                         |
+| Suites  | `pnpm verify` PASS (age preview 2250); `pnpm test:int` PASS (api 54, worker 19, db 18, platform 1 files); `pnpm test:gate` PASS (2586) — on the dependency changes, and again stacked on Next.js 16.4.3: build 12/12, `pnpm verify` PASS, `pnpm test:gate` PASS (2586). |
+| Browser | On a fresh schema: `qa.mjs` 30/31 (known stale publish check), `reports` PASS.                                                                                                                                                                                          |
