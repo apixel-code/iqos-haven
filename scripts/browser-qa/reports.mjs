@@ -66,9 +66,11 @@ async function downloadText(page, link) {
 try {
   const { page, errors } = await session("owner.qa@iqoshaven.test");
   await page.goto(BASE + "/workspace/reports");
-  await page.getByRole("heading", { name: "New report" }).waitFor();
+  // The prototype's report menu and the chosen report's card (V-A11).
+  await page.getByRole("navigation", { name: "Reports" }).waitFor();
+  await page.getByRole("heading", { name: "Sales" }).waitFor();
   check("Reports opens with the request form", true);
-  await page.getByRole("button", { name: "Request report" }).click();
+  await page.getByRole("button", { name: "Export CSV" }).click();
   await page.getByText("Ready: download it below within 15 minutes.").waitFor();
   check("a small sales report is ready at once", true);
   const first = page.getByRole("link", { name: "Download CSV" }).first();
@@ -83,9 +85,12 @@ try {
   );
 
   // Personal data asks first; dismissing sends nothing.
-  await page.locator('select[name="type"]').selectOption("customers");
+  await page
+    .getByRole("navigation", { name: "Reports" })
+    .getByRole("button", { name: "Customers" })
+    .click();
   const before = await db.reportJob.count();
-  await page.getByRole("button", { name: "Request report" }).click();
+  await page.getByRole("button", { name: "Export CSV" }).click();
   const asked = await page
     .getByRole("dialog", { name: "Export customer details?" })
     .waitFor({ timeout: 3000 })
@@ -97,7 +102,7 @@ try {
   await page.waitForTimeout(500);
   check("customer data asks before requesting", asked === 1);
   check("dismissing it requests nothing", (await db.reportJob.count()) === before);
-  await page.getByRole("button", { name: "Request report" }).click();
+  await page.getByRole("button", { name: "Export CSV" }).click();
   await answerConfirm(page, true);
   await page.getByText("Ready: download it below within 15 minutes.").waitFor();
   // The list reloads after the answer: wait for the new row, not the first link.

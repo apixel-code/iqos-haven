@@ -4710,4 +4710,32 @@
   .column-chart figcaption {
     min-height: 1.4em;
   }
+
+  /* ---------- Additions: reports (V-A11) ---------- */
+  .rep-menu {
+    padding: 6px;
+    align-self: start;
+  }
+  .rep-menu .menu {
+    min-width: 0;
+    padding: 0;
+  }
+  .rep-menu .menu button {
+    min-height: 44px;
+    width: 100%;
+  }
+  .rep-menu .menu button > span {
+    flex: 1;
+  }
+  .rep-menu .menu button[aria-pressed="true"] {
+    background: var(--surface-2);
+    font-weight: 600;
+  }
+  .rep-meta {
+    gap: 6px;
+    align-items: center;
+  }
+  .mlist-wrap {
+    border-top: 1px solid var(--line);
+  }
 }

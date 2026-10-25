@@ -2650,3 +2650,13 @@ ADR 0097 (V-A10 section). Admin only; no API or migration change.
 | Browser | On a fresh schema: `dashboard` (analytics overview, booked orders, tax basis, columns, focus readout, search, products and sales tabs, 7-day range names missing days, 390 px fit; Staff refused) PASS; `a11y-admin` PASS. |
 | Look    | Screenshots at 1366 px light and dark and 390 px: as in the prototype.                                                                                                                                                     |
 | Suites  | `pnpm verify` PASS (age preview 2250). `pnpm test:gate` PASS (2586).                                                                                                                                                       |
+
+## Visual parity V-A11 — admin reports like the prototype (2026-10-25, local)
+
+ADR 0097 (V-A11 section). Admin only; no API or migration change.
+
+| Item    | Evidence                                                                                                                                                                                                                                                                         |
+| ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Browser | On a fresh schema: `reports` (menu and Sales card, Export CSV ready at once, named UTF-8 sales CSV, Customers asks first and dismissing requests nothing, customers CSV, worker-built inventory file job polled to Ready and downloaded, Staff refused) PASS; `a11y-admin` PASS. |
+| Look    | Screenshots at 1366 and 390 px: as in the prototype.                                                                                                                                                                                                                             |
+| Suites  | `pnpm verify` PASS (age preview 2250). `pnpm test:gate` PASS (2586).                                                                                                                                                                                                             |

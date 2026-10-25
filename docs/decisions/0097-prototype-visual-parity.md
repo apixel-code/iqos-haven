@@ -501,6 +501,23 @@ The orders screens come in three PRs: V-A3a (the list), V-A3b (the order detail 
   - The dimension filters (product, brand, category, status) and Daily/Weekly/Monthly grouping. The analytics API has neither.
   - Export CSV. Reports has the sales report.
 
+## V-A11 (admin reports), 2026-10-25
+
+- **Layout:** the prototype's `VIEWS.reports`:
+  - A page head.
+  - A `split rep` with the report menu on the left (`menu`, icons, the chosen one marked; a lock on reports needing the customer-export right).
+  - The chosen report's card on the right: title, description and "Export CSV" in the card head; From/To for ranged reports (or "current snapshot"); the basis for Sales; the Dubai/AED line.
+  - A personal-data note for Orders and Customers.
+  - The request's answer as a success or error note.
+- **Your reports:** a `tbl` with the report, range, request time, a status tag with its icon (Ready until …, Being built, Waiting, Could not be built, Expired), rows and Download CSV; `mrow` rows on a phone, and an empty state.
+- **Unchanged:**
+  - The request flow (one command ID per request, kept for a retry).
+  - The confirmation before a report with personal data.
+  - Polling while a file job is built, and the download link that is checked again each time.
+- **Not carried over:**
+  - The prototype's in-page preview of the first ten rows. A report is built on request, from the API, and never kept on the device.
+  - The range picker in the page head. Each ranged report takes its own From/To.
+
 ## Consequences
 
 - The look comes from the approved source instead of being re-imagined in utilities, so later screens are mostly markup work.
