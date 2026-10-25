@@ -2573,3 +2573,14 @@ ADR 0097 (V-A4b section). Admin only; no API or migration change.
 | Browser | On a fresh schema: `qa.mjs` 30/31 (known stale publish check; create draft, options and variants, duplicate SKU refusal, image upload, publishing card, trash and purge PASS); `unsaved-guard` PASS; `a11y-admin` with the product editor and a new product at 1366 px light and dark and 390 px PASS; `deep-links`, `parent-images`, `seo`, `products-list` PASS. |
 | Look    | Screenshots of the editor at 1366 and 390 px (save bar above the bottom navigation, no sideways scroll): as in the prototype.                                                                                                                                                                                                                                      |
 | Suites  | `pnpm verify` PASS (age preview 2250). `pnpm test:gate` PASS (2586).                                                                                                                                                                                                                                                                                               |
+
+## Next.js 16.4.0 → 16.4.3 security upgrade (2026-10-25, local)
+
+ADR 0001 (dated note). Marina approved. `next` and `eslint-config-next` in admin and storefront; no code change.
+
+| Item    | Evidence                                                                                                                                                                                        |
+| ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Audit   | `pnpm audit --prod`: the two critical Next.js advisories (GHSA-2464-fhr4-w9xw, GHSA-673q-mjm6-r5xr) and the high one are gone; critical 0. Other packages' findings remain (separate decision). |
+| Build   | `turbo run build --concurrency=1`: 12/12, no security stop. (A parallel build was killed for memory on this machine.)                                                                           |
+| Suites  | `pnpm verify` PASS (age preview 2250). `pnpm test:gate` PASS (2586).                                                                                                                            |
+| Browser | On a fresh schema: `qa.mjs` 30/31 (known stale publish check), `a11y-admin` PASS, `deep-links` PASS.                                                                                            |
