@@ -2638,3 +2638,15 @@ ADR 0097 (V-A9 section). Admin only; no API or migration change.
 | Browser | On a fresh schema: new `discounts.mjs` (Generate, live preview with the half-up saving, Create & activate with exact terms in the database, the switch turns it off keeping its terms, Inactive tab, edit keeps it inactive, Move to Trash, Restore as inactive, 390 px fit, no page errors) PASS; `a11y-admin` with the coupon drawer at 1366 px light and dark and 390 px PASS. |
 | Look    | Screenshots of the list, the drawer and the phone rows: as in the prototype.                                                                                                                                                                                                                                                                                                      |
 | Suites  | `pnpm verify` PASS (age preview 2250). `pnpm test:gate` PASS (2586).                                                                                                                                                                                                                                                                                                              |
+
+## Visual parity V-A10 — admin analytics like the prototype (2026-10-25, local)
+
+ADR 0097 (V-A10 section). Admin only; no API or migration change.
+
+| Item    | Evidence                                                                                                                                                                                                                   |
+| ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Unit    | Admin unit tests 85 PASS, with `changeBps`.                                                                                                                                                                                |
+| Palette | `validate_palette.js`: `--chart` #1f7a99 (light) and #4fb3d3 (dark) pass contrast vs surface (≥ 3:1); the categorical-only checks do not apply to a single series.                                                         |
+| Browser | On a fresh schema: `dashboard` (analytics overview, booked orders, tax basis, columns, focus readout, search, products and sales tabs, 7-day range names missing days, 390 px fit; Staff refused) PASS; `a11y-admin` PASS. |
+| Look    | Screenshots at 1366 px light and dark and 390 px: as in the prototype.                                                                                                                                                     |
+| Suites  | `pnpm verify` PASS (age preview 2250). `pnpm test:gate` PASS (2586).                                                                                                                                                       |

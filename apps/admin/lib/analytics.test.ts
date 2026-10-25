@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { analyticsRange, percent, rangeDays, signedChange } from "./analytics";
+import { analyticsRange, changeBps, percent, rangeDays, signedChange } from "./analytics";
 
 describe("analytics display helpers", () => {
   it("counts ranges in Dubai days, today included", () => {
@@ -37,5 +37,16 @@ describe("analytics display helpers", () => {
       "2026-11-02",
     ]);
     expect(rangeDays("2026-10-02", "2026-10-01")).toEqual([]);
+  });
+});
+
+describe("change against the previous period (V-A10)", () => {
+  it("is basis points of the earlier figure, or null with nothing to compare", () => {
+    expect(changeBps(1500, 1000)).toBe(5000);
+    expect(changeBps(900, 1000)).toBe(-1000);
+    expect(changeBps(1000, 1000)).toBe(0);
+    expect(changeBps(5, 0)).toBeNull();
+    expect(changeBps(null, 10)).toBeNull();
+    expect(changeBps(10, null)).toBeNull();
   });
 });

@@ -474,6 +474,33 @@ The orders screens come in three PRs: V-A3a (the list), V-A3b (the order detail 
   - Delete. Trash keeps a coupon restorable.
   - A date-only expiry fixed at 11:59 pm Dubai. Start and end stay date-time fields in the device's time zone, as before.
 
+## V-A10 (admin analytics), 2026-10-25
+
+- **Layout:** the prototype's `VIEWS.analytics`:
+  - A page head with the range, and the date-range presets as a `seg`. "Custom" opens From/To in a card.
+  - The tabs: Overview, Sales, Products & brands, Search, Wishlist.
+  - KPI tiles (`kpis`/`kpiTile`) with the prototype's delta against the previous period (`changeBps`, integer basis points, unit-tested). With no earlier figures they say so.
+- **Overview:**
+  - Six tiles.
+  - The booked-sales-per-day chart card.
+  - The order-status distribution (`sbar`/`sleg` in the status colours; each entry links to Orders filtered by that status).
+  - Top products (`rank`), searches with no results, and most wishlisted (`li` lists with counts), each with its link to the tab.
+- **Other tabs:**
+  - Sales: tiles, the chart and the per-day `tbl`.
+  - Products & brands: the products `tbl` and the brands `rank`.
+  - Search: tiles, two term lists and the per-day chart.
+  - Wishlist: the privacy note, tiles, a restock warning and the `tbl`.
+- **Charts (dataviz method):**
+  - Still single-series columns: one colour, no legend (the title names it), a hover/focus readout, and a table or list with every value.
+  - Days not computed are drawn as a gray baseline mark, never as zero.
+  - The colour is the prototype's `--chart` token. A lone series needs only contrast against the surface: the validator passes it at ≥ 3:1 on light and dark. Its categorical-only checks (chroma floor, lightness band) do not apply to one series.
+  - The status bar uses the prototype's reserved status colours, always with the label and count.
+  - The chart keeps a steady 140–260 px height at every width.
+- **Not carried over:**
+  - The previous-period line drawn over the chart. The API gives per-day figures for the range only, and the previous period as totals, so that comparison is the tile delta.
+  - The dimension filters (product, brand, category, status) and Daily/Weekly/Monthly grouping. The analytics API has neither.
+  - Export CSV. Reports has the sales report.
+
 ## Consequences
 
 - The look comes from the approved source instead of being re-imagined in utilities, so later screens are mostly markup work.

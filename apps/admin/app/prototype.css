@@ -4670,4 +4670,44 @@
     width: 12px;
     height: 12px;
   }
+
+  /* ---------- Additions: analytics (V-A10) ---------- */
+  @media (min-width: 1100px) {
+    .kpis.an-kpis {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+  .an-custom {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    align-items: flex-end;
+  }
+  .an-custom .field {
+    min-width: 150px;
+  }
+  .an-list {
+    margin-top: 6px;
+  }
+  .an-list .li-b b,
+  .an-list .li-b small {
+    display: block;
+  }
+  .li-r small {
+    display: block;
+    font-size: 11.5px;
+  }
+  .an-tbl-h {
+    padding-bottom: 12px;
+  }
+  .an-tbl-scroll {
+    max-height: 420px;
+    overflow: auto;
+  }
+  .an-split {
+    align-items: start;
+  }
+  .column-chart figcaption {
+    min-height: 1.4em;
+  }
 }
