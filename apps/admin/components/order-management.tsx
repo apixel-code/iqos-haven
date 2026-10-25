@@ -120,7 +120,7 @@ export function OrderManagement({
   const [creating, setCreatingState] = useState(() => canCreate && query("new") === "1");
   const setCreating = (on: boolean) => {
     setCreatingState(on);
-    if (!on && query("new")) navigate({ new: null });
+    if (!on && (query("new") || query("phone"))) navigate({ new: null, phone: null });
   };
   // Bulk confirm (step 89): chosen Pending orders with the version seen and one command ID each.
   // An unclear answer keeps the same batch, so "Retry" replays instead of confirming twice.
@@ -238,6 +238,7 @@ export function OrderManagement({
         <ManualOrderPanel
           canConfirm={canTransition}
           canLookUp={canReadContact}
+          {...(query("phone") ? { initialPhone: query("phone")! } : {})}
           onCancel={() => setCreating(false)}
           onCreated={(orderId) => {
             setCreating(false);

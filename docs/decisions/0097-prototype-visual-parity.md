@@ -417,6 +417,27 @@ The orders screens come in three PRs: V-A3a (the list), V-A3b (the order detail 
   - The prototype's up/down arrows for categories. Order is the display-order number: categories without one share 0, so swapping places would change nothing visible. The number is edited in the drawer.
   - The brand card's link to its products. The products list does not take a brand from the URL.
 
+## V-A7 (admin customers), 2026-10-25
+
+- **List:** the prototype's `VIEWS.customers`:
+  - The page head and the no-accounts note.
+  - "Search name or phone number", searching as you type; Enter searches at once. Phone digits still need at least three.
+  - A `tbl` with the initials avatar and name, phone, orders with a Repeat tag, booked spend (Owner only, as before), last order and area.
+  - A No-show tag where the customer is marked.
+  - On a phone, `mrow` rows. Empty states, and a cursor pager.
+- **Detail:** the prototype's `VIEWS.customer`:
+  - The back link, and a page head with the large avatar, phone and "customer since".
+  - WhatsApp (a plain `wa.me` link to the number: it opens WhatsApp, nothing is sent or recorded), Call, and New order.
+  - KPI tiles: orders with cancellations; booked spend and average order (Owner only); last order.
+  - An order history `tbl`, as rows on a phone.
+  - The known delivery details as a list with the area and emirate.
+- **New order:** opens the manual order with the customer's phone filled in and looked up at once (`newOrderForPhone`, unit-tested; `?phone=` on the new-order link). The prototype's `orderFor` does the same.
+- **Not carried over:**
+  - Sorting the columns. The API orders by newest customer and pages by cursor.
+  - Totals in the page head (customer and repeat counts). The API returns no counts.
+  - Export CSV. Reports has the customers report, behind `customers.export`.
+  - Favourite products and the item list per order. The customer API returns neither.
+
 ## Consequences
 
 - The look comes from the approved source instead of being re-imagined in utilities, so later screens are mostly markup work.
