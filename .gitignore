@@ -16,3 +16,5 @@ dump.rdb
 
 packages/db/src/generated/
 .load/
+# Local backup sets (step 126): encrypted, but never committed.
+/backups/

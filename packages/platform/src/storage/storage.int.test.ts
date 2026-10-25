@@ -44,6 +44,20 @@ describe("object storage (real MinIO, service identity)", () => {
     }
   });
 
+  it("lists a bucket's keys and sizes page by page (backups, step 126)", async () => {
+    const keys = [`${prefix}/list-a.txt`, `${prefix}/list-b.txt`];
+    for (const key of keys) await storage.put("media", key, "four", "text/plain");
+    const seen = new Map<string, number>();
+    let next: string | undefined;
+    do {
+      const page = await storage.list("media", next);
+      for (const object of page.objects) seen.set(object.key, object.size);
+      next = page.next;
+    } while (next);
+    for (const key of keys) expect(seen.get(key)).toBe(4);
+    for (const key of keys) await storage.delete("media", key);
+  });
+
   it("refuses anonymous access to objects", async () => {
     const key = `${prefix}/private.txt`;
     await storage.put("reports", key, "secret report", "text/plain");

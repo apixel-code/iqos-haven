@@ -766,6 +766,27 @@ export type BootstrapEnv = z.infer<typeof bootstrapEnvSchema>;
 
 /** `pnpm launch:check` (step 124): the database to inspect, read-only. */
 export const launchCheckEnvSchema = baseEnvSchema.extend({ DATABASE_URL: postgresUrl });
+/**
+ * `pnpm ops:backup` and `pnpm ops:restore-drill` (step 126, ADR 0098): the migration role (it
+ * can read every table and the migration history), the backup folder, the separately held
+ * encryption key, the retention (BI-08: 30 days) and the Compose service that runs pg_dump.
+ */
+export const backupEnvSchema = baseEnvSchema
+  .extend({
+    DATABASE_MIGRATION_URL: postgresUrl,
+    BACKUP_DIR: z.string().min(1),
+    BACKUP_ENCRYPTION_KEY: z
+      .string()
+      .regex(/^[A-Za-z0-9_-]{43}$/, "must be 32 bytes, base64url (pnpm ops:backup-key)"),
+    BACKUP_RETENTION_DAYS: z.coerce.number().int().min(1).max(3650).default(30),
+    BACKUP_POSTGRES_SERVICE: z
+      .string()
+      .regex(/^[a-z0-9][a-z0-9_-]*$/, "must be a Compose service name")
+      .default("postgres"),
+    ...storageEnvFields,
+  })
+  .superRefine((value, ctx) => storageSafety(value, ctx));
+export type BackupEnv = z.infer<typeof backupEnvSchema>;
 /** `pnpm analytics:backfill` (step 107): the runtime database only. */
 export const analyticsBackfillEnvSchema = baseEnvSchema.extend({ DATABASE_URL: postgresUrl });
 

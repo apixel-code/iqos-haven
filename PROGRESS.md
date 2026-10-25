@@ -4,8 +4,8 @@
 
 - Date: 2026-10-25
 - Milestone: M11 — full acceptance and release, in progress. Gates M0, M2–M10 PASSED (M0, M3, M4, M6–M10 on 2026-10-17, Marina); M1 open until staging/CI.
-- Step: launch parity gaps (Marina 2026-10-17): G-S2 (#101), G-S3 (#102), G-S5 (#103), G-A5 (#104), G-A6 (#105), G-A7 (#106), G-A8 (#107), G-A9 (#108), all merged to `main` 2026-10-18; G-A11 (#109), all merged to `main` 2026-10-18 — every launch parity gap is built. Steps 124 (#110) and 125 (#111) merged. **Marina (2026-10-18): the UI must match the prototypes before launch** (ADR 0097; storefront V-S1…V-S6, then admin V-A*; all deferred gaps included). V-S1 (storefront shell, #112) merged; V-S1 (#112), V-S2 (#113) and V-S3 (#114) merged to `main` (f419aed, CI green). V-S4 (#115) and V-S5 (#116) merged to `main` (0e6b954). V-S6a (#117) and V-S6b (#118) merged to `main` (550b05d): the storefront parity programme is complete. Admin: V-A1 (#119), V-A2 (#120), V-A3a (#121), V-A3b (#122) merged (92baa53); V-A3c (#123, manual order wizard, order edit), V-A4a (#124, products list) and V-A4b (#125, product editor layout, form, publishing card) merged to `main` 2026-10-22 (45bcd6e, CI green). V-A4c (#127), V-A5 (#128), V-A6 (#129), V-A7 (#130), V-A8 (#131), V-A9 (#133), V-A10 (#134), V-A11 (#135) and V-A12 (#137) merged to `main` 2026-10-25 (a302ca2), together with the security upgrades Next.js 16.4.3 (#132) and the remaining audit fixes (#136; `pnpm audit`: no known vulnerabilities). V-A13 SEO (#139), V-A14 settings and delivery (#140) and V-A15 staff and roles (#141) merged to `main` 2026-10-25 (c342524): **the admin parity programme (ADR 0097) is complete**. Every storefront and admin screen now follows the prototypes. **Next: steps 126–127**, unless Marina reorders. Steps 115–119, 121 done; 120 local part done (real devices wait for staging).
-- Branch: `main` (c342524), clean; no open PRs. Branch the next step from `main`. Local machine: memory is tight; build with `turbo run build --concurrency=1` and restart Docker if it stops.
+- Step: launch parity gaps (Marina 2026-10-17): G-S2 (#101), G-S3 (#102), G-S5 (#103), G-A5 (#104), G-A6 (#105), G-A7 (#106), G-A8 (#107), G-A9 (#108), all merged to `main` 2026-10-18; G-A11 (#109), all merged to `main` 2026-10-18 — every launch parity gap is built. Steps 124 (#110) and 125 (#111) merged. **Marina (2026-10-18): the UI must match the prototypes before launch** (ADR 0097; storefront V-S1…V-S6, then admin V-A*; all deferred gaps included). V-S1 (storefront shell, #112) merged; V-S1 (#112), V-S2 (#113) and V-S3 (#114) merged to `main` (f419aed, CI green). V-S4 (#115) and V-S5 (#116) merged to `main` (0e6b954). V-S6a (#117) and V-S6b (#118) merged to `main` (550b05d): the storefront parity programme is complete. Admin: V-A1 (#119), V-A2 (#120), V-A3a (#121), V-A3b (#122) merged (92baa53); V-A3c (#123, manual order wizard, order edit), V-A4a (#124, products list) and V-A4b (#125, product editor layout, form, publishing card) merged to `main` 2026-10-22 (45bcd6e, CI green). V-A4c (#127), V-A5 (#128), V-A6 (#129), V-A7 (#130), V-A8 (#131), V-A9 (#133), V-A10 (#134), V-A11 (#135) and V-A12 (#137) merged to `main` 2026-10-25 (a302ca2), together with the security upgrades Next.js 16.4.3 (#132) and the remaining audit fixes (#136; `pnpm audit`: no known vulnerabilities). V-A13 SEO (#139), V-A14 settings and delivery (#140) and V-A15 staff and roles (#141) merged to `main` 2026-10-25 (c342524): **the admin parity programme (ADR 0097) is complete**. Every storefront and admin screen now follows the prototypes. **Step 126 (backup and measured restore drill, ADR 0098) done** on `step/126-backup-restore-drill` (PR open). **Next: step 127** (runbooks), unless Marina reorders. Steps 115–119, 121 done; 120 local part done (real devices wait for staging).
+- Branch: `step/126-backup-restore-drill` (PR to `main`). Branch step 127 from `main` once 126 is merged (or from this branch if Marina wants it stacked). Local machine: memory is tight; build with `turbo run build --concurrency=1` and restart Docker if it stops.
 - See docs/verification.md for actual checks.
 
 ## Next action
@@ -217,40 +217,45 @@ Before checkout is switched on: the sender domain verification (BI-07, Marina/Ap
 - 68 — `coupons` + `coupon_redemptions` (trigger-maintained use count, limit check, release once, no delete), eligibility rules, `previewCoupon`/`lockCouponForOrder`/`redeemCoupon`/`releaseCouponRedemption` (ADR 0038) — fdab292
 - 67 — `priceOrder` (integer fils, one half-up percentage discount per order, largest-remainder line shares), `readOrderPrices`/`lockOrderPrices` with brand → category → product share locks, `TransactionRestartError` (ADR 0037) — 7538c3f
 - 66 — shared checkout validators (contact, address by type, Makani, notes, merged and capped lines), UAE-mobile-only phone, `readDeliverableArea` (ADR 0035; BI-03 pending) — `step(66)` commit on `step/66-checkout-validation`
+- 126 — `pnpm ops:backup` (AES-256-GCM sets: snapshot pg_dump + media, PII-free manifest, 30-day retention) and `pnpm ops:restore-drill` (isolated `iqos_haven_drill_*` copy, manifest checks, RTO and backup age measured, no sends) (ADR 0098) — commit `step(126)` on `step/126-backup-restore-drill`
 
 ## Known deviations
 
 - Local MinIO uses Chainguard rebuilds (`cgr.dev/chainguard/minio`, `minio-client:latest-dev`) pinned by digest because official MinIO images are no longer publicly pullable. Still MinIO; production storage provider is decided under BI-06. No ADR needed unless the provider changes.
 - Event `consumers` lists only implemented consumers (now `system_probe`, `email`, `notification`, `media_processor`, `storefront_revalidate`); planned ones are documented with roadmap steps and move in with a backfill decision (architecture §8: adding a consumer must not redefine old completions).
+- RPO ≤5 min is not yet met: only daily encrypted dumps exist; WAL archiving/PITR comes with the VPS (step 122, ADR 0098).
 - `audit_log` migration revokes UPDATE/DELETE/TRUNCATE only from a role named `ih_app`; other runtime role names must be revoked at provisioning (trigger blocks mutations regardless).
 
-## Last session handoff (2026-10-19, visual parity V-A3c)
+## Last session handoff (2026-10-25, step 126 backup and restore drill)
 
 Done:
 
-- **Merged:** #119–#122 are in `main` (92baa53), so V-A3c starts from `main`.
-- **V-A3c, manual order and edit** (ADR 0097 V-A3c section):
-  - **Wizard:** `components/manual-order.tsx` is the prototype's four-step wizard. The fields live in state, the step is checked before going on, Review asks for the total, and the unsaved changes come through `useUnsavedChanges`. The quote, idempotency and request are unchanged.
-  - **Edit form:** `OrderEditPanel` in `order-management.tsx` uses the prototype's fields, with the same field names.
-  - **CSS:** `app/globals.css` gets the label fix; `app/prototype.css` the wizard and edit additions.
-  - **Browser QA:** `scripts/browser-qa/{order-picker,a11y-admin}.mjs` walk the wizard steps.
+- **Merged earlier today:** V-A13–V-A15 (#139–#141); the admin parity programme is complete.
+- **Step 126** (ADR 0098, runbook `docs/runbooks/backup-and-restore.md`):
+  - `pnpm ops:backup`: one encrypted set (REPEATABLE READ snapshot facts + `pg_dump --snapshot`, every media object, PII-free manifest), 30-day retention.
+  - `pnpm ops:restore-drill <set> [--keep]` / `--drop <db>`: checksums, then an isolated `iqos_haven_drill_*` restore, fact comparison, unfinished effects WARN (no replay), RTO and backup age measured.
+  - `pnpm ops:backup-key`.
+  - Storage `list()`, `backupFacts()` in `@ih/db`, `backupEnvSchema` in `@ih/config`.
 
-Files: `apps/admin/{app/{globals.css,prototype.css},components/{manual-order,order-management}.tsx}`, `scripts/browser-qa/{order-picker,a11y-admin}.mjs`, `docs/{decisions/0097-prototype-visual-parity.md,verification.md}`
+Files: `apps/api/src/cli/{backup,backup.main,backup-key.main,restore-drill.main,ops-process}.ts`, `apps/api/src/cli/backup.test.ts`, `apps/api/package.json`, `package.json`, `packages/db/src/{backup-facts,index}.ts`, `packages/platform/src/{backup/*,index.ts,storage/storage.ts,storage/storage.int.test.ts}`, `packages/config/src/index.ts`, `.env.example`, `.gitignore`, `CLAUDE.md`, `docs/{decisions/0098-backup-and-restore-drill.md,runbooks/backup-and-restore.md,verification.md}`
 
 Tests:
 
-- `pnpm verify` PASS (age preview 2250). `pnpm test:gate` PASS (2586).
-- Admin browser passes PASS on a fresh schema, apart from the known `qa.mjs` publish check and the `deep-links` low-stock line.
+- `pnpm verify` PASS. `pnpm test:int` PASS (platform 7, db 141, worker 92, api 429).
+- Drills PASS on the dev DB and on a seeded DB (5 orders, ledger stock, 2 pending effects), with RTO 1 s.
+- Tamper and wrong-key runs refused (exit 2).
+- `test:gate` not run (no age-boundary change).
 
 Unfinished:
 
-- **Merge:** Marina merges #123 (V-A3c) (or asks Claude to). The orders screens are then complete.
-- **Next, V-A4 products:** `VIEWS.products`, then the product editor and media (`VIEWS.product`, `peInit`, `peMedia`), in one or two PRs. Tables become card rows on a phone.
-- **Then:** inventory, catalogue (categories, brands), customers, reviews, discounts, analytics, reports, content, SEO, settings and staff.
-- **To look into:** the staff-invitation API 500 in the QA stack, the stale `qa.mjs` publish check, and the `deep-links` low-stock line. Docker Desktop keeps stopping during long runs.
-- **Client copy:** the gate's trade-licence line and "Genuine brand stock" wait for the client (BI-01).
+- **Merge:** Marina merges the step 126 PR (or asks Claude to).
+- **Next, step 127:** incident, queue recovery, rollback, email, upload and owner recovery runbooks, exercised.
+- **On the VPS (step 122):** daily schedule, off-VPS copies (approved destination), WAL archiving/PITR for RPO ≤5 min, and a rerun of the drill with real-sized data.
+- **To look into:** the stale `qa.mjs` publish check.
 
 ## History (summary)
+
+- 2026-10-19 V-A3c: manual order wizard and order edit like the prototype (PR #123, merged later).
 
 - 2026-10-19 V-A3b: admin order detail like the prototype (PR #122, merged with #119–#121).
 
