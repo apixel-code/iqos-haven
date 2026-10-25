@@ -161,7 +161,14 @@ try {
   await page.locator(`a[href="/workspace/inventory?variant=${low.id}"]`).click();
   await page.waitForURL(/variant=/);
   await page.getByText("Showing one stock line.").waitFor();
-  check("a low-stock line opens that one stock line", (await page.getByText(low.sku).count()) >= 1);
+  // Wait for the line itself: the notice appears before the list has loaded.
+  const lowLine = await page
+    .getByText(low.sku)
+    .first()
+    .waitFor({ timeout: 10000 })
+    .then(() => true)
+    .catch(() => false);
+  check("a low-stock line opens that one stock line", lowLine);
 
   // 3. Bell and inbox.
   await page.goto(BASE + "/");
