@@ -132,6 +132,13 @@ try {
     await page.locator(".kpis").waitFor();
     await page.waitForLoadState("networkidle");
     await scan(page, `customer detail ${tag}`);
+    // The coupon drawer (V-A9), checked open after its slide-in.
+    await page.goto(`${BASE}/workspace/discounts`);
+    await page.getByRole("button", { name: "New coupon" }).first().click();
+    await page.getByRole("dialog", { name: "New coupon" }).waitFor();
+    await page.waitForTimeout(400);
+    await scan(page, `new coupon ${tag}`);
+    await page.keyboard.press("Escape");
     // The brand drawer (V-A6), checked open after its slide-in.
     await page.goto(`${BASE}/workspace/brands`);
     await page.getByRole("button", { name: "New brand" }).click();

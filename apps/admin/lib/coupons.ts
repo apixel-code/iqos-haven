@@ -77,3 +77,67 @@ export function couponSentence(coupon: CouponResponse): string {
       : `${coupon.activeRedemptions} of ${coupon.usageLimit} used`;
   return `${bpsToPercent(coupon.percentBps)}% off products${minimum}. Delivery is not discounted. ${uses}.`;
 }
+
+/** The prototype's tabs (V-A9): Active is live; Inactive is off or not started; Expired is over. */
+export type CouponGroup = "active" | "inactive" | "expired";
+export function couponGroup(status: CouponResponse["status"]): CouponGroup | null {
+  if (status === "live") return "active";
+  if (status === "inactive" || status === "scheduled") return "inactive";
+  if (status === "expired" || status === "used_up") return "expired";
+  return null;
+}
+/** The list's switch: the coupon's own terms, exactly as saved, with only `active` changed. */
+export function couponActiveCommand(coupon: CouponResponse, active: boolean) {
+  return validate(couponUpdateRequestSchema, {
+    version: coupon.version,
+    percentBps: coupon.percentBps,
+    minSubtotalFils: coupon.minSubtotalFils,
+    startsAt: coupon.startsAt,
+    expiresAt: coupon.expiresAt,
+    active,
+    usageLimit: coupon.usageLimit,
+  });
+}
+/** Letters and digits that cannot be mistaken for each other (no O/0, I/1/L). */
+const CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+/** The prototype's "Generate": an 8-character code from the browser's secure random source. */
+export function generateCouponCode(random: (size: number) => Uint8Array = randomBytes): string {
+  return Array.from(random(8), (byte) => CODE_ALPHABET[byte % CODE_ALPHABET.length]).join("");
+}
+function randomBytes(size: number) {
+  return crypto.getRandomValues(new Uint8Array(size));
+}
+/**
+ * The drawer's live sentence (prototype `cpSentence`) from what is typed so far; null while the
+ * percentage is not valid yet. The end is passed already formatted for the reader.
+ */
+export function couponPreview(input: {
+  code: string;
+  percent: string;
+  minimum: string;
+  ends: string | null;
+}): string | null {
+  let bps: number;
+  try {
+    bps = percentToBps(input.percent);
+  } catch {
+    return null;
+  }
+  let minimumFils = 0;
+  try {
+    minimumFils = input.minimum.trim() ? aedToFils(input.minimum) : 0;
+  } catch {
+    return null;
+  }
+  const code = input.code.trim().toUpperCase() || "CODE";
+  const scope =
+    minimumFils > 0 ? `orders of AED ${filsToAed(minimumFils)} or more of products` : "any order";
+  const until = input.ends ? ` until ${input.ends}` : "";
+  const saving =
+    minimumFils > 0
+      ? ` On an AED ${filsToAed(minimumFils)} order the customer saves AED ${filsToAed(
+          Math.floor((minimumFils * bps + 5_000) / 10_000),
+        )} on products.`
+      : "";
+  return `${code} gives ${bpsToPercent(bps)}% off ${scope}${until}. Delivery is not discounted.${saving}`;
+}

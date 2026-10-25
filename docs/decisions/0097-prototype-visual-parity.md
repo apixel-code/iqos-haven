@@ -454,6 +454,26 @@ The orders screens come in three PRs: V-A3a (the list), V-A3b (the order detail 
   - The toast's Undo. A decision cannot be undone back to Pending; the opposite decision is the way back.
   - Product thumbnails next to the product name. The review API has none.
 
+## V-A9 (admin discounts), 2026-10-25
+
+- **List:** the prototype's `VIEWS.discounts`:
+  - The page head with New coupon.
+  - Tabs All, Active, Inactive, Expired with counts, plus Trash. The status tabs filter one page of up to 100 coupons (`couponGroup`, unit-tested). Active is `live`; Inactive is `inactive` or `scheduled`; Expired is `expired` or `used_up`.
+  - A `tbl` with the code chip, percentage, minimum order, and validity (starts, until, "N days left" from 14 days, ended).
+  - Uses against the limit, and the status tag with its icon.
+  - The active switch (not on expired), Edit, and Move to Trash. Trash rows have Restore as inactive.
+  - On a phone, `mrow` rows. The empty state with New coupon, and the help line.
+- **The switch:** it sends the coupon's own saved terms with only `active` changed (`couponActiveCommand`, unit-tested). Nothing is round-tripped through the form, so the dates keep their seconds.
+- **Drawer:** the prototype's `cpBody`:
+  - The code, with "Generate": eight characters from `crypto.getRandomValues`, without look-alike letters.
+  - The percentage and the minimum in affixes, start and end, and the usage limit.
+  - The prototype's live sentence (`couponPreview`, unit-tested), with the saving rounded half-up in fils.
+  - New: Save inactive or Create & activate (the pressed button sets `active`). Edit: Save changes, which keeps the on/off state.
+- **Not carried over:**
+  - The internal discount name. Coupons have only a code.
+  - Delete. Trash keeps a coupon restorable.
+  - A date-only expiry fixed at 11:59 pm Dubai. Start and end stay date-time fields in the device's time zone, as before.
+
 ## Consequences
 
 - The look comes from the approved source instead of being re-imagined in utilities, so later screens are mostly markup work.
