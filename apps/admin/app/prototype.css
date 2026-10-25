@@ -4878,4 +4878,43 @@
   .plain-fs > legend.label {
     margin-bottom: 8px;
   }
+
+  /* ---------- Additions: settings and delivery (V-A14) ---------- */
+  .set-test {
+    margin-top: 12px;
+  }
+  .set-line {
+    flex-wrap: nowrap;
+    gap: 16px;
+    align-items: flex-start;
+  }
+  .set-pay {
+    padding: 16px 18px;
+  }
+  .set-pay.is-later {
+    opacity: 0.75;
+  }
+  .dlg-ic.tone-ok {
+    background: var(--ok-soft);
+    color: var(--ok);
+  }
+  .del-tools {
+    padding-bottom: 12px;
+  }
+  .del-tools .toolbar {
+    margin: 0;
+  }
+  .del-list {
+    max-height: 480px;
+    overflow: auto;
+    border-top: 1px solid var(--line);
+  }
+  .del-row .li-b small {
+    display: block;
+    color: var(--ink-3);
+    font-size: 12px;
+  }
+  .card > form {
+    display: contents;
+  }
 }

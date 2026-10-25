@@ -553,6 +553,27 @@ The orders screens come in three PRs: V-A3a (the list), V-A3b (the order detail 
   - The prototype's in-place SEO drawer and its page list for Home and Shop. Our SEO fields belong to each product, brand and category (ADR 0079), and the fixed pages have no editable SEO.
   - "Store indexing On" and the custom share image. Indexing is policy-only, and product indexing is never a switch (BI-05).
 
+## V-A14 (admin settings and delivery), 2026-10-25
+
+- **Settings:** the prototype's `VIEWS.settings`:
+  - A page head, and tabs: General, Contact & WhatsApp, Delivery, Payments, Notifications.
+  - Each setting group is a card: title, help and a Configured/Not configured tag in the head; the fields; Clear configuration and Save in the foot. A toast confirms each save.
+  - General adds the sign-in & security card: email and password active, two-step verification not at launch.
+  - Contact & WhatsApp shows the WhatsApp group first, with a "Test the WhatsApp number" `wa.me` link once a number is saved.
+  - Payments shows Cash on Delivery as the only active method; online cards are not at launch.
+  - Delivery is the same delivery screen as its own page.
+- **Delivery:**
+  - The charge card (fee and promise, Clear and Save in the foot).
+  - The areas card: active count, search, the All/Active/Inactive `seg`, a `list` with each area's code, emirate and charge, an active switch and Edit, and an empty state.
+  - Add area and Edit area open a drawer. The emirate and code are set only when adding.
+  - The switch sends the same update with only `active` changed. Its toast reads the state chosen, not the state redrawn after saving.
+- **Fields:** the shared `Fields` component (settings, delivery, staff) now renders the prototype's `fgrid`/`field`/`label` markup, with checkboxes as `switch`es. The field names and commands are unchanged.
+- **Not carried over:**
+  - The currency, time zone and order-prefix fields (fixed in code), and the default low-stock alert (per option).
+  - The free-delivery switch (BI-03: one flat fee, free delivery off).
+  - The new-order email preview. Email layouts live in the worker.
+  - The prototype's one savebar for all groups. Each group keeps its own version and Save.
+
 ## Consequences
 
 - The look comes from the approved source instead of being re-imagined in utilities, so later screens are mostly markup work.

@@ -431,6 +431,14 @@ QA_PLAYWRIGHT_DIR=/tmp/ih-qa node scripts/browser-qa/discounts.mjs <SCHEMA>
 
 Creates a coupon in the drawer, after checking Generate and the live preview. Then it switches the coupon off from the list, edits it, moves it to Trash and restores it. Each step is checked in the database. A 390px screen must have no sideways scroll.
 
+## Settings and delivery (V-A14)
+
+```sh
+QA_PLAYWRIGHT_DIR=/tmp/ih-qa node scripts/browser-qa/settings.mjs <SCHEMA>
+```
+
+Saves the store and WhatsApp settings, and checks the WhatsApp test link and the Payments tab. Then it adds a delivery area in the drawer, switches it off and renames it. Every save is checked in the database. Settings and Delivery must fit a 390px screen.
+
 ## Running several storefront passes in a row
 
 Every pass browses from 127.0.0.1, and the API's catalogue read budget is per IP (240 reads a minute, `STORE_CATALOG_POLICY`). Run back to back, the later passes can hit it: the page then shows "We couldn't load this page". Leave a minute between heavy passes, or run each on its own served stack.
