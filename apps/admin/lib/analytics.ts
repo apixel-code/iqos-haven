@@ -39,3 +39,12 @@ export function rangeDays(from: string, to: string): string[] {
     days.push(new Date(t).toISOString().slice(0, 10));
   return days;
 }
+
+/**
+ * The prototype's delta (`deltaHtml`) in basis points of the earlier figure, integer math;
+ * null when there is nothing to compare with (no earlier figure, or it was zero).
+ */
+export function changeBps(now: number | null, before: number | null): number | null {
+  if (now === null || before === null || before === 0) return null;
+  return Math.round(((now - before) * 10_000) / before);
+}

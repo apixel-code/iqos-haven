@@ -645,18 +645,20 @@ ul.dashboard-list {
 }
 .column-chart svg {
   width: 100%;
-  height: auto;
+  /* V-A10: a steady chart height at every width instead of the viewBox's ratio. */
+  height: clamp(140px, 22vw, 260px);
   overflow: visible;
 }
 .chart-axis {
   stroke: var(--line);
   stroke-width: 1;
 }
+/* Single-series columns in the prototype's chart colour (V-A10). */
 .chart-bar {
-  fill: var(--accent);
+  fill: var(--chart);
 }
 .chart-bar.is-active {
-  fill: var(--accent-ink);
+  fill: var(--ink);
 }
 .column-chart g:focus {
   outline: none;

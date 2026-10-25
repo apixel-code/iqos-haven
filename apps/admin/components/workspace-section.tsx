@@ -29,6 +29,7 @@ const OWN_HEAD = new Set([
   "customers",
   "reviews",
   "discounts",
+  "analytics",
 ]);
 
 export function WorkspaceSection({ sectionKey }: { sectionKey: string }) {
