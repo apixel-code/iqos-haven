@@ -438,6 +438,22 @@ The orders screens come in three PRs: V-A3a (the list), V-A3b (the order detail 
   - Export CSV. Reports has the customers report, behind `customers.export`.
   - Favourite products and the item list per order. The customer API returns neither.
 
+## V-A8 (admin reviews), 2026-10-25
+
+- **Layout:** the prototype's `VIEWS.reviews`:
+  - A page head with the published average and count.
+  - Status tabs with counts. The API returns them; All is their sum.
+  - Product and rating `fsel` filters.
+  - Review cards (`rv`): the star icons, the title, and a status tag with its icon (Pending, Approved · visible, Rejected · hidden).
+  - Under each card: the body, the product link, the author, the time, and "Verified order" with the order link.
+  - Approve, and Reject or Hide (reject), as prototype buttons. A toast confirms each decision.
+  - Empty states, and the cursor pager.
+- **Approve all:** shown on the Pending tab when more than one review is listed. After a confirmation, it approves each listed review in turn on the version shown, stops at the first refusal, and reports how many were approved. No new API.
+- **Not carried over:**
+  - Delete. Reviews are kept as records (ADR 0063).
+  - The toast's Undo. A decision cannot be undone back to Pending; the opposite decision is the way back.
+  - Product thumbnails next to the product name. The review API has none.
+
 ## Consequences
 
 - The look comes from the approved source instead of being re-imagined in utilities, so later screens are mostly markup work.
