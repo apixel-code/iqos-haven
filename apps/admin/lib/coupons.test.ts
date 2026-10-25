@@ -2,8 +2,12 @@ import { describe, expect, it } from "vitest";
 import type { CouponResponse } from "@ih/contracts";
 import {
   bpsToPercent,
+  couponActiveCommand,
   couponCreateCommand,
+  couponGroup,
+  couponPreview,
   couponSentence,
+  generateCouponCode,
   couponStatusLabel,
   couponUpdateCommand,
   isoToLocal,
@@ -85,5 +89,52 @@ describe("coupon form values", () => {
       "12.5% off products on any order. Delivery is not discounted. 3 used, no limit.",
     );
     expect(couponStatusLabel("used_up")).toBe("Used up");
+  });
+});
+
+describe("discounts screen (V-A9)", () => {
+  const coupon = {
+    version: 3,
+    percentBps: 1250,
+    minSubtotalFils: 10000,
+    startsAt: null,
+    expiresAt: "2026-11-30T19:59:59.000Z",
+    active: true,
+    usageLimit: 50,
+  } as CouponResponse;
+  it("groups statuses into the prototype's tabs", () => {
+    expect(couponGroup("live")).toBe("active");
+    expect(couponGroup("scheduled")).toBe("inactive");
+    expect(couponGroup("inactive")).toBe("inactive");
+    expect(couponGroup("used_up")).toBe("expired");
+    expect(couponGroup("expired")).toBe("expired");
+    expect(couponGroup("trashed")).toBeNull();
+  });
+  it("switches a coupon off without touching its terms", () => {
+    expect(couponActiveCommand(coupon, false)).toEqual({
+      version: 3,
+      percentBps: 1250,
+      minSubtotalFils: 10000,
+      startsAt: null,
+      expiresAt: "2026-11-30T19:59:59.000Z",
+      active: false,
+      usageLimit: 50,
+    });
+  });
+  it("generates unambiguous 8-character codes", () => {
+    const code = generateCouponCode(() => new Uint8Array([0, 1, 2, 30, 31, 62, 200, 255]));
+    expect(code).toMatch(/^[A-HJKMNP-Z2-9]{8}$/);
+    expect(generateCouponCode()).toMatch(/^[A-HJKMNP-Z2-9]{8}$/);
+  });
+  it("previews the coupon as it is typed, with the saving rounded half-up in fils", () => {
+    expect(
+      couponPreview({ code: "weekend12", percent: "12.5", minimum: "99.99", ends: "30 Nov 2026" }),
+    ).toBe(
+      "WEEKEND12 gives 12.5% off orders of AED 99.99 or more of products until 30 Nov 2026. Delivery is not discounted. On an AED 99.99 order the customer saves AED 12.50 on products.",
+    );
+    expect(couponPreview({ code: "", percent: "10", minimum: "", ends: null })).toBe(
+      "CODE gives 10% off any order. Delivery is not discounted.",
+    );
+    expect(couponPreview({ code: "X", percent: "", minimum: "", ends: null })).toBeNull();
   });
 });

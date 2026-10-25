@@ -4650,4 +4650,24 @@
     width: 12px;
     height: 12px;
   }
+
+  /* ---------- Additions: discounts (V-A9) ---------- */
+  .warn-t {
+    color: var(--warn);
+    font-weight: 600;
+  }
+  .fgrid.c2.even {
+    grid-template-columns: 1fr 1fr;
+  }
+  .coupon-input {
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  .coupon-head {
+    gap: 8px;
+  }
+  .coupon-row .tag .i {
+    width: 12px;
+    height: 12px;
+  }
 }
