@@ -2584,3 +2584,14 @@ ADR 0001 (dated note). Marina approved. `next` and `eslint-config-next` in admin
 | Build   | `turbo run build --concurrency=1`: 12/12, no security stop. (A parallel build was killed for memory on this machine.)                                                                           |
 | Suites  | `pnpm verify` PASS (age preview 2250). `pnpm test:gate` PASS (2586).                                                                                                                            |
 | Browser | On a fresh schema: `qa.mjs` 30/31 (known stale publish check), `a11y-admin` PASS, `deep-links` PASS.                                                                                            |
+
+## Remaining `pnpm audit` findings fixed (2026-10-25, local)
+
+ADR 0001 (dated note). Marina approved. Stacked on the Next.js 16.4.3 upgrade; no code change.
+
+| Item    | Evidence                                                                                                                                                                                                                                                                |
+| ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Audit   | `pnpm audit` (all dependencies, dev included): "No known vulnerabilities found". Before: 10 high, 11 moderate, 5 low besides Next.js.                                                                                                                                   |
+| Build   | `turbo run build --concurrency=1` 12/12; `pnpm db:generate` with Prisma 7.10.1.                                                                                                                                                                                         |
+| Suites  | `pnpm verify` PASS (age preview 2250); `pnpm test:int` PASS (api 54, worker 19, db 18, platform 1 files); `pnpm test:gate` PASS (2586) — on the dependency changes, and again stacked on Next.js 16.4.3: build 12/12, `pnpm verify` PASS, `pnpm test:gate` PASS (2586). |
+| Browser | On a fresh schema: `qa.mjs` 30/31 (known stale publish check), `reports` PASS.                                                                                                                                                                                          |
