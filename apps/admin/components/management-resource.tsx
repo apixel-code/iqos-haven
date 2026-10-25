@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useId, useEffect, useRef, useState } from "react";
 import { ApiError } from "../lib/auth";
 import {
   FormValidationError,
@@ -171,7 +171,9 @@ export type Field = {
   /** Shown but not editable (the server would refuse the change). */
   readOnly?: boolean;
 };
+/** Typed fields in the prototype's markup (`fgrid`/`field`, V-A14); names are the form's keys. */
 export function Fields({ fields, value }: { fields: readonly Field[]; value: unknown }) {
+  const prefix = useId();
   function current(path: string): unknown {
     let result: unknown = value;
     for (const part of path.split("."))
@@ -182,40 +184,64 @@ export function Fields({ fields, value }: { fields: readonly Field[]; value: unk
     return result;
   }
   return (
-    <div className="form-grid">
-      {fields.map((field) => (
-        <label key={field.name} className={field.kind === "textarea" ? "wide-field" : undefined}>
-          <span>
-            {field.label}
-            {field.required ? " *" : ""}
-          </span>
-          {field.kind === "checkbox" ? (
-            <input
-              type="checkbox"
-              name={field.name}
-              defaultChecked={current(field.name) === true}
-            />
-          ) : field.kind === "textarea" ? (
-            <textarea
-              name={field.name}
-              maxLength={field.max ?? 500}
-              required={field.required}
-              defaultValue={String(current(field.name) ?? "")}
-              rows={3}
-            />
-          ) : (
-            <input
-              name={field.name}
-              type={field.kind ?? "text"}
-              maxLength={field.max ?? 500}
-              required={field.required}
-              readOnly={field.readOnly}
-              defaultValue={String(current(field.name) ?? "")}
-            />
-          )}{" "}
-          {field.help && <small className="muted">{field.help}</small>}
-        </label>
-      ))}
+    <div className="fgrid c2">
+      {fields.map((field) => {
+        const id = `${prefix}-${field.name}`;
+        if (field.kind === "checkbox")
+          return (
+            <div key={field.name} className="field span2">
+              <label className="switch">
+                <input
+                  type="checkbox"
+                  name={field.name}
+                  defaultChecked={current(field.name) === true}
+                />
+                {field.label}
+              </label>
+              {field.help && <p className="help">{field.help}</p>}
+            </div>
+          );
+        return (
+          <div key={field.name} className={field.kind === "textarea" ? "field span2" : "field"}>
+            <label className="label" htmlFor={id}>
+              <span>
+                {field.label}
+                {field.required && (
+                  <>
+                    {" "}
+                    <span className="req" aria-hidden="true">
+                      *
+                    </span>
+                  </>
+                )}
+              </span>
+            </label>
+            {field.kind === "textarea" ? (
+              <textarea
+                id={id}
+                className="textarea"
+                name={field.name}
+                maxLength={field.max ?? 500}
+                required={field.required}
+                defaultValue={String(current(field.name) ?? "")}
+                rows={3}
+              />
+            ) : (
+              <input
+                id={id}
+                className="input"
+                name={field.name}
+                type={field.kind ?? "text"}
+                maxLength={field.max ?? 500}
+                required={field.required}
+                readOnly={field.readOnly}
+                defaultValue={String(current(field.name) ?? "")}
+              />
+            )}
+            {field.help && <p className="help">{field.help}</p>}
+          </div>
+        );
+      })}
     </div>
   );
 }
