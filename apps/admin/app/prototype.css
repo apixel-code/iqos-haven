@@ -4635,4 +4635,19 @@
   .cust-more {
     padding: 0 18px 14px;
   }
+
+  /* ---------- Additions: reviews (V-A8) ---------- */
+  .toolbar .toolbar-end {
+    margin-left: auto;
+  }
+  .rv-meta {
+    gap: 6px 10px;
+  }
+  .rv-verified {
+    gap: 4px;
+  }
+  .rv-h .tag .i {
+    width: 12px;
+    height: 12px;
+  }
 }
