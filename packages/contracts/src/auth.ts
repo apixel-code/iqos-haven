@@ -1,5 +1,8 @@
 import { z } from "zod";
 
+/** The launch roles and their grants, so the admin's access summary shows the real model. */
+export { PERMISSIONS, ROLE_PERMISSIONS, type PermissionKey, type RoleKey } from "@ih/domain";
+
 /** POST /v1/auth/login. Bounds are generous for input but strict for abuse. */
 export const loginRequestSchema = z.strictObject({
   email: z.string().min(1).max(320),

@@ -63,6 +63,12 @@ async function main() {
   const env = config.apiEnvSchema.parse({
     ...process.env,
     INTERNAL_SERVICE_KEYS: `${workerKey.service}:${workerKey.keyId}:${workerKey.secret}`,
+    // Fresh invitation and reset keys per run, so the Staff screen can invite and send resets
+    // (the API answers 503 without them, as it should on an unconfigured server).
+    STAFF_INVITATION_KEYS: `invite:qa:${randomBytes(32).toString("base64url")}`,
+    STAFF_INVITATION_ORIGIN: "http://localhost:8081",
+    PASSWORD_RESET_KEYS: `reset:qa:${randomBytes(32).toString("base64url")}`,
+    PASSWORD_RESET_ORIGIN: "http://localhost:8081",
     NODE_ENV: "development",
     APP_ENV: "development",
     LOG_LEVEL: "warn",
