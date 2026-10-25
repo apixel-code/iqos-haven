@@ -4738,4 +4738,116 @@
   .mlist-wrap {
     border-top: 1px solid var(--line);
   }
+
+  /* ---------- Additions: storefront content (V-A12) ---------- */
+  .ct-ed
+    :is(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]), select, textarea) {
+    width: 100%;
+    min-height: 40px;
+    padding: 8px 12px;
+    border: 1px solid var(--line-2);
+    border-radius: var(--r-sm);
+    background: var(--surface);
+    font: inherit;
+    font-size: 14px;
+  }
+  .ct-ed textarea {
+    min-height: 72px;
+    resize: vertical;
+  }
+  .ct-ed :is(input, select, textarea):focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 1px;
+  }
+  .ct-group {
+    border: 0;
+    margin: 0;
+    padding: 14px;
+    border-radius: var(--r-md);
+    background: var(--surface-2);
+    min-width: 0;
+  }
+  .ct-group > legend {
+    float: left;
+    width: 100%;
+    font-weight: 600;
+    font-size: 14px;
+    margin-bottom: 4px;
+  }
+  .ct-group .ct-group {
+    background: var(--surface);
+  }
+  .ct-rows {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    gap: 8px;
+  }
+  .ct-row b {
+    flex: 1;
+    min-width: 0;
+    font-weight: 500;
+  }
+  .ct-n {
+    width: 20px;
+    color: var(--ink-3);
+    font-variant-numeric: tabular-nums;
+  }
+  .ct-add {
+    justify-content: space-between;
+  }
+  .ct-picks {
+    gap: 8px;
+  }
+  .ct-ed .btn {
+    align-self: flex-start;
+  }
+  .ct-dot {
+    background: var(--accent);
+    margin-left: 6px;
+  }
+  .ct-status .i {
+    width: 12px;
+    height: 12px;
+  }
+  @media (min-width: 1100px) {
+    .ct-preview {
+      position: sticky;
+      top: 12px;
+    }
+  }
+  .ct-browser + .ct-browser {
+    margin-top: 10px;
+  }
+  .ct-hero {
+    border-radius: 0;
+    padding: 22px 18px;
+    min-height: 150px;
+    justify-content: center;
+  }
+  .ct-hero strong {
+    font-size: 20px;
+    line-height: 1.15;
+  }
+  .ct-tick-text {
+    margin-top: 8px;
+  }
+  .ct-mini {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .ct-mini .li {
+    padding: 8px 0;
+  }
+  .ct-problems ul {
+    margin: 4px 0 0;
+    padding-left: 18px;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .tick-t {
+      animation: none;
+      padding-left: 12px;
+    }
+  }
 }

@@ -28,7 +28,9 @@ import {
 } from "../lib/content";
 import { rejectionMessage, uploadForm, uploadRequestFor } from "../lib/media";
 import { money } from "../lib/orders";
+import { Icon } from "./icons";
 import { ResourceNotice, useManagementResource } from "./management-resource";
+import { PageHead } from "./page-head";
 import { useUnsavedChanges } from "./unsaved-guard";
 
 type Doc = Record<string, unknown>;
@@ -123,18 +125,29 @@ export function ContentManagement() {
     }
   }
 
+  const info = CONTENT_TABS.find((item) => item.key === tab)!;
+  const status = !section
+    ? null
+    : dirty
+      ? { label: "Unsaved", tone: "low" }
+      : !section.publishedAt
+        ? { label: section.version ? "Draft, never published" : "Not set up", tone: "" }
+        : section.unpublishedChanges
+          ? { label: "Draft differs from live", tone: "info" }
+          : { label: "Live", tone: "ok" };
   return (
-    <section className="management-card">
-      <header className="card-heading">
-        <div>
-          <h2>Storefront content</h2>
-          <p className="muted">
-            Edit the home page sections. Save a draft, check the preview, then publish: the store
-            changes only when you publish.
-          </p>
-        </div>
-      </header>
-      <div className="tab-list" role="tablist" aria-label="Section">
+    <>
+      <PageHead
+        title="Storefront content"
+        sub="Edit the home page sections. Save a draft, check the preview, then publish: the store changes only when you publish."
+        actions={
+          <a className="btn btn-s" href="/" target="_blank" rel="noopener">
+            <Icon name="ext" />
+            View store
+          </a>
+        }
+      />
+      <div className="tabs ct-tabs" role="tablist" aria-label="Section">
         {CONTENT_TABS.map((item) => {
           const state = content.data?.sections.find((row) => row.key === item.key);
           const changed =
@@ -145,7 +158,7 @@ export function ContentManagement() {
               key={item.key}
               type="button"
               role="tab"
-              className="secondary-button"
+              className="tab"
               aria-selected={tab === item.key}
               onClick={() => {
                 setTab(item.key);
@@ -153,46 +166,52 @@ export function ContentManagement() {
               }}
             >
               {item.label}
-              {changed && <small aria-label="unsaved"> •</small>}
+              {changed && <span className="dotc ct-dot" aria-label="unsaved" />}
             </button>
           );
         })}
       </div>
-      <ResourceNotice resource={content} />
-      {section && (
-        <div className="order-detail-grid">
-          <article className="record-card">
-            <header className="card-heading">
+      <ResourceNotice resource={content} compact />
+      {section && status && (
+        <div className="split wide">
+          <section className="card" aria-labelledby="ct-title">
+            <div className="card-h">
               <div>
-                <h3>{CONTENT_TABS.find((item) => item.key === tab)!.label}</h3>
-                <p className="muted small">{CONTENT_TABS.find((item) => item.key === tab)!.help}</p>
+                <h2 id="ct-title">{info.label}</h2>
+                <p className="sub">{info.help}</p>
               </div>
-              <span
-                className={`order-status ${dirty ? "status-pending" : section.publishedAt && !section.unpublishedChanges ? "status-delivered" : "status-confirmed"}`}
-              >
-                {dirty
-                  ? "Unsaved"
-                  : !section.publishedAt
-                    ? section.version
-                      ? "Draft, never published"
-                      : "Not set up"
-                    : section.unpublishedChanges
-                      ? "Draft differs from live"
-                      : "Live"}
+              <span className={`tag ct-status ${status.tone}`}>
+                {status.tone === "ok" && <Icon name="check" size="sm" />}
+                {status.label}
               </span>
-            </header>
-            <SectionEditor
-              sectionKey={tab}
-              value={draft}
-              onChange={setDraft}
-              names={names}
-              remember={remember}
-            />
-            <div className="form-actions">
+            </div>
+            <div className="card-b form ct-ed">
+              <SectionEditor
+                sectionKey={tab}
+                value={draft}
+                onChange={setDraft}
+                names={names}
+                remember={remember}
+              />
+              {problems.length > 0 && (
+                <div role="alert" className="note err ct-problems">
+                  <Icon name="alert" />
+                  <div>
+                    <b>Not published:</b>
+                    <ul>
+                      {problems.map((line) => (
+                        <li key={line}>{line}</li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="card-f">
               {dirty && (
                 <button
                   type="button"
-                  className="secondary-button"
+                  className="btn btn-s"
                   disabled={content.disabled}
                   onClick={() => setDrafts((current) => ({ ...current, [tab]: undefined }))}
                 >
@@ -201,7 +220,7 @@ export function ContentManagement() {
               )}
               <button
                 type="button"
-                className="secondary-button"
+                className="btn btn-s"
                 disabled={!dirty || content.disabled}
                 onClick={() => void save()}
               >
@@ -209,44 +228,39 @@ export function ContentManagement() {
               </button>
               <button
                 type="button"
-                className="primary-button"
+                className="btn btn-p"
                 disabled={
                   dirty || !section.unpublishedChanges || section.version === 0 || content.disabled
                 }
                 onClick={() => void publish()}
               >
+                <Icon name="globe" />
                 Publish
               </button>
             </div>
-            {problems.length > 0 && (
-              <div role="alert" className="notice">
-                <strong>Not published:</strong>
-                <ul>
-                  {problems.map((line) => (
-                    <li key={line}>{line}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
-          </article>
-          <aside className="record-card">
-            <h3>Preview of the saved draft</h3>
-            <p className="muted small">Approximate, not to scale. Unsaved changes are not shown.</p>
-            {section.version === 0 ? (
-              <p className="muted">Save a draft to see it here.</p>
-            ) : (
-              <PreviewPanel
-                key={`${tab}:${section.version}`}
-                sectionKey={tab}
-                doc={saved}
-                names={names}
-                remember={remember}
-              />
-            )}
-          </aside>
+          </section>
+          <section className="card ct-preview" aria-labelledby="ct-preview">
+            <div className="card-h">
+              <h2 id="ct-preview">Preview</h2>
+              <span className="sub">Saved draft · approximate, not to scale</span>
+            </div>
+            <div className="card-b">
+              {section.version === 0 ? (
+                <p className="small muted">Save a draft to see it here.</p>
+              ) : (
+                <PreviewPanel
+                  key={`${tab}:${section.version}`}
+                  sectionKey={tab}
+                  doc={saved}
+                  names={names}
+                  remember={remember}
+                />
+              )}
+            </div>
+          </section>
         </div>
       )}
-    </section>
+    </>
   );
 }
 
@@ -279,7 +293,7 @@ function PreviewPanel({
   }, [data]);
   return (
     <>
-      <ResourceNotice resource={preview} />
+      <ResourceNotice resource={preview} compact />
       {data && <Preview sectionKey={sectionKey} doc={doc} preview={data} names={names} />}
     </>
   );
@@ -300,7 +314,7 @@ function Preview({
     <div className="preview-block">
       {!enabled && <p className="muted">Hidden on the store.</p>}
       {preview.problems.length > 0 && (
-        <div className="notice">
+        <div className="note warn">
           <strong>Can&apos;t be published yet:</strong>
           <ul>
             {problemLines(preview.problems, names).map((line) => (
@@ -310,7 +324,17 @@ function Preview({
         </div>
       )}
       {sectionKey === "ticker" && (
-        <p className="mono small">{(doc.messages as string[]).join("  ·  ")}</p>
+        <>
+          {/* The prototype's ticker strip; the joined line is also there for screen readers. */}
+          <div className={enabled ? "tick" : "tick off"} aria-hidden="true">
+            <div className="tick-t">
+              {(doc.messages as string[]).map((message, index) => (
+                <span key={index}>{message}</span>
+              ))}
+            </div>
+          </div>
+          <p className="help ct-tick-text">{(doc.messages as string[]).join("  ·  ")}</p>
+        </>
       )}
       {sectionKey === "hero" &&
         (doc.slides as Doc[]).map((slide, index) => {
@@ -318,22 +342,29 @@ function Preview({
             (item) => item.id === (slide.image as { assetId?: string } | null)?.assetId,
           );
           return (
-            <div key={index} className="preview-hero">
-              {/* Signed link to a sanitized derivative; next/image must not fetch private links. */}
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              {slideImage?.url && <img src={slideImage.url} alt="" />}
-              <p className="eyebrow">
-                Slide {index + 1} · {String(slide.style)}
-                {typeof slide.eyebrow === "string" ? ` · ${slide.eyebrow}` : ""}
-              </p>
-              <strong>{String(slide.title)}</strong>
-              {typeof slide.subtitle === "string" && <p>{slide.subtitle}</p>}
-              {slide.cta !== null && (
-                <span className="badge">{(slide.cta as { label: string }).label}</span>
-              )}
-              {slide.secondaryCta !== null && (
-                <span className="badge">{(slide.secondaryCta as { label: string }).label}</span>
-              )}
+            <div key={index} className="browser ct-browser">
+              <div className="browser-b" aria-hidden="true">
+                <i />
+                <i />
+                <i />
+              </div>
+              <div className={`preview-hero ct-hero ct-hero-${String(slide.style)}`}>
+                {/* Signed link to a sanitized derivative; next/image must not fetch private links. */}
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                {slideImage?.url && <img src={slideImage.url} alt="" />}
+                <p className="eyebrow">
+                  Slide {index + 1} · {String(slide.style)}
+                  {typeof slide.eyebrow === "string" ? ` · ${slide.eyebrow}` : ""}
+                </p>
+                <strong>{String(slide.title)}</strong>
+                {typeof slide.subtitle === "string" && <p>{slide.subtitle}</p>}
+                {slide.cta !== null && (
+                  <span className="badge">{(slide.cta as { label: string }).label}</span>
+                )}
+                {slide.secondaryCta !== null && (
+                  <span className="badge">{(slide.secondaryCta as { label: string }).label}</span>
+                )}
+              </div>
             </div>
           );
         })}
@@ -346,15 +377,22 @@ function Preview({
           </p>
         ))}
       {preview.products.length > 0 && (
-        <ul className="record-list">
+        <ul className="list ct-mini">
           {preview.products.map((product) => (
-            <li key={product.id} className={product.visible ? undefined : "muted"}>
-              {product.name}
-              <small>
-                {product.priceFromFils !== null ? ` · from ${money(product.priceFromFils)}` : ""}
-                {product.soldOut ? " · Out of stock" : ""}
-                {product.visible ? "" : " · not visible"}
-              </small>
+            <li key={product.id} className={product.visible ? "li" : "li muted"}>
+              <span className="li-b">
+                <b>{product.name}</b>
+                <small>
+                  {product.soldOut ? (
+                    <span className="warn-t">Out of stock</span>
+                  ) : product.priceFromFils !== null ? (
+                    `from ${money(product.priceFromFils)}`
+                  ) : (
+                    ""
+                  )}
+                  {product.visible ? "" : " · not visible"}
+                </small>
+              </span>
             </li>
           ))}
         </ul>
@@ -375,12 +413,13 @@ function Preview({
   );
 }
 
+/** The prototype's field (`field`/`label`); the label wraps the control so they stay linked. */
 function Field({ label, children, help }: { label: string; children: ReactNode; help?: string }) {
   return (
-    <label>
-      <span>{label}</span>
+    <label className="field">
+      <span className="label">{label}</span>
       {children}
-      {help && <small className="muted">{help}</small>}
+      {help && <span className="help">{help}</span>}
     </label>
   );
 }
@@ -401,7 +440,7 @@ function SectionEditor({
 }) {
   const set = (field: string, next: unknown) => onChange({ ...value, [field]: next });
   const toggle = (label: string) => (
-    <label className="checkbox-row">
+    <label className="switch">
       <input
         type="checkbox"
         checked={value.enabled === true}
@@ -414,10 +453,10 @@ function SectionEditor({
     case "ticker": {
       const messages = value.messages as string[];
       return (
-        <div className="form-grid">
+        <div className="form">
           {toggle("Show the promotional bar on the store")}
           {messages.map((message, index) => (
-            <div key={index} className="wide-field inline-row">
+            <div key={index} className="row nowrap-row">
               <input
                 aria-label={`Message ${index + 1}`}
                 value={message}
@@ -431,7 +470,7 @@ function SectionEditor({
               />
               <button
                 type="button"
-                className="text-button"
+                className="btn btn-g btn-sm"
                 disabled={messages.length <= TICKER_MESSAGES.min}
                 onClick={() =>
                   set(
@@ -447,15 +486,13 @@ function SectionEditor({
           {messages.length < TICKER_MESSAGES.max && (
             <button
               type="button"
-              className="secondary-button"
+              className="btn btn-s btn-sm"
               onClick={() => set("messages", [...messages, ""])}
             >
               Add message
             </button>
           )}
-          <small className="muted wide-field">
-            Keep each message under 90 characters. Plain text only.
-          </small>
+          <p className="help">Keep each message under 90 characters. Plain text only.</p>
         </div>
       );
     }
@@ -473,9 +510,9 @@ function SectionEditor({
         set("slides", next);
       };
       return (
-        <div className="form-grid">
+        <div className="form">
           {slides.map((slide, index) => (
-            <fieldset key={index} className="wide-field form-grid">
+            <fieldset key={index} className="ct-group form">
               <legend>Slide {index + 1}</legend>
               <Field label="Look">
                 <select
@@ -531,21 +568,25 @@ function SectionEditor({
                 onChange={(next) => setSlide(index, { ...slide, image: next })}
                 hint="1600 × 900 px"
               />
-              <div className="form-actions">
+              <div className="row">
                 {index > 0 && (
-                  <button type="button" className="text-button" onClick={() => swap(index, -1)}>
+                  <button
+                    type="button"
+                    className="btn btn-g btn-sm"
+                    onClick={() => swap(index, -1)}
+                  >
                     Move up
                   </button>
                 )}
                 {index < slides.length - 1 && (
-                  <button type="button" className="text-button" onClick={() => swap(index, 1)}>
+                  <button type="button" className="btn btn-g btn-sm" onClick={() => swap(index, 1)}>
                     Move down
                   </button>
                 )}
                 {slides.length > 1 && (
                   <button
                     type="button"
-                    className="text-button"
+                    className="btn btn-g btn-sm"
                     onClick={() =>
                       set(
                         "slides",
@@ -562,7 +603,7 @@ function SectionEditor({
           {slides.length < 3 && (
             <button
               type="button"
-              className="secondary-button"
+              className="btn btn-s btn-sm"
               onClick={() => set("slides", [...slides, emptyHeroSlide()])}
             >
               Add slide
@@ -583,27 +624,32 @@ function SectionEditor({
       );
     case "best_sellers":
       return (
-        <div className="form-grid">
-          {(["auto", "manual"] as const).map((mode) => (
-            <label key={mode} className="checkbox-row wide-field">
-              <input
-                type="radio"
-                name="best-mode"
-                checked={value.mode === mode}
-                onChange={() =>
-                  onChange({
-                    mode,
-                    productIds: mode === "auto" ? [] : (value.productIds as string[]),
-                  })
-                }
-              />
-              <span>
-                {mode === "auto"
-                  ? "Automatic: top 8 products by units sold in the last 30 days."
-                  : "Pick manually: choose and order the products yourself."}
-              </span>
-            </label>
-          ))}
+        <div className="form">
+          <div className="radios">
+            {(["auto", "manual"] as const).map((mode) => (
+              <label key={mode} className="ropt">
+                <input
+                  type="radio"
+                  name="best-mode"
+                  checked={value.mode === mode}
+                  onChange={() =>
+                    onChange({
+                      mode,
+                      productIds: mode === "auto" ? [] : (value.productIds as string[]),
+                    })
+                  }
+                />
+                <span>
+                  <b>{mode === "auto" ? "Automatic" : "Pick manually"}</b>
+                  <small>
+                    {mode === "auto"
+                      ? "Top 8 products by units sold in the last 30 days."
+                      : "Choose and order the products yourself."}
+                  </small>
+                </span>
+              </label>
+            ))}
+          </div>
           {value.mode === "manual" && (
             <ProductList
               ids={value.productIds as string[]}
@@ -631,11 +677,11 @@ function SectionEditor({
           banners.map((item, at) => (at === index ? next : item)),
         );
       return (
-        <div className="form-grid">
+        <div className="form">
           {banners.map((banner, index) => (
-            <fieldset key={index} className="wide-field form-grid">
+            <fieldset key={index} className="ct-group form">
               <legend>Banner {index + 1}</legend>
-              <label className="checkbox-row">
+              <label className="switch">
                 <input
                   type="checkbox"
                   checked={banner.enabled === true}
@@ -674,7 +720,7 @@ function SectionEditor({
               />
               <button
                 type="button"
-                className="text-button"
+                className="btn btn-g btn-sm"
                 onClick={() =>
                   set(
                     "banners",
@@ -689,7 +735,7 @@ function SectionEditor({
           {banners.length < 2 && (
             <button
               type="button"
-              className="secondary-button"
+              className="btn btn-s btn-sm"
               onClick={() =>
                 set("banners", [
                   ...banners,
@@ -705,7 +751,7 @@ function SectionEditor({
     }
     case "offers":
       return (
-        <div className="form-grid">
+        <div className="form">
           {toggle("Show the offers section")}
           <Field label="Section title">
             <input
@@ -726,6 +772,54 @@ function SectionEditor({
   }
 }
 
+function OrderedRows({
+  ids,
+  label,
+  onChange,
+}: {
+  ids: string[];
+  label: (id: string) => string;
+  onChange: (ids: string[]) => void;
+}) {
+  if (!ids.length) return <p className="small muted">None chosen yet.</p>;
+  return (
+    <ol className="stack ct-rows">
+      {ids.map((id, index) => (
+        <li key={id} className="pick ct-row">
+          <span className="ct-n">{index + 1}</span>
+          <b>{label(id)}</b>
+          <button
+            type="button"
+            className="ibtn"
+            aria-label={`Move ${label(id)} up`}
+            disabled={index === 0}
+            onClick={() => onChange(move(ids, index, -1))}
+          >
+            <Icon name="cu" size="sm" />
+          </button>
+          <button
+            type="button"
+            className="ibtn"
+            aria-label={`Move ${label(id)} down`}
+            disabled={index === ids.length - 1}
+            onClick={() => onChange(move(ids, index, 1))}
+          >
+            <Icon name="cd" size="sm" />
+          </button>
+          <button
+            type="button"
+            className="ibtn"
+            aria-label={`Remove ${label(id)}`}
+            onClick={() => onChange(ids.filter((item) => item !== id))}
+          >
+            <Icon name="x" size="sm" />
+          </button>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
 /** Published products, searched by name; the order is the order on the store. */
 function ProductList({
   ids,
@@ -741,41 +835,8 @@ function ProductList({
   remember: (more: Names) => void;
 }) {
   return (
-    <div className="wide-field form-grid">
-      <ol className="record-list wide-field">
-        {ids.map((id, index) => (
-          <li key={id}>
-            {names[id] ?? "Product"}
-            <span>
-              <button
-                type="button"
-                className="text-button"
-                aria-label="Move up"
-                disabled={index === 0}
-                onClick={() => onChange(move(ids, index, -1))}
-              >
-                ↑
-              </button>
-              <button
-                type="button"
-                className="text-button"
-                aria-label="Move down"
-                disabled={index === ids.length - 1}
-                onClick={() => onChange(move(ids, index, 1))}
-              >
-                ↓
-              </button>
-              <button
-                type="button"
-                className="text-button"
-                onClick={() => onChange(ids.filter((item) => item !== id))}
-              >
-                Remove
-              </button>
-            </span>
-          </li>
-        ))}
-      </ol>
+    <div className="stack">
+      <OrderedRows ids={ids} label={(id) => names[id] ?? "Product"} onChange={onChange} />
       {ids.length < max ? (
         <ProductSearch
           exclude={ids}
@@ -785,7 +846,7 @@ function ProductList({
           }}
         />
       ) : (
-        <p className="muted small wide-field">Maximum {max} products.</p>
+        <p className="help">Maximum {max} products.</p>
       )}
     </div>
   );
@@ -813,9 +874,10 @@ function ProductSearch({
     }
   }
   return (
-    <div className="wide-field">
-      <div className="inline-row">
+    <div className="stack">
+      <div className="row nowrap-row">
         <input
+          className="input"
           aria-label="Search published products"
           placeholder="Search published products"
           value={q}
@@ -823,27 +885,27 @@ function ProductSearch({
           onChange={(event) => setQ(event.target.value)}
           onKeyDown={(event) => event.key === "Enter" && (event.preventDefault(), void search())}
         />
-        <button type="button" className="secondary-button" onClick={() => void search()}>
+        <button type="button" className="btn btn-s" onClick={() => void search()}>
+          <Icon name="search" size="sm" />
           Search
         </button>
       </div>
-      {failed && <p className="muted small">Could not search. Try again.</p>}
-      <ul className="record-list">
-        {results
-          .filter((item) => !exclude.includes(item.id))
-          .map((item) => (
-            <li key={item.id}>
-              {item.name}
-              <button
-                type="button"
-                className="text-button"
-                onClick={() => onPick(item.id, item.name)}
-              >
-                Add
-              </button>
-            </li>
-          ))}
-      </ul>
+      {failed && <p className="help">Could not search. Try again.</p>}
+      {results
+        .filter((item) => !exclude.includes(item.id))
+        .map((item) => (
+          <div key={item.id} className="pick ct-add">
+            <span>{item.name}</span>
+            <button
+              type="button"
+              className="btn btn-g btn-sm"
+              onClick={() => onPick(item.id, item.name)}
+            >
+              <Icon name="plus" size="sm" />
+              Add
+            </button>
+          </div>
+        ))}
     </div>
   );
 }
@@ -866,54 +928,23 @@ function BrandList({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [brands.data]);
   return (
-    <div className="form-grid">
-      <ResourceNotice resource={brands} />
-      <ol className="record-list wide-field">
-        {ids.map((id, index) => (
-          <li key={id}>
-            {name(id)}
-            <span>
-              <button
-                type="button"
-                className="text-button"
-                aria-label="Move up"
-                disabled={index === 0}
-                onClick={() => onChange(move(ids, index, -1))}
-              >
-                ↑
-              </button>
-              <button
-                type="button"
-                className="text-button"
-                aria-label="Move down"
-                disabled={index === ids.length - 1}
-                onClick={() => onChange(move(ids, index, 1))}
-              >
-                ↓
-              </button>
-              <button
-                type="button"
-                className="text-button"
-                onClick={() => onChange(ids.filter((item) => item !== id))}
-              >
-                Remove
-              </button>
-            </span>
-          </li>
-        ))}
-      </ol>
-      <div className="wide-field tab-list">
+    <div className="form">
+      <ResourceNotice resource={brands} compact />
+      <OrderedRows ids={ids} label={name} onChange={onChange} />
+      <div className="stack ct-picks">
         {all
           .filter((brand) => brand.active && !ids.includes(brand.id))
           .map((brand) => (
             <button
               key={brand.id}
               type="button"
-              className="secondary-button"
+              className="pick ct-add"
               disabled={ids.length >= 24}
               onClick={() => onChange([...ids, brand.id])}
             >
-              + {brand.name}
+              <span className="muted">{brand.name}</span>
+              <Icon name="plus" size="sm" />
+              <span className="sr">Add {brand.name}</span>
             </button>
           ))}
       </div>
@@ -948,7 +979,7 @@ function CtaEditor({
     return (
       <button
         type="button"
-        className="secondary-button"
+        className="btn btn-s btn-sm"
         onClick={() => onChange({ label: "", link: { kind: "shop" } })}
       >
         Add {name === "Button" ? "a button" : name.toLowerCase()}
@@ -957,7 +988,7 @@ function CtaEditor({
   const link = value.link as ContentLink;
   const setLink = (next: ContentLink) => onChange({ ...value, link: next });
   return (
-    <fieldset className="wide-field form-grid">
+    <fieldset className="ct-group form">
       <legend>{name}</legend>
       <Field label={`${name} label`}>
         <input
@@ -1018,7 +1049,7 @@ function CtaEditor({
         </Field>
       )}
       {link.kind === "product" && (
-        <div className="wide-field">
+        <div className="stack">
           <p className="small">
             {link.productId ? `Product: ${names[link.productId] ?? "chosen"}` : "Choose a product:"}
           </p>
@@ -1031,7 +1062,7 @@ function CtaEditor({
           />
         </div>
       )}
-      <button type="button" className="text-button" onClick={() => onChange(null)}>
+      <button type="button" className="btn btn-g btn-sm" onClick={() => onChange(null)}>
         Remove button
       </button>
     </fieldset>
@@ -1096,7 +1127,7 @@ function ImageField({
   }
   const chosen = images.data?.items.find((item) => item.id === value?.assetId);
   return (
-    <fieldset className="wide-field form-grid">
+    <fieldset className="ct-group form">
       <legend>Image (optional)</legend>
       {value ? (
         <>
@@ -1113,15 +1144,20 @@ function ImageField({
               onChange={(event) => onChange({ ...value, alt: event.target.value })}
             />
           </Field>
-          <button type="button" className="text-button" onClick={() => onChange(null)}>
+          <button type="button" className="btn btn-g btn-sm" onClick={() => onChange(null)}>
             Remove image
           </button>
         </>
       ) : (
         <>
-          <Field label="Upload an image" help={`${hint}. JPEG, PNG or WebP, up to 8 MB.`}>
+          {/* The prototype's drop zone; the file input stays the labelled control. */}
+          <label className="drop drop-sm">
+            <Icon name="upload" />
+            <span className="small">{busy ? "Uploading…" : "Upload an image"}</span>
+            <span className="help">{hint}. JPEG, PNG or WebP, up to 8 MB.</span>
             <input
               type="file"
+              className="sr"
               accept="image/jpeg,image/png,image/webp"
               disabled={busy}
               onChange={(event) => {
@@ -1130,14 +1166,14 @@ function ImageField({
                 event.target.value = "";
               }}
             />
-          </Field>
+          </label>
           {note && (
             <p role="alert" className="small">
               {note}
             </p>
           )}
-          <ResourceNotice resource={images} />
-          <div className="content-images wide-field">
+          <ResourceNotice resource={images} compact />
+          <div className="content-images">
             {images.data?.items.map((item) =>
               item.state === "ready" && item.url ? (
                 <button

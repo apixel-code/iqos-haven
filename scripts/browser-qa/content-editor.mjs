@@ -81,7 +81,7 @@ async function session(email, viewport = { width: 1366, height: 900 }) {
   await page.waitForURL((url) => !url.pathname.startsWith("/login"), { timeout: 15000 });
   return { context, page, errors };
 }
-const status = (page) => page.locator(".order-status").first().innerText();
+const status = (page) => page.locator(".ct-status").first().innerText();
 try {
   const { page, errors } = await session("owner.qa@iqoshaven.test");
   await page.getByRole("link", { name: "Storefront Content", exact: true }).click();
@@ -110,7 +110,7 @@ try {
   await page.getByPlaceholder("Search published products").fill("QA " + tag);
   await page.getByRole("button", { name: "Search", exact: true }).click();
   for (const name of ["Halo QA " + tag, "Draft QA " + tag]) {
-    await page.locator("li", { hasText: name }).getByRole("button", { name: "Add" }).click();
+    await page.locator(".ct-add", { hasText: name }).getByRole("button", { name: "Add" }).click();
   }
   await page.getByRole("button", { name: "Save draft" }).click();
   await page.getByText("Draft, never published").waitFor();
@@ -119,9 +119,7 @@ try {
   await page.getByText("Not published:").waitFor();
   check(
     "publishing a hidden product is refused and named",
-    (await page.locator('.notice[role="alert"]').innerText()).includes(
-      `“Draft QA ${tag}” is not visible`,
-    ),
+    (await page.locator(".ct-problems").innerText()).includes(`“Draft QA ${tag}” is not visible`),
   );
   await page
     .locator("li", { hasText: "Draft QA " + tag })

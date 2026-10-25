@@ -518,6 +518,28 @@ The orders screens come in three PRs: V-A3a (the list), V-A3b (the order detail 
   - The prototype's in-page preview of the first ten rows. A report is built on request, from the API, and never kept on the device.
   - The range picker in the page head. Each ranged report takes its own From/To.
 
+## V-A12 (admin storefront content), 2026-10-25
+
+- **Layout:** the prototype's `VIEWS.content`:
+  - A page head with "View store", and the section tabs with an unsaved dot.
+  - A `split wide` of the editor card and a sticky preview card.
+  - The editor card has the section name, its help and a status tag in the head (Not set up, Draft never published, Draft differs from live, Unsaved, Live). Discard changes, Save draft and Publish sit in the card foot.
+- **Fields:**
+  - Every field is the prototype's `field`/`label`, with the help line under it.
+  - Slides, buttons, banners and images are grouped in tinted `ct-group` boxes.
+  - The promotional-bar and banner toggles are `switch`es.
+  - Best sellers' Automatic / Pick manually choice is `radios`/`ropt`.
+  - Product and brand choices are ordered `pick` rows (number, name, move up/down, remove icons); search results and brands to add are `pick` rows with Add.
+  - Uploading an image uses the prototype's `drop` zone.
+- **Preview:**
+  - The ticker as the prototype's scrolling strip (still while reduced motion is on), with the joined text under it.
+  - Each hero slide in a `browser` frame in the store's own slide colours (navy #152033, lilac #e7e2f7, coral #d2462f, as on the storefront).
+  - Products as a short list with price or Out of stock.
+- **Unchanged:** the typed fields, the draft → preview → publish flow, the reference checks before publishing, and the unsaved-changes guard. Labels and field names are unchanged, so the store and its tests read the same content.
+- **Not carried over:**
+  - The prototype's live preview of unsaved edits. The preview is the saved draft as the store resolves it, which is what publishing would show.
+  - Coupon highlighting in the offers section. The content model has no coupon field.
+
 ## Consequences
 
 - The look comes from the approved source instead of being re-imagined in utilities, so later screens are mostly markup work.

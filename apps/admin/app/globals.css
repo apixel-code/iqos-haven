@@ -1072,3 +1072,18 @@ ul.dashboard-list {
   gap: 6px;
   font-size: 13px;
 }
+
+/* Storefront content preview (V-A12): each hero slide in the store's own colours. Unlayered,
+   after `.preview-hero`, so it wins over that older card background. */
+.ct-hero-navy {
+  background: #152033;
+  color: #fff;
+}
+.ct-hero-lilac {
+  background: #e7e2f7;
+  color: #12161b;
+}
+.ct-hero-coral {
+  background: #d2462f;
+  color: #fff;
+}
