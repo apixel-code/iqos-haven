@@ -29,3 +29,5 @@ Architecture Rev 2 fixes the shape (pnpm/Turborepo monorepo, Next.js front ends,
 - When typescript-eslint supports TS 7, or eslint-config-next supports ESLint 10, upgrade in a dedicated commit.
 
 - Corrected database/runtime: Prisma 7 + pg adapter, PostgreSQL 18. Exact installed versions are pinned in manifests and pnpm-lock.yaml. ESLint 9 compatibility debt remains explicit; upgrade in a separate verified change.
+
+- 2026-10-25 (Marina approved): Next.js and `eslint-config-next` 16.4.0 → 16.4.3 in both apps, a patch upgrade. 16.0.0–16.4.0 carry two critical advisories, unauthenticated remote code execution (GHSA-2464-fhr4-w9xw: Image Optimization with SVG; GHSA-673q-mjm6-r5xr: `use cache` returning typed arrays), and a high one. `next build` also stops once on them. Other `pnpm audit --prod` findings (Fastify, zod, body-parser, multer, mysql2, deepmerge-ts, nodemailer, fast-uri) are left for a separate decision.
