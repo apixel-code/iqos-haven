@@ -127,6 +127,11 @@ try {
       await page.waitForLoadState("networkidle");
       await scan(page, `${section} ${tag}`);
     }
+    // A customer's page (V-A7).
+    await page.goto(`${BASE}/workspace/customers?customer=${seeded.customerId}`);
+    await page.locator(".kpis").waitFor();
+    await page.waitForLoadState("networkidle");
+    await scan(page, `customer detail ${tag}`);
     // The brand drawer (V-A6), checked open after its slide-in.
     await page.goto(`${BASE}/workspace/brands`);
     await page.getByRole("button", { name: "New brand" }).click();

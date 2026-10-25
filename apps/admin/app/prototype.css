@@ -4580,4 +4580,59 @@
     width: 72px;
     height: 72px;
   }
+
+  /* ---------- Additions: customers (V-A7) ---------- */
+  .cust-link {
+    font: inherit;
+    font-weight: 600;
+    color: inherit;
+    background: none;
+    border: 0;
+    padding: 0;
+    text-align: left;
+  }
+  .cust-link:hover {
+    text-decoration: underline;
+  }
+  .tag.repeat {
+    margin-left: 6px;
+  }
+  .cust-title {
+    display: inline-flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+  }
+  .kpi-v.kpi-v-sm {
+    font-size: 19px;
+  }
+  .cust-tbl {
+    margin-top: 12px;
+  }
+  .cust-mlist {
+    margin-top: 8px;
+  }
+  a.mrow {
+    color: inherit;
+    text-decoration: none;
+  }
+  .cust-addr {
+    margin-top: 6px;
+  }
+  .cust-addr .li {
+    align-items: flex-start;
+  }
+  .cust-addr .li-b {
+    white-space: normal;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .cust-addr .li-b small {
+    color: var(--ink-3);
+    font-size: 12px;
+  }
+  .cust-more {
+    padding: 0 18px 14px;
+  }
 }

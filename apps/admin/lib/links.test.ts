@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { notificationDestination, orderHref, ordersHref } from "./links";
+import { newOrderForPhone, notificationDestination, orderHref, ordersHref } from "./links";
 
 const ID = "01a14865-52b0-7a07-bd83-786bf58a5c86";
 
@@ -27,5 +27,8 @@ describe("admin deep links", () => {
     expect(ordersHref()).toBe("/workspace/orders");
     expect(ordersHref({ status: "pending" })).toBe("/workspace/orders?status=pending");
     expect(ordersHref({ delayed: true })).toBe("/workspace/orders?delayed=1");
+  });
+  it("opens a new order with a customer's phone filled in", () => {
+    expect(newOrderForPhone("+971501234567")).toBe("/workspace/orders?new=1&phone=%2B971501234567");
   });
 });
