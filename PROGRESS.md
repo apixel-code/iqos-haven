@@ -4,8 +4,8 @@
 
 - Date: 2026-10-25
 - Milestone: M11 — full acceptance and release, in progress. Gates M0, M2–M10 PASSED (M0, M3, M4, M6–M10 on 2026-10-17, Marina); M1 open until staging/CI.
-- Step: launch parity gaps (Marina 2026-10-17): G-S2 (#101), G-S3 (#102), G-S5 (#103), G-A5 (#104), G-A6 (#105), G-A7 (#106), G-A8 (#107), G-A9 (#108), all merged to `main` 2026-10-18; G-A11 (#109), all merged to `main` 2026-10-18 — every launch parity gap is built. Steps 124 (#110) and 125 (#111) merged. **Marina (2026-10-18): the UI must match the prototypes before launch** (ADR 0097; storefront V-S1…V-S6, then admin V-A*; all deferred gaps included). V-S1 (storefront shell, #112) merged; V-S1 (#112), V-S2 (#113) and V-S3 (#114) merged to `main` (f419aed, CI green). V-S4 (#115) and V-S5 (#116) merged to `main` (0e6b954). V-S6a (#117) and V-S6b (#118) merged to `main` (550b05d): the storefront parity programme is complete. Admin: V-A1 (#119), V-A2 (#120), V-A3a (#121), V-A3b (#122) merged (92baa53); V-A3c (#123, manual order wizard, order edit), V-A4a (#124, products list) and V-A4b (#125, product editor layout, form, publishing card) merged to `main` 2026-10-22 (45bcd6e, CI green). V-A4c (#127), V-A5 (#128), V-A6 (#129), V-A7 (#130), V-A8 (#131), V-A9 (#133), V-A10 (#134), V-A11 (#135) and V-A12 (#137) merged to `main` 2026-10-25 (a302ca2), together with the security upgrades Next.js 16.4.3 (#132) and the remaining audit fixes (#136; `pnpm audit`: no known vulnerabilities). V-A13 SEO (#139), V-A14 settings and delivery (#140) and V-A15 staff and roles (#141) merged to `main` 2026-10-25 (c342524): **the admin parity programme (ADR 0097) is complete**. Every storefront and admin screen now follows the prototypes. **Step 126 (backup and measured restore drill, ADR 0098) done** on `step/126-backup-restore-drill` (PR open). **Next: step 127** (runbooks), unless Marina reorders. Steps 115–119, 121 done; 120 local part done (real devices wait for staging).
-- Branch: `step/126-backup-restore-drill` (PR to `main`). Branch step 127 from `main` once 126 is merged (or from this branch if Marina wants it stacked). Local machine: memory is tight; build with `turbo run build --concurrency=1` and restart Docker if it stops.
+- Step: launch parity gaps (Marina 2026-10-17): G-S2 (#101), G-S3 (#102), G-S5 (#103), G-A5 (#104), G-A6 (#105), G-A7 (#106), G-A8 (#107), G-A9 (#108), all merged to `main` 2026-10-18; G-A11 (#109), all merged to `main` 2026-10-18 — every launch parity gap is built. Steps 124 (#110) and 125 (#111) merged. **Marina (2026-10-18): the UI must match the prototypes before launch** (ADR 0097; storefront V-S1…V-S6, then admin V-A*; all deferred gaps included). V-S1 (storefront shell, #112) merged; V-S1 (#112), V-S2 (#113) and V-S3 (#114) merged to `main` (f419aed, CI green). V-S4 (#115) and V-S5 (#116) merged to `main` (0e6b954). V-S6a (#117) and V-S6b (#118) merged to `main` (550b05d): the storefront parity programme is complete. Admin: V-A1 (#119), V-A2 (#120), V-A3a (#121), V-A3b (#122) merged (92baa53); V-A3c (#123, manual order wizard, order edit), V-A4a (#124, products list) and V-A4b (#125, product editor layout, form, publishing card) merged to `main` 2026-10-22 (45bcd6e, CI green). V-A4c (#127), V-A5 (#128), V-A6 (#129), V-A7 (#130), V-A8 (#131), V-A9 (#133), V-A10 (#134), V-A11 (#135) and V-A12 (#137) merged to `main` 2026-10-25 (a302ca2), together with the security upgrades Next.js 16.4.3 (#132) and the remaining audit fixes (#136; `pnpm audit`: no known vulnerabilities). V-A13 SEO (#139), V-A14 settings and delivery (#140) and V-A15 staff and roles (#141) merged to `main` 2026-10-25 (c342524): **the admin parity programme (ADR 0097) is complete**. Every storefront and admin screen now follows the prototypes. **Step 126 (backup and measured restore drill, ADR 0098) done** on `step/126-backup-restore-drill` (PR open). **Step 127 (runbooks, `ops:effects`, break-glass `ops:owner-recovery`, ADR 0099) done** on `step/127-runbooks`, stacked on 126 (PR open). **Next:** staging-dependent work (122 VPS, then 120 devices, 121 rerun, 128) once the Hostinger VPS exists; until then Marina chooses. Steps 115–119, 121 done; 120 local part done (real devices wait for staging).
+- Branch: `step/127-runbooks` (PR based on `step/126-backup-restore-drill`, #143). Merge #143 first, then retarget 127 to `main`. Local machine: memory is tight; build with `turbo run build --concurrency=1` and restart Docker if it stops.
 - See docs/verification.md for actual checks.
 
 ## Next action
@@ -218,6 +218,7 @@ Before checkout is switched on: the sender domain verification (BI-07, Marina/Ap
 - 67 — `priceOrder` (integer fils, one half-up percentage discount per order, largest-remainder line shares), `readOrderPrices`/`lockOrderPrices` with brand → category → product share locks, `TransactionRestartError` (ADR 0037) — 7538c3f
 - 66 — shared checkout validators (contact, address by type, Makani, notes, merged and capped lines), UAE-mobile-only phone, `readDeliverableArea` (ADR 0035; BI-03 pending) — `step(66)` commit on `step/66-checkout-validation`
 - 126 — `pnpm ops:backup` (AES-256-GCM sets: snapshot pg_dump + media, PII-free manifest, 30-day retention) and `pnpm ops:restore-drill` (isolated `iqos_haven_drill_*` copy, manifest checks, RTO and backup age measured, no sends) (ADR 0098) — commit `step(126)` on `step/126-backup-restore-drill`
+- 127 — operator runbooks (index, incident/queue, email, uploads, staff/Owner recovery, rollback decisions), `pnpm ops:effects` (dead effects, audited replay), `pnpm ops:owner-recovery` (break-glass, existing Owner only) (ADR 0099) — commit `step(127)` on `step/127-runbooks`
 
 ## Known deviations
 
@@ -226,34 +227,34 @@ Before checkout is switched on: the sender domain verification (BI-07, Marina/Ap
 - RPO ≤5 min is not yet met: only daily encrypted dumps exist; WAL archiving/PITR comes with the VPS (step 122, ADR 0098).
 - `audit_log` migration revokes UPDATE/DELETE/TRUNCATE only from a role named `ih_app`; other runtime role names must be revoked at provisioning (trigger blocks mutations regardless).
 
-## Last session handoff (2026-10-25, step 126 backup and restore drill)
+## Last session handoff (2026-10-25, step 127 runbooks)
 
 Done:
 
-- **Merged earlier today:** V-A13–V-A15 (#139–#141); the admin parity programme is complete.
-- **Step 126** (ADR 0098, runbook `docs/runbooks/backup-and-restore.md`):
-  - `pnpm ops:backup`: one encrypted set (REPEATABLE READ snapshot facts + `pg_dump --snapshot`, every media object, PII-free manifest), 30-day retention.
-  - `pnpm ops:restore-drill <set> [--keep]` / `--drop <db>`: checksums, then an isolated `iqos_haven_drill_*` restore, fact comparison, unfinished effects WARN (no replay), RTO and backup age measured.
-  - `pnpm ops:backup-key`.
-  - Storage `list()`, `backupFacts()` in `@ih/db`, `backupEnvSchema` in `@ih/config`.
+- **Step 126** committed (630be5c) and in PR #143.
+- **Step 127** (ADR 0099), stacked on 126:
+  - `pnpm ops:effects`: lists dead effects; `--replay <id> --reason` is audited.
+  - `pnpm ops:owner-recovery`: `recoverOwnerAccess` in `@ih/db`, for an existing Owner only. It runs under the Owner lock, revokes sessions, links and invitations, and writes the audit and events atomically.
+  - Runbooks: `docs/runbooks/{README,email-delivery,uploads-and-media,staff-and-owner-recovery}.md` are new; incident and rollback are rewritten; the bootstrap runbook now points to the recovery runbook.
+  - invariant-reviewer: no blocking findings. Low findings fixed: generic CLI error, revoked-session count, operator label and minimum reason length.
 
-Files: `apps/api/src/cli/{backup,backup.main,backup-key.main,restore-drill.main,ops-process}.ts`, `apps/api/src/cli/backup.test.ts`, `apps/api/package.json`, `package.json`, `packages/db/src/{backup-facts,index}.ts`, `packages/platform/src/{backup/*,index.ts,storage/storage.ts,storage/storage.int.test.ts}`, `packages/config/src/index.ts`, `.env.example`, `.gitignore`, `CLAUDE.md`, `docs/{decisions/0098-backup-and-restore-drill.md,runbooks/backup-and-restore.md,verification.md}`
+Files: `packages/db/src/{owner-recovery,owner-recovery.int.test,identity-transaction,index}.ts`, `apps/api/src/cli/owner-recovery{,.main,.test}.ts`, `apps/worker/src/cli/effects{,.main,.test}.ts`, `apps/{api,worker}/package.json`, `package.json`, `CLAUDE.md`, `docs/runbooks/*`, `docs/decisions/0099-operator-runbooks-and-break-glass.md`, `docs/verification.md`
 
 Tests:
 
-- `pnpm verify` PASS. `pnpm test:int` PASS (platform 7, db 141, worker 92, api 429).
-- Drills PASS on the dev DB and on a seeded DB (5 orders, ledger stock, 2 pending effects), with RTO 1 s.
-- Tamper and wrong-key runs refused (exit 2).
-- `test:gate` not run (no age-boundary change).
+- `pnpm verify` PASS. `pnpm test:int` PASS (db 144 including owner recovery, api 429, worker 92, platform 7).
+- After the review fixes: the recovery int test, the CLI units, build, lint and typecheck PASS.
+- Both commands were exercised on a separate database, which was dropped afterwards.
 
 Unfinished:
 
-- **Merge:** Marina merges the step 126 PR (or asks Claude to).
-- **Next, step 127:** incident, queue recovery, rollback, email, upload and owner recovery runbooks, exercised.
-- **On the VPS (step 122):** daily schedule, off-VPS copies (approved destination), WAL archiving/PITR for RPO ≤5 min, and a rerun of the drill with real-sized data.
+- **Merge:** Marina merges #143 (126) and then the 127 PR (or asks Claude to).
+- **Next:** steps 122, 120 (devices), 121 rerun and 128 need the Hostinger VPS. Steps 129–132 come later. Ask Marina what comes next if the VPS is not ready.
 - **To look into:** the stale `qa.mjs` publish check.
 
 ## History (summary)
+
+- 2026-10-25 step 126: encrypted backup sets and measured restore drill (PR #143).
 
 - 2026-10-19 V-A3c: manual order wizard and order edit like the prototype (PR #123, merged later).
 

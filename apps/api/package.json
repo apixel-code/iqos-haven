@@ -16,7 +16,8 @@
     "ops:backup": "node dist/cli/backup.main.js",
     "ops:restore-drill": "node dist/cli/restore-drill.main.js",
     "ops:backup-key": "node dist/cli/backup-key.main.js",
-    "identity:benchmark": "node dist/cli/argon2-benchmark.main.js"
+    "identity:benchmark": "node dist/cli/argon2-benchmark.main.js",
+    "ops:owner-recovery": "node dist/cli/owner-recovery.main.js"
   },
   "dependencies": {
     "@ih/application": "workspace:*",

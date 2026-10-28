@@ -26,26 +26,43 @@ Before launch:
 
 Alert emails and logs carry counts and durations only, never order, customer or token data.
 
-## Triage
+## Triage (first 10 minutes)
 
-Record UTC time, release/profile, safe request/event/effect IDs, impacted endpoints and dependency health. Never copy raw checkout, token URLs, provider errors or SQL into incident notes. Check PostgreSQL first; if unavailable reject authoritative writes safely. Inspect pool waits/locks, queue memory/policy and oldest unfinished effect. API readiness being queue-degraded is not a reason to discard accepted orders.
+1. Open the incident record: UTC time, alert name, release (image digest), what users see. IDs and counts only, never checkout data, tokens, links, provider errors or SQL.
+2. `docker compose ps` (VPS service names from step 122): which service is down or restarting? `docker compose logs --since 15m <service>` and search by `requestId` / `effectId`.
+3. Database first: `curl -fsS http://localhost:4000/v1/health/ready` on the server. If PostgreSQL is down, the API refuses writes safely; restore the database service before anything else. Accepted orders are only ever in PostgreSQL.
+4. Then queue Redis, the worker, the storefront/admin and the gateway, in that order. A queue-degraded API keeps taking orders; their background work waits in PostgreSQL.
 
-## Redis loss / crashed worker
+## Queue Redis lost, or the worker crashed
 
-Preserve PostgreSQL orders/outbox/effects. Restore queue Redis with noeviction and configured durability. The reconciler finds unfinished effects with expired leases/heartbeats and recreates disposable jobs using stable IDs. Do not reset/delete effect deduplication rows or blindly clear the DB because broker jobs were lost. Active leased effects are not re-enqueued prematurely. Dead effects stay investigable, not completed; repair/replay is permissioned and audited.
+Orders, events and effects live in PostgreSQL; Redis jobs are disposable copies.
 
-## Provider accepted then consumer crashed
+1. Bring queue Redis back with its policy: `docker compose exec redis-queue redis-cli CONFIG GET maxmemory-policy` must say `noeviction` (the worker refuses to start otherwise outside development).
+2. Start the worker: `docker compose up -d worker`. Its reconciler finds unfinished effects whose lease expired and re-enqueues them with their stable IDs within a minute; effects still leased by a live worker are left alone.
+3. Watch `effects.backlog` resolve. `pnpm launch:check` (read-only) shows the dead-effect count.
+4. Never flush or delete `outbox_events` / `consumer_effects` rows, and never reset their status by SQL to "unstick" them.
 
-Use the stable provider idempotency key within its documented retention window. If unsupported/expired, inspect receipt/outcome and the bounded duplicate risk before replay. Database notifications/rollups still require unique effects and same-transaction completion. At-least-once email is not exactly-once delivery.
+## Dead effects (`effects.dead`)
 
-## Checkout/limiter/cache outage
+An effect is dead when it failed permanently or used up its retry budget. It stays visible until someone acts.
 
-Primary DB/age/session checks remain required. Shared checkout limiter may use bounded local IP/hashed-phone and per-instance global admission ceilings; auth endpoints fail closed if their configured authoritative limiter fails. Bound cache misses/concurrency and TTL cleanup; no queue Redis cache fallback. Alert on fallback and automatically restore shared primary when healthy.
+1. `pnpm ops:effects` (optionally `--consumer email|media_processor|notification|storefront_revalidate`): ID, consumer, event type, attempts, replays and the error code. No payloads are shown.
+2. The code says what to fix: `RETRY_EXHAUSTED:<cause>` means a dependency was down for the whole budget; a bare code (`SMTP_REJECTED`, `RESEND_BAD_BODY`, `ORDER_NOT_FOUND`, `INVALID_*`) is configuration or a defect. Email and media codes: see [email-delivery.md](email-delivery.md) and [uploads-and-media.md](uploads-and-media.md).
+3. Fix the cause. Then replay each effect: `pnpm ops:effects --replay <id> --reason "INC-n: <what was fixed>"`. It moves dead → pending with a fresh attempt budget, writes `effect.replayed` to the audit log and the reconciler enqueues it. Replaying an effect that is not dead changes nothing.
+4. A defect (`INVALID_*`, `UNEXPECTED_EVENT_TYPE`): do not replay; send the effect ID and code to Apixel. It stays dead and visible until a fix ships.
 
-## Media/email/report outage
+## Provider accepted, then the worker crashed
 
-Keep failed work durable, finite retry/attempt budgets, quarantine/private reports protected and current permissions rechecked. Email is not required for order commit; staging/restore sends stay disabled. Observe provider quotas/bounces; verify recipients before enabling sends. Reconcile only through domain commands, not ad-hoc stock/payment table updates.
+Email uses a stable provider idempotency key per effect, so the retry is deduplicated within the provider's window. Outside it, a duplicate internal email is possible and acceptable; never delete effect rows to avoid it. Database effects (notifications, rollups) complete in the same transaction as their write, so they cannot double.
 
-## Staff/key compromise
+## Checkout errors, limiter or cache trouble
 
-Revoke affected sessions/streams and keys, follow secrets-and-keys runbook, preserve last active Owner through the common guard and audited recovery process. Investigate report access/exports and privacy retention. Update the incident record with repair, replay and reconciliation results plus follow-up ownership.
+`checkout.errors` counts only 5xx. Read the API logs by request ID. The checkout limiter falls back to bounded per-process limits if its shared store fails; sign-in fails closed. The catalogue cache refreshes within 60 s on its own; `cache.publication` means the worker cannot reach the API's internal invalidation (check `API_INTERNAL_URL` and the worker's service key).
+
+## Stock ledger mismatch (`inventory.ledger`)
+
+Stop stock edits on the named options. Find the cause in the audit log; correct only with an Inventory adjustment (reason required), which writes a ledger movement. Never update `variants.stock_on_hand` directly: the database refuses it anyway.
+
+## Compromised accounts or keys
+
+[staff-and-owner-recovery.md](staff-and-owner-recovery.md) for accounts, [secrets-and-keys.md](secrets-and-keys.md) and [age-ticket-keys.md](age-ticket-keys.md) for keys. Close the incident record with what was repaired, which effects were replayed (IDs), and follow-ups with an owner.
