@@ -2,6 +2,7 @@ import {
   DeleteObjectCommand,
   GetObjectCommand,
   HeadObjectCommand,
+  ListObjectsV2Command,
   NoSuchKey,
   NotFound,
   PutObjectCommand,
@@ -183,6 +184,29 @@ export class ObjectStorage {
       if (error instanceof NotFound || error instanceof NoSuchKey) return null;
       throw error;
     }
+  }
+
+  /**
+   * One page of keys in a bucket (backups, step 126). Keys and sizes only; the caller pages on
+   * with the returned token until it is undefined.
+   */
+  async list(
+    purpose: BucketPurpose,
+    continuationToken?: string,
+  ): Promise<{ objects: Array<{ key: string; size: number }>; next: string | undefined }> {
+    const result = await this.client.send(
+      new ListObjectsV2Command({
+        Bucket: this.bucket(purpose),
+        MaxKeys: 1000,
+        ...(continuationToken ? { ContinuationToken: continuationToken } : {}),
+      }),
+    );
+    return {
+      objects: (result.Contents ?? []).flatMap((item) =>
+        item.Key ? [{ key: item.Key, size: item.Size ?? 0 }] : [],
+      ),
+      next: result.IsTruncated ? result.NextContinuationToken : undefined,
+    };
   }
 
   async delete(purpose: BucketPurpose, key: string): Promise<void> {

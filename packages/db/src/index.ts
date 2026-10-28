@@ -59,4 +59,5 @@ export * from "./report-csv";
 export * from "./report-files";
 export * from "./seo";
 export * from "./launch-readiness";
+export * from "./backup-facts";
 export * from "./ops";
