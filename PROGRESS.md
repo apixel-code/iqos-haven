@@ -2,10 +2,10 @@
 
 ## Current position
 
-- Date: 2026-10-25
+- Date: 2026-10-28
 - Milestone: M11 — full acceptance and release, in progress. Gates M0, M2–M10 PASSED (M0, M3, M4, M6–M10 on 2026-10-17, Marina); M1 open until staging/CI.
-- Step: launch parity gaps (Marina 2026-10-17): G-S2 (#101), G-S3 (#102), G-S5 (#103), G-A5 (#104), G-A6 (#105), G-A7 (#106), G-A8 (#107), G-A9 (#108), all merged to `main` 2026-10-18; G-A11 (#109), all merged to `main` 2026-10-18 — every launch parity gap is built. Steps 124 (#110) and 125 (#111) merged. **Marina (2026-10-18): the UI must match the prototypes before launch** (ADR 0097; storefront V-S1…V-S6, then admin V-A*; all deferred gaps included). V-S1 (storefront shell, #112) merged; V-S1 (#112), V-S2 (#113) and V-S3 (#114) merged to `main` (f419aed, CI green). V-S4 (#115) and V-S5 (#116) merged to `main` (0e6b954). V-S6a (#117) and V-S6b (#118) merged to `main` (550b05d): the storefront parity programme is complete. Admin: V-A1 (#119), V-A2 (#120), V-A3a (#121), V-A3b (#122) merged (92baa53); V-A3c (#123, manual order wizard, order edit), V-A4a (#124, products list) and V-A4b (#125, product editor layout, form, publishing card) merged to `main` 2026-10-22 (45bcd6e, CI green). V-A4c (#127), V-A5 (#128), V-A6 (#129), V-A7 (#130), V-A8 (#131), V-A9 (#133), V-A10 (#134), V-A11 (#135) and V-A12 (#137) merged to `main` 2026-10-25 (a302ca2), together with the security upgrades Next.js 16.4.3 (#132) and the remaining audit fixes (#136; `pnpm audit`: no known vulnerabilities). V-A13 SEO (#139), V-A14 settings and delivery (#140) and V-A15 staff and roles (#141) merged to `main` 2026-10-25 (c342524): **the admin parity programme (ADR 0097) is complete**. Every storefront and admin screen now follows the prototypes. **Step 126 (backup and measured restore drill, ADR 0098) done** on `step/126-backup-restore-drill` (PR open). **Step 127 (runbooks, `ops:effects`, break-glass `ops:owner-recovery`, ADR 0099) done** on `step/127-runbooks`, stacked on 126 (PR open). **Next:** staging-dependent work (122 VPS, then 120 devices, 121 rerun, 128) once the Hostinger VPS exists; until then Marina chooses. Steps 115–119, 121 done; 120 local part done (real devices wait for staging).
-- Branch: `step/127-runbooks` (PR based on `step/126-backup-restore-drill`, #143). Merge #143 first, then retarget 127 to `main`. Local machine: memory is tight; build with `turbo run build --concurrency=1` and restart Docker if it stops.
+- Step: launch parity gaps (Marina 2026-10-17): G-S2 (#101), G-S3 (#102), G-S5 (#103), G-A5 (#104), G-A6 (#105), G-A7 (#106), G-A8 (#107), G-A9 (#108), all merged to `main` 2026-10-18; G-A11 (#109), all merged to `main` 2026-10-18 — every launch parity gap is built. Steps 124 (#110) and 125 (#111) merged. **Marina (2026-10-18): the UI must match the prototypes before launch** (ADR 0097; storefront V-S1…V-S6, then admin V-A*; all deferred gaps included). V-S1 (storefront shell, #112) merged; V-S1 (#112), V-S2 (#113) and V-S3 (#114) merged to `main` (f419aed, CI green). V-S4 (#115) and V-S5 (#116) merged to `main` (0e6b954). V-S6a (#117) and V-S6b (#118) merged to `main` (550b05d): the storefront parity programme is complete. Admin: V-A1 (#119), V-A2 (#120), V-A3a (#121), V-A3b (#122) merged (92baa53); V-A3c (#123, manual order wizard, order edit), V-A4a (#124, products list) and V-A4b (#125, product editor layout, form, publishing card) merged to `main` 2026-10-22 (45bcd6e, CI green). V-A4c (#127), V-A5 (#128), V-A6 (#129), V-A7 (#130), V-A8 (#131), V-A9 (#133), V-A10 (#134), V-A11 (#135) and V-A12 (#137) merged to `main` 2026-10-25 (a302ca2), together with the security upgrades Next.js 16.4.3 (#132) and the remaining audit fixes (#136; `pnpm audit`: no known vulnerabilities). V-A13 SEO (#139), V-A14 settings and delivery (#140) and V-A15 staff and roles (#141) merged to `main` 2026-10-25 (c342524): **the admin parity programme (ADR 0097) is complete**. Every storefront and admin screen now follows the prototypes. **Steps 126 (backup and measured restore drill, ADR 0098, #143) and 127 (runbooks, `ops:effects`, break-glass `ops:owner-recovery`, ADR 0099, #144) merged to `main` 2026-10-28 (2a3cb21).** No open PRs. **Next:** staging-dependent work (122 VPS, then 120 devices, 121 rerun, 128) once the Hostinger VPS exists; until then Marina chooses. Steps 115–119, 121 done; 120 local part done (real devices wait for staging).
+- Branch: `main` (2a3cb21), clean; no open PRs. Branch the next step from `main`. Local machine: memory is tight; build with `turbo run build --concurrency=1` and restart Docker if it stops.
 - See docs/verification.md for actual checks.
 
 ## Next action
@@ -217,8 +217,8 @@ Before checkout is switched on: the sender domain verification (BI-07, Marina/Ap
 - 68 — `coupons` + `coupon_redemptions` (trigger-maintained use count, limit check, release once, no delete), eligibility rules, `previewCoupon`/`lockCouponForOrder`/`redeemCoupon`/`releaseCouponRedemption` (ADR 0038) — fdab292
 - 67 — `priceOrder` (integer fils, one half-up percentage discount per order, largest-remainder line shares), `readOrderPrices`/`lockOrderPrices` with brand → category → product share locks, `TransactionRestartError` (ADR 0037) — 7538c3f
 - 66 — shared checkout validators (contact, address by type, Makani, notes, merged and capped lines), UAE-mobile-only phone, `readDeliverableArea` (ADR 0035; BI-03 pending) — `step(66)` commit on `step/66-checkout-validation`
-- 126 — `pnpm ops:backup` (AES-256-GCM sets: snapshot pg_dump + media, PII-free manifest, 30-day retention) and `pnpm ops:restore-drill` (isolated `iqos_haven_drill_*` copy, manifest checks, RTO and backup age measured, no sends) (ADR 0098) — commit `step(126)` on `step/126-backup-restore-drill`
-- 127 — operator runbooks (index, incident/queue, email, uploads, staff/Owner recovery, rollback decisions), `pnpm ops:effects` (dead effects, audited replay), `pnpm ops:owner-recovery` (break-glass, existing Owner only) (ADR 0099) — commit `step(127)` on `step/127-runbooks`
+- 126 — `pnpm ops:backup` (AES-256-GCM sets: snapshot pg_dump + media, PII-free manifest, 30-day retention) and `pnpm ops:restore-drill` (isolated `iqos_haven_drill_*` copy, manifest checks, RTO and backup age measured, no sends) (ADR 0098) — 630be5c (PR #143)
+- 127 — operator runbooks (index, incident/queue, email, uploads, staff/Owner recovery, rollback decisions), `pnpm ops:effects` (dead effects, audited replay), `pnpm ops:owner-recovery` (break-glass, existing Owner only) (ADR 0099) — 6e0f41f (PR #144)
 
 ## Known deviations
 
@@ -248,13 +248,14 @@ Tests:
 
 Unfinished:
 
-- **Merge:** Marina merges #143 (126) and then the 127 PR (or asks Claude to).
+- **Merged 2026-10-28:** #143 and #144 (Claude, on Marina's request; #144 needed a Prettier fix in docs/verification.md first).
+- **Local dev database (not in the repo):** the prototype's fictional demo catalogue was added for Marina on 2026-10-28 (6 brands with logos, 4 categories with images, 20 published products, 8 featured) through the running admin API. The scripts live outside the repo; the repository still holds no demo seed. The local Owner is `owner.local@iqoshaven.test`.
 - **Next:** steps 122, 120 (devices), 121 rerun and 128 need the Hostinger VPS. Steps 129–132 come later. Ask Marina what comes next if the VPS is not ready.
 - **To look into:** the stale `qa.mjs` publish check.
 
 ## History (summary)
 
-- 2026-10-25 step 126: encrypted backup sets and measured restore drill (PR #143).
+- 2026-10-25 step 126: encrypted backup sets and measured restore drill (PR #143, merged 2026-10-28).
 
 - 2026-10-19 V-A3c: manual order wizard and order edit like the prototype (PR #123, merged later).
 
