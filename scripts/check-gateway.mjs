@@ -4,6 +4,7 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { createServer, request } from "node:http";
+import { isIP } from "node:net";
 import { readFileSync } from "node:fs";
 import { setTimeout as delay } from "node:timers/promises";
 
@@ -43,40 +44,47 @@ function stub(label) {
 const docker = (...args) => spawnSync("docker", args, { encoding: "utf8" });
 const [store, admin, api] = await Promise.all([stub("storefront"), stub("admin"), stub("api")]);
 const port = (server) => server.address().port;
-const run = docker(
-  "run",
-  "-d",
-  "--rm",
-  "--name",
-  name,
-  "--add-host",
-  "host.docker.internal:host-gateway",
-  "-p",
-  "127.0.0.1::8080",
-  "-p",
-  "127.0.0.1::8081",
-  "-v",
-  `${process.cwd()}/infra/gateway/Caddyfile:/etc/caddy/Caddyfile:ro`,
-  "-e",
-  `STOREFRONT_UPSTREAM=host.docker.internal:${port(store)}`,
-  "-e",
-  `ADMIN_UPSTREAM=host.docker.internal:${port(admin)}`,
-  "-e",
-  `API_UPSTREAM=host.docker.internal:${port(api)}`,
-  `${IMAGE.image}@${IMAGE.digest}`,
-);
+const startGateway = (container, ...env) =>
+  docker(
+    "run",
+    "-d",
+    "--rm",
+    "--name",
+    container,
+    "--add-host",
+    "host.docker.internal:host-gateway",
+    "-p",
+    "127.0.0.1::8080",
+    "-p",
+    "127.0.0.1::8081",
+    "-v",
+    `${process.cwd()}/infra/gateway/Caddyfile:/etc/caddy/Caddyfile:ro`,
+    "-e",
+    `STOREFRONT_UPSTREAM=host.docker.internal:${port(store)}`,
+    "-e",
+    `ADMIN_UPSTREAM=host.docker.internal:${port(admin)}`,
+    "-e",
+    `API_UPSTREAM=host.docker.internal:${port(api)}`,
+    ...env.flatMap((entry) => ["-e", entry]),
+    `${IMAGE.image}@${IMAGE.digest}`,
+  );
+const run = startGateway(name);
 assert.equal(run.status, 0, "gateway container failed to start: " + run.stderr);
-const published = (inner) => docker("port", name, `${inner}/tcp`).stdout.trim().split(":").pop();
+const published = (inner, container = name) =>
+  docker("port", container, `${inner}/tcp`).stdout.trim().split(":").pop();
+const waitFor = async (url) => {
+  for (let i = 0; i < 50; i++) {
+    try {
+      if ((await fetch(url)).ok) return;
+    } catch {}
+    await delay(200);
+  }
+};
 let checks = 0;
 try {
   const storeUrl = `http://127.0.0.1:${published(8080)}`;
   const adminUrl = `http://127.0.0.1:${published(8081)}`;
-  for (let i = 0; i < 50; i++) {
-    try {
-      if ((await fetch(storeUrl + "/")).ok) break;
-    } catch {}
-    await delay(200);
-  }
+  await waitFor(storeUrl + "/");
   const json = async (url, init) => {
     const response = await fetch(url, init);
     return {
@@ -192,7 +200,10 @@ try {
     !String(h["x-forwarded-for"] ?? "").includes("1.2.3.4"),
     "client X-Forwarded-For not trusted",
   );
-  check(h["x-ih-client-ip"] && h["x-ih-client-ip"] !== "1.2.3.4", "gateway sets client IP itself");
+  check(
+    isIP(h["x-ih-client-ip"] ?? "") && h["x-ih-client-ip"] !== "1.2.3.4",
+    "gateway sets client IP itself",
+  );
   check(/^[0-9a-f-]{36}$/.test(h["x-request-id"]), "gateway assigns a request ID");
   check(h.cookie === "ih_age=ticket; other=1", "cookies forwarded intact");
   check(
@@ -244,8 +255,22 @@ try {
   });
   check(big.status === 413, "API request bodies limited to 64KB");
 
+  // Behind the staging host proxy (ADR 0100): only the trusted hop may name the client, and
+  // the first untrusted address from the right is used. Here the Docker bridge is the trusted hop.
+  const proxied = startGateway(name + "-proxied", "GATEWAY_TRUSTED_PROXY=172.16.0.0/12");
+  assert.equal(proxied.status, 0, "proxied gateway failed to start: " + proxied.stderr);
+  const proxiedUrl = `http://127.0.0.1:${published(8080, name + "-proxied")}`;
+  await waitFor(proxiedUrl + "/");
+  r = await json(proxiedUrl + "/", { headers: { "x-forwarded-for": "203.0.113.7" } });
+  check(
+    r.body?.headers["x-ih-client-ip"] === "203.0.113.7",
+    "trusted host proxy supplies the client IP",
+  );
+  check(r.body?.headers["x-real-ip"] === undefined, "X-Real-IP still stripped behind the proxy");
+
   process.stdout.write(`${checks} gateway checks passed.\n`);
 } finally {
   docker("rm", "-f", name);
+  docker("rm", "-f", name + "-proxied");
   for (const server of [store, admin, api]) server.close();
 }

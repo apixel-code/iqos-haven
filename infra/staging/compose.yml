@@ -1,0 +1,166 @@
+# Staging on the shared budget VPS (roadmap step 122, ADR 0100). Run from the staging directory
+# on the server through deploy.sh, which supplies the image digests (release.env).
+#
+# Nothing listens on a public interface: every published port is bound to 127.0.0.1 (Docker
+# bypasses ufw for published ports), and the host nginx terminates TLS for the three staging
+# hostnames. PostgreSQL, Redis, the API and Mailpit are reachable only inside this network.
+# Memory limits keep the stack from starving the other site on this host.
+name: ih-staging
+
+x-app: &app
+  restart: unless-stopped
+  stop_grace_period: 30s
+  read_only: true
+  tmpfs: ["/tmp"]
+  security_opt: ["no-new-privileges:true"]
+  networks: [ih]
+  logging:
+    driver: json-file
+    options: { max-size: "10m", max-file: "5" }
+
+services:
+  postgres:
+    image: postgres:18.6-alpine3.24@sha256:77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873
+    restart: unless-stopped
+    env_file: env/postgres.env
+    volumes:
+      - pg-data:/var/lib/postgresql
+      - ./postgres-init.sh:/docker-entrypoint-initdb.d/10-roles.sh:ro
+    networks: [ih]
+    mem_limit: 512m
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ih_owner -d iqos_haven"]
+      interval: 10s
+      timeout: 3s
+      retries: 30
+
+  # Queue Redis: noeviction + AOF (the worker refuses anything else outside development).
+  redis-queue:
+    image: redis:7.4.9-alpine@sha256:6ab0b6e7381779332f97b8ca76193e45b0756f38d4c0dcda72dbb3c32061ab99
+    restart: unless-stopped
+    command: ["redis-server", "--maxmemory-policy", "noeviction", "--appendonly", "yes"]
+    volumes: [redis-data:/data]
+    networks: [ih]
+    mem_limit: 128m
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 30
+
+  minio:
+    image: cgr.dev/chainguard/minio:latest@sha256:59667194421209c2c1eacbe761e24787e047985c5dfa96b15da9b59fe9b55cd0
+    restart: unless-stopped
+    command: ["server", "/data"]
+    env_file: env/minio.env
+    volumes: [minio-data:/data]
+    networks: [ih]
+    # S3 API only (no console); nginx serves it as the media hostname for presigned links.
+    ports: ["127.0.0.1:9100:9000"]
+    mem_limit: 384m
+
+  minio-init:
+    image: cgr.dev/chainguard/minio-client:latest-dev@sha256:603a402c2cd1543109c39eb5d1f731bd83b3c8f6ee8299b3785c8519fad0f5b5
+    depends_on: [minio]
+    entrypoint: ["/bin/sh", "/init-buckets.sh"]
+    env_file: env/minio.env
+    volumes: [./init-buckets.sh:/init-buckets.sh:ro]
+    networks: [ih]
+    restart: "no"
+
+  # Sink for every staging email; nothing is delivered. UI: SSH tunnel to 127.0.0.1:8125.
+  mailpit:
+    image: axllent/mailpit:v1.31.4@sha256:b68349e3a014b90c5610bfb26b2ae36f3892d7b8cf25ee140c6c71c98d2fcf48
+    restart: unless-stopped
+    ports: ["127.0.0.1:8125:8025"]
+    networks: [ih]
+    mem_limit: 64m
+
+  migrate:
+    <<: *app
+    image: ${IH_IMAGE_MIGRATE:?release.env}
+    env_file: env/migrate.env
+    depends_on: { postgres: { condition: service_healthy } }
+    restart: "no"
+    profiles: [migrate]
+    mem_limit: 256m
+
+  api:
+    <<: *app
+    image: ${IH_IMAGE_API:?release.env}
+    env_file: env/api.env
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis-queue: { condition: service_healthy }
+    mem_limit: 512m
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:4000/v1/health/ready').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+
+  worker:
+    <<: *app
+    image: ${IH_IMAGE_WORKER:?release.env}
+    env_file: env/worker.env
+    depends_on:
+      api: { condition: service_healthy }
+    mem_limit: 512m
+    # The worker's own deadline is 20 s; the platform waits longer.
+    stop_grace_period: 30s
+
+  storefront:
+    <<: *app
+    image: ${IH_IMAGE_STOREFRONT:?release.env}
+    env_file: env/storefront.env
+    # Next writes its render/image cache here; the rest of the filesystem stays read-only.
+    tmpfs: ["/tmp", "/app/apps/storefront/.next/cache:uid=1000,gid=1000"]
+    depends_on:
+      api: { condition: service_healthy }
+    mem_limit: 384m
+
+  admin:
+    <<: *app
+    image: ${IH_IMAGE_ADMIN:?release.env}
+    env_file: env/admin.env
+    tmpfs: ["/tmp", "/app/apps/admin/.next/cache:uid=1000,gid=1000"]
+    depends_on:
+      api: { condition: service_healthy }
+    mem_limit: 320m
+
+  # Same Caddyfile as development and the gateway tests. Only the host nginx (seen from this
+  # pinned network as its gateway address) may supply X-Forwarded-For.
+  gateway:
+    image: caddy:2.11-alpine@sha256:d8542f48d34a9cf4e4c11a478865229840e87e4c96ea3f439101f31a5d35f75f
+    restart: unless-stopped
+    read_only: true
+    security_opt: ["no-new-privileges:true"]
+    tmpfs: ["/data", "/config"]
+    volumes: [./Caddyfile:/etc/caddy/Caddyfile:ro]
+    environment:
+      STOREFRONT_UPSTREAM: storefront:3000
+      ADMIN_UPSTREAM: admin:3001
+      API_UPSTREAM: api:4000
+      GATEWAY_TRUSTED_PROXY: 172.30.50.1/32
+    ports: ["127.0.0.1:8180:8080", "127.0.0.1:8181:8081"]
+    depends_on: [storefront, admin]
+    networks: [ih]
+    mem_limit: 64m
+
+networks:
+  ih:
+    ipam:
+      config:
+        - subnet: 172.30.50.0/24
+          gateway: 172.30.50.1
+
+volumes:
+  pg-data:
+  redis-data:
+  minio-data:
