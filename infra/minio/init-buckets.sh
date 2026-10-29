@@ -1,5 +1,5 @@
 #!/bin/sh
-# Local development only. Propagate bucket errors; never report false success.
+# Local development and staging (step 122). Propagate bucket errors; never report false success.
 set -eu
 retries="${MINIO_INIT_RETRIES:-30}"
 case "$retries" in ''|*[!0-9]*) echo "Invalid retry budget" >&2; exit 1;; esac

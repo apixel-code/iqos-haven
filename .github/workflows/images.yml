@@ -1,0 +1,53 @@
+name: Images
+
+# Release images (roadmap step 122, ADR 0100): built once per main commit, pushed to GHCR and
+# promoted by digest. The release.env artifact pins the five digests for infra/staging/deploy.sh.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: images-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and push
+        env:
+          REPO: ghcr.io/${{ github.repository_owner }}/iqos-haven
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          echo "# Release ${SHA}" > release.env
+          for target in migrate api worker storefront admin; do
+            docker buildx build \
+              --file infra/docker/Dockerfile --target "$target" --platform linux/amd64 \
+              --cache-from type=gha --cache-to type=gha,mode=max \
+              --label org.opencontainers.image.revision="$SHA" \
+              --tag "$REPO-$target:$SHA" --push \
+              --metadata-file "meta-$target.json" .
+            digest=$(jq -r '."containerimage.digest"' "meta-$target.json")
+            var=IH_IMAGE_$(echo "$target" | tr '[:lower:]' '[:upper:]')
+            echo "$var=$REPO-$target@$digest" >> release.env
+          done
+          { echo '```'; cat release.env; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ github.sha }}
+          path: release.env
+          retention-days: 90

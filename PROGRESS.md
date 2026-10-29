@@ -2,13 +2,15 @@
 
 ## Current position
 
-- Date: 2026-10-28
+- Date: 2026-10-29
 - Milestone: M11 — full acceptance and release, in progress. Gates M0, M2–M10 PASSED (M0, M3, M4, M6–M10 on 2026-10-17, Marina); M1 open until staging/CI.
-- Step: launch parity gaps (Marina 2026-10-17): G-S2 (#101), G-S3 (#102), G-S5 (#103), G-A5 (#104), G-A6 (#105), G-A7 (#106), G-A8 (#107), G-A9 (#108), all merged to `main` 2026-10-18; G-A11 (#109), all merged to `main` 2026-10-18 — every launch parity gap is built. Steps 124 (#110) and 125 (#111) merged. **Marina (2026-10-18): the UI must match the prototypes before launch** (ADR 0097; storefront V-S1…V-S6, then admin V-A*; all deferred gaps included). V-S1 (storefront shell, #112) merged; V-S1 (#112), V-S2 (#113) and V-S3 (#114) merged to `main` (f419aed, CI green). V-S4 (#115) and V-S5 (#116) merged to `main` (0e6b954). V-S6a (#117) and V-S6b (#118) merged to `main` (550b05d): the storefront parity programme is complete. Admin: V-A1 (#119), V-A2 (#120), V-A3a (#121), V-A3b (#122) merged (92baa53); V-A3c (#123, manual order wizard, order edit), V-A4a (#124, products list) and V-A4b (#125, product editor layout, form, publishing card) merged to `main` 2026-10-22 (45bcd6e, CI green). V-A4c (#127), V-A5 (#128), V-A6 (#129), V-A7 (#130), V-A8 (#131), V-A9 (#133), V-A10 (#134), V-A11 (#135) and V-A12 (#137) merged to `main` 2026-10-25 (a302ca2), together with the security upgrades Next.js 16.4.3 (#132) and the remaining audit fixes (#136; `pnpm audit`: no known vulnerabilities). V-A13 SEO (#139), V-A14 settings and delivery (#140) and V-A15 staff and roles (#141) merged to `main` 2026-10-25 (c342524): **the admin parity programme (ADR 0097) is complete**. Every storefront and admin screen now follows the prototypes. **Steps 126 (backup and measured restore drill, ADR 0098, #143) and 127 (runbooks, `ops:effects`, break-glass `ops:owner-recovery`, ADR 0099, #144) merged to `main` 2026-10-28 (2a3cb21).** No open PRs. **Next:** staging-dependent work (122 VPS, then 120 devices, 121 rerun, 128) once the Hostinger VPS exists; until then Marina chooses. Steps 115–119, 121 done; 120 local part done (real devices wait for staging).
-- Branch: `main` (2a3cb21), clean; no open PRs. Branch the next step from `main`. Local machine: memory is tight; build with `turbo run build --concurrency=1` and restart Docker if it stops.
+- Step: launch parity gaps (Marina 2026-10-17): G-S2 (#101), G-S3 (#102), G-S5 (#103), G-A5 (#104), G-A6 (#105), G-A7 (#106), G-A8 (#107), G-A9 (#108), all merged to `main` 2026-10-18; G-A11 (#109), all merged to `main` 2026-10-18 — every launch parity gap is built. Steps 124 (#110) and 125 (#111) merged. **Marina (2026-10-18): the UI must match the prototypes before launch** (ADR 0097; storefront V-S1…V-S6, then admin V-A*; all deferred gaps included). V-S1 (storefront shell, #112) merged; V-S1 (#112), V-S2 (#113) and V-S3 (#114) merged to `main` (f419aed, CI green). V-S4 (#115) and V-S5 (#116) merged to `main` (0e6b954). V-S6a (#117) and V-S6b (#118) merged to `main` (550b05d): the storefront parity programme is complete. Admin: V-A1 (#119), V-A2 (#120), V-A3a (#121), V-A3b (#122) merged (92baa53); V-A3c (#123, manual order wizard, order edit), V-A4a (#124, products list) and V-A4b (#125, product editor layout, form, publishing card) merged to `main` 2026-10-22 (45bcd6e, CI green). V-A4c (#127), V-A5 (#128), V-A6 (#129), V-A7 (#130), V-A8 (#131), V-A9 (#133), V-A10 (#134), V-A11 (#135) and V-A12 (#137) merged to `main` 2026-10-25 (a302ca2), together with the security upgrades Next.js 16.4.3 (#132) and the remaining audit fixes (#136; `pnpm audit`: no known vulnerabilities). V-A13 SEO (#139), V-A14 settings and delivery (#140) and V-A15 staff and roles (#141) merged to `main` 2026-10-25 (c342524): **the admin parity programme (ADR 0097) is complete**. Every storefront and admin screen now follows the prototypes. **Steps 126 (backup and measured restore drill, ADR 0098, #143) and 127 (runbooks, `ops:effects`, break-glass `ops:owner-recovery`, ADR 0099, #144) merged to `main` 2026-10-28 (2a3cb21).** No open PRs. **Next:** staging-dependent work (122 VPS, then 120 devices, 121 rerun, 128) once the Hostinger VPS exists; until then Marina chooses. Steps 115–119, 121 done; 120 local part done (real devices wait for staging). **Step 122a (staging on the shared Hostinger VPS, ADR 0100) in progress** on branch `step/122-staging`: images, Images workflow, staging compose, host nginx + TLS done; first deploy waits for the merge (images) and the GHCR read token on the server.
+- Branch: `step/122-staging` (from `main` ee3a11b). Local machine: memory and disk are tight; never build release images on the Mac (CI builds them); build the workspace with `turbo run build --concurrency=1` and restart Docker if it stops.
 - See docs/verification.md for actual checks.
 
 ## Next action
+
+**Step 122a — exact next action:** commit `step(122): …` on `step/122-staging`, push, open the PR; after Marina merges, take `release.env` from the **Images** run summary, put it on the server as `/opt/iqos-staging/releases/<sha>.env` and run `./deploy.sh releases/<sha>.env` (runbook `docs/runbooks/staging.md`). Before that, Marina logs the server into GHCR with a classic token holding only `read:packages` (`docker login ghcr.io -u <user> --password-stdin`, typed by her). SSH: Marina's home Wi-Fi IP 103.20.89.115 is blocked by Hostinger's KL network; use her mobile data (see memory `staging-vps`). Then: bootstrap a staging Owner, smoke the three hostnames, and step 122b (daily backup timer, off-VPS copies, WAL archiving).
 
 **Start of a new session:**
 
@@ -97,7 +99,7 @@
 
 ## Blockers
 
-Before checkout is switched on: the sender domain verification (BI-07, Marina/Apixel) and the client's logo/contact copy (BI-01) and WhatsApp number (BI-09). Staging-dependent work waits for the Hostinger VPS (step 120 real devices, 122, 128).
+Before checkout is switched on: the sender domain verification (BI-07, Marina/Apixel) and the client's logo/contact copy (BI-01) and WhatsApp number (BI-09). Staging deploy waits for the step 122 merge and the GHCR read token on the VPS (Marina). `iqoshaven.com` is not registered (whois 2026-10-28): needed for production and for BI-07; the client should buy it. SSH to the VPS works only from Marina's mobile data until Hostinger unblocks 103.20.89.115.
 
 ## Gates passed
 
@@ -225,35 +227,27 @@ Before checkout is switched on: the sender domain verification (BI-07, Marina/Ap
 - Local MinIO uses Chainguard rebuilds (`cgr.dev/chainguard/minio`, `minio-client:latest-dev`) pinned by digest because official MinIO images are no longer publicly pullable. Still MinIO; production storage provider is decided under BI-06. No ADR needed unless the provider changes.
 - Event `consumers` lists only implemented consumers (now `system_probe`, `email`, `notification`, `media_processor`, `storefront_revalidate`); planned ones are documented with roadmap steps and move in with a backfill decision (architecture §8: adding a consumer must not redefine old completions).
 - RPO ≤5 min is not yet met: only daily encrypted dumps exist; WAL archiving/PITR comes with the VPS (step 122, ADR 0098).
+- Staging runs on a shared 1 vCPU VPS in Kuala Lumpur (not UAE), next to apixelpost.tech, behind host nginx without Cloudflare, under apixelpost.tech subdomains (ADR 0100). Test data only; production host and residency still open.
 - `audit_log` migration revokes UPDATE/DELETE/TRUNCATE only from a role named `ih_app`; other runtime role names must be revoked at provisioning (trigger blocks mutations regardless).
 
-## Last session handoff (2026-10-25, step 127 runbooks)
+## Last session handoff (2026-10-29, step 122a staging)
 
 Done:
 
-- **Step 126** committed (630be5c) and in PR #143.
-- **Step 127** (ADR 0099), stacked on 126:
-  - `pnpm ops:effects`: lists dead effects; `--replay <id> --reason` is audited.
-  - `pnpm ops:owner-recovery`: `recoverOwnerAccess` in `@ih/db`, for an existing Owner only. It runs under the Owner lock, revokes sessions, links and invitations, and writes the audit and events atomically.
-  - Runbooks: `docs/runbooks/{README,email-delivery,uploads-and-media,staff-and-owner-recovery}.md` are new; incident and rollback are rewritten; the bootstrap runbook now points to the recovery runbook.
-  - invariant-reviewer: no blocking findings. Low findings fixed: generic CLI error, revoked-session count, operator label and minimum reason length.
+- VPS checked (shared with apixelpost.tech: nginx, pm2 :3001, cron; its GitHub deploy logs in as root with a password). Hardened without touching that site: 2 GB swap, fail2ban (sshd), ufw 22/80/443 only (closes the public :3001). Password SSH kept on for apixelpost's deploy.
+- DNS (Marina, Cloudflare, DNS only): `iqos-staging`, `iqos-admin-staging`, `iqos-media-staging` .apixelpost.tech → 187.52.125.232. nginx site `iqos-staging` installed and Let's Encrypt certificates issued for all three (they answer 502 until the stack runs); apixelpost.tech still 200.
+- Server `/opt/iqos-staging`: staging files copied, `env/` (7 files, 0600) generated on the server; age private key only in storefront.env, owner DB URL only in migrate.env.
+- Repo: five-target Dockerfile, `next-start.cjs`, `.dockerignore`, Images workflow (GHCR, digests in `release.env`), staging compose/deploy/make-env/postgres-init/nginx, ADR 0100, staging runbook. Caddyfile: trusted host proxy + fixed client-IP placeholder (`{http.vars.client_ip}`; before, the literal placeholder text reached the API); gateway test strengthened.
 
-Files: `packages/db/src/{owner-recovery,owner-recovery.int.test,identity-transaction,index}.ts`, `apps/api/src/cli/owner-recovery{,.main,.test}.ts`, `apps/worker/src/cli/effects{,.main,.test}.ts`, `apps/{api,worker}/package.json`, `package.json`, `CLAUDE.md`, `docs/runbooks/*`, `docs/decisions/0099-operator-runbooks-and-break-glass.md`, `docs/verification.md`
+Files: `.dockerignore`, `.github/workflows/images.yml`, `infra/docker/{Dockerfile,next-start.cjs}`, `infra/staging/{compose.yml,deploy.sh,make-env.mjs,postgres-init.sh,nginx-site.conf}`, `infra/gateway/Caddyfile`, `infra/minio/init-buckets.sh`, `scripts/check-gateway.mjs`, `docs/decisions/0100-staging-on-shared-vps.md`, `docs/runbooks/{staging,README}.md`, `docs/verification.md`, `docs/business-inputs.md`
 
-Tests:
+Tests: `pnpm verify` PASS. `node scripts/check-gateway.mjs` PASS (31). Local arm64 image builds: api, worker, migrate start and resolve modules; migrate reaches the database step. The Next images' boot fix (`@ih/config` copied in) is NOT yet proven: the local rebuild was stopped when the Mac disk filled; the first proof is the Images workflow + deploy. `test:int` NOT RUN (no DB code change).
 
-- `pnpm verify` PASS. `pnpm test:int` PASS (db 144 including owner recovery, api 429, worker 92, platform 7).
-- After the review fixes: the recovery int test, the CLI units, build, lint and typecheck PASS.
-- Both commands were exercised on a separate database, which was dropped afterwards.
-
-Unfinished:
-
-- **Merged 2026-10-28:** #143 and #144 (Claude, on Marina's request; #144 needed a Prettier fix in docs/verification.md first).
-- **Local dev database (not in the repo):** the prototype's fictional demo catalogue was added for Marina on 2026-10-28 (6 brands with logos, 4 categories with images, 20 published products, 8 featured) through the running admin API. The scripts live outside the repo; the repository still holds no demo seed. The local Owner is `owner.local@iqoshaven.test`.
-- **Next:** steps 122, 120 (devices), 121 rerun and 128 need the Hostinger VPS. Steps 129–132 come later. Ask Marina what comes next if the VPS is not ready.
-- **To look into:** the stale `qa.mjs` publish check.
+Unfinished: commit/PR; GHCR token; first deploy; staging Owner; step 122b (backups, WAL); production host decision.
 
 ## History (summary)
+
+- 2026-10-25 step 127: runbooks, `ops:effects`, break-glass `ops:owner-recovery` (PR #144, merged 2026-10-28); local demo catalogue added to the dev DB only.
 
 - 2026-10-25 step 126: encrypted backup sets and measured restore drill (PR #143, merged 2026-10-28).
 
