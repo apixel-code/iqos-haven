@@ -1,7 +1,7 @@
 name: Images
 
 # Release images (roadmap step 122, ADR 0100): built once per main commit, pushed to GHCR and
-# promoted by digest. The release.env artifact pins the five digests for infra/staging/deploy.sh.
+# promoted by digest. The release.env artifact pins the six digests for infra/staging/deploy.sh.
 on:
   push:
     branches: [main]
@@ -34,7 +34,7 @@ jobs:
         run: |
           set -euo pipefail
           echo "# Release ${SHA}" > release.env
-          for target in migrate api worker storefront admin; do
+          for target in migrate api worker storefront admin ops; do
             docker buildx build \
               --file infra/docker/Dockerfile --target "$target" --platform linux/amd64 \
               --cache-from type=gha --cache-to type=gha,mode=max \

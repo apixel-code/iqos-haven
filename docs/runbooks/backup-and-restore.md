@@ -17,6 +17,8 @@ Architecture targets: DB RPO ≤5 minutes, RTO ≤1 hour, initial PITR retention
    - set up continuous WAL archiving (PITR, 14 days) for the ≤5 min RPO.
    - A daily dump alone allows up to 24 h of loss.
 
+On the VPS the same commands run in the `ops` image (`BACKUP_PG_TOOLS=local`: its own PostgreSQL 18 client), scheduled by a systemd timer and copied to Google Drive; see staging.md "Backups".
+
 ## Backup
 
 `pnpm ops:backup`: writes `BACKUP_DIR/ih-backup-<UTC time>/` with these files:

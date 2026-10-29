@@ -55,6 +55,21 @@ WORKDIR /app
 COPY --from=build --chown=node:node /out/migrate ./
 CMD ["node", "dist/migrate.js"]
 
+# Operator jobs on a server (step 122b): the api CLIs (backup, restore drill, launch check) plus
+# the PostgreSQL 18 client, so pg_dump/pg_restore match the server without `docker compose exec`.
+FROM base AS ops
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends postgresql-common \
+  && /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y \
+  && apt-get install -y --no-install-recommends postgresql-client-18 \
+  && rm -rf /var/lib/apt/lists/*
+ENV NODE_ENV=production
+USER node
+ENTRYPOINT ["/usr/bin/tini", "--"]
+WORKDIR /app
+COPY --from=build --chown=node:node /out/api ./
+CMD ["node", "dist/cli/backup.main.js"]
+
 FROM runtime AS storefront
 WORKDIR /app
 COPY --from=build --chown=node:node /out/storefront ./

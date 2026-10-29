@@ -60,4 +60,21 @@ Run these from `/opt/iqos-staging` with `C="docker compose --env-file release.cu
 | Read staging email        | `ssh -L 8125:127.0.0.1:8125 root@187.52.125.232`, then open http://localhost:8125          |
 | Checkout on (test orders) | set `CHECKOUT_SUBMISSION_ENABLED=true` in `env/api.env`, then `$C up -d api`               |
 
+## Backups (step 122b)
+
+Every night at 22:00 UTC (02:00 Dubai), the `ih-backup@staging` systemd timer runs `backup.sh`:
+
+1. The `ops` container writes an encrypted set to `backups/` (ADR 0098), keeping 30 days.
+2. `rclone` copies that sealed set to Google Drive (`gdrive:iqos-haven-backups/<env>`).
+3. Remote sets older than 31 days are removed.
+
+Once per environment:
+
+1. Run `./backup-env.sh` and save the printed key location's value **off this server** (password manager). Without it no copy can be restored.
+2. Run `rclone config` to create a remote named `gdrive`: type `drive`, scope `drive.file`, no auto config. The OAuth step runs on a laptop with `rclone authorize "drive"`.
+3. Install the timer: `cp ih-backup@.service ih-backup@.timer /etc/systemd/system/ && systemctl daemon-reload && systemctl enable --now ih-backup@staging.timer`.
+4. Prove it: `systemctl start ih-backup@staging`, then `journalctl -u ih-backup@staging -n 20`, then a drill: `$C --profile ops run --rm ops node dist/cli/restore-drill.main.js <set>`.
+
+A restore from Drive: `rclone copy gdrive:iqos-haven-backups/<env>/<set> backups/<set>`, then the drill command with `--keep`, as in backup-and-restore.md.
+
 Never run `docker compose down -v` or `docker volume rm` here: it deletes the staging database and media.

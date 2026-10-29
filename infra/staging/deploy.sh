@@ -10,13 +10,13 @@ set -eu
 cd "$(dirname "$0")"
 release="${1:?usage: deploy.sh <release.env>}"
 [ -d env ] || { echo "env/ missing: run make-env.mjs first" >&2; exit 2; }
-for var in IH_IMAGE_MIGRATE IH_IMAGE_API IH_IMAGE_WORKER IH_IMAGE_STOREFRONT IH_IMAGE_ADMIN; do
+for var in IH_IMAGE_MIGRATE IH_IMAGE_API IH_IMAGE_WORKER IH_IMAGE_STOREFRONT IH_IMAGE_ADMIN IH_IMAGE_OPS; do
   grep -Eq "^$var=[^ ]+@sha256:[0-9a-f]{64}$" "$release" \
     || { echo "$var is not pinned by digest in $release" >&2; exit 2; }
 done
 compose() { docker compose --env-file "$release" "$@"; }
 
-compose --profile migrate pull --quiet
+compose --profile migrate --profile ops pull --quiet
 compose up -d --wait postgres redis-queue minio mailpit
 compose run --rm minio-init
 compose --profile migrate run --rm migrate
