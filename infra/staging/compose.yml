@@ -121,6 +121,17 @@ services:
     env_file: env/storefront.env
     # Next writes its render/image cache here; the rest of the filesystem stays read-only.
     tmpfs: ["/tmp", "/app/apps/storefront/.next/cache:uid=1000,gid=1000"]
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/health').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 30
     depends_on:
       api: { condition: service_healthy }
     mem_limit: 384m
@@ -130,6 +141,17 @@ services:
     image: ${IH_IMAGE_ADMIN:?release.env}
     env_file: env/admin.env
     tmpfs: ["/tmp", "/app/apps/admin/.next/cache:uid=1000,gid=1000"]
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3001/health').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 30
     depends_on:
       api: { condition: service_healthy }
     mem_limit: 320m
@@ -149,9 +171,11 @@ services:
       API_UPSTREAM: api:4000
       GATEWAY_TRUSTED_PROXY: 172.30.50.1/32
     ports: ["127.0.0.1:8180:8080", "127.0.0.1:8181:8081"]
-    depends_on: [storefront, admin]
+    depends_on:
+      storefront: { condition: service_healthy }
+      admin: { condition: service_healthy }
     networks: [ih]
-    mem_limit: 64m
+    mem_limit: 128m
 
 networks:
   ih:
