@@ -1,0 +1,11 @@
+# 22:00 UTC = 02:00 Dubai, the quietest hour; a missed run (server off) runs at boot.
+[Unit]
+Description=Daily Iqos Haven backup (%i)
+
+[Timer]
+OnCalendar=*-*-* 22:00:00 UTC
+RandomizedDelaySec=10m
+Persistent=true
+
+[Install]
+WantedBy=timers.target

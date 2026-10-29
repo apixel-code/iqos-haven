@@ -13,7 +13,7 @@ import {
   urlForDatabase,
   type BackupManifest,
 } from "./backup";
-import { composeExec, repoRoot } from "./ops-process";
+import { pgTool, repoRoot } from "./ops-process";
 
 const usage =
   "usage: pnpm ops:restore-drill <backup-set-folder> [--keep]\n" +
@@ -31,10 +31,9 @@ async function main(argv: string[]): Promise<number> {
   const env = loadEnv(backupEnvSchema);
   const { user } = databaseTarget(env.DATABASE_MIGRATION_URL);
   const root = resolve(repoRoot, env.BACKUP_DIR);
-  const service = env.BACKUP_POSTGRES_SERVICE;
   const drop = async (name: string) => {
     assertDrillDatabase(name);
-    await composeExec(service, [
+    await pgTool(env, [
       "psql",
       "-U",
       user,
@@ -74,7 +73,7 @@ async function main(argv: string[]): Promise<number> {
   const database = assertDrillDatabase(drillDatabaseName(new Date()));
   const drillDir = join(root, "drills", database);
   await mkdir(join(drillDir, "media"), { recursive: true, mode: 0o700 });
-  await composeExec(service, [
+  await pgTool(env, [
     "psql",
     "-U",
     user,
@@ -87,8 +86,8 @@ async function main(argv: string[]): Promise<number> {
   ]);
   let exitCode = 2;
   try {
-    await composeExec(
-      service,
+    await pgTool(
+      env,
       ["pg_restore", "-U", user, "-d", database, "--no-owner", "--exit-on-error"],
       dump,
     );

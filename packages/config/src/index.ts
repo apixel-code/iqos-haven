@@ -769,7 +769,7 @@ export const launchCheckEnvSchema = baseEnvSchema.extend({ DATABASE_URL: postgre
 /**
  * `pnpm ops:backup` and `pnpm ops:restore-drill` (step 126, ADR 0098): the migration role (it
  * can read every table and the migration history), the backup folder, the separately held
- * encryption key, the retention (BI-08: 30 days) and the Compose service that runs pg_dump.
+ * encryption key, the retention (BI-08: 30 days) and where pg_dump runs (BACKUP_PG_TOOLS).
  */
 export const backupEnvSchema = baseEnvSchema
   .extend({
@@ -783,6 +783,8 @@ export const backupEnvSchema = baseEnvSchema
       .string()
       .regex(/^[a-z0-9][a-z0-9_-]*$/, "must be a Compose service name")
       .default("postgres"),
+    /** compose: tools run in that Compose service; local: the ops image's own client (122b). */
+    BACKUP_PG_TOOLS: z.enum(["compose", "local"]).default("compose"),
     ...storageEnvFields,
   })
   .superRefine((value, ctx) => storageSafety(value, ctx));

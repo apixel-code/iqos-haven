@@ -12,7 +12,7 @@ import {
   storageConfigFromEnv,
 } from "@ih/platform";
 import { databaseTarget, manifestFacts, MANIFEST_VERSION, type BackupManifest } from "./backup";
-import { composeExec, repoRoot } from "./ops-process";
+import { pgTool, repoRoot } from "./ops-process";
 
 /** Images up to this size are copied; the upload limit is 8 MB, derivatives are smaller. */
 const MAX_OBJECT_BYTES = 64 * 1024 * 1024;
@@ -57,7 +57,7 @@ async function main(): Promise<number> {
           Prisma.sql`SELECT pg_export_snapshot() AS snapshot`,
         );
         const inSnapshot = await backupFacts(tx);
-        const dump = await composeExec(env.BACKUP_POSTGRES_SERVICE, [
+        const dump = await pgTool(env, [
           "pg_dump",
           "-U",
           user,

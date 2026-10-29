@@ -1,0 +1,13 @@
+# Daily backup of one Iqos Haven environment (/opt/iqos-<env>), step 122b.
+# Install: cp ih-backup@.service ih-backup@.timer /etc/systemd/system/
+#          systemctl enable --now ih-backup@staging.timer
+[Unit]
+Description=Iqos Haven backup (%i)
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/iqos-%i/backup.sh
+Nice=10
+IOSchedulingClass=idle

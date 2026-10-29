@@ -85,6 +85,17 @@ services:
     profiles: [migrate]
     mem_limit: 256m
 
+  # Operator jobs (backup.sh, restore drills): api CLIs + PostgreSQL 18 client. Never left running.
+  ops:
+    <<: *app
+    image: ${IH_IMAGE_OPS:?release.env}
+    env_file: env/backup.env
+    volumes: [./backups:/backups]
+    depends_on: { postgres: { condition: service_healthy } }
+    restart: "no"
+    profiles: [ops]
+    mem_limit: 512m
+
   api:
     <<: *app
     image: ${IH_IMAGE_API:?release.env}

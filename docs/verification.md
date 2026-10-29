@@ -2762,3 +2762,15 @@ ADR 0100, runbook `docs/runbooks/staging.md`.
 | Images  | Local arm64 builds of all five targets; api/worker/migrate start as uid 1000, workspace packages resolve, migrate reaches the database. Next boot fix not yet re-proven. |
 | Suites  | `pnpm verify` PASS. `test:int` NOT RUN (no database code change).                                                                                                        |
 | Not yet | Images workflow run, first deploy and smoke on the real hostnames, staging Owner, backups/WAL (122b).                                                                    |
+
+## Step 122b — server backups, Google Drive copy and restore drill (2026-10-29, staging)
+
+| Item     | Evidence                                                                                                                                                                          |
+| -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Unit     | `ops-process.test.ts`: the migration URL becomes libpq variables (password decoded, never an argument). API CLI tests 25 PASS; api lint and typecheck PASS.                       |
+| Image    | `ops` target built in the Images workflow from the branch (release 0f9d8d3); deployed to staging with `deploy.sh` (exit 0, smoke checks PASS).                                    |
+| Backup   | `backup.sh` on staging: set `ih-backup-20261029T023258Z` (108 media objects, 68 stock movements), 3 s; copied to Google Drive; `rclone check`: 111 matching files, 0 differences. |
+| Drill    | `restore-drill` in the ops image on the server: 13/13 PASS, RTO 2 s, backup age 584 s; drill database dropped.                                                                    |
+| Schedule | `ih-backup@staging.timer` enabled (22:00 UTC); one run through systemd: Result=success, set written and copied.                                                                   |
+| Keys     | Backup key generated on the server, never printed by the tooling; Marina keeps a copy off the server. Drive access uses the `drive.file` scope only.                              |
+| Not yet  | WAL archiving / PITR (RPO ≤5 min): today's RPO is up to 24 h. Production environment (after the domain).                                                                          |
