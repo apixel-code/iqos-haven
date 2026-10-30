@@ -26,7 +26,7 @@ The Hostinger VPS (BI-06) exists: `srv1927335`, 1 vCPU, 3.8 GB RAM, 48 GB disk, 
   - `.github/workflows/images.yml` builds `linux/amd64` on every `main` commit and pushes to GHCR.
   - It publishes `release.env` (an artifact and the job summary) with the five `…@sha256:` digests.
   - The VPS never builds: its single vCPU is shared.
-- **Staging stack** (`infra/staging/compose.yml`, project `ih-staging`):
+- **Staging stack** (`infra/vps/compose.yml`, project `ih-staging`; production uses the same files with its own `site.env`, step 123):
   - Services: PostgreSQL 18, queue Redis (noeviction + AOF), MinIO, Mailpit, migrate (one-shot), api, worker, storefront, admin, and the same Caddy gateway as development.
   - Every published port is bound to `127.0.0.1`: gateway 8180/8181, MinIO 9100, Mailpit 8125. Docker bypasses ufw, so binding is the control. PostgreSQL, Redis and the API publish nothing.
   - App containers are read-only, with `no-new-privileges` and memory limits that keep apixelpost.tech responsive.
