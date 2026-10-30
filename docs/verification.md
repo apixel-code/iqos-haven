@@ -2774,3 +2774,13 @@ ADR 0100, runbook `docs/runbooks/staging.md`.
 | Schedule | `ih-backup@staging.timer` enabled (22:00 UTC); one run through systemd: Result=success, set written and copied.                                                                   |
 | Keys     | Backup key generated on the server, never printed by the tooling; Marina keeps a copy off the server. Drive access uses the `drive.file` scope only.                              |
 | Not yet  | WAL archiving / PITR (RPO ≤5 min): today's RPO is up to 24 h. Production environment (after the domain).                                                                          |
+
+## Step 122c — WAL archiving and point-in-time recovery (2026-10-30, staging)
+
+| Item     | Evidence                                                                                                                                                                                                                                 |
+| -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Archive  | `archive_mode=on`, `archive_timeout=2min` after one postgres restart; segments gzipped into `wal/` (temp name, then rename). Apps stayed healthy (storefront 200).                                                                       |
+| Off-site | rclone crypt remote `gcrypt:` over Google Drive (names and contents encrypted); `ih-wal@staging.timer` every 2 min; base backup `base-20261030T115343Z` via `basebackup.sh`.                                                             |
+| Drill    | `IH_PITR_FROM_REMOTE=1 ./pitr-drill.sh "2026-10-30 11:57:08+00"` from Drive only: recovered in 2 s; newest scheduler heartbeat 11:56:24.446236 and 346 audit rows, identical to live data up to the target. Container and files removed. |
+| RPO      | The target's WAL was on Drive within 4 minutes (target 11:57:08, checked 12:00:45): RPO ≤5 min met on staging. PITR window 14 days (remote retention 15 days).                                                                           |
+| Keys     | Crypt password and salt generated on the server (`env/pitr.env`, 0600), not printed; Marina keeps a copy off the server.                                                                                                                 |
