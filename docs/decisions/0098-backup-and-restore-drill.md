@@ -56,6 +56,7 @@ The store runs on one Hostinger VPS (BI-06) with PostgreSQL in Docker Compose, s
   - A nightly dump alone gives an RPO of up to 24 h, which does not meet the ≤5 min target.
   - The ≤5 min RPO needs continuous WAL archiving (PITR, 14 days) on the VPS, for example `archive_command` or pgBackRest to off-VPS object storage. It is set up and measured with step 122.
   - Until then the drill reports the backup age honestly instead of claiming the target.
+  - **Update 2026-10-30 (step 122c):** on the VPS, PostgreSQL archives WAL every 2 minutes (`archive_timeout=120`), shipped every 2 minutes through an rclone crypt remote to Google Drive, with weekly `pg_basebackup` base backups. `pitr-drill.sh` restores to a target time from Drive alone (staging runbook). RPO about 4 minutes; PITR window 14 days.
 
 ## Consequences
 

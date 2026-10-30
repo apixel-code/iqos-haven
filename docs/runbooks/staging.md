@@ -77,4 +77,40 @@ Once per environment:
 
 A restore from Drive: `rclone copy gdrive:iqos-haven-backups/<env>/<set> backups/<set>`, then the drill command with `--keep`, as in backup-and-restore.md.
 
+## Point-in-time recovery (step 122c)
+
+PostgreSQL archives its WAL at least every 2 minutes into `wal/`. Two timers then take over:
+
+- `ih-wal@<env>.timer`, every 2 minutes, encrypts the segments and ships them to `gcrypt:<env>/wal`. The `gcrypt` remote is an rclone crypt remote over `gdrive:iqos-haven-pitr`.
+- `ih-basebackup@<env>.timer` takes a physical base backup every Sunday at 21:30 UTC.
+
+Remote copies are kept 15 days; local WAL is kept 2 days after it is confirmed remotely.
+
+**Targets:**
+
+- **Recovery point:** about 4 minutes behind (RPO ≤5 min).
+- **Window:** 14 days.
+
+**Once per environment:**
+
+1. Run `./pitr-env.sh`. It creates the crypt remote and `env/pitr.env`. Save both values **off this server**: without them the Drive copies cannot be decrypted.
+2. Deploy the compose file with the `archive_*` settings. This restarts postgres once.
+3. Run `./basebackup.sh` for the first base backup.
+4. Install `ih-wal@`/`ih-basebackup@` and enable both timers.
+
+**Drill** (it never touches the live database):
+
+- `./pitr-drill.sh "<UTC time>"` uses the local copies.
+- `IH_PITR_FROM_REMOTE=1 ./pitr-drill.sh "<UTC time>"` downloads from Drive first.
+
+It restores into a throwaway container with no network, prints the counts and the newest scheduler heartbeat (the real recovery point), then removes everything.
+
+**Real recovery:**
+
+1. Stop the API and worker.
+2. Run the drill steps by hand into a new data volume, using the agreed target time.
+3. Check the counts, then point the stack at the recovered volume.
+
+Never restore over the live volume. Record the target time, the incident ID and the measured RPO/RTO.
+
 Never run `docker compose down -v` or `docker volume rm` here: it deletes the staging database and media.

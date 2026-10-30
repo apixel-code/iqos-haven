@@ -1,0 +1,12 @@
+# Every 2 minutes: with archive_timeout=120 the recovery point lags at most ~4 minutes plus
+# upload time (RPO target ≤5 min, architecture §15).
+[Unit]
+Description=Iqos Haven WAL shipping every 2 minutes (%i)
+
+[Timer]
+OnCalendar=*:0/2
+AccuracySec=10s
+Persistent=true
+
+[Install]
+WantedBy=timers.target
