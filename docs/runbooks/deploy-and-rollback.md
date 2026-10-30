@@ -20,6 +20,23 @@ Select budget or replicated profile, UAE regions and provider eligibility; provi
 
 Stop the affected rollout; identify last known-good digest and current schema compatibility. Roll back app/worker images only when compatible. Preserve order/idempotency/effect state; no automatic DB downgrade or volume deletion. Restore into an isolated environment if recovery is required and measure data reconciliation; never restore a snapshot blindly over current accepted orders. Record version/command/effect IDs rather than customer PII.
 
+## On the VPS (staging and production, step 128)
+
+1. CI's **Images** run builds every image once and lists its digests in `release.env`. Copy that file to `releases/<sha>.env` on the server.
+2. **Rehearse first:** run `./rehearse.sh releases/<new>.env`. It does four things:
+   - restores a fresh backup into an isolated copy;
+   - applies the new migrations there;
+   - starts the **current** API on the migrated copy, which proves rollback safety;
+   - starts the new API there too.
+
+   It never touches live data or the queue.
+
+3. **Release:** run `./deploy.sh releases/<new>.env`. It refuses any image that is not pinned by digest, migrates, and starts the services in order. Then it smoke-checks them and records `release.current.env`.
+4. **Roll back:** run `./deploy.sh releases/<previous>.env`. This is safe because every ordinary migration is expand-only.
+   - `pnpm test:migrations` enforces that rule in CI.
+   - A breaking change goes into a later `*_contract` migration marked `-- contract-after: <release>`. It ships only after the rollback window of the release that stopped using the old shape.
+5. **Expect a few seconds of 502** while the storefront and admin restart: 3–4 s measured on staging. Release in a quiet hour.
+
 ## Rollback decisions (operator)
 
 | Symptom after a release                         | Action                                                                                                                                                                                                |

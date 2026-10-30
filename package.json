@@ -20,6 +20,7 @@
     "infra:down": "docker compose down",
     "db:migration:create": "pnpm --filter @ih/db db:migration:create",
     "test:boundaries": "node scripts/check-boundaries.mjs",
+    "test:migrations": "node scripts/check-migrations.mjs",
     "test:package": "node scripts/check-reference-set.mjs",
     "test:infra": "node scripts/check-minio-init.mjs",
     "contracts:generate": "node scripts/generate-api-contract.mjs",

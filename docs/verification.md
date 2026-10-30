@@ -2784,3 +2784,13 @@ ADR 0100, runbook `docs/runbooks/staging.md`.
 | Drill    | `IH_PITR_FROM_REMOTE=1 ./pitr-drill.sh "2026-10-30 11:57:08+00"` from Drive only: recovered in 2 s; newest scheduler heartbeat 11:56:24.446236 and 346 audit rows, identical to live data up to the target. Container and files removed. |
 | RPO      | The target's WAL was on Drive within 4 minutes (target 11:57:08, checked 12:00:45): RPO ≤5 min met on staging. PITR window 14 days (remote retention 15 days).                                                                           |
 | Keys     | Crypt password and salt generated on the server (`env/pitr.env`, 0600), not printed; Marina keeps a copy off the server.                                                                                                                 |
+
+## Step 128 — release and rollback rehearsal (2026-10-30, staging)
+
+| Item         | Evidence                                                                                                                                                                                                                                           |
+| ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Guard        | `pnpm test:migrations` (in verify and CI): rule self-test passes; 0 migrations after the baseline. Run over all history it flags exactly the two pre-launch rollback breakers (`product_gallery` required column, `catalogue_images` DROP COLUMN). |
+| Rehearsal    | `rehearse.sh releases/bba99d1.env` (old = 0f9d8d3): fresh backup → isolated copy → new migrations (none pending) → old api ready on it → new api ready on it. No container, temp env file or drill database left.                                  |
+| Promotion    | `deploy.sh` bba99d1 → 0f9d8d3 (rollback) → bba99d1: all exit 0 (79 s, 43 s, 44 s); after each, the api, worker, storefront and admin containers run exactly the digests in the release file.                                                       |
+| Availability | Public `/health` probed every 0.5 s through nginx: 283 probes, 19 × 502 in three windows of 4.2 s, 3.4 s and 3.4 s (storefront/admin restart). apixelpost.tech 200 throughout.                                                                     |
+| Not yet      | An expand migration through the full path (none pending today; the rehearsal script covers it). Production credential isolation is checked when production is created (fresh `make-env.mjs`, no shared secret).                                    |
