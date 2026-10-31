@@ -21,16 +21,14 @@ Design: ADR 0100 (production on the same VPS as staging, separate everything). F
    ```
 
 3. Check that production shares no secret with staging: `./check-isolation.sh /opt/iqos-staging /opt/iqos-production`. It must print `Isolated`.
-4. Set up nginx and TLS:
+4. Set up nginx and TLS. Once per server, also install the catch-all `nginx-default.conf` as `sites-available/00-default`, so a bare IP or an unknown host gets no site. `site.env` redirects `www` to the bare domain:
 
    ```sh
    ./render-nginx.sh > /etc/nginx/sites-available/iqos-production
    ln -s ../sites-available/iqos-production /etc/nginx/sites-enabled/
    nginx -t && systemctl reload nginx
-   certbot --nginx -d iqoshaven.com -d admin.iqoshaven.com -d media.iqoshaven.com
+   certbot --nginx -d iqoshaven.com -d www.iqoshaven.com -d admin.iqoshaven.com -d media.iqoshaven.com
    ```
-
-   apixelpost.tech must still answer 200 afterwards.
 
 5. Release the **same** release file that passed on staging: `./deploy.sh releases/<sha>.env`.
 6. Create the first Owner: `$C run --rm --no-deps api node dist/cli/bootstrap-owner.main.js --email <a> --name "<n>"`. Marina types the password.

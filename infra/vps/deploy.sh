@@ -18,6 +18,9 @@ for var in IH_IMAGE_MIGRATE IH_IMAGE_API IH_IMAGE_WORKER IH_IMAGE_STOREFRONT IH_
     || { echo "$var is not pinned by digest in $release" >&2; exit 2; }
 done
 . ./site.env
+# Postgres (uid 70 in the image) archives WAL into ./wal; Docker would create it root-owned and
+# every archive attempt would fail while pg_wal grows (step 122c).
+mkdir -p wal backups && chown 70:70 wal && chown 1000:1000 backups && chmod 700 wal backups
 joined=".release.next.env"
 cat site.env "$release" > "$joined"
 compose() { docker compose --env-file "$joined" "$@"; }
