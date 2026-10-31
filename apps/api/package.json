@@ -15,6 +15,7 @@
     "launch:check": "node dist/cli/launch-check.main.js",
     "ops:backup": "node dist/cli/backup.main.js",
     "ops:restore-drill": "node dist/cli/restore-drill.main.js",
+    "ops:restore-media": "node dist/cli/restore-media.main.js",
     "ops:backup-key": "node dist/cli/backup-key.main.js",
     "identity:benchmark": "node dist/cli/argon2-benchmark.main.js",
     "ops:owner-recovery": "node dist/cli/owner-recovery.main.js"
