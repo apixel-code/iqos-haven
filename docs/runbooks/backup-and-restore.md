@@ -67,7 +67,7 @@ It then removes sets past retention; the newest set always stays.
 
 1. Stop the API and worker. Restore into a new database with the drill command and `--keep`, and check the report.
 2. Point `DATABASE_URL`/`DATABASE_MIGRATION_URL` at it, using a renamed database or new credentials.
-3. Copy the drill media folder back into the media bucket.
+3. Write the media back with `pnpm ops:restore-media <set>`. It verifies every object first, then puts each under its original key. The drill folder holds hashed file names, so it cannot simply be copied.
 4. Start the API, then the worker, and reconcile unfinished effects before sending anything.
 
 Store measured evidence and exception decisions with the release. A healthy Redis snapshot alone does not back up accepted orders.
