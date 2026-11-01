@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { PermanentEffectError, type EffectContext, type ExternalEffectHandler } from "../effects";
+import { brandedEmail } from "./layout";
 import { EmailTemplateError, emailDeliveryKey, renderEmail, type EmailTemplate } from "./template";
 
 /** One message per effect; recipients are sent as Bcc so staff never see each other. */
@@ -91,12 +92,17 @@ export function createEmailConsumer(options: {
 /** Operational check message (smoke tests / probes). Neutral copy; no customer data. */
 export const systemTestMessageTemplate: EmailTemplate<z.ZodObject<{ probeId: z.ZodUUID }>> = {
   id: "system.test_message",
-  version: 1,
+  version: 2,
   schema: z.strictObject({ probeId: z.uuid() }),
   render: (data, html) => ({
     subject: "Iqos Haven email check",
     text: `This is an automated delivery check.\nReference: ${data.probeId}\n`,
-    html: html`<p>This is an automated delivery check.</p>
-      <p>Reference: ${data.probeId}</p>`,
+    html: brandedEmail(html, {
+      preheader: "Automated delivery check. No action is needed.",
+      heading: "Email delivery check",
+      body: html`<p style="margin:0">This is an automated delivery check. No action is needed.</p>
+        <p style="margin:12px 0 0">Reference: ${data.probeId}</p>`,
+      footnote: "Sent by the Iqos Haven system to confirm that email delivery works.",
+    }),
   }),
 };

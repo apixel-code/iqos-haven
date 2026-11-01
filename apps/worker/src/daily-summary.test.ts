@@ -37,7 +37,8 @@ describe("daily summary registration", () => {
     expect(email.subject).toBe("Daily summary for 2026-10-15");
     expect(email.text).toContain("Delivered: 2 orders, AED 800.50 (by delivery date)");
     expect(email.text).toContain("Pod <X>: 4");
-    expect(email.html).toContain("Pod &lt;X&gt;: 4");
+    expect(email.html).toContain("Pod &lt;X&gt;");
+    expect(email.html).toContain("Cash collected (collection date)");
     expect(email.html).not.toContain("<X>");
   });
 });

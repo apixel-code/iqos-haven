@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { brandedEmail, factsTable } from "./layout";
 import type { EmailTemplate } from "./template";
 
 /** Amounts arrive already formatted from integer fils, e.g. "AED 1,212.99". */
@@ -25,7 +26,7 @@ const schema = z.strictObject({
  */
 export const dailySummaryTemplate: EmailTemplate<typeof schema> = {
   id: "report.daily_summary",
-  version: 1,
+  version: 2,
   schema,
   render: (data, html) => {
     const lines = [
@@ -42,16 +43,33 @@ export const dailySummaryTemplate: EmailTemplate<typeof schema> = {
         `Daily summary for ${data.day}\n\n${lines.join("\n")}\n\n` +
         (products.length ? `Most ordered (units):\n${products.join("\n")}\n\n` : "") +
         `${footer}\n`,
-      html:
-        html`<p>Daily summary for ${data.day}</p>
-          <p>${lines[0]}<br />${lines[1]}<br />${lines[2]}<br />${lines[3]}</p>` +
-        (products.length
-          ? html`<p>Most ordered (units):</p>` +
-            "<ul>" +
-            products.map((line) => html`<li>${line}</li>`).join("") +
-            "</ul>"
-          : "") +
-        html`<p>${footer}</p>`,
+      html: brandedEmail(html, {
+        preheader: `${data.day}: ${data.booked.orders} orders placed, ${data.collected.amount} collected.`,
+        heading: `Daily summary · ${data.day}`,
+        body:
+          factsTable(html, [
+            ["Placed (order date)", `${data.booked.orders} orders · ${data.booked.total}`],
+            ["Cancelled", `${data.cancelled.orders} of those orders`],
+            [
+              "Delivered (delivery date)",
+              `${data.delivered.orders} orders · ${data.delivered.total}`,
+            ],
+            [
+              "Cash collected (collection date)",
+              `${data.collected.orders} orders · ${data.collected.amount}`,
+            ],
+          ]) +
+          (products.length
+            ? html`<p style="margin:0 0 4px;font-weight:600;color:#12161b">
+                Most ordered (units)
+              </p>` +
+              factsTable(
+                html,
+                data.topProducts.map((product) => [product.name, String(product.units)] as const),
+              )
+            : ""),
+        footnote: footer,
+      }),
     };
   },
 };

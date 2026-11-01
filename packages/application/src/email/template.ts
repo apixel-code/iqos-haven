@@ -32,13 +32,24 @@ export function escapeHtml(value: string): string {
   return value.replace(/[&<>"']/g, (char) => HTML_ESCAPES[char]!);
 }
 
+/**
+ * HTML that the escaping builder itself produced (a nested fragment, e.g. a layout's body).
+ * Interpolated as-is; every other value is escaped. Template data are validated strings and
+ * numbers, never fragments, so data cannot reach the output unescaped.
+ */
+export class HtmlFragment {
+  constructor(readonly html: string) {}
+}
+
 /** Tagged template that escapes every interpolated value; templates never build raw HTML. */
 export type HtmlBuilder = (strings: TemplateStringsArray, ...values: unknown[]) => string;
-const html: HtmlBuilder = (strings, ...values) =>
-  strings.reduce(
-    (out, part, i) => out + part + (i < values.length ? escapeHtml(String(values[i])) : ""),
-    "",
-  );
+/** The escaping builder, for HTML composed outside a template (ops alerts). */
+export const escapedHtml: HtmlBuilder = (strings, ...values) =>
+  strings.reduce((out, part, i) => {
+    if (i >= values.length) return out + part;
+    const value = values[i];
+    return out + part + (value instanceof HtmlFragment ? value.html : escapeHtml(String(value)));
+  }, "");
 
 export class EmailTemplateError extends Error {
   constructor(readonly code: "INVALID_TEMPLATE_DATA" | "INVALID_SUBJECT") {
@@ -52,7 +63,7 @@ export function renderEmail<S extends z.ZodType>(
 ): RenderedEmail {
   const parsed = template.schema.safeParse(data);
   if (!parsed.success) throw new EmailTemplateError("INVALID_TEMPLATE_DATA");
-  const rendered = template.render(parsed.data, html);
+  const rendered = template.render(parsed.data, escapedHtml);
   const subject = rendered.subject.trim();
   // A newline in a header value would allow header injection.
   if (!subject || subject.length > 200 || /[\r\n]/.test(subject))

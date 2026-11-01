@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { brandedEmail, factsTable } from "./layout";
 import type { EmailTemplate } from "./template";
 
 const schema = z.strictObject({
@@ -14,19 +15,27 @@ const schema = z.strictObject({
  */
 export const lowStockTemplate: EmailTemplate<typeof schema> = {
   id: "inventory.low",
-  version: 1,
+  version: 2,
   schema,
   render: ({ productName, sku, stock, threshold }, html) => {
     const level = stock === 0 ? "Out of stock" : `${stock} left`;
     return {
       subject: `Low stock: ${productName} (${sku})`,
       text: `A product has reached its low-stock alert level.\n\nProduct: ${productName}\nSKU: ${sku}\nStock: ${level}\nAlert level: ${threshold}\n\nSign in to the admin to update stock.\n`,
-      html: html`<p>A product has reached its low-stock alert level.</p>
-        <p>
-          Product: ${productName}<br />SKU: ${sku}<br />Stock: ${level}<br />Alert level:
-          ${threshold}
-        </p>
-        <p>Sign in to the admin to update stock.</p>`,
+      html: brandedEmail(html, {
+        preheader: `${productName} (${sku}): ${level}.`,
+        heading: stock === 0 ? "A product is out of stock" : "A product is running low",
+        body:
+          html`<p style="margin:0">A product has reached its low-stock alert level.</p>` +
+          factsTable(html, [
+            ["Product", productName],
+            ["SKU", sku],
+            ["Stock", level],
+            ["Alert level", String(threshold)],
+          ]) +
+          html`<p style="margin:0">Sign in to the admin to update stock.</p>`,
+        footnote: "You receive this because low-stock alerts are on in Settings → Notifications.",
+      }),
     };
   },
 };

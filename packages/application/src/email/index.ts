@@ -1,5 +1,6 @@
 export * from "./consumer";
 export * from "./template";
+export * from "./layout";
 
 export * from "./password-reset";
 

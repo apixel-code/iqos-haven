@@ -8,6 +8,8 @@ import {
   type EmailMessage,
 } from "./consumer";
 import { emailDeliveryKey, escapeHtml, renderEmail, type EmailTemplate } from "./template";
+import { newOrderTemplate } from "./new-order";
+import { staffInvitationTemplate } from "./staff-invitation";
 
 const probeId = "0199c4a2-7b1e-7c3a-9f00-1234567890ab";
 const context: EffectContext = {
@@ -149,5 +151,33 @@ describe("email consumer", () => {
         signal,
       ),
     ).resolves.toEqual({ receipt: "r;rejected=1" });
+  });
+});
+
+describe("branded email layout", () => {
+  it("escapes every value, keeps the link written out, and stays email-safe", () => {
+    const invite = renderEmail(staffInvitationTemplate, {
+      inviteUrl: "https://admin.iqoshaven.com/accept?token=a&b=<x>",
+    });
+    expect(invite.html).toContain("IQOS HAVEN");
+    expect(invite.html).toContain("Accept invitation");
+    expect(invite.html).toContain("token=a&amp;b=&lt;x&gt;");
+    expect(invite.html).not.toContain("<x>");
+    expect(invite.html).not.toMatch(/<script|<img|@import|<link /i);
+    const order = renderEmail(newOrderTemplate, {
+      orderNumber: "IH-1001",
+      total: "AED 99.00",
+      units: 2,
+      areaName: "Al <b>Barsha</b>",
+    });
+    expect(order.html).toContain("Al &lt;b&gt;Barsha&lt;/b&gt;");
+    expect(order.text).toContain("Area: Al <b>Barsha</b>");
+    // The body stays inside the white card: it comes after the heading and before the card's
+    // closing tags and the footnote (a formatter once closed the card early, see layout.ts).
+    const body = invite.html.indexOf("Accept the invitation to set");
+    expect(body).toBeGreaterThan(invite.html.indexOf("<h1"));
+    expect(body).toBeLessThan(invite.html.indexOf("</div>"));
+    expect(invite.html.indexOf("Accept invitation")).toBeLessThan(invite.html.indexOf("</div>"));
+    expect(invite.html.indexOf("</div>")).toBeLessThan(invite.html.indexOf("safely ignore"));
   });
 });
