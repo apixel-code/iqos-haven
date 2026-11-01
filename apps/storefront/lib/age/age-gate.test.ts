@@ -254,7 +254,10 @@ describe("public information pages", () => {
   });
 
   it("exposes only a store name and a generic description", () => {
-    expect(SITE).toEqual({ name: "Iqos Haven", description: "Adults-only store in Dubai. 18+." });
+    expect(SITE).toEqual({
+      name: "Iqos Haven",
+      description: "Adults-only store delivering across the UAE. 18+.",
+    });
   });
 });
 

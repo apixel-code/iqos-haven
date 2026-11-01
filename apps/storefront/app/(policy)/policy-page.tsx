@@ -44,12 +44,29 @@ export function PolicyLinks() {
   );
 }
 
-/** Shown where the approved legal text will go. */
-export function PendingText() {
+/** The date the text last changed, under the title. */
+export const POLICIES_UPDATED = "2 November 2026";
+
+export function PolicyUpdated() {
+  return <p className="text-xs">Last updated: {POLICIES_UPDATED}</p>;
+}
+
+/** One numbered part of a policy, linkable by its id. */
+export function PolicySection({
+  id,
+  title,
+  children,
+}: {
+  id: string;
+  title: string;
+  children: ReactNode;
+}) {
   return (
-    <p className="rounded-lg border border-line-2 bg-surface px-4 py-3">
-      The full text of this policy is being finalised and will be published here before the store
-      opens.
-    </p>
+    <section id={id} aria-labelledby={`${id}-h`} className="flex scroll-mt-6 flex-col gap-2 pt-2">
+      <h2 id={`${id}-h`} className="text-base font-semibold text-ink">
+        {title}
+      </h2>
+      {children}
+    </section>
   );
 }

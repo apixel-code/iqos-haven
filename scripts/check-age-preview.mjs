@@ -434,7 +434,9 @@ try {
     check(html.includes('property="og:title" content="Iqos Haven"'), `${agent}: generic og:title`);
     check(html.includes('property="og:site_name" content="Iqos Haven"'), `${agent}: og:site_name`);
     check(
-      html.includes('property="og:description" content="Adults-only store in Dubai. 18+."'),
+      html.includes(
+        'property="og:description" content="Adults-only store delivering across the UAE. 18+."',
+      ),
       `${agent}: generic og:description`,
     );
     check(
