@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { EmailAdapter } from "@ih/application";
+import { opsAlertHtml, type EmailAdapter } from "@ih/application";
 import { internalOpsResponseSchema, type InternalOpsResponse } from "@ih/contracts";
 import { applyAlertEvaluations, opsSignals, type Database, type OpsSignals } from "@ih/db";
 import type { AlertEvaluation, AlertNotice } from "@ih/domain";
@@ -251,7 +251,6 @@ export class OpsAlerter {
   }
 
   private send(message: { subject: string; text: string }, deliveryKey: string) {
-    const escape = (value: string) => value.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
     return this.options.adapter.send(
       {
         deliveryKey,
@@ -259,7 +258,7 @@ export class OpsAlerter {
         bcc: this.options.recipients,
         subject: message.subject,
         text: message.text,
-        html: `<pre>${escape(message.text)}</pre>`,
+        html: opsAlertHtml(message.subject, message.text),
       },
       AbortSignal.timeout(30_000),
     );

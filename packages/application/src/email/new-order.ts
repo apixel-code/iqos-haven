@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { brandedEmail, factsTable } from "./layout";
 import type { EmailTemplate } from "./template";
 
 const schema = z.strictObject({
@@ -15,18 +16,27 @@ const schema = z.strictObject({
  */
 export const newOrderTemplate: EmailTemplate<typeof schema> = {
   id: "order.new",
-  version: 1,
+  version: 2,
   schema,
   render: ({ orderNumber, total, units, areaName }, html) => {
     const items = `${units} ${units === 1 ? "item" : "items"}`;
     return {
       subject: `New order ${orderNumber} (${total})`,
       text: `A new cash-on-delivery order is waiting for confirmation.\n\nOrder: ${orderNumber}\nTotal: ${total}\nItems: ${items}\nArea: ${areaName}\n\nSign in to the admin to see the details and confirm it.\n`,
-      html: html`<p>A new cash-on-delivery order is waiting for confirmation.</p>
-        <p>
-          Order: ${orderNumber}<br />Total: ${total}<br />Items: ${items}<br />Area: ${areaName}
-        </p>
-        <p>Sign in to the admin to see the details and confirm it.</p>`,
+      html: brandedEmail(html, {
+        preheader: `Order ${orderNumber}, ${total}, ${items} to ${areaName}: waiting for confirmation.`,
+        heading: `New order ${orderNumber}`,
+        body:
+          html`<p style="margin:0">A new cash-on-delivery order is waiting for confirmation.</p>` +
+          factsTable(html, [
+            ["Order", orderNumber],
+            ["Total", total],
+            ["Items", items],
+            ["Area", areaName],
+          ]) +
+          html`<p style="margin:0">Sign in to the admin to see the details and confirm it.</p>`,
+        footnote: "You receive this because new-order alerts are on in Settings → Notifications.",
+      }),
     };
   },
 };
