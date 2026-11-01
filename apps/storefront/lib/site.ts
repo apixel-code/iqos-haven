@@ -7,13 +7,13 @@ import { MINIMUM_AGE } from "./age/copy";
  */
 export const SITE = {
   name: "Iqos Haven",
-  description: `Adults-only store in Dubai. ${MINIMUM_AGE}+.`,
+  description: `Adults-only store delivering across the UAE. ${MINIMUM_AGE}+.`,
 } as const;
 
 /**
  * Public policy pages (prototype "Legal" links). Reachable without the age check and free of
- * catalogue data. Their final text comes from the client's legal adviser (BI-04/BI-05); until
- * then each page says so instead of showing invented legal wording.
+ * catalogue data. Text drafted by Apixel from the store's actual rules and approved by the client
+ * (2026-11-02); not legal advice, and open to the client's legal adviser (BI-04).
  */
 export const POLICY_PAGES = [
   { path: "/responsible-use", title: "Responsible use" },

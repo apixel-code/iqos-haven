@@ -23,7 +23,7 @@ const TOPICS = [
  * Help (roadmap step 100; prototype `help`). Delivery facts come from the Owner's settings
  * through the API, never from copy: the fee, the time and the emirates actually served. Free
  * delivery is mentioned only while a threshold is switched on, which it is not at launch.
- * Wording without approved client copy (returns, hours) says so plainly (BI-01, BI-09).
+ * Returns follow the terms (section 7, client-approved 2026-11-02).
  */
 export default async function HelpPage() {
   const [delivery, { whatsappNumber }] = await Promise.all([
@@ -50,7 +50,7 @@ export default async function HelpPage() {
     },
     {
       q: "Can I return a product?",
-      a: "Our return and exchange policy will be published here. Until then, message us on WhatsApp about any problem with your order.",
+      a: "Unopened, sealed packs and cartons of sticks can be returned within 7 days of delivery; opened sticks cannot. A device that arrives damaged, faulty or not as ordered is exchanged if you tell us within 7 days. Message us on WhatsApp with your order number, and see section 7 of our terms for the details.",
     },
   ];
   return (
