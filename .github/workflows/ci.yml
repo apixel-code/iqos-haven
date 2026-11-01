@@ -58,6 +58,7 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm test:boundaries
+      - run: pnpm test:migrations
       - run: pnpm test:infra
       - run: pnpm test:package
       - run: pnpm contracts:check

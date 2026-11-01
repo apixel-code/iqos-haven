@@ -6,6 +6,7 @@ const checks = [
   "typecheck",
   "test",
   "test:boundaries",
+  "test:migrations",
   "test:infra",
   "test:package",
   // Built storefront over HTTP: unverified requests get the generic preview only.

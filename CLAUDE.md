@@ -44,6 +44,7 @@ pnpm dev | pnpm --filter @ih/<app> dev
 pnpm lint && pnpm typecheck
 pnpm test                     # unit (no infra needed)
 pnpm test:int                 # *.int.test.ts against real PostgreSQL/Redis
+pnpm test:migrations          # expand-only guard; breaking changes go in a later *_contract migration
 pnpm test:age-preview         # built storefront over HTTP: unverified = generic preview only
 pnpm test:gate                # real API + storefront + gateway: age boundary end to end (needs Docker + infra)
 pnpm db:generate              # Prisma client only
