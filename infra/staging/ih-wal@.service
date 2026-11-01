@@ -1,0 +1,10 @@
+# Ships archived WAL of one environment off-server (step 122c). Install with ih-wal@.timer.
+[Unit]
+Description=Iqos Haven WAL shipping (%i)
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/iqos-%i/wal-ship.sh
+Nice=10

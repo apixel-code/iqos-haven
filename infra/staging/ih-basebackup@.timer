@@ -1,0 +1,10 @@
+# Sundays 21:30 UTC (01:30 Dubai, before the nightly logical backup); missed runs run at boot.
+[Unit]
+Description=Weekly Iqos Haven base backup (%i)
+
+[Timer]
+OnCalendar=Sun *-*-* 21:30:00 UTC
+Persistent=true
+
+[Install]
+WantedBy=timers.target

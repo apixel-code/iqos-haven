@@ -1,0 +1,11 @@
+# Weekly physical base backup of one environment (step 122c). Install with ih-basebackup@.timer.
+[Unit]
+Description=Iqos Haven base backup (%i)
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/iqos-%i/basebackup.sh
+Nice=10
+IOSchedulingClass=idle
