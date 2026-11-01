@@ -5,6 +5,7 @@ import {
   extraSpecs,
   formatExtraSpecs,
   productCreateCommand,
+  productTypeChoices,
   productUpdateCommand,
 } from "./products";
 
@@ -56,6 +57,48 @@ describe("product form commands", () => {
     );
     expect(command).toMatchObject({ type: "kit", puffCount: null, specs: { coilOhm: "0.8" } });
     expect(command.seo).toEqual({ title: "T", description: null });
+  });
+
+  it("builds heated-tobacco specs with no puff count (ADR 0101)", () => {
+    const device = productCreateCommand(
+      data({
+        ...base,
+        type: "device",
+        puffCount: "6000",
+        "specs.compatibleSticks": "TEREA sticks only",
+        "specs.sessionsPerCharge": "20",
+      }),
+      false,
+    );
+    expect(device).toMatchObject({
+      type: "device",
+      puffCount: null,
+      specs: { compatibleSticks: "TEREA sticks only", sessionsPerCharge: 20, extra: [] },
+    });
+    const sticks = productCreateCommand(
+      data({
+        ...base,
+        type: "sticks",
+        "specs.origin": "Japan",
+        "specs.sticksPerPack": "20",
+        "specs.packsPerUnit": "10",
+      }),
+      false,
+    );
+    expect(sticks).toMatchObject({
+      type: "sticks",
+      puffCount: null,
+      specs: { origin: "Japan", sticksPerPack: 20, packsPerUnit: 10 },
+    });
+    expect(() =>
+      productCreateCommand(data({ ...base, type: "sticks", "specs.packsPerUnit": "0" }), false),
+    ).toThrow(FormValidationError);
+  });
+
+  it("offers only heated-tobacco types for new products and keeps a stored vape type", () => {
+    expect(productTypeChoices()).toEqual(["device", "sticks"]);
+    expect(productTypeChoices("sticks")).toEqual(["device", "sticks"]);
+    expect(productTypeChoices("kit")).toEqual(["device", "sticks", "kit"]);
   });
 
   it("carries the current version on update", () => {

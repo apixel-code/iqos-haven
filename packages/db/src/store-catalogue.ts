@@ -1,4 +1,5 @@
 import {
+  type ProductType,
   storeProductsQuerySchema,
   type StoreProductSort,
   type StoreProductsQuery,
@@ -79,7 +80,7 @@ export interface StoreProductCardRow {
   id: string;
   slug: string;
   name: string;
-  type: "disposable" | "kit";
+  type: ProductType;
   brandName: string;
   brandSlug: string;
   categoryName: string;
@@ -233,7 +234,7 @@ export async function listStoreProducts(
 export interface StoreProductDetail {
   slug: string;
   name: string;
-  type: "disposable" | "kit";
+  type: ProductType;
   brand: { name: string; slug: string };
   category: { name: string; slug: string };
   puffCount: number | null;
@@ -272,7 +273,7 @@ export async function readStoreProduct(
           id: string;
           slug: string;
           name: string;
-          type: "disposable" | "kit";
+          type: ProductType;
           brandName: string;
           brandSlug: string;
           categoryName: string;

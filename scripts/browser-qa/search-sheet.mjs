@@ -1,7 +1,7 @@
 // Browser pass of the mobile search sheet (parity G-S3, ADR 0087) against the real served stack:
 //   pnpm build && node scripts/check-gate-e2e.cjs --serve &   (SERVING)
 //   QA_PLAYWRIGHT_DIR=<dir> node scripts/browser-qa/search-sheet.mjs <SERVING> [<SHOTS_DIR>]
-// The gate stack's catalogue: one published disposable (Gatecheck Halo, Gatebrand).
+// The gate stack's catalogue: one published TEREA sticks product (Gatecheck Halo, Gatebrand).
 import { createRequire } from "node:module";
 import { mkdirSync, readdirSync } from "node:fs";
 import { homedir } from "node:os";

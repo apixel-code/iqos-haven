@@ -200,44 +200,13 @@ export function HomeOffers({ offers }: { offers: StoreHomeResponse["offers"] }) 
   );
 }
 
-/** The prototype's puff-count bands (`PUFF`): up to 6,000, 6,000–12,000 and over 12,000. */
+/**
+ * The prototype's puff-count bands (`PUFF`): up to 6,000, 6,000–12,000 and over 12,000. Only the
+ * shop filters use them now, for vape products stored before ADR 0101; the home page section
+ * "Disposables by puff count" was removed with the heated-tobacco catalogue.
+ */
 export const PUFF_BANDS = [
   { label: "≤6K", min: undefined, max: 6000 },
   { label: "6–12K", min: 6000, max: 12000 },
   { label: "12K+", min: 12001, max: undefined },
 ] as const;
-
-/** "Disposables by puff count" (prototype home, parity G-S13): three bands with counts. */
-export function PuffCounts({
-  bands,
-}: {
-  bands: ReadonlyArray<{ label: string; href: string; count: number }>;
-}) {
-  if (!bands.some((band) => band.count > 0)) return null;
-  return (
-    <section className="sec" style={{ paddingTop: 0 }} aria-labelledby="puff-h">
-      <SectionHead
-        id="puff-h"
-        title="Disposables by puff count"
-        sub="A quick way to choose how long a device lasts."
-      />
-      <div className="puffs">
-        {bands.map((band, index) => (
-          <Link key={band.href} href={band.href} prefetch={false} className="puff">
-            <span className="bars" aria-hidden="true">
-              {[0, 1, 2, 3, 4, 5].map((bar) => (
-                <i
-                  key={bar}
-                  className={bar <= index * 2 + 1 ? "on" : undefined}
-                  style={{ height: 8 + bar * 3.4 }}
-                />
-              ))}
-            </span>
-            <span className="n">{band.label}</span>
-            <span className="l">{plural(band.count, "product")}</span>
-          </Link>
-        ))}
-      </div>
-    </section>
-  );
-}

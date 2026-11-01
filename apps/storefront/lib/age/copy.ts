@@ -6,7 +6,7 @@ export const MINIMUM_AGE = 18;
 export const AGE_COPY = {
   badge: `Adults only · ${MINIMUM_AGE}+`,
   question: `Are you ${MINIMUM_AGE} or older?`,
-  lead: `Iqos Haven sells nicotine and vaping products. This website is for adults aged ${MINIMUM_AGE} and over only.`,
+  lead: `Iqos Haven sells nicotine and heated-tobacco products. This website is for adults aged ${MINIMUM_AGE} and over only.`,
   accept: `Yes, I am ${MINIMUM_AGE}+`,
   reject: `No, I am under ${MINIMUM_AGE}`,
   fine: (days: number) =>

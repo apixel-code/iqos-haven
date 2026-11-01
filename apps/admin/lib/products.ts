@@ -1,11 +1,26 @@
 import {
+  NEW_PRODUCT_TYPES,
   productCreateRequestSchema,
+  type ProductType,
   productUpdateRequestSchema,
   type ProductCreateRequest,
   type ProductResponse,
   type ProductUpdateRequest,
 } from "@ih/contracts";
 import { aedToFils, FormValidationError, validate } from "./management";
+
+export const PRODUCT_TYPE_LABELS: Record<ProductType, string> = {
+  device: "IQOS device",
+  sticks: "TEREA sticks",
+  disposable: "Disposable",
+  kit: "Kit",
+};
+/** New products are heated tobacco (ADR 0101); a stored vape type stays selectable on its product. */
+export function productTypeChoices(current?: ProductType): ProductType[] {
+  return current && !NEW_PRODUCT_TYPES.some((type) => type === current)
+    ? [...NEW_PRODUCT_TYPES, current]
+    : [...NEW_PRODUCT_TYPES];
+}
 
 const text = (data: FormData, field: string) => String(data.get(field) ?? "").trim();
 const optionalText = (data: FormData, field: string) => text(data, field) || undefined;
@@ -34,6 +49,22 @@ function specs(type: string, data: FormData) {
   const extra = extraSpecs(text(data, "specs.extra"));
   const defined = <T extends Record<string, unknown>>(value: T) =>
     Object.fromEntries(Object.entries(value).filter(([, v]) => v !== undefined));
+  if (type === "device")
+    return defined({
+      compatibleSticks: optionalText(data, "specs.compatibleSticks"),
+      sessionsPerCharge: optionalInt(data, "specs.sessionsPerCharge", "Uses per charge"),
+      chargingTime: optionalText(data, "specs.chargingTime"),
+      inTheBox: optionalText(data, "specs.inTheBox"),
+      extra,
+    });
+  if (type === "sticks")
+    return defined({
+      origin: optionalText(data, "specs.origin"),
+      sticksPerPack: optionalInt(data, "specs.sticksPerPack", "Sticks per pack"),
+      packsPerUnit: optionalInt(data, "specs.packsPerUnit", "Packs per unit"),
+      flavourNotes: optionalText(data, "specs.flavourNotes"),
+      extra,
+    });
   if (type === "kit")
     return defined({
       batteryMah: optionalInt(data, "specs.batteryMah", "Battery"),
@@ -62,7 +93,7 @@ function fields(data: FormData, includeSeo: boolean) {
     slug: text(data, "slug"),
     brandId: text(data, "brandId"),
     categoryId: text(data, "categoryId"),
-    puffCount: type === "kit" ? null : (optionalInt(data, "puffCount", "Puffs") ?? null),
+    puffCount: type === "disposable" ? (optionalInt(data, "puffCount", "Puffs") ?? null) : null,
     basePriceFils: aedToFils(text(data, "price")),
     compareAtPriceFils: compare ? aedToFils(compare) : null,
     description: text(data, "description"),

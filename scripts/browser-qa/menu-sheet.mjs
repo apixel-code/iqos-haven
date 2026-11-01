@@ -59,7 +59,7 @@ try {
   const menuButton = header(page).getByRole("button", { name: "Open menu" });
   check(await menuButton.isVisible(), "the phone header has a Menu button");
   check(
-    !(await header(page).getByRole("link", { name: "Disposables" }).isVisible()),
+    !(await header(page).getByRole("link", { name: "IQOS devices" }).isVisible()),
     "the section links leave the phone header",
   );
   const headerBox = await header(page).boundingBox();
@@ -86,11 +86,11 @@ try {
   for (const label of [
     "Home",
     "Shop",
-    "Disposables",
-    "Vape kits",
+    "IQOS devices",
+    "TEREA sticks",
     "Offers",
     "Brands",
-    "Compare kits",
+    "Compare devices",
     "Help & info",
   ])
     check(text.includes(label), `the menu lists ${label}`);
@@ -138,7 +138,7 @@ try {
     "a wide screen has no Menu button",
   );
   check(
-    (await header(wide.page).getByRole("link", { name: "Disposable Vapes" }).isVisible()) &&
+    (await header(wide.page).getByRole("link", { name: "IQOS Devices" }).isVisible()) &&
       (await header(wide.page)
         .getByRole("link", { name: /Saved items/ })
         .isVisible()),

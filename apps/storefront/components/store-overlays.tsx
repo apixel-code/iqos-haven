@@ -56,9 +56,7 @@ export function StoreOverlays({ whatsappNumber }: { whatsappNumber: string | nul
           <Link
             href="/shop"
             prefetch={false}
-            aria-current={current(
-              at("/shop") || at("/brands") || at("/disposable-vapes") || at("/vape-kits"),
-            )}
+            aria-current={current(at("/shop") || at("/brands") || at("/devices") || at("/sticks"))}
           >
             <Icon name="grid" />
             Shop
@@ -100,7 +98,7 @@ export function StoreOverlays({ whatsappNumber }: { whatsappNumber: string | nul
   );
 }
 
-/** "N of 3 kits", their pictures, the way to the comparison and a way to clear it. */
+/** "N of 3 devices", their pictures, the way to the comparison and a way to clear it. */
 function CompareTray({ slugs }: { slugs: readonly string[] }) {
   const cards = useProductCards(slugs);
   const shown = cards.status === "ready" ? cards.cards : [];
@@ -117,7 +115,7 @@ function CompareTray({ slugs }: { slugs: readonly string[] }) {
         ))}
       </span>
       <span className="t">
-        {slugs.length} of {LIST_LIMITS.compare} kits
+        {slugs.length} of {LIST_LIMITS.compare} devices
       </span>
       <Link href="/compare" prefetch={false} className="btn">
         Compare

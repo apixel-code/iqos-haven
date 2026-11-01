@@ -83,7 +83,7 @@ export async function ListingPage({
   const heading = search
     ? {
         title: term ? `Results for “${term}”` : "Search",
-        lead: term ? undefined : "Search by brand, flavour or puff count, or filter the catalogue.",
+        lead: term ? undefined : "Search by brand, flavour or device, or filter the catalogue.",
       }
     : head;
   return (
@@ -117,7 +117,7 @@ export async function ListingPage({
               body={
                 filters > 0
                   ? "Try removing a filter, or check the spelling."
-                  : "Check the spelling, or try a brand, flavour or puff count."
+                  : "Check the spelling, or try a brand, flavour or device."
               }
               action={
                 filters > 0

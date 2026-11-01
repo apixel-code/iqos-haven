@@ -1,5 +1,6 @@
 import { isDeepStrictEqual } from "node:util";
 import {
+  type ProductType,
   defineEvent,
   productCreateRequestSchema,
   productResponseSchema,
@@ -41,7 +42,7 @@ interface ProductRow {
   brandName: string;
   categoryId: string;
   categoryName: string;
-  type: "disposable" | "kit";
+  type: ProductType;
   puffCount: number | null;
   status: "draft" | "published";
   basePriceFils: bigint;
@@ -253,7 +254,7 @@ async function lockParents(tx: Tx, brandId: string, categoryId: string): Promise
 
 /** Published-state rules (step-41 CHECK) checked up front so violations are a clear 409. */
 function meetsPublishedRules(command: {
-  type: "disposable" | "kit";
+  type: ProductType;
   puffCount: number | null;
   basePriceFils: number;
 }) {

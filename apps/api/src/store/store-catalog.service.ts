@@ -3,8 +3,11 @@ import type { ApiEnv } from "@ih/config";
 import { createLogger } from "@ih/logger";
 import {
   DERIVATIVE_NAMES,
+  deviceSpecsSchema,
   disposableSpecsSchema,
   kitSpecsSchema,
+  sticksSpecsSchema,
+  type ProductType,
   type StoreBrandsResponse,
   type StoreCartLinesResponse,
   type StoreCategoriesResponse,
@@ -303,13 +306,20 @@ export class StoreCatalogService {
    * Specs are written through the admin contract, so this parse normally succeeds. A row that
    * does not fit (edited outside the API) shows no specifications instead of failing the page.
    */
-  private specs(type: "disposable" | "kit", stored: unknown): StoreProductResponse["specs"] {
-    const parsed = (type === "kit" ? kitSpecsSchema : disposableSpecsSchema).safeParse(stored);
+  private specs(type: ProductType, stored: unknown): StoreProductResponse["specs"] {
+    const parsed = SPECS[type].safeParse(stored);
     if (parsed.success) return parsed.data;
     this.log.warn({ type }, "stored product specs do not match the contract");
     return { extra: [] };
   }
 }
+
+const SPECS = {
+  disposable: disposableSpecsSchema,
+  kit: kitSpecsSchema,
+  device: deviceSpecsSchema,
+  sticks: sticksSpecsSchema,
+} as const;
 
 /** Loader signal for "nothing a shopper may see"; errors are never cached. */
 class NotVisible extends Error {}

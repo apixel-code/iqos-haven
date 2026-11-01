@@ -25,6 +25,8 @@ type Loaded = { key: string; products: StoreProductResponse[]; missing: string[]
 
 const lowestPrice = (product: StoreProductResponse) =>
   Math.min(...product.variants.map((variant) => variant.priceFils));
+/** The one product type with comparable specifications. */
+const COMPARE_TYPE = "device";
 const spec = (product: StoreProductResponse, key: string) =>
   (product.specs as Record<string, unknown>)[key];
 
@@ -48,49 +50,49 @@ const ROWS: Array<{
     score: (product) => -lowestPrice(product),
   },
   {
-    label: "Battery",
+    label: "Compatible sticks",
     text: (product) =>
-      typeof spec(product, "batteryMah") === "number" ? `${spec(product, "batteryMah")} mAh` : "—",
-    score: (product) =>
-      typeof spec(product, "batteryMah") === "number"
-        ? (spec(product, "batteryMah") as number)
-        : null,
-  },
-  {
-    label: "Max output",
-    text: (product) =>
-      typeof spec(product, "maxOutputW") === "number" ? `${spec(product, "maxOutputW")}W` : "—",
-    score: (product) =>
-      typeof spec(product, "maxOutputW") === "number"
-        ? (spec(product, "maxOutputW") as number)
-        : null,
-  },
-  {
-    label: "Pod capacity",
-    text: (product) =>
-      typeof spec(product, "podCapacityMl") === "string"
-        ? `${spec(product, "podCapacityMl")} ml`
+      typeof spec(product, "compatibleSticks") === "string"
+        ? String(spec(product, "compatibleSticks"))
         : "—",
   },
   {
-    label: "Coil",
+    label: "Uses per charge",
     text: (product) =>
-      typeof spec(product, "coilOhm") === "string" ? `${spec(product, "coilOhm")} Ω` : "—",
+      typeof spec(product, "sessionsPerCharge") === "number"
+        ? String(spec(product, "sessionsPerCharge"))
+        : "—",
+    score: (product) =>
+      typeof spec(product, "sessionsPerCharge") === "number"
+        ? (spec(product, "sessionsPerCharge") as number)
+        : null,
   },
   {
-    label: "Charging",
+    label: "Charging time",
     text: (product) =>
-      typeof spec(product, "charging") === "string" ? String(spec(product, "charging")) : "—",
+      typeof spec(product, "chargingTime") === "string"
+        ? String(spec(product, "chargingTime"))
+        : "—",
   },
   {
-    label: "Display",
+    label: "Colours",
+    text: (product) => {
+      const colours = product.options.find((option) => /^colou?r$/i.test(option.name));
+      return colours ? colours.values.join(", ") : "—";
+    },
+  },
+  {
+    label: "In the box",
     text: (product) =>
-      typeof spec(product, "display") === "string" ? String(spec(product, "display")) : "—",
+      typeof spec(product, "inTheBox") === "string" ? String(spec(product, "inTheBox")) : "—",
   },
   { label: "Availability", text: (product) => (product.soldOut ? "Sold out" : "In stock") },
 ];
 
-/** Compare kits (prototype): up to three kits side by side, with current data from the API. */
+/**
+ * Compare devices (prototype "Compare kits", ADR 0101): up to three IQOS devices side by side,
+ * with current data from the API.
+ */
 export function CompareView() {
   const compare = useDeviceLists().compare;
   const key = compare.join(",");
@@ -120,11 +122,11 @@ export function CompareView() {
     )
       .then((results) => {
         if (cancelled) return;
-        // Only kits are compared; anything else that slipped in is treated as missing. A kit
-        // reached through two slugs (old and current) is one column.
+        // Only devices are compared; anything else that slipped in is treated as missing. A
+        // device reached through two slugs (old and current) is one column.
         const seen = new Set<string>();
         const kits = results.flatMap((result) =>
-          result.product?.type === "kit" && !seen.has(result.product.slug)
+          result.product?.type === COMPARE_TYPE && !seen.has(result.product.slug)
             ? [seen.add(result.product.slug) && result.product]
             : [],
         );
@@ -133,7 +135,7 @@ export function CompareView() {
           failed: false,
           products: kits,
           missing: results
-            .filter((result) => result.product?.type !== "kit")
+            .filter((result) => result.product?.type !== COMPARE_TYPE)
             .map((result) => result.slug),
         });
         // After a rename the list keeps the current slug, so "Remove" and later reads match.
@@ -172,8 +174,8 @@ export function CompareView() {
       {current && current.missing.length > 0 && (
         <div className="notice">
           <p>
-            {current.missing.length} selected {current.missing.length === 1 ? "kit is" : "kits are"}{" "}
-            no longer available.
+            {current.missing.length} selected{" "}
+            {current.missing.length === 1 ? "device is" : "devices are"} no longer available.
           </p>
           <button
             type="button"
@@ -263,10 +265,12 @@ export function CompareView() {
           <span className="ic">
             <Icon name="compare" size="lg" />
           </span>
-          <h2 className="h3">{products.length ? "Add one more kit" : "Choose kits to compare"}</h2>
+          <h2 className="h3">
+            {products.length ? "Add one more device" : "Choose devices to compare"}
+          </h2>
           <p>
-            Compare is available for vape kits, where battery, output and pod size differ.
-            Disposables are compared by puff count in the shop filters instead.
+            Compare is available for IQOS devices, where battery life, charging and colours differ.
+            TEREA sticks are chosen by version and flavour in the shop filters instead.
           </p>
         </div>
       )}
@@ -275,12 +279,12 @@ export function CompareView() {
   );
 }
 
-/** The prototype's "Add a kit": kits not yet compared, each with "Add to compare". */
+/** The prototype's "Add a kit": devices not yet compared, each with "Add to compare". */
 function AddKits({ exclude }: { exclude: readonly string[] }) {
   const [kits, setKits] = useState<StoreProductCard[] | null>(null);
   useEffect(() => {
     const controller = new AbortController();
-    fetch("/api/v1/store/products?type=kit&limit=12", {
+    fetch(`/api/v1/store/products?type=${COMPARE_TYPE}&limit=12`, {
       credentials: "same-origin",
       cache: "no-store",
       signal: controller.signal,
@@ -301,7 +305,7 @@ function AddKits({ exclude }: { exclude: readonly string[] }) {
   return (
     <section aria-labelledby="add-kit-h" className="add-kits">
       <h2 className="h3" id="add-kit-h">
-        Add a kit
+        Add a device
       </h2>
       <ul className="pgrid">
         {offered.map((kit) => (
@@ -314,7 +318,7 @@ function AddKits({ exclude }: { exclude: readonly string[] }) {
                 const result = toggleCompareProduct(kit.slug);
                 if (result.full)
                   toast({
-                    title: `Compare holds up to ${LIST_LIMITS.compare} kits`,
+                    title: `Compare holds up to ${LIST_LIMITS.compare} devices`,
                     sub: "Remove one to add another",
                   });
               }}

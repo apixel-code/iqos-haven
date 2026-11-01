@@ -45,7 +45,7 @@ export function SearchBox() {
         value={value}
         maxLength={200}
         autoComplete="off"
-        placeholder="Search vapes, brands, flavours"
+        placeholder="Search IQOS, TEREA, flavours"
         aria-controls={hasSuggestions ? listId : undefined}
         onChange={(event) => {
           setValue(event.target.value);

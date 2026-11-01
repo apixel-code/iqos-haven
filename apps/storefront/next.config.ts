@@ -14,6 +14,13 @@ const nextConfig: NextConfig = {
   output: "standalone",
   poweredByHeader: false,
   reactStrictMode: true,
+  // The vape pages became the heated-tobacco pages (ADR 0101); old links keep working.
+  async redirects() {
+    return [
+      { source: "/vape-kits", destination: "/devices", permanent: true },
+      { source: "/disposable-vapes", destination: "/sticks", permanent: true },
+    ];
+  },
   async headers() {
     return [
       { source: "/:path*", headers: securityHeaders },

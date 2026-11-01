@@ -126,7 +126,7 @@ function SheetBody({
           enterKeyHint="search"
           // The sheet opens to type: focus goes straight to the field.
           autoFocus
-          placeholder="Search vapes, brands, flavours"
+          placeholder="Search IQOS, TEREA, flavours"
           onChange={(event) => setValue(event.target.value)}
         />
         <button type="button" className="btn btn-ghost btn-sm" onClick={close}>

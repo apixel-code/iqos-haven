@@ -104,8 +104,7 @@ async function main() {
           slug,
           brandId: brand.id,
           categoryId: category.id,
-          type: "disposable",
-          puffCount: 7000,
+          type: "sticks",
           basePriceFils: 4900n,
           description: "Synthetic description.",
           specs: { extra: [] },
@@ -371,7 +370,8 @@ async function main() {
       "/shop",
       "/offers",
       "/help",
-      "/disposable-vapes",
+      "/sticks",
+      "/devices",
       "/brands",
       "/brands/gatebrand",
       "/categories/gatecategory",
@@ -585,7 +585,7 @@ async function main() {
       "a verified shopper's footer has the WhatsApp link with the configured number",
     );
     // The price shows the dirham sign, with "AED" for screen readers (ADR 0097).
-    await page("/shop", 200, NAMES[0], "AED </span></span>49", "7K puffs · 2 options");
+    await page("/shop", 200, NAMES[0], "AED </span></span>49", "2 options");
     await page("/brands/gatebrand", 200, NAMES[0]);
     await page("/search?q=gatecheck", 200, NAMES[0], "1</b> product");
     await page("/p/gatecheck-halo", 200, NAMES[0], "choose one", "grape", "mint", "Add to cart");

@@ -11,6 +11,8 @@ import {
 import {
   AGE_VERIFICATION_REQUIRED,
   storeSearchResponseSchema,
+  type ProductType,
+  type StoreProductResponse,
   type StoreSearchResponse,
   type StoreSuggestResponse,
 } from "@ih/contracts";
@@ -84,8 +86,9 @@ async function product(seed: {
   name: string;
   brandId: string;
   categoryId: string;
-  type?: "disposable" | "kit";
+  type?: ProductType;
   puffCount?: number | null;
+  specs?: Record<string, string | number | Array<{ label: string; value: string }>>;
   priceFils: number;
   compareAtFils?: number;
   variants: VariantSeed[];
@@ -103,7 +106,7 @@ async function product(seed: {
       basePriceFils: BigInt(seed.priceFils),
       compareAtPriceFils: seed.compareAtFils ? BigInt(seed.compareAtFils) : null,
       description: "Synthetic description.",
-      specs: { extra: [] },
+      specs: seed.specs ?? { extra: [] },
     },
   });
   const variants = [];
@@ -552,6 +555,65 @@ describe("gated store search, facets and suggestions (real API and PostgreSQL)",
     // Unpublishing removes it from search at once (search is not cached).
     await db.product.update({ where: { id: fresh.id }, data: { status: "draft" } });
     expect((await search("q=borealis")).total).toBe(0);
+  });
+
+  it("publishes and finds IQOS devices and TEREA sticks without a puff count (ADR 0101)", async () => {
+    const iqos = await db.brand.create({ data: { name: "IQOS", slug: "iqos", active: true } });
+    const terea = await db.brand.create({ data: { name: "TEREA", slug: "terea", active: true } });
+    const heated = await db.category.create({
+      data: { name: "Heated tobacco", slug: "heated-tobacco", active: true },
+    });
+    const device = await product({
+      name: "ILUMA i Prime",
+      brandId: iqos.id,
+      categoryId: heated.id,
+      type: "device",
+      priceFils: 79900,
+      specs: { compatibleSticks: "TEREA sticks only", sessionsPerCharge: 20, extra: [] },
+      variants: [[{ colour: "midnight black" }, 2]],
+    });
+    const sticks = await product({
+      name: "TEREA Japan",
+      brandId: terea.id,
+      categoryId: heated.id,
+      type: "sticks",
+      priceFils: 27000,
+      specs: { origin: "Japan", sticksPerPack: 20, packsPerUnit: 10, extra: [] },
+      variants: [[{ flavour: "black menthol" }, 4]],
+    });
+    expect([device.puffCount, sticks.puffCount]).toEqual([null, null]);
+    // The type words of the projection, not only the names.
+    expect(await sorted("q=iluma")).toEqual(["ILUMA i Prime"]);
+    expect(await sorted("q=iqos")).toEqual(["ILUMA i Prime"]);
+    expect(await sorted("q=heets")).toEqual(["TEREA Japan"]);
+    expect(await sorted("q=sticks")).toEqual(["TEREA Japan"]);
+    expect(await sorted("q=carton")).toEqual(["TEREA Japan"]);
+    expect(await sorted("q=menthol")).toEqual(["TEREA Japan"]);
+    expect(await sorted("q=heated+tobacco")).toEqual(["ILUMA i Prime", "TEREA Japan"]);
+    expect(await names("type=sticks")).toEqual(["TEREA Japan"]);
+    const devices = await search("type=device");
+    expect(devices.items.map((item) => item.name)).toEqual(["ILUMA i Prime"]);
+    expect(devices.items[0]).toMatchObject({ type: "device", puffCount: null });
+    expect((await search("category=heated-tobacco")).facets.types).toEqual([
+      { type: "device", count: 1 },
+      { type: "sticks", count: 1 },
+    ]);
+    // The product page carries the typed specifications.
+    const page = await fetch(`${base}/v1/store/products/${sticks.slug}`, {
+      headers: { cookie, "x-ih-client-ip": "203.0.113.9" },
+    });
+    expect(page.status).toBe(200);
+    expect(((await page.json()) as StoreProductResponse).specs).toEqual({
+      origin: "Japan",
+      sticksPerPack: 20,
+      packsPerUnit: 10,
+      extra: [],
+    });
+    // Out of the way of the remaining tests.
+    await db.product.updateMany({
+      where: { id: { in: [device.id, sticks.id] } },
+      data: { status: "draft" },
+    });
   });
 
   it("suggests visible products and brands for two or more characters", async () => {

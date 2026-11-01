@@ -98,7 +98,7 @@ function SheetBody({ whatsappNumber }: { whatsappNumber: string | null }) {
               <Icon name="bag" size="lg" />
             </span>
             <h3 className="h3">Your cart is empty</h3>
-            <p>Browse disposables and kits, or ask us on WhatsApp for a recommendation.</p>
+            <p>Browse IQOS devices and TEREA sticks, or ask us on WhatsApp for a recommendation.</p>
             <button type="button" className="btn btn-primary" onClick={closeCartSheet}>
               Continue shopping
             </button>

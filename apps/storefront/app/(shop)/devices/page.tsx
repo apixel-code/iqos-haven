@@ -3,10 +3,10 @@ import { TYPE_PAGES } from "@/lib/store/listing";
 import { SITE } from "@/lib/site";
 import { ListingPage } from "../listing-page";
 
-const PAGE = TYPE_PAGES.disposable;
+const PAGE = TYPE_PAGES.device;
 export const metadata: Metadata = { title: `${PAGE.title} · ${SITE.name}` };
 
-export default function DisposableVapesPage({
+export default function DevicesPage({
   searchParams,
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -15,7 +15,7 @@ export default function DisposableVapesPage({
     <ListingPage
       path={PAGE.path}
       searchParams={searchParams}
-      fixed={{ type: "disposable" }}
+      fixed={{ type: "device" }}
       trail={[{ label: "Home", href: "/" }, { label: PAGE.title }]}
       head={{ title: PAGE.title, lead: PAGE.lead }}
       emptyBody="Products will appear here as soon as they are available."

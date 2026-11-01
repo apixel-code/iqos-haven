@@ -45,8 +45,8 @@ export default async function ShopLayout({ children }: { children: ReactNode }) 
               </span>
               {/* Prototype wording adapted to UAE-wide delivery (BI-03); final copy is BI-01. */}
               <p>
-                An online store for disposable vapes and pod kits from established brands,
-                delivering across the UAE. Order online and pay cash on delivery.
+                An online store for IQOS devices and TEREA sticks, delivering across the UAE. Order
+                online and pay cash on delivery.
               </p>
             </div>
             <nav aria-label="Shop">
@@ -58,13 +58,13 @@ export default async function ShopLayout({ children }: { children: ReactNode }) 
                   </Link>
                 </li>
                 <li>
-                  <Link href="/disposable-vapes" prefetch={false}>
-                    Disposable vapes
+                  <Link href="/devices" prefetch={false}>
+                    IQOS devices
                   </Link>
                 </li>
                 <li>
-                  <Link href="/vape-kits" prefetch={false}>
-                    Vape kits &amp; devices
+                  <Link href="/sticks" prefetch={false}>
+                    TEREA sticks
                   </Link>
                 </li>
                 <li>
@@ -74,7 +74,7 @@ export default async function ShopLayout({ children }: { children: ReactNode }) 
                 </li>
                 <li>
                   <Link href="/compare" prefetch={false}>
-                    Compare kits
+                    Compare devices
                   </Link>
                 </li>
               </ul>

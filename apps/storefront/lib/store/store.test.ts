@@ -48,6 +48,15 @@ describe("listing pages share the search filters (parity G-S2)", () => {
     expect(parseSearch({ minPuffs: "12000", maxPuffs: "6000" }).maxPuffs).toBeUndefined();
   });
 
+  it("reads the heated-tobacco types and ignores unknown ones (ADR 0101)", () => {
+    expect(parseSearch({ type: "sticks" }).type).toBe("sticks");
+    expect(parseSearch({ type: "device" }).type).toBe("device");
+    expect(parseSearch({ type: ["device", "sticks"] }).type).toBeUndefined();
+    expect(parseSearch({ type: "hookah" }).type).toBeUndefined();
+    expect(parseSearch({ type: "constructor" }).type).toBeUndefined();
+    expect(cardMeta({ type: "sticks", puffCount: null, variantCount: 4 })).toBe("4 options");
+  });
+
   it("reads the prototype's filter bands and category checkboxes (ADR 0097)", () => {
     expect(parseSearch({ price: "50-100", puffs: "o12" })).toMatchObject({
       minPrice: 50,
