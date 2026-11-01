@@ -146,11 +146,12 @@ check(
   [
     "Enter your full name",
     "Enter your mobile number",
+    "Enter your email address",
     "Enter your building name",
     "Enter your apartment number",
     "Confirm you are 18 or older",
-  ].every((m) => summaryText.includes(m)) && summaryText.includes("5 things"),
-  "an empty form shows all five problems",
+  ].every((m) => summaryText.includes(m)) && summaryText.includes("6 things"),
+  "an empty form shows all six problems",
   summaryText,
 );
 check(orderPosts.length === 0, "an invalid form sends nothing");
@@ -160,6 +161,7 @@ await page.screenshot({ path: join(shots, "checkout-errors-360.png"), fullPage: 
 const fill = async (mobile = "50 123 4567") => {
   await page.getByLabel("Full name").fill("Synthetic Buyer");
   await page.getByLabel("Mobile number").fill(mobile);
+  await page.getByLabel("Email").fill("buyer@example.com");
   await page.getByLabel("Building name").fill("Probe Tower");
   await page.getByLabel("Apartment no.").fill("2408");
   await page.getByLabel(/Delivery notes/).fill("Gate code 1");

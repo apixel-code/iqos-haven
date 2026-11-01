@@ -131,7 +131,7 @@ async function order(cart: Cart, changes: Record<string, unknown> = {}) {
     couponCode: cart.couponCode ?? null,
   });
   return {
-    contact: { name: "  Synthetic   Buyer ", phone: phone() },
+    contact: { name: "  Synthetic   Buyer ", phone: phone(), email: " Synthetic@Example.com " },
     address: {
       areaId: cart.areaId ?? areaId,
       type: "apartment",
@@ -249,13 +249,15 @@ describe("POST /v1/store/orders through the real API (PostgreSQL, Ed25519 ticket
       redemptions: before.redemptions + 1,
       customers: before.customers + 1,
       idempotency: before.idempotency + 1,
-      events: before.events + 1,
+      // order.created and the shopper's confirmation (ADR 0102).
+      events: before.events + 2,
     });
     const stored = await db.order.findFirstOrThrow({ orderBy: { createdAt: "desc" } });
     expect(stored).toMatchObject({
       status: "pending",
       source: "storefront",
       customerName: "Synthetic Buyer",
+      customerEmail: "synthetic@example.com",
       agePolicyVersion: POLICY,
       couponCode: "ROUTE10",
     });
@@ -272,6 +274,11 @@ describe("POST /v1/store/orders through the real API (PostgreSQL, Ed25519 ticket
       ["email", "pending"],
       ["notification", "pending"],
     ]);
+    const confirmation = await db.outboxEvent.findFirstOrThrow({
+      where: { aggregateId: stored.id, eventType: "order.confirmation_requested" },
+      include: { effects: true },
+    });
+    expect(confirmation.effects.map((effect) => effect.consumer)).toEqual(["email"]);
   });
 
   it("refuses everything while submission is switched off, and writes nothing", async () => {
@@ -329,7 +336,7 @@ describe("POST /v1/store/orders through the real API (PostgreSQL, Ed25519 ticket
         contact: { name: "Q", phone: "0441234999" },
         address: { ...good.address, unit: "" },
       },
-      ["address.unit", "contact.name", "contact.phone"],
+      ["address.unit", "contact.email", "contact.name", "contact.phone"],
     );
     expect(typed).not.toContain("0441234999");
     // The second 18+ confirmation is required, and only `true` is one.
@@ -360,7 +367,11 @@ describe("POST /v1/store/orders through the real API (PostgreSQL, Ed25519 ticket
     const retry = await post(
       {
         ...body,
-        contact: { name: "Synthetic Buyer", phone: body.contact.phone.replaceAll(" ", "") },
+        contact: {
+          name: "Synthetic Buyer",
+          phone: body.contact.phone.replaceAll(" ", ""),
+          email: "synthetic@example.com",
+        },
       },
       sent,
     );
@@ -471,11 +482,17 @@ describe("POST /v1/store/orders through the real API (PostgreSQL, Ed25519 ticket
     const ip = address();
     for (let i = 0; i < 10; i++)
       await refusal(
-        await post({ ...body, contact: { name: "Buyer", phone: phone() } }, { ip }),
+        await post(
+          { ...body, contact: { name: "Buyer", phone: phone(), email: "buyer@example.com" } },
+          { ip },
+        ),
         409,
         "QUOTE_CHANGED",
       );
-    const other = { ...body, contact: { name: "Buyer", phone: phone() } };
+    const other = {
+      ...body,
+      contact: { name: "Buyer", phone: phone(), email: "buyer@example.com" },
+    };
     await refusal(await post(other, { ip }), 429, "RATE_LIMITED");
     // A real order from that address is refused too, and nothing is written.
     const real = await order(cart);
@@ -494,7 +511,11 @@ describe("POST /v1/store/orders through the real API (PostgreSQL, Ed25519 ticket
     for (let i = 0; i < 4; i++)
       await refusal(
         await post(
-          { ...body, couponCode: wrong(), contact: { name: "Buyer", phone: phone() } },
+          {
+            ...body,
+            couponCode: wrong(),
+            contact: { name: "Buyer", phone: phone(), email: "buyer@example.com" },
+          },
           { ip },
         ),
         409,

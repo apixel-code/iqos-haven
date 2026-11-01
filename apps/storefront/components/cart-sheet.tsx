@@ -16,8 +16,9 @@ import { Money } from "@/components/money";
 /**
  * Cart sheet after adding (parity G-S1, ADR 0082) as the prototype's `cartSheet` (V-S6): a side
  * panel on a phone, a pop-over under the header's cart button from 720 px. It shows the lines
- * with the API's current prices, the subtotal and the way on. Delivery, any discount and the total are confirmed on the cart page, which holds the accepted
- * server quote checkout needs; the sheet never shows a payable total.
+ * with the API's current prices, the subtotal and the way on, straight to checkout (ADR 0102).
+ * Delivery, any discount and the total are confirmed there, where the accepted server quote is
+ * taken; the sheet never shows a payable total.
  */
 export function CartSheet({ whatsappNumber }: { whatsappNumber: string | null }) {
   const { open, revision } = useCartSheet();
@@ -131,15 +132,15 @@ function SheetBody({ whatsappNumber }: { whatsappNumber: string | null }) {
             </div>
           </dl>
           <p className="small muted">
-            Delivery and any discount are added in your cart. Cash on delivery.
+            Delivery and any discount are added at checkout. Cash on delivery.
           </p>
           <Link
-            href="/cart"
+            href="/checkout"
             prefetch={false}
             onClick={closeCartSheet}
             className="btn btn-primary btn-lg btn-block"
           >
-            View cart and checkout
+            Checkout
           </Link>
           <div className="sh-row">
             <button type="button" className="btn btn-outline btn-sm" onClick={closeCartSheet}>

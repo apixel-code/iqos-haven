@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { ORDER_LIMITS, UAE_EMIRATES } from "@ih/domain";
 import { catalogueSlugSchema } from "./catalogue";
-import { checkoutAddressSchema, checkoutContactSchema, orderLinesSchema } from "./checkout";
+import { checkoutAddressSchema, orderLinesSchema, storeContactSchema } from "./checkout";
 import { couponCodeInputSchema } from "./coupons";
 import { productFilsSchema, productSpecsSchema, productTypeSchema } from "./products";
 import { STORE_REVIEWS_SHOWN, storeRatingSchema, storeReviewSchema } from "./reviews";
@@ -386,7 +386,7 @@ export type StoreQuoteResponse = z.infer<typeof storeQuoteResponseSchema>;
  * fee, a discount or a total. The attempt key travels in the `Idempotency-Key` header.
  */
 export const storeOrderRequestSchema = z.strictObject({
-  contact: checkoutContactSchema,
+  contact: storeContactSchema,
   address: checkoutAddressSchema,
   lines: orderLinesSchema,
   couponCode: couponCodeInputSchema,

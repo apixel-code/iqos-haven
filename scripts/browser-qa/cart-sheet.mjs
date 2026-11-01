@@ -59,6 +59,12 @@ async function addFromProductPage(page) {
     .first()
     .click();
   await page.getByRole("button", { name: "Add to cart" }).click();
+  await openFromHeader(page);
+}
+/** Adding shows a toast with Checkout; the sheet opens from the header cart (ADR 0102). */
+async function openFromHeader(page) {
+  await page.locator(".toast", { hasText: "Added to cart" }).waitFor({ timeout: 10000 });
+  await page.getByRole("link", { name: /^Cart, / }).click();
   await sheetOf(page).waitFor({ timeout: 10000 });
 }
 
@@ -71,7 +77,7 @@ try {
   await sheet.getByText(/Subtotal \(1 item\)/).waitFor({ timeout: 10000 });
   const text = await sheet.innerText();
   check(
-    /AED/.test(text) && /View cart and checkout/.test(text),
+    /AED/.test(text) && /Checkout/.test(text),
     "the sheet shows the line, subtotal and the way on",
     text.slice(0, 300),
   );
@@ -97,20 +103,18 @@ try {
   await sheet.waitFor({ state: "hidden" });
   check(true, "Escape closes the sheet");
   await page.getByRole("button", { name: "Add to cart" }).click();
-  await sheet.waitFor();
+  check(!(await sheet.isVisible()), "adding does not open the sheet by itself");
+  await openFromHeader(page);
   await sheet.getByRole("button", { name: "Continue shopping" }).click();
   await sheet.waitFor({ state: "hidden" });
   check(page.url().includes("/p/gatecheck-halo"), "Continue shopping stays on the page");
-  await page.getByRole("button", { name: "Add to cart" }).click();
-  await sheet.getByRole("link", { name: "View cart and checkout" }).click();
-  await page.waitForURL(/\/cart$/);
-  await page.getByRole("complementary", { name: "Order summary" }).waitFor();
+  await openFromHeader(page);
+  await sheet.getByRole("link", { name: "Checkout" }).click();
+  await page.waitForURL(/\/checkout$/);
+  await page.getByRole("heading", { name: "Contact" }).waitFor();
   // The sheet slides out (V-S6) before it is hidden.
   await sheet.waitFor({ state: "hidden", timeout: 2000 }).catch(() => {});
-  check(
-    !(await sheet.isVisible()),
-    "View cart and checkout opens the cart page with the sheet closed",
-  );
+  check(!(await sheet.isVisible()), "Checkout opens the checkout page with the sheet closed");
   check(phone.errors.length === 0, "no page errors on a phone", phone.errors.join("; "));
   await phone.context.close();
 
@@ -127,9 +131,9 @@ try {
   if (await choice.count()) await choice.first().click();
   await quick.getByRole("button", { name: "Add to cart" }).click();
   const side = sheetOf(wide.page);
-  await side.waitFor();
   await quick.waitFor({ state: "hidden", timeout: 2000 }).catch(() => {});
-  check(!(await quick.isVisible()), "quick add closes and hands over to the cart sheet");
+  check(!(await quick.isVisible()), "quick add closes after adding");
+  await openFromHeader(wide.page);
   const panel = await side.boundingBox();
   check(
     panel && Math.round(panel.x + panel.width) === 1280 && Math.round(panel.height) === 800,

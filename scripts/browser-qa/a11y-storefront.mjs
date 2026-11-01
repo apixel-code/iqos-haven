@@ -103,6 +103,8 @@ try {
       .first()
       .click();
     await page.getByRole("button", { name: "Add to cart" }).click();
+    // Adding shows a toast; the cart sheet opens from the header cart (ADR 0102).
+    await page.getByRole("link", { name: /^Cart, / }).click();
     await page.getByRole("dialog", { name: /Your cart/ }).waitFor();
     await scan(page, `cart sheet @${viewport.width}`);
     for (const path of PAGES) {
@@ -146,6 +148,12 @@ try {
     "Tab reaches Add to cart",
   );
   await page.keyboard.press("Enter");
+  // Adding shows a toast; the cart sheet opens from the header cart (ADR 0102).
+  await page.locator(".toast", { hasText: "Added to cart" }).waitFor();
+  check(true, "adding announces itself in a toast");
+  const cartLink = page.getByRole("link", { name: /^Cart, / });
+  await cartLink.focus();
+  await page.keyboard.press("Enter");
   const sheet = page.getByRole("dialog", { name: /Your cart/ });
   await sheet.waitFor();
   check(await focusInDialog(page), "the cart sheet takes focus");
@@ -164,31 +172,22 @@ try {
   await page.keyboard.press("Escape");
   await sheet.waitFor({ state: "hidden" });
   check(
-    // The main button; for 1.5 s after an add it reads "Added" (prototype, V-S4).
     await page.evaluate(() =>
-      /^(Add to cart|Added)$/.test(
-        (document.activeElement?.closest(".buy-row") &&
-          document.activeElement.textContent?.trim()) ||
-          "",
-      ),
+      /^Cart, /.test(document.activeElement?.getAttribute("aria-label") ?? ""),
     ),
-    "closing the cart sheet returns focus to Add to cart",
+    "closing the cart sheet returns focus to the header cart",
   );
   // Straight away, before the dialog's close event: the sheet must open again.
   await page.keyboard.press("Enter");
   await sheet.waitFor({ timeout: 5000 });
-  check(true, "adding again right after closing reopens the sheet");
+  check(true, "the header cart reopens the sheet right after closing");
   check(
-    await tabTo(
-      page,
-      () => document.activeElement?.textContent?.trim() === "View cart and checkout",
-      30,
-    ),
-    "Tab reaches View cart and checkout in the sheet",
+    await tabTo(page, () => document.activeElement?.textContent?.trim() === "Checkout", 30),
+    "Tab reaches Checkout in the sheet",
   );
   await page.keyboard.press("Enter");
-  await page.waitForURL(/\/cart$/);
-  check(true, "Enter follows the sheet's link to the cart");
+  await page.waitForURL(/\/checkout$/);
+  check(true, "Enter follows the sheet's link to checkout");
 
   // 3. Checkout form errors are announced and reachable.
   await page.goto(base + "/checkout");

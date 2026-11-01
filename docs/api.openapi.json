@@ -1293,6 +1293,7 @@
             "properties": {
               "name": { "type": "string", "minLength": 1, "maxLength": 100 },
               "phone": { "type": "string", "minLength": 1, "maxLength": 16 },
+              "email": { "nullable": true, "type": "string", "maxLength": 254 },
               "address": {
                 "type": "object",
                 "properties": {
@@ -1307,7 +1308,7 @@
                 "additionalProperties": false
               }
             },
-            "required": ["name", "phone", "address"],
+            "required": ["name", "phone", "email", "address"],
             "additionalProperties": false
           },
           "area": {

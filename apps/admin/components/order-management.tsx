@@ -1998,6 +1998,11 @@ function OrderDetailBody({
                   <div className="cust-n">
                     <b>{order.customer.name}</b>
                     <span className="mono small muted">{order.customer.phone}</span>
+                    {order.customer.email && (
+                      <a className="small muted" href={`mailto:${order.customer.email}`}>
+                        {order.customer.email}
+                      </a>
+                    )}
                   </div>
                   <CopyPhone phone={order.customer.phone} />
                 </div>

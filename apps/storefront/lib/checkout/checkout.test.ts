@@ -23,6 +23,7 @@ const good: CheckoutForm = {
   ...EMPTY_FORM,
   name: "Synthetic Buyer",
   phone: "50 123 4567",
+  email: "buyer@example.com",
   building: "Synthetic Tower",
   unit: "1204",
   ageConfirmed: true,
@@ -128,6 +129,7 @@ describe("checkout form", () => {
     expect(validateForm(EMPTY_FORM, "")).toEqual({
       name: "Enter your full name",
       phone: "Enter your mobile number",
+      email: "Enter your email address",
       areaId: "Select your area",
       building: "Enter your building name",
       unit: "Enter your apartment number",
@@ -137,6 +139,10 @@ describe("checkout form", () => {
       phone: "Enter a UAE mobile number, e.g. 50 123 4567",
       makani: "Makani numbers have 10 digits, or leave this blank",
     });
+    expect(validateForm({ ...good, email: "buyer@" }, AREA)).toEqual({
+      email: "Enter an email address like name@example.com",
+    });
+    expect(requestParts(good, AREA).contact.email).toBe("buyer@example.com");
     expect(validateForm({ ...good, type: "office", unit: "" }, AREA).unit).toBe(
       "Enter your office or room number",
     );

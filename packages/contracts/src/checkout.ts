@@ -21,6 +21,8 @@ export const CHECKOUT_MESSAGES = {
   name: "Enter your full name",
   phoneMissing: "Enter your mobile number",
   phone: "Enter a UAE mobile number, e.g. 50 123 4567",
+  emailMissing: "Enter your email address",
+  email: "Enter an email address like name@example.com",
   area: "Select your area",
   type: "Choose apartment, villa or office",
   building: {
@@ -59,33 +61,61 @@ function line(ctx: Issues, field: string, value: string | null | undefined, max:
   return text;
 }
 
-export const checkoutContactSchema = z
-  .strictObject({
-    name: typed.optional().default(""),
-    phone: typed.optional().default(""),
-  })
-  .transform((value, ctx) => {
-    let name: string | undefined;
-    try {
-      name = normalizeCustomerName(value.name);
-    } catch {
-      name = undefined;
-    }
-    if (!name || name.length < 2)
-      ctx.addIssue({ code: "custom", message: CHECKOUT_MESSAGES.name, path: ["name"] });
-    let phone: string | undefined;
-    try {
-      phone = normalizePhone(value.phone);
-    } catch {
-      ctx.addIssue({
-        code: "custom",
-        message: /\d/u.test(value.phone) ? CHECKOUT_MESSAGES.phone : CHECKOUT_MESSAGES.phoneMissing,
-        path: ["phone"],
-      });
-    }
-    if (!name || name.length < 2 || !phone) return z.NEVER;
-    return { name, phone };
-  });
+const emailAddress = z.email().max(254);
+/**
+ * Contact for an order: name, UAE mobile and an email for the order confirmation (ADR 0102).
+ * The email is stored trimmed and lower-cased. A shopper must give one (`storeContactSchema`);
+ * a staff-entered order may leave it out.
+ */
+function contactSchema(emailRequired: boolean) {
+  return z
+    .strictObject({
+      name: typed.optional().default(""),
+      phone: typed.optional().default(""),
+      email: typed.nullish(),
+    })
+    .transform((value, ctx) => {
+      let name: string | undefined;
+      try {
+        name = normalizeCustomerName(value.name);
+      } catch {
+        name = undefined;
+      }
+      if (!name || name.length < 2)
+        ctx.addIssue({ code: "custom", message: CHECKOUT_MESSAGES.name, path: ["name"] });
+      let phone: string | undefined;
+      try {
+        phone = normalizePhone(value.phone);
+      } catch {
+        ctx.addIssue({
+          code: "custom",
+          message: /\d/u.test(value.phone)
+            ? CHECKOUT_MESSAGES.phone
+            : CHECKOUT_MESSAGES.phoneMissing,
+          path: ["phone"],
+        });
+      }
+      const typedEmail = (value.email ?? "").trim().toLowerCase();
+      let email: string | null = null;
+      let emailOk = true;
+      if (typedEmail) {
+        if (emailAddress.safeParse(typedEmail).success) email = typedEmail;
+        else {
+          emailOk = false;
+          ctx.addIssue({ code: "custom", message: CHECKOUT_MESSAGES.email, path: ["email"] });
+        }
+      } else if (emailRequired) {
+        emailOk = false;
+        ctx.addIssue({ code: "custom", message: CHECKOUT_MESSAGES.emailMissing, path: ["email"] });
+      }
+      if (!name || name.length < 2 || !phone || !emailOk) return z.NEVER;
+      return { name, phone, email };
+    });
+}
+/** Staff-entered orders and internal callers: the email is optional. */
+export const checkoutContactSchema = contactSchema(false);
+/** The storefront checkout: the email is required. */
+export const storeContactSchema = contactSchema(true);
 export type CheckoutContact = z.output<typeof checkoutContactSchema>;
 
 const areaId = z.uuid();

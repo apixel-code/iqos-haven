@@ -9,6 +9,7 @@ import {
 } from "./consumer";
 import { emailDeliveryKey, escapeHtml, renderEmail, type EmailTemplate } from "./template";
 import { newOrderTemplate } from "./new-order";
+import { orderConfirmationTemplate } from "./order-confirmation";
 import { staffInvitationTemplate } from "./staff-invitation";
 
 const probeId = "0199c4a2-7b1e-7c3a-9f00-1234567890ab";
@@ -179,5 +180,34 @@ describe("branded email layout", () => {
     expect(body).toBeLessThan(invite.html.indexOf("</div>"));
     expect(invite.html.indexOf("Accept invitation")).toBeLessThan(invite.html.indexOf("</div>"));
     expect(invite.html.indexOf("</div>")).toBeLessThan(invite.html.indexOf("safely ignore"));
+  });
+  it("renders the shopper's order confirmation, escaped, without a WhatsApp button when unset (ADR 0102)", () => {
+    const data = {
+      firstName: "Sam <i>",
+      orderNumber: "IH-001002",
+      items: [{ label: "TEREA UAE · silver × 2", total: "AED 360.00" }],
+      subtotal: "AED 360.00",
+      discount: null,
+      delivery: "AED 35.00",
+      total: "AED 395.00",
+      areaName: "Al Barsha",
+      eta: "1–2 days",
+      whatsappUrl: "https://wa.me/971500000000",
+    };
+    const mail = renderEmail(orderConfirmationTemplate, data);
+    expect(mail.subject).toBe("Order IH-001002 received (AED 395.00)");
+    expect(mail.html).toContain("Thank you, Sam &lt;i&gt;");
+    expect(mail.html).toContain("TEREA UAE · silver × 2");
+    expect(mail.html).toContain("Total (cash on delivery)");
+    expect(mail.html).not.toContain("Discount");
+    expect(mail.html).toContain("Message us on WhatsApp");
+    expect(mail.text).toContain("- TEREA UAE · silver × 2: AED 360.00");
+    const plain = renderEmail(orderConfirmationTemplate, {
+      ...data,
+      discount: "AED 36.00",
+      whatsappUrl: null,
+    });
+    expect(plain.html).toContain("−AED 36.00");
+    expect(plain.html).not.toContain("wa.me");
   });
 });

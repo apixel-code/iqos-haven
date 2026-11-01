@@ -216,8 +216,10 @@ try {
     .click();
   check((await page.locator(".stock:not(.no) > i").count()) === 1, "in stock, with its dot");
   await page.locator(".buy-row").getByRole("button", { name: "Add to cart" }).click();
+  // Adding shows a toast; the cart sheet opens from the header cart (ADR 0102).
+  await page.getByRole("link", { name: /^Cart, / }).click();
   await page.getByRole("dialog", { name: /Your cart/ }).waitFor();
-  check(true, "adding from the product page opens the cart sheet");
+  check(true, "adding from the product page shows the cart from the header");
   await page.keyboard.press("Escape");
   await page.screenshot({ path: join(shots, "pdp-1280.png"), fullPage: true });
   check(wide.errors.length === 0, "no page errors on a wide screen", wide.errors.join("; "));

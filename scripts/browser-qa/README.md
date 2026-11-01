@@ -227,11 +227,12 @@ pnpm build && node scripts/check-gate-e2e.cjs --serve --checkout-open &   # prin
 QA_PLAYWRIGHT_DIR=/tmp/ih-qa node scripts/browser-qa/cart-sheet.mjs <SERVING> /tmp/ih-qa/shots
 ```
 
-At 360px it adds from the product page and checks the sheet: line, subtotal, the way on, focus
-inside, a full-width bottom sheet, no sideways scroll, the quantity control, Escape, Continue
-shopping, and View cart and checkout. At 1280px it adds through quick add (which hands over to
-the sheet) and checks the full-height side panel, removing the last line and closing by clicking
-outside. Neither size may have page errors.
+Adding shows an "Added to cart" toast and does not open the sheet; the header cart opens it
+(ADR 0102). At 360px it adds from the product page and checks the sheet: line, subtotal, the way
+on, focus inside, a full-width bottom sheet, no sideways scroll, the quantity control, Escape,
+Continue shopping, and Checkout straight to the checkout page. At 1280px it adds through quick
+add (which closes after adding) and checks the full-height side panel, removing the last line and
+closing by clicking outside. Neither size may have page errors.
 
 ## Storefront mobile menu (parity G-S4)
 

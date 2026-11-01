@@ -3,6 +3,7 @@ import {
   CHECKOUT_MESSAGES,
   checkoutAddressSchema,
   checkoutContactSchema,
+  storeContactSchema,
   orderLinesSchema,
 } from "./checkout";
 import { customerAddressSchema } from "./customers";
@@ -20,7 +21,26 @@ describe("checkout contact", () => {
   it("returns the stored form of what was typed", () => {
     expect(
       checkoutContactSchema.parse({ name: "  Synthetic   Buyer ", phone: "050 123 4567" }),
-    ).toEqual({ name: "Synthetic Buyer", phone: "+971501234567" });
+    ).toEqual({ name: "Synthetic Buyer", phone: "+971501234567", email: null });
+  });
+  it("keeps the email trimmed and lower-cased; the store requires one (ADR 0102)", () => {
+    const typed = { name: "Synthetic", phone: "0501234567", email: "  Buyer@Example.COM " };
+    expect(checkoutContactSchema.parse(typed).email).toBe("buyer@example.com");
+    expect(storeContactSchema.parse(typed).email).toBe("buyer@example.com");
+    expect(checkoutContactSchema.parse({ ...typed, email: "" }).email).toBeNull();
+    expect(messages(storeContactSchema.safeParse({ ...typed, email: " " }))).toEqual({
+      email: CHECKOUT_MESSAGES.emailMissing,
+    });
+    for (const email of [
+      "buyer",
+      "buyer@",
+      "@example.com",
+      "a b@example.com",
+      "x".repeat(250) + "@e.co",
+    ])
+      expect(messages(checkoutContactSchema.safeParse({ ...typed, email }))).toEqual({
+        email: CHECKOUT_MESSAGES.email,
+      });
   });
   it("reports both fields at once with the form's wording", () => {
     expect(messages(checkoutContactSchema.safeParse({}))).toEqual({
@@ -38,7 +58,7 @@ describe("checkout contact", () => {
   });
   it("refuses unknown fields and oversized input", () => {
     expect(
-      checkoutContactSchema.safeParse({ name: "Synthetic", phone: "0501234567", email: "x" })
+      checkoutContactSchema.safeParse({ name: "Synthetic", phone: "0501234567", city: "x" })
         .success,
     ).toBe(false);
     expect(
