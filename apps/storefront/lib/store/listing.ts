@@ -5,20 +5,36 @@ import type { StoreProductCard } from "@ih/contracts";
  * `parseSearch` (lib/store/search.ts) since the listings share the search filters (parity G-S2).
  */
 export const TYPE_PAGES = {
+  device: {
+    path: "/devices",
+    title: "IQOS Devices",
+    lead: "IQOS ILUMA devices in every colour. Sort by price or filter by brand.",
+    filterLabel: "IQOS devices",
+  },
+  sticks: {
+    path: "/sticks",
+    title: "TEREA Sticks",
+    lead: "TEREA sticks for IQOS ILUMA, by version and flavour.",
+    filterLabel: "TEREA sticks",
+  },
+  // Vape types stay readable for products stored before ADR 0101; they have no page of their own.
   disposable: {
-    path: "/disposable-vapes",
-    title: "Disposable Vapes",
-    lead: "Pre-filled, ready to use. Sort by price or filter by brand.",
+    path: "/shop",
+    title: "Shop",
+    lead: "",
     filterLabel: "Disposable vapes",
   },
   kit: {
-    path: "/vape-kits",
-    title: "Vape Kits & Devices",
-    lead: "Refillable pod systems.",
-    filterLabel: "Vape kits & devices",
+    path: "/shop",
+    title: "Shop",
+    lead: "",
+    filterLabel: "Vape kits",
   },
 } as const;
 export type ProductType = keyof typeof TYPE_PAGES;
+/** Types with their own listing page, header link and filter choice (ADR 0101). */
+export const LISTED_TYPES = ["device", "sticks"] as const satisfies readonly ProductType[];
+export type ListedType = (typeof LISTED_TYPES)[number];
 
 /**
  * Display price from integer fils: whole dirhams without decimals, otherwise two decimals.

@@ -40,6 +40,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   };
 }
 
+const RELATED_NOUN = {
+  device: "devices",
+  sticks: "sticks",
+  disposable: "disposables",
+  kit: "kits",
+} as const;
+
 /** Specification rows with the prototype's labels; only rows that have a value are shown. */
 function specRows(product: StoreProductResponse): Array<[string, string]> {
   const specs = product.specs as Record<string, unknown>;
@@ -48,32 +55,57 @@ function specRows(product: StoreProductResponse): Array<[string, string]> {
   /** The values offered for an option (the prototype's nicotine and flavour rows). */
   const option = (name: string) => offeredOptions(product).find((o) => o.name === name)?.values;
   const rows: Array<[string, string | number | null | false]> =
-    product.type === "disposable"
+    product.type === "device"
       ? [
-          ["Puffs (approx.)", product.puffCount ? product.puffCount.toLocaleString("en-US") : null],
-          ["Nicotine", option("nicotine")?.join(" / ") ?? null],
-          ["E-liquid", text("liquidMl") && `${text("liquidMl")} ml`],
-          ["Battery", number("batteryMah") && `${number("batteryMah")} mAh`],
-          [
-            "Charging",
-            text("charging") ??
-              (specs.rechargeable === true
-                ? "Rechargeable"
-                : specs.rechargeable === false
-                  ? "Not rechargeable"
-                  : null),
-          ],
-          ["Flavours", option("flavour") ? String(option("flavour")!.length) : null],
-        ]
-      : [
-          ["Battery", number("batteryMah") && `${number("batteryMah")} mAh`],
-          ["Output", number("maxOutputW") && `Up to ${number("maxOutputW")}W`],
-          ["Pod capacity", text("podCapacityMl") && `${text("podCapacityMl")} ml`],
-          ["Coil resistance", text("coilOhm") && `${text("coilOhm")} Ω`],
-          ["Charging", text("charging")],
-          ["Display", text("display")],
+          ["Compatible sticks", text("compatibleSticks")],
+          ["Uses per charge", number("sessionsPerCharge") && String(number("sessionsPerCharge"))],
+          ["Charging time", text("chargingTime")],
+          ["Colours", (option("colour") ?? option("color"))?.join(" / ") ?? null],
           ["In the box", text("inTheBox")],
-        ];
+        ]
+      : product.type === "sticks"
+        ? [
+            ["Version", text("origin")],
+            ["Sticks per pack", number("sticksPerPack") && String(number("sticksPerPack"))],
+            [
+              "Pack size",
+              number("packsPerUnit") &&
+                (number("packsPerUnit") === 1
+                  ? "1 pack"
+                  : `${number("packsPerUnit")} packs (carton)`),
+            ],
+            ["Flavour", text("flavourNotes")],
+            ["Flavours", option("flavour") ? String(option("flavour")!.length) : null],
+          ]
+        : product.type === "disposable"
+          ? [
+              [
+                "Puffs (approx.)",
+                product.puffCount ? product.puffCount.toLocaleString("en-US") : null,
+              ],
+              ["Nicotine", option("nicotine")?.join(" / ") ?? null],
+              ["E-liquid", text("liquidMl") && `${text("liquidMl")} ml`],
+              ["Battery", number("batteryMah") && `${number("batteryMah")} mAh`],
+              [
+                "Charging",
+                text("charging") ??
+                  (specs.rechargeable === true
+                    ? "Rechargeable"
+                    : specs.rechargeable === false
+                      ? "Not rechargeable"
+                      : null),
+              ],
+              ["Flavours", option("flavour") ? String(option("flavour")!.length) : null],
+            ]
+          : [
+              ["Battery", number("batteryMah") && `${number("batteryMah")} mAh`],
+              ["Output", number("maxOutputW") && `Up to ${number("maxOutputW")}W`],
+              ["Pod capacity", text("podCapacityMl") && `${text("podCapacityMl")} ml`],
+              ["Coil resistance", text("coilOhm") && `${text("coilOhm")} Ω`],
+              ["Charging", text("charging")],
+              ["Display", text("display")],
+              ["In the box", text("inTheBox")],
+            ];
   const extra = Array.isArray(specs.extra)
     ? (specs.extra as Array<{ label: string; value: string }>).map((row): [string, string] => [
         row.label,
@@ -155,7 +187,7 @@ export default async function ProductPage({ params }: Props) {
                 : "Ask about this product on WhatsApp"}
             </a>
           )}
-          {product.type === "kit" && <CompareToggle slug={product.slug} />}
+          {product.type === "device" && <CompareToggle slug={product.slug} />}
           <div className="assure">
             <div>
               <Icon name="truck" />
@@ -225,7 +257,7 @@ export default async function ProductPage({ params }: Props) {
           <SectionHead
             id="rel-h"
             title="More like this"
-            sub={`More from ${product.brand.name} and similar ${product.type === "kit" ? "kits" : "disposables"}`}
+            sub={`More from ${product.brand.name} and similar ${RELATED_NOUN[product.type]}`}
           />
           <ProductRail products={more} />
         </section>

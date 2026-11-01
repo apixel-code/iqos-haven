@@ -23,8 +23,18 @@ import {
 type Facets = StoreSearchResponse["facets"];
 type Fixed = { type?: boolean; brand?: boolean; sale?: boolean };
 
-const TYPE_LABELS = { disposable: "Disposable vapes", kit: "Vape kits & devices" } as const;
-const CHIP_TYPES = { disposable: "Disposables", kit: "Vape kits" } as const;
+const TYPE_LABELS = {
+  device: "IQOS devices",
+  sticks: "TEREA sticks",
+  disposable: "Disposable vapes",
+  kit: "Vape kits & devices",
+} as const;
+const CHIP_TYPES = {
+  device: "IQOS devices",
+  sticks: "TEREA sticks",
+  disposable: "Disposables",
+  kit: "Vape kits",
+} as const;
 
 /** "⃃50–100", "Under ⃃50", "⃃200+" (prototype `PRICE` labels with the dirham sign). */
 function PriceLabel({ band }: { band: Band }) {

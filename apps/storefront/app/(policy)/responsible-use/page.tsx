@@ -19,7 +19,7 @@ export default function ResponsibleUsePage() {
           breastfeeding women.
         </li>
         <li>Nicotine is an addictive substance.</li>
-        <li>Keep devices and e-liquids out of reach of children.</li>
+        <li>Keep devices and tobacco sticks out of reach of children.</li>
       </ul>
       <PendingText />
     </PolicyPage>

@@ -168,7 +168,7 @@ function EmptyCart({ bestSellers }: { bestSellers: readonly StoreProductCard[] }
           <Icon name="bag" size="lg" />
         </span>
         <h2 className="h3">Your cart is empty</h2>
-        <p>Browse disposables and kits, or ask us on WhatsApp for a recommendation.</p>
+        <p>Browse IQOS devices and TEREA sticks, or ask us on WhatsApp for a recommendation.</p>
         <Link href="/shop" prefetch={false} className="btn btn-primary">
           Start shopping
         </Link>

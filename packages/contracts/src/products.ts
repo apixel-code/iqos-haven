@@ -33,6 +33,38 @@ export const kitSpecsSchema = z.strictObject({
   inTheBox: shortText(300).optional(),
   extra: extraSpecs,
 });
+/** An IQOS device, sold in colour variants (ADR 0101). */
+export const deviceSpecsSchema = z.strictObject({
+  /** For example "TEREA sticks only". */
+  compatibleSticks: shortText(80).optional(),
+  /** Uses (sessions) on one full charge. */
+  sessionsPerCharge: z.number().int().min(1).max(500).optional(),
+  chargingTime: shortText(60).optional(),
+  inTheBox: shortText(300).optional(),
+  extra: extraSpecs,
+});
+/** A TEREA version, sold in flavour variants (ADR 0101). */
+export const sticksSpecsSchema = z.strictObject({
+  /** Version or origin, for example "Japan" or "UAE". */
+  origin: shortText(60).optional(),
+  sticksPerPack: z.number().int().min(1).max(100).optional(),
+  /** 1 = one pack, 10 = a carton. */
+  packsPerUnit: z.number().int().min(1).max(50).optional(),
+  flavourNotes: shortText(300).optional(),
+  extra: extraSpecs,
+});
+/** Every stored product type. The vape types stay readable; new products are heated tobacco. */
+export const PRODUCT_TYPES = ["disposable", "kit", "device", "sticks"] as const;
+export type ProductType = (typeof PRODUCT_TYPES)[number];
+/** Types the admin offers for a new product (ADR 0101). */
+export const NEW_PRODUCT_TYPES = ["device", "sticks"] as const;
+export const productTypeSchema = z.enum(PRODUCT_TYPES);
+export const productSpecsSchema = z.union([
+  disposableSpecsSchema,
+  kitSpecsSchema,
+  deviceSpecsSchema,
+  sticksSpecsSchema,
+]);
 
 const common = {
   name: shortText(150),
@@ -61,6 +93,18 @@ const typed = [
     puffCount: z.null(),
     specs: kitSpecsSchema,
   }),
+  z.strictObject({
+    ...common,
+    type: z.literal("device"),
+    puffCount: z.null(),
+    specs: deviceSpecsSchema,
+  }),
+  z.strictObject({
+    ...common,
+    type: z.literal("sticks"),
+    puffCount: z.null(),
+    specs: sticksSpecsSchema,
+  }),
 ] as const;
 const comparePrice = (value: { basePriceFils: number; compareAtPriceFils: number | null }) =>
   value.compareAtPriceFils === null || value.compareAtPriceFils > value.basePriceFils;
@@ -70,7 +114,12 @@ export const productCreateRequestSchema = z
   .discriminatedUnion("type", typed)
   .refine(comparePrice, compareIssue);
 export const productUpdateRequestSchema = z
-  .discriminatedUnion("type", [typed[0].extend({ version }), typed[1].extend({ version })])
+  .discriminatedUnion("type", [
+    typed[0].extend({ version }),
+    typed[1].extend({ version }),
+    typed[2].extend({ version }),
+    typed[3].extend({ version }),
+  ])
   .refine(comparePrice, compareIssue);
 
 const reference = z.strictObject({ id: z.uuid(), name: z.string() });
@@ -80,14 +129,14 @@ export const productResponseSchema = z.strictObject({
   slug: z.string(),
   brand: reference,
   category: reference,
-  type: z.enum(["disposable", "kit"]),
+  type: productTypeSchema,
   puffCount: z.number().int().nullable(),
   status: z.enum(["draft", "published"]),
   basePriceFils: productFilsSchema,
   compareAtPriceFils: productFilsSchema.nullable(),
   /** Unused: prices are final as entered (BI-02, ADR 0036). Always null; kept for compatibility. */
   taxTreatment: z.strictObject({ ref: z.string(), version: z.number().int() }).nullable(),
-  specs: z.union([disposableSpecsSchema, kitSpecsSchema]),
+  specs: productSpecsSchema,
   description: z.string(),
   isNew: z.boolean(),
   /** Present only for callers holding `seo.write`. */
@@ -156,6 +205,8 @@ export const productsResponseSchema = z.strictObject({
 
 export type DisposableSpecs = z.infer<typeof disposableSpecsSchema>;
 export type KitSpecs = z.infer<typeof kitSpecsSchema>;
+export type DeviceSpecs = z.infer<typeof deviceSpecsSchema>;
+export type SticksSpecs = z.infer<typeof sticksSpecsSchema>;
 export type ProductCreateRequest = z.input<typeof productCreateRequestSchema>;
 export type ProductUpdateRequest = z.input<typeof productUpdateRequestSchema>;
 export type ProductResponse = z.infer<typeof productResponseSchema>;

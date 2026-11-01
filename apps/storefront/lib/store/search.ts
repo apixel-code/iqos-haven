@@ -1,5 +1,5 @@
 import { STORE_SEARCH_SORTS, type StoreSearchSort } from "@ih/contracts";
-import type { ProductType } from "./listing";
+import { TYPE_PAGES, type ProductType } from "./listing";
 
 /**
  * Search page state from the address bar (roadmap step 60). As on the listing pages, only known
@@ -76,8 +76,8 @@ function wholeNumber(value: string | undefined, max: number): number | undefined
 
 export function parseSearch(raw: RawParams): SearchState {
   // Category checkboxes (prototype): one type narrows; both or none is every type.
-  const types = [...new Set(many(raw.type))].filter(
-    (value) => value === "disposable" || value === "kit",
+  const types = [...new Set(many(raw.type))].filter((value): value is ProductType =>
+    Object.hasOwn(TYPE_PAGES, value),
   );
   const type = types.length === 1 ? types[0] : undefined;
   // A band from the filter radios (`price=u50`, `puffs=6-12`) stands for its bounds.
@@ -93,7 +93,7 @@ export function parseSearch(raw: RawParams): SearchState {
   const validRange = minPrice === undefined || maxPrice === undefined || minPrice <= maxPrice;
   return {
     q: (first(raw.q) ?? "").slice(0, 200).trim(),
-    ...(type === "disposable" || type === "kit" ? { type } : {}),
+    ...(type ? { type } : {}),
     ...(first(raw.category) && SLUG.test(first(raw.category)!) && first(raw.category)!.length <= 150
       ? { category: first(raw.category)! }
       : {}),

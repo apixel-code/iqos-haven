@@ -62,7 +62,7 @@ export function HeroCarousel({ slides }: { slides: readonly Slide[] }) {
     <section className="hero2" aria-label="Featured offers">
       <div className="hb-search">
         <button type="button" className="m-search" onClick={openSearchSheet}>
-          <Icon name="search" /> Search vapes, brands, flavours
+          <Icon name="search" /> Search IQOS, TEREA, flavours
         </button>
       </div>
       {current && (

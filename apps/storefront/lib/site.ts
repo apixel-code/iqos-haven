@@ -28,8 +28,8 @@ export type PolicyPath = (typeof POLICY_PAGES)[number]["path"];
  */
 export const PRIMARY_NAV = [
   { href: "/shop", label: "Shop" },
-  { href: "/disposable-vapes", label: "Disposables" },
-  { href: "/vape-kits", label: "Vape kits" },
+  { href: "/devices", label: "IQOS devices" },
+  { href: "/sticks", label: "TEREA sticks" },
   { href: "/brands", label: "Brands" },
   { href: "/offers", label: "Offers" },
 ] as const;

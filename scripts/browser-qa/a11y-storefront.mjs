@@ -77,7 +77,8 @@ async function tabTo(page, matches, limit = 60) {
 const PAGES = [
   "/",
   "/shop",
-  "/disposable-vapes",
+  "/sticks",
+  "/devices",
   "/brands",
   "/offers",
   "/search?q=gatecheck",

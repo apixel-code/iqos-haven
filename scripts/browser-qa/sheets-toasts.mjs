@@ -2,8 +2,8 @@
 // ADR 0097; parity G-S10, G-S11) against the real served stack:
 //   pnpm build && node scripts/check-gate-e2e.cjs --serve &   (SERVING)
 //   QA_PLAYWRIGHT_DIR=<dir> node scripts/browser-qa/sheets-toasts.mjs <SERVING> [<SHOTS_DIR>]
-// The gate stack has one buyable product (/p/gatecheck-halo, grape in stock) and no kit, so the
-// compare tray is checked with that product put in the device's compare list directly.
+// The gate stack has one buyable product (/p/gatecheck-halo, grape in stock) and no device, so the
+// compare tray is checked with that product put in the shopper's compare list directly.
 import { createRequire } from "node:module";
 import { mkdirSync, readdirSync } from "node:fs";
 import { homedir } from "node:os";
@@ -135,7 +135,7 @@ try {
   await page.goto(base + "/shop");
   const tray = page.getByRole("region", { name: "Compare tray" });
   await tray.waitFor();
-  check(/1 of 3 kits/.test(await tray.innerText()), "the tray counts the compared kits");
+  check(/1 of 3 devices/.test(await tray.innerText()), "the tray counts the compared devices");
   check(
     (await page.locator(".wafab").getAttribute("class")).includes("up"),
     "the WhatsApp button moves up above the tray",

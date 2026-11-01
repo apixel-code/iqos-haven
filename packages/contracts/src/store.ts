@@ -3,7 +3,7 @@ import { ORDER_LIMITS, UAE_EMIRATES } from "@ih/domain";
 import { catalogueSlugSchema } from "./catalogue";
 import { checkoutAddressSchema, checkoutContactSchema, orderLinesSchema } from "./checkout";
 import { couponCodeInputSchema } from "./coupons";
-import { disposableSpecsSchema, kitSpecsSchema, productFilsSchema } from "./products";
+import { productFilsSchema, productSpecsSchema, productTypeSchema } from "./products";
 import { STORE_REVIEWS_SHOWN, storeRatingSchema, storeReviewSchema } from "./reviews";
 
 /**
@@ -73,7 +73,7 @@ const cursor = z
 export const storeProductsQuerySchema = z.strictObject({
   brand: catalogueSlugSchema.optional(),
   category: catalogueSlugSchema.optional(),
-  type: z.enum(["disposable", "kit"]).optional(),
+  type: productTypeSchema.optional(),
   /** Offers (step 100): only products shown with a reduced price (compare-at above the price). */
   sale: z.literal("1").optional(),
   sort: z.enum(STORE_PRODUCT_SORTS).default("newest"),
@@ -85,7 +85,7 @@ export type StoreProductsQuery = z.infer<typeof storeProductsQuerySchema>;
 export const storeProductCardSchema = z.strictObject({
   slug: catalogueSlugSchema,
   name: z.string(),
-  type: z.enum(["disposable", "kit"]),
+  type: productTypeSchema,
   brand: parentRef,
   category: parentRef,
   puffCount: z.number().int().positive().nullable(),
@@ -113,13 +113,13 @@ export const storeProductResponseSchema = z.strictObject({
   /** Current slug. Differs from the requested one after a rename: redirect to it. */
   slug: catalogueSlugSchema,
   name: z.string(),
-  type: z.enum(["disposable", "kit"]),
+  type: productTypeSchema,
   brand: parentRef,
   category: parentRef,
   puffCount: z.number().int().positive().nullable(),
   isNew: z.boolean(),
   description: z.string(),
-  specs: z.union([disposableSpecsSchema, kitSpecsSchema]),
+  specs: productSpecsSchema,
   /** Page title/description chosen by the Owner, if any. Only for verified shoppers. */
   seo: z.strictObject({ title: z.string().nullable(), description: z.string().nullable() }),
   options: z
@@ -166,7 +166,7 @@ const searchText = z.string().max(200);
 export const storeSearchQuerySchema = z
   .strictObject({
     q: searchText.optional(),
-    type: z.enum(["disposable", "kit"]).optional(),
+    type: productTypeSchema.optional(),
     brand: list(catalogueSlugSchema, 10).optional(),
     /** A category page's fixed scope (parity G-S2); not a facet. */
     category: catalogueSlugSchema.optional(),
@@ -214,9 +214,7 @@ export const storeSearchResponseSchema = z.strictObject({
   items: z.array(storeProductCardSchema).max(STORE_PAGE_SIZES.max),
   nextCursor: z.string().nullable(),
   facets: z.strictObject({
-    types: z
-      .array(z.strictObject({ type: z.enum(["disposable", "kit"]), count: facetCount }))
-      .max(2),
+    types: z.array(z.strictObject({ type: productTypeSchema, count: facetCount })).max(4),
     brands: z
       .array(z.strictObject({ slug: z.string(), name: z.string(), count: facetCount }))
       .max(200),

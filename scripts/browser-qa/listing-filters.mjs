@@ -2,7 +2,7 @@
 // G-S7 and G-S9, ADR 0097) against the real served stack:
 //   pnpm build && node scripts/check-gate-e2e.cjs --serve &   (SERVING)
 //   QA_PLAYWRIGHT_DIR=<dir> node scripts/browser-qa/listing-filters.mjs <SERVING> [<SHOTS_DIR>]
-// The gate stack's catalogue: one published disposable (Gatecheck Halo, Gatebrand, 7,000 puffs).
+// The gate stack's catalogue: one published TEREA sticks product (Gatecheck Halo, Gatebrand).
 import { createRequire } from "node:module";
 import { mkdirSync, readdirSync } from "node:fs";
 import { homedir } from "node:os";
@@ -67,7 +67,7 @@ try {
   );
 
   // A type page does not offer its own type; a change applies at once, in the page's path.
-  await page.goto(base + "/disposable-vapes");
+  await page.goto(base + "/sticks");
   shown = await legends(page);
   check(
     !shown.includes("Category"),
@@ -75,8 +75,8 @@ try {
     shown.join(", "),
   );
   check(
-    shown.some((legend) => legend.startsWith("Puff count")),
-    "disposables offer the puff count bands",
+    !shown.some((legend) => legend.startsWith("Puff count")),
+    "heated-tobacco pages offer no puff count bands (ADR 0101)",
     shown.join(", ") || (await page.locator("main").innerText()).slice(0, 200),
   );
   // While the next page loads, the grid shows the skeleton (parity G-S7).
@@ -88,7 +88,7 @@ try {
   await page.getByLabel("Loading products").waitFor({ timeout: 3000 });
   check(true, "the grid shows the skeleton while a filter applies");
   await page.waitForURL(
-    (url) => url.pathname === "/disposable-vapes" && url.searchParams.get("inStock") === "true",
+    (url) => url.pathname === "/sticks" && url.searchParams.get("inStock") === "true",
   );
   await page.unroute(/_rsc=/);
   check(
@@ -107,7 +107,7 @@ try {
   await page.getByText("No products match these filters").waitFor();
   check(true, "a price band that matches nothing says so");
   await page.getByRole("link", { name: "Clear all filters" }).click();
-  await page.waitForURL((url) => url.pathname === "/disposable-vapes" && !url.search);
+  await page.waitForURL((url) => url.pathname === "/sticks" && !url.search);
   check(true, "Clear all filters returns to the plain listing");
   await page.getByLabel("Sort by").selectOption("price_asc");
   await page.waitForURL(/sort=price_asc/);
@@ -146,7 +146,7 @@ try {
 
   // Phone: the Filters button with its count opens the bottom sheet (parity G-S6).
   const phone = await shopper({ width: 360, height: 780 });
-  await phone.page.goto(base + "/vape-kits?inStock=true");
+  await phone.page.goto(base + "/sticks?inStock=true");
   const button = phone.page.locator(".fbtn");
   check(
     /Filters\s*1/.test(await button.innerText()),
@@ -158,7 +158,7 @@ try {
   const show = sheet.getByRole("button", { name: /^Show \d+ products?$/ });
   check((await show.count()) === 1, "the sheet shows how many products the filters give");
   await sheet.getByLabel("In stock only").uncheck();
-  await phone.page.waitForURL((url) => url.pathname === "/vape-kits" && !url.search);
+  await phone.page.waitForURL((url) => url.pathname === "/sticks" && !url.search);
   check(await sheet.isVisible(), "a change in the sheet applies while it stays open");
   await show.click();
   await sheet.waitFor({ state: "hidden" });

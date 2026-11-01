@@ -6,7 +6,7 @@ import { LIST_LIMITS } from "@/lib/device/lists";
 import { toggleCompareProduct, useDeviceLists } from "@/lib/device/store";
 import { toast } from "@/lib/ui/toast";
 
-/** "Compare with other kits" on a kit's page (prototype); at most three kits. */
+/** "Compare with other devices" on a device's page (prototype); at most three devices. */
 export function CompareToggle({ slug }: { slug: string }) {
   const compare = useDeviceLists().compare;
   const comparing = compare.includes(slug);
@@ -22,12 +22,12 @@ export function CompareToggle({ slug }: { slug: string }) {
             setFull(result.full);
             if (result.full)
               toast({
-                title: `Compare holds up to ${LIST_LIMITS.compare} kits`,
+                title: `Compare holds up to ${LIST_LIMITS.compare} devices`,
                 sub: "Remove one to add another",
               });
           }}
         />
-        <span className="ct">Compare with other kits</span>
+        <span className="ct">Compare with other devices</span>
       </label>
       {compare.length > 0 && (
         <Link href="/compare" prefetch={false} className="link small">
@@ -35,7 +35,7 @@ export function CompareToggle({ slug }: { slug: string }) {
         </Link>
       )}
       <p role="status" aria-live="polite" className="cmp-full">
-        {full ? `You can compare up to ${LIST_LIMITS.compare} kits. Remove one first.` : ""}
+        {full ? `You can compare up to ${LIST_LIMITS.compare} devices. Remove one first.` : ""}
       </p>
     </div>
   );

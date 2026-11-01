@@ -63,15 +63,11 @@ export function SiteHeader({
           >
             Home
           </Link>
-          <Link
-            href="/disposable-vapes"
-            prefetch={false}
-            aria-current={current(at("/disposable-vapes"))}
-          >
-            Disposable Vapes
+          <Link href="/devices" prefetch={false} aria-current={current(at("/devices"))}>
+            IQOS Devices
           </Link>
-          <Link href="/vape-kits" prefetch={false} aria-current={current(at("/vape-kits"))}>
-            Vape Kits
+          <Link href="/sticks" prefetch={false} aria-current={current(at("/sticks"))}>
+            TEREA Sticks
           </Link>
           <BrandsMenu current={at("/brands")} />
           <Link href="/offers" prefetch={false} aria-current={current(at("/offers"))}>

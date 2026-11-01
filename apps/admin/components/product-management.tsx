@@ -12,10 +12,17 @@ import {
   type ProductResponse,
   type ProductSort,
   type ProductSummary,
+  type ProductType,
 } from "@ih/contracts";
 import { slugify } from "../lib/catalogue";
 import { filsToAed, managementRequest, type ResponseContract } from "../lib/management";
-import { formatExtraSpecs, productCreateCommand, productUpdateCommand } from "../lib/products";
+import {
+  formatExtraSpecs,
+  PRODUCT_TYPE_LABELS,
+  productCreateCommand,
+  productTypeChoices,
+  productUpdateCommand,
+} from "../lib/products";
 import { isUuid } from "../lib/links";
 import { money, when } from "../lib/orders";
 import { Icon } from "./icons";
@@ -342,8 +349,7 @@ function ProductList({
                             <div>
                               <b>{product.name}</b>
                               <small>
-                                {product.brand.name} ·{" "}
-                                {product.type === "kit" ? "Kit" : "Disposable"}
+                                {product.brand.name} · {PRODUCT_TYPE_LABELS[product.type]}
                                 {product.isNew ? " · New" : ""}
                               </small>
                             </div>
@@ -740,7 +746,7 @@ function ProductForm({
   variants: ReactNode;
 }) {
   const form = useId();
-  const [type, setType] = useState<"disposable" | "kit">(row?.type ?? "disposable");
+  const [type, setType] = useState<ProductType>(row?.type ?? "device");
   const [name, setName] = useState(row?.name ?? "");
   const [slug, setSlug] = useState(row?.slug ?? "");
   const [touched, setTouched] = useState(Boolean(row));
@@ -888,10 +894,13 @@ function ProductForm({
                     form={form}
                     name="type"
                     value={type}
-                    onChange={(e) => setType(e.target.value as "disposable" | "kit")}
+                    onChange={(e) => setType(e.target.value as ProductType)}
                   >
-                    <option value="disposable">Disposable</option>
-                    <option value="kit">Kit</option>
+                    {productTypeChoices(row?.type).map((choice) => (
+                      <option key={choice} value={choice}>
+                        {PRODUCT_TYPE_LABELS[choice]}
+                      </option>
+                    ))}
                   </select>
                 </div>
                 {type === "disposable" ? (
@@ -964,8 +973,63 @@ function ProductForm({
                     Specifications <span className="opt">Shown as a table on the product page</span>
                   </span>
                 </span>
-                <div className="fgrid c2">
-                  {type === "disposable" ? (
+                {/* Keyed by type: switching type starts the spec inputs from the stored values. */}
+                <div className="fgrid c2" key={type}>
+                  {type === "device" ? (
+                    <>
+                      <SpecInput
+                        form={form}
+                        name="compatibleSticks"
+                        label="Compatible sticks"
+                        value={value("compatibleSticks")}
+                      />
+                      <SpecInput
+                        form={form}
+                        name="sessionsPerCharge"
+                        label="Uses per charge"
+                        value={value("sessionsPerCharge")}
+                      />
+                      <SpecInput
+                        form={form}
+                        name="chargingTime"
+                        label="Charging time"
+                        value={value("chargingTime")}
+                      />
+                      <SpecInput
+                        form={form}
+                        name="inTheBox"
+                        label="In the box"
+                        value={value("inTheBox")}
+                      />
+                    </>
+                  ) : type === "sticks" ? (
+                    <>
+                      <SpecInput
+                        form={form}
+                        name="origin"
+                        label="Version (origin)"
+                        value={value("origin")}
+                      />
+                      <SpecInput
+                        form={form}
+                        name="sticksPerPack"
+                        label="Sticks per pack"
+                        value={value("sticksPerPack")}
+                      />
+                      <SpecInput
+                        form={form}
+                        name="packsPerUnit"
+                        label="Packs per unit (1 = pack, 10 = carton)"
+                        value={value("packsPerUnit")}
+                      />
+                      <SpecInput
+                        form={form}
+                        name="flavourNotes"
+                        label="Flavour notes"
+                        value={value("flavourNotes")}
+                      />
+                    </>
+                  ) : type === "disposable" ? (
                     <>
                       <SpecInput
                         form={form}
@@ -1067,7 +1131,7 @@ function ProductForm({
                 <div className="card-h">
                   <h2>Options & variants</h2>
                 </div>
-                {later("options such as flavour and nicotine strength")}
+                {later("options such as colour or flavour")}
               </>
             )}
           </section>

@@ -159,7 +159,7 @@ export function MenuSheet({ whatsappNumber }: { whatsappNumber: string | null })
             {count(lists.saved.length)}
           </Link>
           <Link href="/compare" prefetch={false} onClick={close}>
-            <span>Compare kits</span>
+            <span>Compare devices</span>
             {count(lists.compare.length)}
           </Link>
           {accordion(

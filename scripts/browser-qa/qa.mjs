@@ -88,10 +88,11 @@ try {
   await page.fill('input[name="name"]', `Orbe Halo 7K QA ${run}`);
   await page.selectOption('select[name="brandId"]', { label: `Orbe QA ${run}` });
   await page.selectOption('select[name="categoryId"]', { label: `Disposables QA ${run}` });
-  await page.fill('input[name="puffCount"]', "7000");
+  await page.selectOption('select[name="type"]', "sticks");
   await page.fill('input[name="price"]', "49.50");
   await page.fill('input[name="compareAt"]', "59");
-  await page.fill('input[name="specs.liquidMl"]', "12.5");
+  await page.fill('input[name="specs.origin"]', "Japan");
+  await page.fill('input[name="specs.packsPerUnit"]', "10");
   await page.fill('textarea[name="description"]', "Synthetic QA product description.");
   await page.getByRole("button", { name: "Save draft" }).click();
   await page.getByRole("heading", { name: "Options & variants" }).waitFor({ timeout: 15000 });

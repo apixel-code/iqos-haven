@@ -17,6 +17,7 @@ import {
   type StoreProductResponse,
   type StoreProductsResponse,
   type StoreSearchResponse,
+  type ProductType,
 } from "@ih/contracts";
 import type { z } from "zod";
 
@@ -43,7 +44,7 @@ export interface ShopperContext {
 export interface StoreProductsParams {
   brand?: string;
   category?: string;
-  type?: "disposable" | "kit";
+  type?: ProductType;
   sale?: "1";
   sort?: string;
   cursor?: string;

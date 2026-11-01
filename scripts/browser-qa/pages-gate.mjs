@@ -2,8 +2,9 @@
 // draws them (V-S6b, ADR 0097) against the real served stack:
 //   pnpm build && node scripts/check-gate-e2e.cjs --serve &   (SERVING)
 //   QA_PLAYWRIGHT_DIR=<dir> node scripts/browser-qa/pages-gate.mjs <SERVING> [<SHOTS_DIR>]
-// The gate stack has one product (/p/gatecheck-halo, a disposable) of the brand Gatebrand and
-// no kit, so the comparison is checked with that product, which it must refuse as "not a kit".
+// The gate stack has one product (/p/gatecheck-halo, TEREA sticks) of the brand Gatebrand and
+// no device, so the comparison is checked with that product, which it must refuse as "not a
+// device".
 import { createRequire } from "node:module";
 import { mkdirSync, readdirSync } from "node:fs";
 import { homedir } from "node:os";
@@ -113,7 +114,7 @@ try {
   await page.locator(".list-page .pgrid .card").first().waitFor();
   check(true, "saved: a saved product shows as a card");
 
-  // Compare: a disposable in the list is not a kit, so it is reported and nothing is compared.
+  // Compare: sticks in the list are not a device, so they are reported and nothing is compared.
   await page.evaluate(() =>
     localStorage.setItem(
       "ih_lists_v1",
@@ -123,8 +124,8 @@ try {
   await page.goto(base + "/compare");
   await page.locator(".list-page .notice").waitFor();
   check(
-    (await page.getByRole("heading", { name: "Choose kits to compare" }).count()) === 1,
-    "compare: a non-kit is reported and the prototype's empty state shows",
+    (await page.getByRole("heading", { name: "Choose devices to compare" }).count()) === 1,
+    "compare: a non-device is reported and the prototype's empty state shows",
   );
   await page.locator(".notice .link").click();
   await page.locator(".notice").waitFor({ state: "detached" });

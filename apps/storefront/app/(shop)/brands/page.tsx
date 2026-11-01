@@ -40,8 +40,8 @@ export default async function BrandsPage() {
         <div className="cats">
           {(
             [
-              [TYPE_PAGES.disposable, "var(--coral-soft)"],
-              [TYPE_PAGES.kit, "var(--lagoon-soft)"],
+              [TYPE_PAGES.device, "var(--coral-soft)"],
+              [TYPE_PAGES.sticks, "var(--lagoon-soft)"],
             ] as const
           ).map(([page, tone]) => (
             <Link

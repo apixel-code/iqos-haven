@@ -25,8 +25,8 @@ const RESTRICTED = [
   "/offers",
   "/help",
   "/shop?brand=orbe&sort=price_asc",
-  "/disposable-vapes",
-  "/vape-kits",
+  "/sticks",
+  "/devices",
   "/brands",
   "/categories/disposables",
   "/search?q=orbe+halo&brand=orbe&inStock=true",
@@ -575,12 +575,12 @@ try {
     (await page("/shop?cursor=bmV4dC1wYWdl")).includes("Orbe Second Page"),
     "second page renders through the cursor",
   );
-  check((await page("/disposable-vapes")).includes("Disposable Vapes"), "type page renders");
+  check((await page("/sticks")).includes("TEREA Sticks"), "type page renders");
   const typeCall = apiCalls.findLast((call) => call.path === "/v1/store/search");
-  check(typeCall?.search === "?type=disposable", "type page fixes its filter", typeCall?.search);
-  await page("/vape-kits?type=disposable");
+  check(typeCall?.search === "?type=sticks", "type page fixes its filter", typeCall?.search);
+  await page("/devices?type=sticks");
   check(
-    apiCalls.findLast((call) => call.path === "/v1/store/search")?.search === "?type=kit",
+    apiCalls.findLast((call) => call.path === "/v1/store/search")?.search === "?type=device",
     "a fixed filter cannot be overridden from the address bar",
   );
   const brandsPage = await page("/brands");
@@ -751,7 +751,7 @@ try {
   // Saved items and compare: frames only; the lists are device state.
   for (const [path, heading] of [
     ["/wishlist", "Saved items"],
-    ["/compare", "Compare kits"],
+    ["/compare", "Compare devices"],
   ]) {
     const frame = await page(path);
     check(frame.includes(heading), `${path} frame renders`);
@@ -980,7 +980,7 @@ try {
     "/shop",
     "/brands",
     "/brands/orbe",
-    "/disposable-vapes",
+    "/sticks",
     "/categories/disposables",
     "/search?q=halo",
     "/p/orbe-halo-7k",
