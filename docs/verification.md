@@ -2794,3 +2794,29 @@ ADR 0100, runbook `docs/runbooks/staging.md`.
 | Promotion    | `deploy.sh` bba99d1 → 0f9d8d3 (rollback) → bba99d1: all exit 0 (79 s, 43 s, 44 s); after each, the api, worker, storefront and admin containers run exactly the digests in the release file.                                                       |
 | Availability | Public `/health` probed every 0.5 s through nginx: 283 probes, 19 × 502 in three windows of 4.2 s, 3.4 s and 3.4 s (storefront/admin restart). apixelpost.tech 200 throughout.                                                                     |
 | Not yet      | An expand migration through the full path (none pending today; the rehearsal script covers it). Production credential isolation is checked when production is created (fresh `make-env.mjs`, no shared secret).                                    |
+
+## Step 123 — production-ready VPS files and credential isolation (2026-10-30)
+
+| Item        | Evidence                                                                                                                                                                                                                   |
+| ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| One set     | `infra/staging` → `infra/vps`; project name, hostnames, ports, network and the mail sink come from `site.env` (`site.staging.env`, `site.production.env`). Rendered staging nginx is identical to the installed template.  |
+| Secrets     | `make-env.mjs --env production` refuses without an approved `--age-policy`; its five service files validate against the real api/worker/storefront/admin/migration schemas; age private key only in storefront; email off. |
+| Isolation   | `check-isolation.sh`: two fresh environments → isolated (exit 0); one copied file → 8 shared values (exit 1); missing env dir → exit 2 (fails closed). Prints counts only.                                                 |
+| PITR remote | Each environment has its own crypt remote and keys (`pitr-<env>`); staging's remote renamed in place, its existing base backup and 24 segments still readable.                                                             |
+| Staging     | Redeployed with `site.env` (exit 0, no container recreated, smoke checks PASS); latest-point PITR drill from Drive: 4 s, recovery point 2 min behind live. apixelpost.tech 200.                                            |
+| Runbook     | `docs/runbooks/production.md`: domain-day checklist (DNS, secrets, isolation check, nginx/TLS, same digests, Owner, backups/PITR, settings, email, launch:check, checkout).                                                |
+
+## Move to the client's VPS — staging and production live (2026-10-31)
+
+Server `srv2113068`, 201.18.206.74, Mumbai (ADR 0100 update). Release a520471 (branch `step/123-production-ready`).
+
+| Item          | Evidence                                                                                                                                                                                         |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Host          | Ubuntu 24.04.5; ufw 22/80/443, fail2ban, 2 GB swap, unattended upgrades; SSH password login refused (`Permission denied (publickey)`), key login OK. Catch-all nginx: bare IP gets no site.      |
+| Staging move  | Old server set `ih-backup-20261031T141827Z` copied sealed; restore drill on the new server 13/13 PASS (RTO 1 s); promoted; `ops:restore-media` wrote 108 objects; old key removed, new key made. |
+| Customer path | Age accept 303 → store API 20 products → signed image URL on `media-staging.iqoshaven.com` → 200 image/webp.                                                                                     |
+| Production    | Same release deployed (exit 0, smoke PASS); `iqoshaven.com` → age check, `admin.` login, `www` → 301 bare domain, admin API hidden (404). Checkout and email off; Owner pending.                 |
+| Isolation     | `check-isolation.sh`: 16 secret variables in staging, none shared with production.                                                                                                               |
+| WAL bug       | Docker created `./wal` root-owned: 171 (staging) and 9 (production) archive failures. Fixed (uid 70, and `deploy.sh` now creates it); archiving resumed in both.                                 |
+| Backups       | Client's Google Drive (`drive.file`); per-environment crypt remotes; `ih-backup@`, `ih-wal@`, `ih-basebackup@` timers for both; first runs succeeded.                                            |
+| Drills        | Production restore drill 13/13 PASS (RTO 1 s); PITR from Drive in 3 s with the recovery point about 4 minutes behind live (first run 8 min while WAL shipping started).                          |

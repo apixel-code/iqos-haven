@@ -56,6 +56,7 @@ pnpm launch:check            # read-only launch readiness of DATABASE_URL (exit 
 pnpm ops:backup-key          # a new BACKUP_ENCRYPTION_KEY (keep it apart from the backups)
 pnpm ops:backup              # encrypted DB + media backup set in BACKUP_DIR, retention applied
 pnpm ops:restore-drill <set> # restore into an isolated drill DB, verify, measure RTO (--keep / --drop)
+pnpm ops:restore-media <set> # write a set's verified media back into the media bucket (real restore, server move)
 pnpm ops:effects [--replay <id> --reason "…"]  # dead background effects; audited replay
 pnpm ops:owner-recovery --email <a> --reason "…"  # break-glass Owner sign-in recovery (runbook)
 pnpm ops:test-alert          # one test alert to OPS_ALERT_RECIPIENTS (recipient verification)

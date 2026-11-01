@@ -30,6 +30,7 @@
     "launch:check": "pnpm --filter @ih/api launch:check",
     "ops:backup": "pnpm --filter @ih/api ops:backup",
     "ops:restore-drill": "pnpm --filter @ih/api ops:restore-drill",
+    "ops:restore-media": "pnpm --filter @ih/api ops:restore-media",
     "ops:backup-key": "pnpm --filter @ih/api ops:backup-key",
     "identity:benchmark": "pnpm --filter @ih/api identity:benchmark",
     "age:keygen": "node scripts/age-keygen.mjs",

@@ -12,6 +12,7 @@ Every runbook names commands that exist in this repository (root `package.json`)
 | A key or credential leaked; planned rotation                         | [secrets-and-keys.md](secrets-and-keys.md), [age-ticket-keys.md](age-ticket-keys.md) |
 | A release went wrong                                                 | [deploy-and-rollback.md](deploy-and-rollback.md)                                     |
 | Staging server: setup, release, operator commands                    | [staging.md](staging.md)                                                             |
+| Production go-live on the VPS (domain day)                           | [production.md](production.md)                                                       |
 | Data loss, restore drill                                             | [backup-and-restore.md](backup-and-restore.md)                                       |
 | First Owner, launch settings and catalogue                           | [owner-and-data-bootstrap.md](owner-and-data-bootstrap.md)                           |
 

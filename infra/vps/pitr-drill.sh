@@ -18,9 +18,9 @@ mkdir -p "$work/data" "$work/wal"
 cleanup() { docker rm -f "$name" >/dev/null 2>&1 || true; rm -rf "$work"; }
 trap cleanup EXIT
 if [ -n "${IH_PITR_FROM_REMOTE:-}" ]; then
-  base="$(rclone lsf "gcrypt:$env/base" | sort | tail -1)"
-  rclone copy "gcrypt:$env/base/$base" "$work"
-  rclone copy "gcrypt:$env/wal" "$work/wal"
+  base="$(rclone lsf "pitr-$env:$env/base" | sort | tail -1)"
+  rclone copy "pitr-$env:$env/base/$base" "$work"
+  rclone copy "pitr-$env:$env/wal" "$work/wal"
   basefile="$work/$base"
 else
   basefile="$(ls -1 basebackups/base-*.tar.gz | sort | tail -1)"

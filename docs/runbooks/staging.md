@@ -19,7 +19,7 @@ Staging directory on the server: `/opt/iqos-staging`. It holds:
 ## First setup (once)
 
 1. Point the DNS A records for the three hostnames at the server, set to DNS only, not proxied.
-2. Copy `infra/staging/*`, `infra/gateway/Caddyfile` and `infra/minio/init-buckets.sh` into `/opt/iqos-staging`.
+2. Copy `infra/vps/*`, `infra/gateway/Caddyfile` and `infra/minio/init-buckets.sh` into `/opt/iqos-staging`, and `site.staging.env` to `site.env`.
 3. Write the env files on the server. The script prints no secrets and refuses to overwrite:
 
    ```sh
@@ -31,7 +31,7 @@ Staging directory on the server: `/opt/iqos-staging`. It holds:
 4. Install the nginx sites and get the certificates:
 
    ```sh
-   cp nginx-site.conf /etc/nginx/sites-available/iqos-staging
+   ./render-nginx.sh > /etc/nginx/sites-available/iqos-staging
    ln -s ../sites-available/iqos-staging /etc/nginx/sites-enabled/
    nginx -t && systemctl reload nginx
    certbot --nginx -d <the three hostnames>
@@ -81,7 +81,7 @@ A restore from Drive: `rclone copy gdrive:iqos-haven-backups/<env>/<set> backups
 
 PostgreSQL archives its WAL at least every 2 minutes into `wal/`. Two timers then take over:
 
-- `ih-wal@<env>.timer`, every 2 minutes, encrypts the segments and ships them to `gcrypt:<env>/wal`. The `gcrypt` remote is an rclone crypt remote over `gdrive:iqos-haven-pitr`.
+- `ih-wal@<env>.timer`, every 2 minutes, encrypts the segments and ships them to `pitr-<env>:<env>/wal`. The `pitr-<env>` remote is an rclone crypt remote, with its own folder and keys per environment.
 - `ih-basebackup@<env>.timer` takes a physical base backup every Sunday at 21:30 UTC.
 
 Remote copies are kept 15 days; local WAL is kept 2 days after it is confirmed remotely.

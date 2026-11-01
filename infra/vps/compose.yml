@@ -1,11 +1,12 @@
-# Staging on the shared budget VPS (roadmap step 122, ADR 0100). Run from the staging directory
-# on the server through deploy.sh, which supplies the image digests (release.env).
+# Staging and production on the shared budget VPS (roadmap steps 122/123, ADR 0100). Run from
+# /opt/iqos-<env> through deploy.sh, which joins site.env (project name, hostnames, ports,
+# network) with the release's image digests into release.current.env.
 #
 # Nothing listens on a public interface: every published port is bound to 127.0.0.1 (Docker
-# bypasses ufw for published ports), and the host nginx terminates TLS for the three staging
+# bypasses ufw for published ports), and the host nginx terminates TLS for the environment's three
 # hostnames. PostgreSQL, Redis, the API and Mailpit are reachable only inside this network.
 # Memory limits keep the stack from starving the other site on this host.
-name: ih-staging
+name: ${IH_PROJECT:?site.env}
 
 x-app: &app
   restart: unless-stopped
@@ -68,7 +69,7 @@ services:
     volumes: [minio-data:/data]
     networks: [ih]
     # S3 API only (no console); nginx serves it as the media hostname for presigned links.
-    ports: ["127.0.0.1:9100:9000"]
+    ports: ["127.0.0.1:${IH_PORT_MEDIA:?site.env}:9000"]
     mem_limit: 384m
 
   minio-init:
@@ -80,11 +81,12 @@ services:
     networks: [ih]
     restart: "no"
 
-  # Sink for every staging email; nothing is delivered. UI: SSH tunnel to 127.0.0.1:8125.
+  # Staging only (IH_MAILSINK=1): sink for every email; nothing is delivered. UI: SSH tunnel.
   mailpit:
+    profiles: [mailsink]
     image: axllent/mailpit:v1.31.4@sha256:b68349e3a014b90c5610bfb26b2ae36f3892d7b8cf25ee140c6c71c98d2fcf48
     restart: unless-stopped
-    ports: ["127.0.0.1:8125:8025"]
+    ports: ["127.0.0.1:${IH_PORT_MAIL:?site.env}:8025"]
     networks: [ih]
     mem_limit: 64m
 
@@ -192,8 +194,10 @@ services:
       STOREFRONT_UPSTREAM: storefront:3000
       ADMIN_UPSTREAM: admin:3001
       API_UPSTREAM: api:4000
-      GATEWAY_TRUSTED_PROXY: 172.30.50.1/32
-    ports: ["127.0.0.1:8180:8080", "127.0.0.1:8181:8081"]
+      GATEWAY_TRUSTED_PROXY: ${IH_SUBNET:?site.env}.1/32
+    ports:
+      - "127.0.0.1:${IH_PORT_STORE:?site.env}:8080"
+      - "127.0.0.1:${IH_PORT_ADMIN:?site.env}:8081"
     depends_on:
       storefront: { condition: service_healthy }
       admin: { condition: service_healthy }
@@ -204,8 +208,8 @@ networks:
   ih:
     ipam:
       config:
-        - subnet: 172.30.50.0/24
-          gateway: 172.30.50.1
+        - subnet: ${IH_SUBNET:?site.env}.0/24
+          gateway: ${IH_SUBNET:?site.env}.1
 
 volumes:
   pg-data:
