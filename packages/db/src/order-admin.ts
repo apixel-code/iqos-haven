@@ -235,6 +235,7 @@ export async function readAdminOrder(
               customer: {
                 name: order.customerName,
                 phone: order.customerPhoneE164,
+                email: order.customerEmail,
                 address: {
                   type: order.addressType,
                   building: order.addressBuilding,

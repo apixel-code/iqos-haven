@@ -30,6 +30,7 @@ describe("event catalogue", () => {
         "order.cancelled",
         "order.collection_recorded",
         "order.collection_corrected",
+        "order.confirmation_requested",
         "order.created",
         "order.status_changed",
         "order.updated",

@@ -611,6 +611,7 @@ model Order {
   creator                      StaffUser?              @relation("OrderCreatedBy", fields: [createdBy], references: [id], onDelete: Restrict, onUpdate: Restrict)
   customerName                 String                  @map("customer_name") @db.VarChar(100)
   customerPhoneE164            String                  @map("customer_phone_e164") @db.VarChar(16)
+  customerEmail                String?                 @map("customer_email") @db.VarChar(254)
   areaId                       String                  @map("area_id") @db.Uuid
   area                         DeliveryArea            @relation(fields: [areaId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   areaCode                     String                  @map("area_code") @db.VarChar(64)

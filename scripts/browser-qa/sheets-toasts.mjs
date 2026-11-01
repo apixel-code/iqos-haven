@@ -51,6 +51,8 @@ async function addHalo(page) {
     .first()
     .click();
   await page.locator(".buy-row").getByRole("button", { name: "Add to cart" }).click();
+  // Adding shows a toast; the cart sheet opens from the header cart (ADR 0102).
+  await page.getByRole("link", { name: /^Cart, / }).click();
   const sheet = page.getByRole("dialog", { name: "Your cart" });
   await sheet.locator(".line").first().waitFor({ timeout: 10000 });
   return sheet;

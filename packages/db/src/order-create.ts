@@ -104,7 +104,12 @@ export async function createStoreOrder(
   // Two requests are the same order when all of this is the same.
   const payloadHash = canonicalPayloadHash({
     ...(manual ? { manual: { start: manual.start, evidence: manual.evidence } } : {}),
-    contact: { name: input.contact.name, phone: input.contact.phone },
+    contact: {
+      name: input.contact.name,
+      phone: input.contact.phone,
+      // Absent from the hash when there is none, so attempts hashed before ADR 0102 still match.
+      ...(input.contact.email ? { email: input.contact.email } : {}),
+    },
     address: { ...input.address },
     lines: lines.map(({ variantId, quantity }) => ({ variantId, quantity })),
     couponCode: input.couponCode,
@@ -187,6 +192,7 @@ export async function createStoreOrder(
         }>
       >(Prisma.sql`
         INSERT INTO orders (customer_id, status, source, created_by, customer_name, customer_phone_e164,
+          customer_email,
           area_id, area_code, area_name, area_emirate, address_type, address_building,
           address_unit, address_street, address_makani, address_notes,
           merchandise_subtotal_fils, discount_fils, delivery_fee_fils, total_fils,
@@ -195,7 +201,7 @@ export async function createStoreOrder(
           age_policy_version, creation_scope, creation_key_hash, creation_payload_hash, confirmation_hash, confirmation_expires_at)
         VALUES (${customer.id}::uuid, ${status}, ${manual ? "manual" : "storefront"},
           ${manual?.actorId ?? null}::uuid, ${customer.displayName},
-          ${customer.phoneE164},
+          ${customer.phoneE164}, ${input.contact.email ?? null},
           ${quote.delivery.areaId}::uuid, ${quote.delivery.areaCode}, ${quote.delivery.areaName},
           ${quote.delivery.emirate}, ${address.type}, ${address.building},
           ${address.unit}, ${address.street}, ${address.makani}, ${address.notes},
@@ -280,10 +286,14 @@ export async function createStoreOrder(
           },
         ),
       );
-      await new PrismaOutboxWriter().publish(
-        tx,
-        defineEvent("order.created", orderId, { orderId }, 1),
-      );
+      const outbox = new PrismaOutboxWriter();
+      await outbox.publish(tx, defineEvent("order.created", orderId, { orderId }, 1));
+      // The shopper's own confirmation (ADR 0102); staff-entered orders do not send one.
+      if (!manual && input.contact.email)
+        await outbox.publish(
+          tx,
+          defineEvent("order.confirmation_requested", orderId, { orderId }, 1),
+        );
       return {
         response,
         resourceType: "order",

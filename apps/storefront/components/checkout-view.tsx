@@ -28,6 +28,7 @@ import { Money } from "@/components/money";
 const FIELD_ORDER: readonly FormField[] = [
   "name",
   "phone",
+  "email",
   "type",
   "building",
   "unit",
@@ -40,6 +41,7 @@ const FIELD_ORDER: readonly FormField[] = [
 const FIELD_ID: Record<FormField, string> = {
   name: "checkout-name",
   phone: "checkout-phone",
+  email: "checkout-email",
   type: "checkout-type",
   building: "checkout-building",
   unit: "checkout-unit",
@@ -473,6 +475,26 @@ export function CheckoutView() {
                 </div>
               </Field>
             </div>
+            <Field
+              id={FIELD_ID.email}
+              label="Email"
+              help="We send your order confirmation here"
+              error={errors.email}
+            >
+              <input
+                {...text("email")}
+                aria-describedby={
+                  errors.email ? `${FIELD_ID.email}-error` : `${FIELD_ID.email}-help`
+                }
+                type="email"
+                inputMode="email"
+                autoComplete="email"
+                autoCapitalize="none"
+                spellCheck={false}
+                placeholder="name@example.com"
+                maxLength={254}
+              />
+            </Field>
           </section>
           <section className="co-step">
             <StepHead n={2}>Delivery address</StepHead>

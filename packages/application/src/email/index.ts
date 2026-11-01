@@ -11,3 +11,5 @@ export * from "./new-order";
 export * from "./low-stock";
 
 export * from "./daily-summary";
+
+export * from "./order-confirmation";

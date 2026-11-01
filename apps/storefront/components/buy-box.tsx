@@ -1,11 +1,12 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import type { StoreProductResponse } from "@ih/contracts";
 import { CART_LIMITS } from "@/lib/cart/cart";
-import { openCartSheet } from "@/lib/cart/sheet";
 import { addToCart } from "@/lib/cart/store";
 import { discountPercent } from "@/lib/store/listing";
+import { toast } from "@/lib/ui/toast";
 import {
   impliedChoices,
   offeredOptions,
@@ -45,6 +46,7 @@ export function BuyBox({
   /** Called after a successful add, before the cart sheet opens (quick add closes itself). */
   onAdded?: () => void;
 }) {
+  const router = useRouter();
   const options = offeredOptions(product);
   const [chosen, setChosen] = useState<Record<string, string>>(() => impliedChoices(options));
   const [quantity, setQuantity] = useState(1);
@@ -151,10 +153,17 @@ export function BuyBox({
           : { kind: "added", text: `Added to cart: ${result.quantity} in your cart.` },
     );
     if (!result.full) setAdded(true);
-    // The cart sheet shows what is now in the cart and the way on (parity G-S1).
+    // Marina 2026-11-02 (ADR 0102): adding no longer opens the cart sheet. The header cart
+    // count goes up and a toast offers the way to checkout; the sheet opens from the header.
     if (!result.full) {
       onAdded?.();
-      openCartSheet();
+      const chosen = variantLabel(product, selection.variant.attributes);
+      toast({
+        title: "Added to cart",
+        sub: chosen ? `${product.name} · ${chosen}` : product.name,
+        image: product.images[0]?.urls.thumb ?? null,
+        action: { label: "Checkout", run: () => router.push("/checkout") },
+      });
     }
   }
 

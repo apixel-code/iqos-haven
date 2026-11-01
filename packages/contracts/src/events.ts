@@ -170,6 +170,15 @@ export const EVENT_CATALOGUE = {
     consumers: ["notification", "email", "analytics_rollup"],
     plannedConsumers: {},
   }),
+  // New event (ADR 0102): written with a storefront order that carries the shopper's email, so
+  // the shopper gets an order confirmation. No historical rows: nothing to replay or backfill.
+  "order.confirmation_requested": define({
+    schemaVersion: 1,
+    aggregateType: "order",
+    payload: z.strictObject({ orderId: id }),
+    consumers: ["email"],
+    plannedConsumers: {},
+  }),
   "order.updated": define({
     schemaVersion: 1,
     aggregateType: "order",

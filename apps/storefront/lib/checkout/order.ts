@@ -1,7 +1,7 @@
 import {
   CHECKOUT_MESSAGES,
   checkoutAddressSchema,
-  checkoutContactSchema,
+  storeContactSchema,
   storeOrderResponseSchema,
   type StoreOrderResponse,
 } from "@ih/contracts";
@@ -15,6 +15,8 @@ export type AddressType = "apartment" | "villa" | "office";
 export interface CheckoutForm {
   name: string;
   phone: string;
+  /** For the order confirmation (ADR 0102). Memory only, like the rest of the form. */
+  email: string;
   type: AddressType;
   building: string;
   unit: string;
@@ -26,6 +28,7 @@ export interface CheckoutForm {
 export const EMPTY_FORM: CheckoutForm = {
   name: "",
   phone: "",
+  email: "",
   type: "apartment",
   building: "",
   unit: "",
@@ -41,7 +44,7 @@ export const AGE_MESSAGE = "Confirm you are 18 or older";
 /** The request parts built from the form, as typed; the API normalizes them the same way. */
 export function requestParts(form: CheckoutForm, areaId: string) {
   return {
-    contact: { name: form.name, phone: form.phone },
+    contact: { name: form.name, phone: form.phone, email: form.email },
     address: {
       areaId: areaId || null,
       type: form.type,
@@ -61,7 +64,7 @@ export function validateForm(form: CheckoutForm, areaId: string): FormErrors {
   const add = (field: unknown, message: string) => {
     if (typeof field === "string" && !(field in errors)) errors[field as FormField] = message;
   };
-  const who = checkoutContactSchema.safeParse(contact);
+  const who = storeContactSchema.safeParse(contact);
   if (!who.success) for (const issue of who.error.issues) add(issue.path[0], issue.message);
   const where = checkoutAddressSchema.safeParse(address);
   if (!where.success) for (const issue of where.error.issues) add(issue.path[0], issue.message);
@@ -72,6 +75,7 @@ const FALLBACK = "Check this field";
 const FIELD_OF_PATH: Record<string, FormField> = {
   "contact.name": "name",
   "contact.phone": "phone",
+  "contact.email": "email",
   "address.areaId": "areaId",
   "address.type": "type",
   "address.building": "building",
@@ -95,7 +99,13 @@ export function serverFieldErrors(
   for (const { path } of fields) {
     const field = FIELD_OF_PATH[path];
     if (field)
-      errors[field] = own[field] ?? (field === "phone" ? CHECKOUT_MESSAGES.phone : FALLBACK);
+      errors[field] =
+        own[field] ??
+        (field === "phone"
+          ? CHECKOUT_MESSAGES.phone
+          : field === "email"
+            ? CHECKOUT_MESSAGES.email
+            : FALLBACK);
   }
   return errors;
 }

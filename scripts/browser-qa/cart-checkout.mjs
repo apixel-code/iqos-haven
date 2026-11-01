@@ -126,6 +126,8 @@ try {
     .first()
     .click();
   await page.locator(".buy-row").getByRole("button", { name: "Add to cart" }).click();
+  // Adding shows a toast; the cart sheet opens from the header cart (ADR 0102).
+  await page.getByRole("link", { name: /^Cart, / }).click();
   await page.getByRole("dialog", { name: /Your cart/ }).waitFor();
   await page.goto(base + "/cart");
   await page.locator(".cart-page .line").first().waitFor();

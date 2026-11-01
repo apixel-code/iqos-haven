@@ -19,7 +19,11 @@ import { BullEffectEnqueuer, createQueueConnection } from "./queue";
 import { EffectReconciler } from "./reconciler";
 import { OutboxRelay } from "./relay";
 import { createConfirmationCleanupJob, createIdempotencyCleanupJob } from "./idempotency";
-import { createNotificationConsumer, newOrderEmailPlanner } from "./order-notifications";
+import {
+  createNotificationConsumer,
+  customerOrderEmailPlanner,
+  newOrderEmailPlanner,
+} from "./order-notifications";
 import {
   createAnalyticsRollupConsumer,
   createLateEditRollupJob,
@@ -61,6 +65,7 @@ async function main(): Promise<void> {
       "staff.password_reset_requested": passwordResetEmailPlanner(database, env),
       "staff.invited": staffInvitationEmailPlanner(database, env),
       "order.created": newOrderEmailPlanner(database),
+      "order.confirmation_requested": customerOrderEmailPlanner(database),
       "inventory.low": lowStockEmailPlanner(database, log),
       "report.daily_summary": dailySummaryEmailPlanner(database, log),
     },

@@ -111,8 +111,9 @@ try {
     "the bar shows the chosen option and its price",
   );
   await bar.getByRole("button", { name: "Add to cart" }).click();
-  await page.getByRole("dialog", { name: /Your cart/ }).waitFor();
-  check(true, "adding from the bar opens the cart sheet");
+  // Adding shows a toast with Checkout instead of opening the cart sheet (ADR 0102).
+  await page.locator(".toast", { hasText: "Added to cart" }).waitFor();
+  check(true, "adding from the bar shows the added toast");
   check(errors.length === 0, "no page errors on a phone", errors.join("; "));
   await context.close();
 

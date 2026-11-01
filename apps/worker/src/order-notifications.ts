@@ -1,12 +1,19 @@
 import {
   newOrderTemplate,
+  orderConfirmationTemplate,
   PermanentEffectError,
   type EffectContext,
   type EffectHandler,
   type EmailPlanner,
 } from "@ih/application";
 import { EVENT_CATALOGUE } from "@ih/contracts";
-import { loadNewOrderEmail, writeNewOrderNotification, type Database, type Tx } from "@ih/db";
+import {
+  loadCustomerOrderEmail,
+  loadNewOrderEmail,
+  writeNewOrderNotification,
+  type Database,
+  type Tx,
+} from "@ih/db";
 import { fils, formatAed } from "@ih/domain";
 import type { Logger } from "@ih/logger";
 import { applyLowStockNotification } from "./low-stock-notifications";
@@ -67,6 +74,50 @@ export function newOrderEmailPlanner(db: Database): EmailPlanner {
         areaName: order.areaName,
       },
       recipients,
+    };
+  };
+}
+
+/** The order an `order.confirmation_requested` event is about (ADR 0102). */
+function confirmationOrderId(context: EffectContext): string {
+  const payload = EVENT_CATALOGUE["order.confirmation_requested"].payload.safeParse(
+    context.payload,
+  );
+  if (!payload.success || context.schemaVersion !== 1 || context.aggregateType !== "order")
+    throw new PermanentEffectError("INVALID_ORDER_EVENT");
+  if (context.aggregateId !== payload.data.orderId)
+    throw new PermanentEffectError("INVALID_ORDER_EVENT");
+  return payload.data.orderId;
+}
+/** The shopper's order confirmation, to the email given at checkout (ADR 0102). */
+export function customerOrderEmailPlanner(db: Database): EmailPlanner {
+  return async (context) => {
+    const loaded = await loadCustomerOrderEmail(db, confirmationOrderId(context));
+    if (!loaded) throw new PermanentEffectError("ORDER_NOT_FOUND");
+    if (!loaded.email) return null;
+    const aed = (value: number) => formatAed(fils(value));
+    const digits = loaded.store.whatsappNumber?.replace(/\D/gu, "");
+    return {
+      template: orderConfirmationTemplate,
+      data: {
+        firstName: loaded.customerName.split(" ")[0]!.slice(0, 100),
+        orderNumber: loaded.orderNumber,
+        items: loaded.items.map((item) => ({
+          label: `${item.name}${item.options ? " · " + item.options : ""} × ${item.quantity}`.slice(
+            0,
+            400,
+          ),
+          total: aed(item.totalFils),
+        })),
+        subtotal: aed(loaded.merchandiseSubtotalFils),
+        discount: loaded.discountFils > 0 ? aed(loaded.discountFils) : null,
+        delivery: aed(loaded.deliveryFeeFils),
+        total: aed(loaded.totalFils),
+        areaName: loaded.areaName,
+        eta: loaded.deliveryEtaText,
+        whatsappUrl: digits ? `https://wa.me/${digits}` : null,
+      },
+      recipients: [loaded.email],
     };
   };
 }

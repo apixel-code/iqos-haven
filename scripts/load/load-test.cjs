@@ -393,7 +393,7 @@ async function main() {
         `${route}:order`,
         "/v1/store/orders",
         {
-          contact: { name: "Load Shopper", phone: phone() },
+          contact: { name: "Load Shopper", phone: phone(), email: "load@example.com" },
           address: { areaId, type: "apartment", building: "Load Tower", unit: "1204" },
           lines,
           couponCode,

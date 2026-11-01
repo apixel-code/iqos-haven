@@ -335,7 +335,7 @@ async function main() {
           ...headers,
         },
         body: JSON.stringify({
-          contact: { name: "Gate Probe", phone: "0501234567" },
+          contact: { name: "Gate Probe", phone: "0501234567", email: "gate@example.com" },
           address: { areaId: area.id, type: "villa", building: "Gate Villa 1" },
           lines: [{ variantId: visible.variants[0].id, quantity: 1 }],
           couponCode: null,

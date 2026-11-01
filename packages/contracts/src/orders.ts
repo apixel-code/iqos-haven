@@ -352,6 +352,8 @@ const adminOrderAddressSchema = z.strictObject({
 });
 
 const adminOrderCustomerSchema = adminOrderContactSchema.extend({
+  /** Given at checkout for the order confirmation (ADR 0102); null on older or staff orders. */
+  email: z.string().max(254).nullable(),
   address: adminOrderAddressSchema,
 });
 const adminOrderItemSchema = z.strictObject({

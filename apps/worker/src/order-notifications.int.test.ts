@@ -18,7 +18,11 @@ import { applyMigrations, seedOrder } from "@ih/db/testing";
 import { createLogger } from "@ih/logger";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { EffectRunner } from "./effects";
-import { createNotificationConsumer, newOrderEmailPlanner } from "./order-notifications";
+import {
+  createNotificationConsumer,
+  customerOrderEmailPlanner,
+  newOrderEmailPlanner,
+} from "./order-notifications";
 
 loadLocalEnvFile();
 const { DATABASE_TEST_URL } = loadEnv(integrationTestEnvSchema);
@@ -78,7 +82,10 @@ function mailer(send?: () => never) {
     handlers: [
       createEmailConsumer({
         from: "no-reply@iqoshaven.local",
-        planners: { "order.created": newOrderEmailPlanner(db) },
+        planners: {
+          "order.created": newOrderEmailPlanner(db),
+          "order.confirmation_requested": customerOrderEmailPlanner(db),
+        },
         adapter: {
           send: async (message) => {
             send?.();
@@ -256,6 +263,49 @@ describe("new-order notification and email (real PostgreSQL)", () => {
     for (const text of [...personal(data.order), data.orderId, "http"])
       expect(message!.subject + message!.text + message!.html).not.toContain(text);
     await setNotifications(null);
+  });
+
+  it("sends the shopper one order confirmation to the email given at checkout (ADR 0102)", async () => {
+    const data = await placed(2);
+    await pool.query(
+      "UPDATE orders SET customer_email='buyer@example.test', version=version+1 WHERE id=$1",
+      [data.orderId],
+    );
+    const confirmation = async (orderId: string) => {
+      const eventId = await withTransaction(db, (tx) =>
+        new PrismaOutboxWriter().publish(
+          tx,
+          defineEvent("order.confirmation_requested", orderId, { orderId }, 1),
+        ),
+      );
+      const [effect] = await db.consumerEffect.findMany({ where: { eventId } });
+      expect(effect!.consumer).toBe("email");
+      return { eventId, effectId: effect!.id, consumer: "email" as const };
+    };
+    const job = await confirmation(data.orderId);
+    const { messages, runner } = mailer();
+    expect(await runner.run(job)).toBe("completed");
+    expect(await runner.run(job)).toBe("duplicate");
+    expect(messages).toHaveLength(1);
+    const [message] = messages;
+    const number = `IH-${String(data.orderNumber).padStart(6, "0")}`;
+    expect([...message!.bcc]).toEqual(["buyer@example.test"]);
+    expect(message!.subject).toBe(`Order ${number} received (AED 115.00)`);
+    expect(message!.text).toContain("Total (cash on delivery): AED 115.00");
+    expect(message!.text).toContain("Delivery to " + data.order.areaName);
+    // The shopper's own message: no phone, address or internal ID in it.
+    for (const text of [
+      data.order.customerPhoneE164,
+      data.order.customerPhoneE164.slice(-8),
+      data.order.addressBuilding,
+      data.orderId,
+    ].filter((text): text is string => Boolean(text)))
+      expect(message!.subject + message!.text + message!.html).not.toContain(text);
+    // An order without an email (older or staff-entered) completes without sending.
+    const silent = await placed();
+    const none = mailer();
+    expect(await none.runner.run(await confirmation(silent.orderId))).toBe("completed");
+    expect(none.messages).toEqual([]);
   });
 
   it("does not depend on email: a failing provider leaves the order and its inbox entry alone", async () => {
