@@ -191,6 +191,12 @@ export default async function ShopLayout({ children }: { children: ReactNode }) 
             These products contain nicotine, which is addictive, and are not intended for
             non-smokers, pregnant or breastfeeding women.
           </p>
+          {/* Independent-retailer disclosure (client blueprint, ADR 0103). */}
+          <p className="foot-warn">
+            {SITE.name} is an independent retailer and is not affiliated with, endorsed by or
+            sponsored by Philip Morris International. IQOS, ILUMA and TEREA are trademarks of their
+            respective owners.
+          </p>
           <div className="foot-bottom">
             <span>
               © {new Date().getFullYear()} {SITE.name}. All rights reserved.

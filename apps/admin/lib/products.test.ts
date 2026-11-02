@@ -3,7 +3,9 @@ import type { ProductResponse } from "@ih/contracts";
 import { FormValidationError } from "./management";
 import {
   extraSpecs,
+  flavourProfiles,
   formatExtraSpecs,
+  formatFlavourProfiles,
   productCreateCommand,
   productTypeChoices,
   productUpdateCommand,
@@ -93,6 +95,38 @@ describe("product form commands", () => {
     expect(() =>
       productCreateCommand(data({ ...base, type: "sticks", "specs.packsPerUnit": "0" }), false),
     ).toThrow(FormValidationError);
+  });
+
+  it("reads and writes TEREA flavour profiles one per line (ADR 0103)", () => {
+    const typed =
+      "Sun Pearl | 3 | 4 | 3 | capsule | Watermelon | when crushed\n\namber | 4 | 4 | 0 | -";
+    const rows = flavourProfiles(typed);
+    expect(rows).toEqual([
+      {
+        flavour: "sun pearl",
+        body: 3,
+        intensity: 4,
+        cooling: 3,
+        capsule: true,
+        notes: "Watermelon | when crushed",
+      },
+      { flavour: "amber", body: 4, intensity: 4, cooling: 0, capsule: false },
+    ]);
+    expect(flavourProfiles(formatFlavourProfiles(rows))).toEqual(rows);
+    for (const bad of [
+      "amber | 0 | 4 | 0 | -",
+      "amber | 4 | 4 | 6 | -",
+      "amber | 4 | 4 | 0",
+      "| 3 | 3 | 3 | -",
+    ])
+      expect(() => flavourProfiles(bad)).toThrow(FormValidationError);
+    const sticks = productCreateCommand(
+      data({ ...base, type: "sticks", "specs.profiles": "amber | 4 | 4 | 0 | -" }),
+      false,
+    );
+    expect(sticks.specs).toMatchObject({
+      profiles: [{ flavour: "amber", body: 4, intensity: 4, cooling: 0, capsule: false }],
+    });
   });
 
   it("offers only heated-tobacco types for new products and keeps a stored vape type", () => {

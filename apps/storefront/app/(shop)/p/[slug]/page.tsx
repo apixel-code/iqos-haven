@@ -6,6 +6,7 @@ import { ProductReviews, RatingLink } from "@/components/product-reviews";
 import { CompareToggle } from "@/components/compare-toggle";
 import { RecentlyViewed, RecordView } from "@/components/recently-viewed";
 import { SaveButton } from "@/components/save-button";
+import { FlavourProfiles } from "@/components/flavour-profiles";
 import { Gallery } from "@/components/gallery";
 import { SectionHead } from "@/components/home-sections";
 import { Icon } from "@/components/icons";
@@ -140,6 +141,11 @@ export default async function ProductPage({ params }: Props) {
   ]);
   const more = relatedProducts(product, sameBrand.items, sameType.items);
   const specs = specRows(product);
+  // Taste profiles of a TEREA version (ADR 0103), for the flavours still offered.
+  const profiles =
+    product.type === "sticks" && "profiles" in product.specs ? (product.specs.profiles ?? []) : [];
+  const flavours =
+    offeredOptions(product).find((option) => option.name === "flavour")?.values ?? [];
   const whatsappMessage = WHATSAPP_MESSAGES.product(SITE.name, {
     name: product.name,
     priceFromFils: Math.min(...product.variants.map((variant) => variant.priceFils)),
@@ -217,7 +223,7 @@ export default async function ProductPage({ params }: Props) {
           </div>
         </div>
       </div>
-      {(product.description || specs.length > 0) && (
+      {(product.description || specs.length > 0 || profiles.length > 0) && (
         <div className="pdp-more">
           {product.description && (
             <section aria-labelledby="desc-h">
@@ -248,6 +254,7 @@ export default async function ProductPage({ params }: Props) {
               </table>
             </section>
           )}
+          <FlavourProfiles profiles={profiles} offered={flavours} />
         </div>
       )}
       <ProductReviews rating={product.rating} reviews={product.reviews} />

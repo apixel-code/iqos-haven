@@ -43,6 +43,24 @@ export const deviceSpecsSchema = z.strictObject({
   inTheBox: shortText(300).optional(),
   extra: extraSpecs,
 });
+/** Cooling bands a shopper filters by (ADR 0103): 0, 1–2 and 3–5 on the 0–5 scale. */
+export const COOLING_BANDS = ["none", "light", "strong"] as const;
+export type CoolingBand = (typeof COOLING_BANDS)[number];
+export const coolingBand = (cooling: number): CoolingBand =>
+  cooling === 0 ? "none" : cooling <= 2 ? "light" : "strong";
+/**
+ * The taste of one flavour of a TEREA version (ADR 0103): body and intensity 1–5, cooling 0–5,
+ * whether it has a click capsule, and short tasting notes. `flavour` names the option value.
+ */
+export const flavourProfileSchema = z.strictObject({
+  flavour: shortText(60),
+  body: z.number().int().min(1).max(5),
+  intensity: z.number().int().min(1).max(5),
+  cooling: z.number().int().min(0).max(5),
+  capsule: z.boolean(),
+  notes: shortText(300).optional(),
+});
+export type FlavourProfile = z.infer<typeof flavourProfileSchema>;
 /** A TEREA version, sold in flavour variants (ADR 0101). */
 export const sticksSpecsSchema = z.strictObject({
   /** Version or origin, for example "Japan" or "UAE". */
@@ -51,6 +69,14 @@ export const sticksSpecsSchema = z.strictObject({
   /** 1 = one pack, 10 = a carton. */
   packsPerUnit: z.number().int().min(1).max(50).optional(),
   flavourNotes: shortText(300).optional(),
+  /** One per flavour, at most once each (ADR 0103). */
+  profiles: z
+    .array(flavourProfileSchema)
+    .max(50)
+    .refine((rows) => new Set(rows.map((row) => row.flavour.toLowerCase())).size === rows.length, {
+      message: "One profile per flavour",
+    })
+    .optional(),
   extra: extraSpecs,
 });
 /** Every stored product type. The vape types stay readable; new products are heated tobacco. */

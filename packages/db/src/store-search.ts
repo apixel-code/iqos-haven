@@ -84,7 +84,9 @@ function matchedSql(term: SearchTerm, mode: MatchMode) {
       NOT s.in_stock AS "soldOut",
       CASE WHEN p.compare_at_price_fils > s.price_from
         THEN p.compare_at_price_fils::int END AS "compareAtPriceFils",
-      s.nicotine, ${rank} AS rank
+      s.nicotine, ${rank} AS rank,
+      CASE WHEN p.type='sticks' THEN nullif(btrim(p.specs->>'origin'), '') END AS origin,
+      t.cooling, t.capsule
     ${PRODUCT_FROM} ${join}
     CROSS JOIN LATERAL (
       SELECT min(coalesce(v.price_override_fils, p.base_price_fils)) AS price_from,
@@ -92,6 +94,16 @@ function matchedSql(term: SearchTerm, mode: MatchMode) {
         coalesce(array_agg(DISTINCT lower(v.attributes->>'nicotine'))
           FILTER (WHERE v.attributes ? 'nicotine'), '{}') AS nicotine
       FROM variants v WHERE v.product_id=p.id AND v.active) s
+    -- Taste profiles of a TEREA version (ADR 0103): the cooling bands its flavours fall in and
+    -- whether any has a click capsule.
+    CROSS JOIN LATERAL (
+      SELECT coalesce(array_agg(DISTINCT CASE
+          WHEN (f->>'cooling')::int = 0 THEN 'none'
+          WHEN (f->>'cooling')::int <= 2 THEN 'light' ELSE 'strong' END), '{}') AS cooling,
+        coalesce(bool_or((f->>'capsule')::boolean), false) AS capsule
+      FROM jsonb_array_elements(
+        CASE WHEN p.type='sticks' AND jsonb_typeof(p.specs->'profiles')='array'
+          THEN p.specs->'profiles' ELSE '[]'::jsonb END) f) t
     WHERE ${VISIBLE_PRODUCT} AND ${match}`;
 }
 
@@ -119,7 +131,17 @@ function decodeSearchCursor(cursor: string, sort: StoreSearchSort) {
 
 /** `category` is a page's scope, never a facet: it applies to every count. */
 type FacetKey =
-  "type" | "brand" | "category" | "price" | "puffs" | "nicotine" | "inStock" | "onSale";
+  | "type"
+  | "brand"
+  | "category"
+  | "price"
+  | "puffs"
+  | "nicotine"
+  | "origin"
+  | "cooling"
+  | "capsule"
+  | "inStock"
+  | "onSale";
 
 /** One predicate per active filter, over the columns of the matched set `m`. */
 function filterSql(query: StoreSearchQuery): Partial<Record<FacetKey, Prisma.Sql>> {
@@ -137,6 +159,12 @@ function filterSql(query: StoreSearchQuery): Partial<Record<FacetKey, Prisma.Sql
     filters.nicotine = Prisma.sql`m.nicotine && ${query.nicotine.map((value) =>
       value.toLowerCase(),
     )}::text[]`;
+  if (query.origin?.length)
+    filters.origin = Prisma.sql`lower(m.origin) = ANY(${query.origin.map((value) =>
+      value.toLowerCase(),
+    )}::text[])`;
+  if (query.cooling?.length) filters.cooling = Prisma.sql`m.cooling && ${query.cooling}::text[]`;
+  if (query.capsule) filters.capsule = Prisma.sql`m.capsule`;
   if (query.inStock) filters.inStock = Prisma.sql`NOT m."soldOut"`;
   if (query.onSale) filters.onSale = Prisma.sql`m."compareAtPriceFils" IS NOT NULL`;
   return filters;
@@ -240,6 +268,9 @@ export async function searchStoreProducts(
             brands: StoreSearchResponse["facets"]["brands"];
             puffCounts: StoreSearchResponse["facets"]["puffCounts"];
             nicotine: StoreSearchResponse["facets"]["nicotine"];
+            origins: StoreSearchResponse["facets"]["origins"];
+            cooling: StoreSearchResponse["facets"]["cooling"];
+            capsule: number;
             price: { minFils: number | null; maxFils: number | null };
             inStock: number;
             onSale: number;
@@ -268,6 +299,16 @@ export async function searchStoreProducts(
             FROM (SELECT n.value, count(*)::int AS n FROM m, unnest(m.nicotine) AS n(value)
               WHERE ${except("nicotine")} GROUP BY 1 ORDER BY count(*) DESC, 1 LIMIT 50) x)
             AS nicotine,
+          (SELECT coalesce(jsonb_agg(jsonb_build_object('value', x.value, 'count', x.n)
+              ORDER BY x.value), '[]'::jsonb)
+            FROM (SELECT min(m.origin) AS value, count(*)::int AS n FROM m
+              WHERE ${except("origin")} AND m.origin IS NOT NULL GROUP BY lower(m.origin)
+              ORDER BY count(*) DESC, 1 LIMIT 50) x) AS origins,
+          (SELECT coalesce(jsonb_agg(jsonb_build_object('value', x.value, 'count', x.n)
+              ORDER BY array_position(ARRAY['none','light','strong'], x.value)), '[]'::jsonb)
+            FROM (SELECT c.value, count(*)::int AS n FROM m, unnest(m.cooling) AS c(value)
+              WHERE ${except("cooling")} GROUP BY 1) x) AS cooling,
+          (SELECT count(*)::int FROM m WHERE ${except("capsule")} AND m.capsule) AS capsule,
           (SELECT jsonb_build_object('minFils', min(m."priceFromFils"),
               'maxFils', max(m."priceFromFils")) FROM m WHERE ${except("price")}) AS price,
           (SELECT count(*)::int FROM m WHERE ${except("inStock")} AND NOT m."soldOut")
@@ -297,6 +338,9 @@ export async function searchStoreProducts(
             brands: facets!.brands,
             puffCounts: facets!.puffCounts,
             nicotine: facets!.nicotine,
+            origins: facets!.origins,
+            cooling: facets!.cooling,
+            capsule: facets!.capsule,
             price:
               price.minFils === null || price.maxFils === null
                 ? null

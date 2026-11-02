@@ -1,4 +1,9 @@
-import { STORE_SEARCH_SORTS, type StoreSearchSort } from "@ih/contracts";
+import {
+  COOLING_BANDS,
+  STORE_SEARCH_SORTS,
+  type CoolingBand,
+  type StoreSearchSort,
+} from "@ih/contracts";
 import { TYPE_PAGES, type ProductType } from "./listing";
 
 /**
@@ -55,6 +60,10 @@ export interface SearchState {
   /** Upper puff bound, from the home page's puff-count links (ADR 0097). */
   maxPuffs?: number;
   nicotine: string[];
+  /** TEREA versions, cooling bands and capsule flavours (ADR 0103). */
+  origins: string[];
+  cooling: CoolingBand[];
+  capsule: boolean;
   inStock: boolean;
   onSale: boolean;
   sort?: StoreSearchSort;
@@ -108,6 +117,13 @@ export function parseSearch(raw: RawParams): SearchState {
     nicotine: [...new Set(many(raw.nicotine).map((value) => value.trim()))]
       .filter((value) => value.length >= 1 && value.length <= 40)
       .slice(0, 6),
+    origins: [...new Set(many(raw.origin).map((value) => value.trim()))]
+      .filter((value) => value.length >= 1 && value.length <= 60)
+      .slice(0, 10),
+    cooling: [...new Set(many(raw.cooling))].filter((value): value is CoolingBand =>
+      (COOLING_BANDS as readonly string[]).includes(value),
+    ),
+    capsule: first(raw.capsule) === "true",
     inStock: first(raw.inStock) === "true",
     onSale: first(raw.onSale) === "true",
     ...((STORE_SEARCH_SORTS as readonly string[]).includes(sort ?? "")
@@ -129,6 +145,9 @@ export function searchApiParams(state: SearchState, limit?: number): Array<[stri
   if (state.minPuffs !== undefined) params.push(["minPuffs", String(state.minPuffs)]);
   if (state.maxPuffs !== undefined) params.push(["maxPuffs", String(state.maxPuffs)]);
   for (const value of state.nicotine) params.push(["nicotine", value]);
+  for (const value of state.origins) params.push(["origin", value]);
+  for (const value of state.cooling) params.push(["cooling", value]);
+  if (state.capsule) params.push(["capsule", "true"]);
   if (state.inStock) params.push(["inStock", "true"]);
   if (state.onSale) params.push(["onSale", "true"]);
   if (state.sort) params.push(["sort", state.sort]);
@@ -152,6 +171,9 @@ export function searchHref(state: Partial<SearchState>, path = "/search"): strin
   if (state.minPuffs !== undefined) query.set("minPuffs", String(state.minPuffs));
   if (state.maxPuffs !== undefined) query.set("maxPuffs", String(state.maxPuffs));
   for (const value of state.nicotine ?? []) query.append("nicotine", value);
+  for (const value of state.origins ?? []) query.append("origin", value);
+  for (const value of state.cooling ?? []) query.append("cooling", value);
+  if (state.capsule) query.set("capsule", "true");
   if (state.inStock) query.set("inStock", "true");
   if (state.onSale) query.set("onSale", "true");
   if (state.sort) query.set("sort", state.sort);
@@ -167,6 +189,9 @@ export function activeFilterCount(state: SearchState): number {
     (state.minPrice !== undefined || state.maxPrice !== undefined ? 1 : 0) +
     (state.minPuffs !== undefined || state.maxPuffs !== undefined ? 1 : 0) +
     state.nicotine.length +
+    state.origins.length +
+    state.cooling.length +
+    (state.capsule ? 1 : 0) +
     (state.inStock ? 1 : 0) +
     (state.onSale ? 1 : 0)
   );

@@ -57,6 +57,30 @@ describe("listing pages share the search filters (parity G-S2)", () => {
     expect(cardMeta({ type: "sticks", puffCount: null, variantCount: 4 })).toBe("4 options");
   });
 
+  it("reads TEREA version, cooling and capsule filters and ignores unknown values (ADR 0103)", () => {
+    const state = parseSearch({
+      origin: [" Japan ", "UAE", "Japan"],
+      cooling: ["none", "strong", "arctic"],
+      capsule: "true",
+    });
+    expect(state).toMatchObject({
+      origins: ["Japan", "UAE"],
+      cooling: ["none", "strong"],
+      capsule: true,
+    });
+    expect(searchApiParams(state)).toEqual([
+      ["origin", "Japan"],
+      ["origin", "UAE"],
+      ["cooling", "none"],
+      ["cooling", "strong"],
+      ["capsule", "true"],
+    ]);
+    expect(activeFilterCount(state)).toBe(5);
+    expect(searchHref({ origins: ["Swiss"], capsule: true }, "/sticks")).toBe(
+      "/sticks?origin=Swiss&capsule=true",
+    );
+  });
+
   it("reads the prototype's filter bands and category checkboxes (ADR 0097)", () => {
     expect(parseSearch({ price: "50-100", puffs: "o12" })).toMatchObject({
       minPrice: 50,
@@ -162,6 +186,9 @@ describe("search page state", () => {
       maxPrice: 60,
       minPuffs: 5000,
       nicotine: ["20 mg", "50 mg"],
+      origins: [],
+      cooling: [],
+      capsule: false,
       inStock: true,
       onSale: false,
       sort: "price_asc",
