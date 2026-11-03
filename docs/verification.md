@@ -2840,6 +2840,16 @@ Server `srv2113068`, 201.18.206.74, Mumbai (ADR 0100 update). Release a520471 (b
 | Catalogue script | Run on the local stack through the admin API: 5 new products published with stock 50, new flavours on Indonesia/Kazakhstan/Japan, profiles and blueprint descriptions on every TEREA edition and ILUMA i device; a second run changes nothing. An interrupted first run (missing image file) was finished by the rerun. |
 | Browser          | NOT RUN for the new filter groups and the product-page profile grid.                                                                                                                                                                                                                                                    |
 
+## ADR 0103 — production deploy and blueprint data (2026-11-03)
+
+| Check                          | Result                                                                                                                                                                                              |
+| ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Deploy 39ea07c                 | PASS on staging, then production: health 200 on storefront and admin, admin API not exposed on the shop host (404).                                                                                 |
+| Blueprint script on production | PASS: category, 5 new published products, new flavours and profiles written; a second dry run found nothing to do.                                                                                  |
+| Live storefront (age ticket)   | PASS: `/sticks` shows the Cooling and Capsule filters and TEREA Uzbekistan; `/p/terea-indonesia` shows Flavour profiles; `/p/iqos-iluma-prime` renders; the independent-retailer footer is present. |
+| Live storefront (no ticket)    | PASS: `/sticks` and a product page redirect (307) with no product name or price.                                                                                                                    |
+| Browser                        | NOT RUN for the new filter groups and the profile grid.                                                                                                                                             |
+
 ## ADR 0104 — random order numbers, order tracking, fuller order emails (2026-11-03, local)
 
 | Check           | Result                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
@@ -2856,3 +2866,13 @@ Server `srv2113068`, 201.18.206.74, Mumbai (ADR 0100 update). Release a520471 (b
 | `pnpm test:int`         | PASS: platform 7, db 144, worker 93, api 431 (store content now carries `mobileImage`)                                                                                                                                                                                                 |
 | `pnpm test:age-preview` | PASS, 2251 checks (new: a designed banner renders its wide and phone pictures and links as a whole)                                                                                                                                                                                    |
 | Browser                 | PASS: `home-shop.mjs` (sections, brand showcase, hero height on a phone, quick add → Added → Checkout, at 360 and 1280 px), `cart-sheet.mjs`, `sheets-toasts.mjs`, `sticky-add.mjs`. Banner pictures seen only through the age-preview HTML check, not in a browser with real uploads. |
+
+## ADR 0104 + 0105 — production deploy (2026-11-03)
+
+| Check                        | Result                                                                                                |
+| ---------------------------- | ----------------------------------------------------------------------------------------------------- |
+| Deploy 73cf02b               | PASS on staging, then production: migration `20261103000100_random_order_numbers` applied, health OK. |
+| Live home (age ticket)       | PASS: brand showcase, New arrivals, TEREA Sticks and IQOS Devices rows; phone screenshot at 390 px.   |
+| Live tracking                | PASS: `/track` 200; legacy IH-001001 → 404 not found; API without an age ticket → 403.                |
+| Live storefront (no ticket)  | PASS: home redirects (307) with no product data.                                                      |
+| Designed banner, real upload | NOT RUN: no client banner uploaded yet.                                                               |
