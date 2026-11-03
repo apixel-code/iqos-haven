@@ -54,9 +54,20 @@ export function isEditable(status: OrderStatus): boolean {
 }
 export const FIRST_ORDER_NUMBER = 1001;
 /**
- * The number people say and search for, e.g. `IH-001001`. Sequential, assigned by the database;
- * it identifies an order but grants no access to it.
+ * Order numbers are random 12-digit numbers from ADR 0104 (Marina 2026-11-03), assigned by the
+ * database, so the order number alone can track an order. The orders placed before that kept
+ * their sequential numbers (`IH-001001`…), which can be guessed, so they are never trackable.
  */
+export const RANDOM_ORDER_NUMBER = { min: 100_000_000_000, max: 999_999_999_999 } as const;
+/** Whether a number is one of the random ones (ADR 0104), the only ones tracking accepts. */
+export function isTrackableOrderNumber(orderNumber: number): boolean {
+  return (
+    Number.isSafeInteger(orderNumber) &&
+    orderNumber >= RANDOM_ORDER_NUMBER.min &&
+    orderNumber <= RANDOM_ORDER_NUMBER.max
+  );
+}
+/** The number people say and search for, e.g. `IH-482193057316` (before ADR 0104 `IH-001001`). */
 export function formatOrderNumber(orderNumber: number | bigint | string): string {
   // The database driver hands a bigint column over as a string of digits.
   if (typeof orderNumber === "string" && !/^\d{1,18}$/.test(orderNumber))
@@ -67,10 +78,16 @@ export function formatOrderNumber(orderNumber: number | bigint | string): string
   if (value < BigInt(FIRST_ORDER_NUMBER)) throw new RangeError("Not an order number");
   return "IH-" + value.toString().padStart(6, "0");
 }
-/** Accepts what a person types: `IH-001001`, `ih 1001`, `#1001`, `1001`. Null when it is none. */
+/**
+ * Accepts what a person types: `IH-001001`, `ih 1001`, `#1001`, `1001`, and a long number with
+ * spaces or dashes between its digits (`IH 4821 9305 7316`). Null when it is none.
+ */
 export function parseOrderNumber(input: string): number | null {
-  const match = /^\s*(?:IH[-\s]?|#)?0*(\d{4,15})\s*$/i.exec(typeof input === "string" ? input : "");
-  if (!match) return null;
-  const value = Number(match[1]);
+  const match = /^\s*(?:IH[-\s]?|#)?(\d[\d -]{0,30}\d|\d)\s*$/i.exec(
+    typeof input === "string" ? input : "",
+  );
+  const digits = match?.[1]!.replace(/[ -]/g, "").replace(/^0+(?=\d)/, "");
+  if (!digits || !/^\d{4,15}$/.test(digits)) return null;
+  const value = Number(digits);
   return Number.isSafeInteger(value) && value >= FIRST_ORDER_NUMBER ? value : null;
 }

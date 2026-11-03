@@ -164,6 +164,8 @@ describe("financial summary (real PostgreSQL)", () => {
 
   it("cuts days at Dubai midnight (20:00 UTC)", async () => {
     const placed = await seedOrder(pool);
+    // Placed before the triggers are off: one of them assigns the order number (ADR 0104).
+    const other = await seedOrder(pool);
     // Just before and just after midnight Dubai between 2026-03-09 and 2026-03-10.
     await pool.query("ALTER TABLE orders DISABLE TRIGGER USER");
     try {
@@ -171,7 +173,6 @@ describe("financial summary (real PostgreSQL)", () => {
         "2026-03-09T19:59:59.999Z",
         placed.orderId,
       ]);
-      const other = await seedOrder(pool);
       await pool.query("UPDATE orders SET created_at=$1 WHERE id=$2", [
         "2026-03-09T20:00:00.000Z",
         other.orderId,

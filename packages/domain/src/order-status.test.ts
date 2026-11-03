@@ -5,11 +5,13 @@ import {
   ORDER_STATUSES,
   canTransition,
   formatOrderNumber,
+  isTrackableOrderNumber,
   initialStatuses,
   isEditable,
   isPostHandoffCancellation,
   isTerminal,
   parseOrderNumber,
+  RANDOM_ORDER_NUMBER,
 } from "./order-status";
 
 describe("order state machine", () => {
@@ -54,6 +56,23 @@ describe("order numbers, sources and cash status", () => {
       expect(() => formatOrderNumber(bad), String(bad)).toThrow(RangeError);
     for (const n of [1001, 5000, 999999, 1000000])
       expect(parseOrderNumber(formatOrderNumber(n))).toBe(n);
+  });
+  it("reads a random order number however it is typed, and tracks only those (ADR 0104)", () => {
+    expect(formatOrderNumber(482193057316)).toBe("IH-482193057316");
+    for (const typed of [
+      "IH-482193057316",
+      "ih482193057316",
+      "IH 4821 9305 7316",
+      "4821-9305-7316",
+      " #482193057316 ",
+    ])
+      expect(parseOrderNumber(typed), typed).toBe(482193057316);
+    for (const typed of ["4821--", "-482193057316", "IH-4821 9305 731x", "4821\n9305"])
+      expect(parseOrderNumber(typed), typed).toBeNull();
+    expect(isTrackableOrderNumber(RANDOM_ORDER_NUMBER.min)).toBe(true);
+    expect(isTrackableOrderNumber(RANDOM_ORDER_NUMBER.max)).toBe(true);
+    for (const n of [1001, 99_999_999_999, 1_000_000_000_000, 482193057316.5])
+      expect(isTrackableOrderNumber(n), String(n)).toBe(false);
   });
   it("lets only a staff-entered order start confirmed, and edits only early", () => {
     expect(initialStatuses("storefront")).toEqual(["pending"]);

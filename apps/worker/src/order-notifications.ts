@@ -12,6 +12,7 @@ import {
   loadNewOrderEmail,
   writeNewOrderNotification,
   type Database,
+  type OrderEmailItem,
   type Tx,
 } from "@ih/db";
 import { fils, formatAed } from "@ih/domain";
@@ -59,12 +60,17 @@ export function createNotificationConsumer(options: { log: Logger }): EffectHand
     },
   };
 }
+/** One order line as both order emails show it: "TEREA UAE · silver × 2" and its total. */
+const itemLine = (item: OrderEmailItem) => ({
+  label: `${item.name}${item.options ? " · " + item.options : ""} × ${item.quantity}`.slice(0, 400),
+  total: formatAed(fils(item.totalFils)),
+});
 /** New-order email to the addresses in Settings; no recipients completes without sending. */
 export function newOrderEmailPlanner(db: Database): EmailPlanner {
   return async (context) => {
     const loaded = await loadNewOrderEmail(db, createdOrderId(context));
     if (!loaded) throw new PermanentEffectError("ORDER_NOT_FOUND");
-    const { order, recipients } = loaded;
+    const { order, contact, items, recipients } = loaded;
     return {
       template: newOrderTemplate,
       data: {
@@ -72,6 +78,8 @@ export function newOrderEmailPlanner(db: Database): EmailPlanner {
         total: formatAed(fils(order.totalFils)),
         units: order.units,
         areaName: order.areaName,
+        customer: { name: contact.name, phone: contact.phone, email: contact.email },
+        items: items.map(itemLine),
       },
       recipients,
     };
@@ -102,13 +110,8 @@ export function customerOrderEmailPlanner(db: Database): EmailPlanner {
       data: {
         firstName: loaded.customerName.split(" ")[0]!.slice(0, 100),
         orderNumber: loaded.orderNumber,
-        items: loaded.items.map((item) => ({
-          label: `${item.name}${item.options ? " · " + item.options : ""} × ${item.quantity}`.slice(
-            0,
-            400,
-          ),
-          total: aed(item.totalFils),
-        })),
+        customer: { name: loaded.customerName, phone: loaded.phone, email: loaded.email },
+        items: loaded.items.map(itemLine),
         subtotal: aed(loaded.merchandiseSubtotalFils),
         discount: loaded.discountFils > 0 ? aed(loaded.discountFils) : null,
         delivery: aed(loaded.deliveryFeeFils),
@@ -116,6 +119,7 @@ export function customerOrderEmailPlanner(db: Database): EmailPlanner {
         areaName: loaded.areaName,
         eta: loaded.deliveryEtaText,
         whatsappUrl: digits ? `https://wa.me/${digits}` : null,
+        trackUrl: loaded.store.domain ? `https://${loaded.store.domain}/track` : null,
       },
       recipients: [loaded.email],
     };

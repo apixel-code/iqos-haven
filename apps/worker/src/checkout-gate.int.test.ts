@@ -283,8 +283,10 @@ describe("checkout gate: a placed order and the worker (PostgreSQL, queue Redis,
       message.To,
       message.Bcc,
     ]);
-    for (const personal of ["Gate Buyer", "630", "Gate Villa", "Gate note"])
-      expect(body).not.toContain(personal);
+    // Since ADR 0104 the shop's email names who ordered (name, phone); never the address or note.
+    expect(message.Text).toContain("Name: Gate Buyer");
+    expect(message.Text).toMatch(/Phone: \+971\d+630/);
+    for (const personal of ["Gate Villa", "Gate note"]) expect(body).not.toContain(personal);
     expect(await findStrandedEffects(db, 1, 100)).toEqual([]);
   });
 

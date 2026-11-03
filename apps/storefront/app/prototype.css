@@ -6037,4 +6037,52 @@
     margin: 0;
     padding: 0;
   }
+
+  /* store: order tracking (ADR 0104), in the confirmation page's column. */
+  .track {
+    max-width: 680px;
+    margin-inline: auto;
+    padding-block: 32px 64px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+  .track-head {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .track-form {
+    display: flex;
+    gap: 12px;
+    align-items: flex-end;
+    flex-wrap: wrap;
+  }
+  .track-form .field {
+    flex: 1 1 260px;
+    margin: 0;
+  }
+  .track-form .btn {
+    flex: 0 0 auto;
+  }
+  @media (max-width: 719px) {
+    .track-form .btn {
+      flex: 1 1 100%;
+    }
+  }
+  .track-result {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    outline: none;
+  }
+  .track-note {
+    padding: 14px 16px;
+    border-radius: var(--r-md);
+    background: var(--saffron-soft);
+    color: var(--ink);
+  }
+  .track-steps li[aria-current="step"] b {
+    color: var(--ink);
+  }
 }

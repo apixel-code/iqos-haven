@@ -1,11 +1,13 @@
 import { notificationSettingsSchema } from "@ih/contracts";
 import { fils, formatAed, formatOrderNumber } from "@ih/domain";
 import { Prisma, type Database, type Tx } from "./client";
+import { orderEmailItems, type OrderEmailItem } from "./order-confirmation-email";
 
 /**
  * Staff notifications for a new order (roadmap step 78, ADR 0047). Both readers work from the
- * order ID in the event and load what they need themselves. Neither returns nor stores who
- * ordered or where it goes: an order number, a unit count, a total and the area only.
+ * order ID in the event and load what they need themselves. The inbox notification never stores
+ * who ordered or where it goes: an order number, a unit count, a total and the area only. The
+ * email also names the customer, their phone and email, and the lines (ADR 0104).
  */
 export const NEW_ORDER_NOTIFICATION = "order.new";
 /** Both are needed to be told about an order: an inbox, and the right to open the order. */
@@ -111,14 +113,35 @@ async function insertNotification(
  * What the new-order email says and who gets it: the addresses the Owner entered under
  * Settings → Notifications, and none unless that email is switched on.
  */
+/** Who ordered, for the shop's new-order email only (ADR 0104); never in the inbox notification. */
+export interface NewOrderContact {
+  name: string;
+  /** E.164, e.g. +971501234567. */
+  phone: string;
+  email: string | null;
+}
+/**
+ * The new-order email (Marina 2026-11-03, ADR 0104): the summary plus who ordered and the lines,
+ * so the shop can act from the email. Loaded only when there is someone to send it to.
+ */
 export async function loadNewOrderEmail(
   db: Database,
   orderId: string,
-): Promise<{ order: NewOrderSummary; recipients: string[] } | null> {
+): Promise<{
+  order: NewOrderSummary;
+  contact: NewOrderContact;
+  items: OrderEmailItem[];
+  recipients: string[];
+} | null> {
   const order = await newOrderSummary(db, orderId);
   if (!order) return null;
   const { newOrderEmail } = await notificationSettings(db);
-  return { order, recipients: newOrderEmail.enabled ? [...newOrderEmail.recipients] : [] };
+  const recipients = newOrderEmail.enabled ? [...newOrderEmail.recipients] : [];
+  const [contact] = await db.$queryRaw<Array<NewOrderContact>>(Prisma.sql`
+    SELECT customer_name AS name, customer_phone_e164 AS phone, customer_email AS email
+    FROM orders WHERE id=${orderId}::uuid`);
+  if (!contact) return null;
+  return { order, contact, items: await orderEmailItems(db, orderId), recipients };
 }
 
 // --- Low stock (roadmap step 92, ADR 0060) ---
