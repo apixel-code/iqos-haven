@@ -395,9 +395,7 @@ describe("manual orders through the real API and PostgreSQL", () => {
       { ...body, start: "pending", evidence: undefined },
     ])
       expect(await errorCode(await create(changed, attempt))).toBe("IDEMPOTENCY_CONFLICT");
-    const placed = await one<{ id: string }>(
-      "SELECT id FROM orders ORDER BY id DESC LIMIT 1",
-    );
+    const placed = await one<{ id: string }>("SELECT id FROM orders ORDER BY id DESC LIMIT 1");
     // Who created it is on the order, its first history row and its audit entry.
     const [staffRow] = (
       await pool.query("SELECT id FROM staff_users WHERE email='desk-staff@iqoshaven.test'")
