@@ -4217,6 +4217,79 @@
     font-family: var(--mono);
     font-size: 13.5px;
   }
+  /* Flavour profiles of a TEREA version (ADR 0103). */
+  .fp {
+    grid-column: 1 / -1;
+  }
+  .fp-grid {
+    display: grid;
+    gap: 12px;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  .fp-card {
+    border: 1px solid var(--line);
+    border-radius: var(--r-lg);
+    background: var(--surface);
+    padding: 14px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .fp-name {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    font-size: 15px;
+    font-weight: 600;
+    margin: 0;
+  }
+  .fp-card dl {
+    display: grid;
+    gap: 6px;
+    margin: 0;
+  }
+  .fp-row {
+    display: grid;
+    grid-template-columns: 80px 1fr;
+    align-items: center;
+    font-size: 13px;
+  }
+  .fp-row dt {
+    color: var(--ink-3);
+  }
+  .fp-row dd {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+  }
+  .fp-dots {
+    display: inline-flex;
+    gap: 4px;
+  }
+  .fp-dots i {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--line-2);
+  }
+  .fp-dots i.on {
+    background: var(--ink);
+  }
+  .fp-n {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--ink-3);
+  }
+  .fp-notes {
+    margin: 0;
+    font-size: 13px;
+    color: var(--ink-2);
+  }
   .desc {
     display: flex;
     flex-direction: column;
@@ -5120,6 +5193,82 @@
     object-fit: contain;
   }
 
+  /*
+   * store: the hero on phones (client feedback 2026-11-03, ADR 0105). The prototype's slide kept
+   * a 340 px height with its big circle in the lower half, which on a phone read as an empty
+   * block. Below 720 px the slide is as tall as its words (plus the product picture, set in the
+   * flow under them), and the circles shrink to a corner accent.
+   */
+  @media (max-width: 719px) {
+    .hb-slide {
+      min-height: 0;
+      padding: 24px 20px 56px;
+      gap: 16px;
+    }
+    .hb-copy {
+      max-width: 100%;
+    }
+    .hb-title {
+      font-size: clamp(24px, 7vw, 30px);
+    }
+    .hb-sub {
+      display: block;
+      font-size: 14px;
+    }
+    .hb-art {
+      position: relative;
+      width: 100%;
+      height: 180px;
+      align-items: center;
+      justify-content: center;
+    }
+    .s1 .hb-shape.a,
+    .s3 .hb-shape.a {
+      width: 200px;
+      height: 200px;
+      right: -70px;
+      bottom: -90px;
+    }
+    .s2 .hb-shape.a {
+      width: 180px;
+      height: 180px;
+      right: -60px;
+      bottom: -70px;
+    }
+    .hb-shape.b {
+      display: none;
+    }
+  }
+  /* store: a designed banner (ADR 0105) fills the slide at its own proportions. */
+  .hb-slide.s-banner {
+    padding: 0;
+    min-height: 0;
+    background: #152033;
+    justify-content: center;
+  }
+  .hb-banner {
+    display: block;
+    width: 100%;
+  }
+  .hb-banner picture,
+  .hb-banner img {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+  @media (min-width: 1040px) {
+    .hb-banner img {
+      max-height: 560px;
+      object-fit: cover;
+    }
+  }
+  .hb-main[data-look="banner"] .hb-dots,
+  .hb-main[data-look="banner"] .hb-actions {
+    background: rgba(14, 17, 22, 0.55);
+    border-radius: var(--r-pill);
+    padding: 2px 8px;
+  }
+
   /* store: a brand's own logo (parity G-A7) takes the wordmark's place; no demo hue stripe. */
   .brand .stripe {
     background: var(--line-2);
@@ -5130,6 +5279,130 @@
     max-width: 100%;
     width: auto;
     object-fit: contain;
+  }
+  /*
+   * store: "Shop by brand" for a two-brand shop (ADR 0105): IQOS and TEREA each get a wide card
+   * with a line about them, a product photo and their own button, side by side from 720 px.
+   */
+  .bshow {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 14px;
+  }
+  @media (min-width: 720px) {
+    .bshow {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 18px;
+    }
+  }
+  .bshow-card {
+    display: grid;
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+    align-items: center;
+    gap: 14px;
+    min-height: 200px;
+    padding: 22px;
+    border-radius: var(--r-lg);
+    overflow: hidden;
+    text-decoration: none;
+    transition: transform 0.2s var(--ease);
+  }
+  .bshow-card:hover {
+    transform: translateY(-2px);
+  }
+  /* One brand fills the row; a card without a product photo is words only. */
+  .bshow:has(> :only-child) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .bshow-card.no-art {
+    grid-template-columns: minmax(0, 1fr);
+    min-height: 0;
+  }
+  @media (max-width: 719px) {
+    .bshow-card {
+      grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+      min-height: 0;
+      padding: 18px;
+    }
+    .bshow-cta {
+      padding: 8px 14px;
+    }
+  }
+  .bshow-card.dark {
+    background: #152033;
+    color: #fff;
+  }
+  .bshow-card.light {
+    background: var(--lagoon-soft);
+    color: var(--ink);
+  }
+  .bshow-copy {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    min-width: 0;
+  }
+  .bshow-name {
+    font-size: clamp(26px, 6vw, 34px);
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    line-height: 1;
+  }
+  .bshow-logo {
+    display: block;
+    max-height: 36px;
+    max-width: 100%;
+    width: auto;
+    object-fit: contain;
+  }
+  .bshow-about {
+    font-size: 14px;
+    line-height: 1.45;
+    opacity: 0.85;
+  }
+  .bshow-count {
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    opacity: 0.7;
+  }
+  .bshow-cta {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 6px;
+    padding: 10px 16px;
+    border-radius: var(--r-pill);
+    font-size: 14px;
+    font-weight: 600;
+    white-space: nowrap;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    background: #fff;
+    color: var(--ink);
+  }
+  .bshow-card.light .bshow-cta {
+    background: var(--ink);
+    color: #fff;
+  }
+  .bshow-art {
+    display: grid;
+    place-items: center;
+    aspect-ratio: 1;
+    border-radius: var(--r-md);
+    background: rgba(255, 255, 255, 0.1);
+    overflow: hidden;
+  }
+  .bshow-card.light .bshow-art {
+    background: rgba(255, 255, 255, 0.55);
+  }
+  .bshow-art img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
   }
   .camp-art img {
     width: 100%;
@@ -5806,6 +6079,28 @@
   .q-more {
     align-self: center;
   }
+  /* store: quick add's "added" view (ADR 0105): Checkout in the same sheet, no second popup. */
+  .q-ok {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--success);
+  }
+  .q-next {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  @media (min-width: 720px) {
+    .q-next {
+      flex-direction: row;
+    }
+    .q-next .btn {
+      flex: 1;
+    }
+  }
   /* store: compare tray (fixed in the overlay layer). */
   .ctray {
     position: fixed;
@@ -5963,5 +6258,53 @@
     list-style: none;
     margin: 0;
     padding: 0;
+  }
+
+  /* store: order tracking (ADR 0104), in the confirmation page's column. */
+  .track {
+    max-width: 680px;
+    margin-inline: auto;
+    padding-block: 32px 64px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+  .track-head {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .track-form {
+    display: flex;
+    gap: 12px;
+    align-items: flex-end;
+    flex-wrap: wrap;
+  }
+  .track-form .field {
+    flex: 1 1 260px;
+    margin: 0;
+  }
+  .track-form .btn {
+    flex: 0 0 auto;
+  }
+  @media (max-width: 719px) {
+    .track-form .btn {
+      flex: 1 1 100%;
+    }
+  }
+  .track-result {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    outline: none;
+  }
+  .track-note {
+    padding: 14px 16px;
+    border-radius: var(--r-md);
+    background: var(--saffron-soft);
+    color: var(--ink);
+  }
+  .track-steps li[aria-current="step"] b {
+    color: var(--ink);
   }
 }

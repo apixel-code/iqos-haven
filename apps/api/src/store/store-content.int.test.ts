@@ -235,6 +235,7 @@ describe("published home content through the real API and PostgreSQL", () => {
         cta: { label: "Shop the brand", href: `/brands/${brandSlug}` },
         secondaryCta: { label: "All products", href: "/shop" },
         image: null,
+        mobileImage: null,
       },
       {
         style: "lilac",
@@ -244,6 +245,7 @@ describe("published home content through the real API and PostgreSQL", () => {
         cta: { label: "See the kit", href: `/p/${kit.slug}` },
         secondaryCta: null,
         image: null,
+        mobileImage: null,
       },
     ]);
     expect(page.featured.map((card) => card.name)).toEqual(["Kit Home", "Halo Home"]);
@@ -321,6 +323,7 @@ describe("published home content through the real API and PostgreSQL", () => {
         cta: { label: "Shop now", href: "/shop" },
         secondaryCta: null,
         image: null,
+        mobileImage: null,
       },
     ]);
   });

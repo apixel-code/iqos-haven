@@ -88,7 +88,7 @@ async function product(seed: {
   categoryId: string;
   type?: ProductType;
   puffCount?: number | null;
-  specs?: Record<string, string | number | Array<{ label: string; value: string }>>;
+  specs?: Record<string, string | number | Array<Record<string, string | number | boolean>>>;
   priceFils: number;
   compareAtFils?: number;
   variants: VariantSeed[];
@@ -378,6 +378,10 @@ describe("gated store search, facets and suggestions (real API and PostgreSQL)",
         { value: "20 mg", count: 2 },
         { value: "50 mg", count: 2 },
       ],
+      // No TEREA versions among these products (ADR 0103).
+      origins: [],
+      cooling: [],
+      capsule: 0,
       price: { minFils: 2500, maxFils: 9900 },
       inStock: 3,
       onSale: 1,
@@ -612,6 +616,92 @@ describe("gated store search, facets and suggestions (real API and PostgreSQL)",
     // Out of the way of the remaining tests.
     await db.product.updateMany({
       where: { id: { in: [device.id, sticks.id] } },
+      data: { status: "draft" },
+    });
+  });
+
+  it("filters TEREA versions by origin, cooling band and capsule, with facet counts (ADR 0103)", async () => {
+    const terea = await db.brand.create({
+      data: { name: "TEREA T", slug: "terea-t", active: true },
+    });
+    const sticksCategory = await db.category.create({
+      data: { name: "Taste sticks", slug: "taste-sticks", active: true },
+    });
+    const profile = (flavour: string, cooling: number, capsule = false) => ({
+      flavour,
+      body: 3,
+      intensity: 3,
+      cooling,
+      capsule,
+    });
+    const seeded = [
+      await product({
+        name: "TEREA Taste Japan",
+        brandId: terea.id,
+        categoryId: sticksCategory.id,
+        type: "sticks",
+        priceFils: 20500,
+        specs: {
+          origin: "Japan",
+          profiles: [profile("amber", 0), profile("black menthol", 5)],
+          extra: [],
+        },
+        variants: [
+          [{ flavour: "amber" }, 3],
+          [{ flavour: "black menthol" }, 3],
+        ],
+      }),
+      await product({
+        name: "TEREA Taste Kazakhstan",
+        brandId: terea.id,
+        categoryId: sticksCategory.id,
+        type: "sticks",
+        priceFils: 12500,
+        specs: { origin: "Kazakhstan", profiles: [profile("sun pearl", 3, true)], extra: [] },
+        variants: [[{ flavour: "sun pearl" }, 3]],
+      }),
+      await product({
+        name: "TEREA Taste Swiss",
+        brandId: terea.id,
+        categoryId: sticksCategory.id,
+        type: "sticks",
+        priceFils: 16000,
+        specs: { origin: "Swiss", profiles: [profile("silver", 1)], extra: [] },
+        variants: [[{ flavour: "silver" }, 3]],
+      }),
+    ];
+    const scope = "category=taste-sticks";
+    const all = await search(scope);
+    expect(all.facets.origins).toEqual([
+      { value: "Japan", count: 1 },
+      { value: "Kazakhstan", count: 1 },
+      { value: "Swiss", count: 1 },
+    ]);
+    expect(all.facets.cooling).toEqual([
+      { value: "none", count: 1 },
+      { value: "light", count: 1 },
+      { value: "strong", count: 2 },
+    ]);
+    expect(all.facets.capsule).toBe(1);
+    expect(await sorted(`${scope}&origin=japan&origin=Swiss`)).toEqual([
+      "TEREA Taste Japan",
+      "TEREA Taste Swiss",
+    ]);
+    // Any flavour in the band is enough: Japan has a strong menthol next to an unmentholated one.
+    expect(await sorted(`${scope}&cooling=strong`)).toEqual([
+      "TEREA Taste Japan",
+      "TEREA Taste Kazakhstan",
+    ]);
+    expect(await sorted(`${scope}&cooling=none&cooling=light`)).toEqual([
+      "TEREA Taste Japan",
+      "TEREA Taste Swiss",
+    ]);
+    expect(await names(`${scope}&capsule=true`)).toEqual(["TEREA Taste Kazakhstan"]);
+    // A facet ignores its own filter, so the other origins stay offered.
+    expect((await search(`${scope}&origin=Japan`)).facets.origins).toHaveLength(3);
+    expect((await get("?cooling=arctic")).status).toBe(400);
+    await db.product.updateMany({
+      where: { id: { in: seeded.map((row) => row.id) } },
       data: { status: "draft" },
     });
   });

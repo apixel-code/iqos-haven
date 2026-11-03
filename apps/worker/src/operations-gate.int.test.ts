@@ -207,14 +207,15 @@ describe("M8 operations gate: store order to collected cash (real PostgreSQL)", 
     });
     expect(messages.map((message) => message.subject).sort()).toEqual([
       expect.stringMatching(/^Low stock: Ops Kit \(OPS-KIT\)$/),
-      expect.stringMatching(/^New order IH-\d{6} \(AED 375\.00\)$/),
+      expect.stringMatching(/^New order IH-\d{12} \(AED 375\.00\)$/),
     ]);
-    // No customer detail leaves the order in either channel.
-    for (const text of [
-      ...inbox.items.flatMap((item) => [item.title, item.body]),
-      ...messages.map((message) => message.text),
-    ])
+    // The inbox carries no customer detail; the shop's email names who ordered but never the
+    // address (ADR 0104).
+    for (const text of inbox.items.flatMap((item) => [item.title, item.body]))
       expect(text).not.toMatch(/Operations Buyer|Ops Villa|0640/);
+    const shopEmail = messages.find((message) => message.subject.startsWith("New order"))!;
+    expect(shopEmail.text).toContain("Name: Operations Buyer");
+    for (const message of messages) expect(message.text).not.toContain("Ops Villa");
 
     // Staff fulfil the order one step at a time, each with its expected version.
     let version = (await readAdminOrder(db, staffId, orderId)).version;

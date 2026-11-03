@@ -19,6 +19,12 @@ export default function TermsPage() {
         age policy.
       </p>
 
+      <p>
+        {SITE.name} is an independent retailer. We are not affiliated with, endorsed by or sponsored
+        by Philip Morris International; IQOS, ILUMA and TEREA are trademarks of their respective
+        owners. Every product we sell is supplied in its original factory-sealed packaging.
+      </p>
+
       <PolicySection id="eligibility" title="1. Who can buy">
         <ul className="list-disc space-y-1 pl-5">
           <li>You must be 18 or older to enter the store and to place an order.</li>

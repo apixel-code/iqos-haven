@@ -218,6 +218,10 @@ export class StoreCatalogService {
       query.minPuffs ?? null,
       query.maxPuffs ?? null,
       sorted(query.nicotine),
+      // Taste filters (ADR 0103).
+      sorted(query.origin),
+      sorted(query.cooling),
+      query.capsule ?? null,
       query.inStock ?? null,
       query.onSale ?? null,
       query.sort ?? null,
@@ -289,6 +293,7 @@ export class StoreCatalogService {
             style: slide.style,
             eyebrow: slide.eyebrow,
             secondaryCta: slide.secondaryCta,
+            mobileImage: slide.mobileImage ? await this.image(slide.mobileImage) : null,
           })),
         ),
         featured: await cards(home.featured),

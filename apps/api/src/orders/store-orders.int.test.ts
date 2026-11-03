@@ -14,6 +14,7 @@ import {
   ORDER_LIMITS,
   storeOrderResponseSchema,
   orderConfirmationResponseSchema,
+  orderTrackingResponseSchema,
 } from "@ih/contracts";
 import {
   createDatabase,
@@ -163,6 +164,17 @@ const post = (body: unknown, sent: Sent = {}, path = "/v1/store/orders") =>
     body: JSON.stringify(body),
   });
 const quote = (body: unknown, ip: string) => post(body, { ip, key: null }, "/v1/store/cart/quote");
+/** Order tracking (ADR 0104): a string is the typed number; anything else is the raw body. */
+const track = (
+  typed: string | Record<string, unknown>,
+  ip = address(),
+  headers?: Record<string, string>,
+) =>
+  post(
+    typeof typed === "string" ? { orderNumber: typed } : typed,
+    { ip, key: null, headers },
+    "/v1/store/order-tracking",
+  );
 const envelope = async (response: Response) =>
   errorEnvelopeSchema.parse(await response.json()).error;
 const refusal = async (response: Response, status: number, code: string) => {
@@ -733,6 +745,88 @@ describe("POST /v1/store/orders through the real API (PostgreSQL, Ed25519 ticket
   });
 
   // --- Checkout correctness gate (roadmap step 82): the remaining cases, over HTTP. ---
+  it("tracks an order by its number alone, without who ordered or the address (ADR 0104)", async () => {
+    const placed = storeOrderResponseSchema.parse(
+      await (await post(await order({ lines: [{ variantId: item.id, quantity: 2 }] }))).json(),
+    );
+    expect(placed.orderNumber).toMatch(/^IH-[1-9]\d{11}$/);
+    const digits = placed.orderNumber.slice(3);
+    for (const typed of [
+      placed.orderNumber,
+      `ih ${digits.slice(0, 4)} ${digits.slice(4, 8)} ${digits.slice(8)}`,
+    ]) {
+      const response = await track(typed);
+      expect(response.status).toBe(200);
+      expect(response.headers.get("cache-control")).toBe("private, no-store");
+      const text = await response.text();
+      const tracked = orderTrackingResponseSchema.parse(JSON.parse(text));
+      expect(tracked).toMatchObject({
+        orderNumber: placed.orderNumber,
+        status: "pending",
+        totalFils: placed.totalFils,
+        merchandiseSubtotalFils: 16000,
+        deliveryFeeFils: 1500,
+        discountFils: 0,
+        etaText: "Synthetic ETA",
+        area: { name: "Synthetic synthetic_open", emirate: "sharjah" },
+      });
+      expect(tracked.timeline.map((step) => step.status)).toEqual(["pending"]);
+      expect(tracked.items).toEqual([
+        expect.objectContaining({ name: "Synthetic product", quantity: 2, totalFils: 16000 }),
+      ]);
+      // The random number itself may contain any digits, so it is taken out before looking.
+      const rest = text.replaceAll(placed.orderNumber, "");
+      for (const secret of [
+        "Synthetic Buyer",
+        "synthetic@example.com",
+        "050",
+        "+971",
+        "Tower",
+        "1204",
+      ])
+        expect(rest, secret).not.toContain(secret);
+      expect(text).not.toMatch(/[0-9a-f]{8}-[0-9a-f]{4}-/);
+    }
+    // A status change shows up, in order.
+    const stored = await db.order.findFirstOrThrow({
+      where: { orderNumber: BigInt(digits) },
+    });
+    // The order and its history change together, as the confirm command does.
+    await pool.query(
+      "WITH h AS (INSERT INTO order_status_history (order_id, from_status, to_status, actor_kind, actor_id, command_id, order_version) VALUES ($1, 'pending', 'confirmed', 'staff', $2, $3, 2)) UPDATE orders SET status='confirmed', version=version+1 WHERE id=$1",
+      [stored.id, staffId, randomUUID()],
+    );
+    const later = orderTrackingResponseSchema.parse(await (await track(placed.orderNumber)).json());
+    expect(later.status).toBe("confirmed");
+    expect(later.timeline.map((step) => step.status)).toEqual(["pending", "confirmed"]);
+  });
+  it("answers unknown, malformed and sequential numbers alike, and bounds guessing per address", async () => {
+    const placed = storeOrderResponseSchema.parse(await (await post(await order(cart))).json());
+    // Without the age ticket there is no answer at all, not even "not found".
+    await refusal(
+      await track(placed.orderNumber, address(), { origin: STORE }),
+      403,
+      AGE_VERIFICATION_REQUIRED,
+    );
+    // Sequential numbers from before ADR 0104 are never looked up (`readOrderTracking`).
+    const ip = address();
+    const answers = [];
+    for (const typed of ["IH-001001", "IH-100000000000", "not a number", "IH-999999999999", "1001"])
+      answers.push(await track(typed, ip));
+    for (const response of answers) {
+      expect(response.status).toBe(404);
+      expect(await response.text()).not.toMatch(/IH-|001001|999999999999/);
+    }
+    for (let n = answers.length; n < 10; n++)
+      expect((await track("IH-100000000001", ip)).status).toBe(404);
+    // Ten misses spend the address's budget: now even the right number is refused there.
+    expect((await track(placed.orderNumber, ip)).status).toBe(429);
+    expect((await track(placed.orderNumber)).status).toBe(200);
+    // A body that is not the request is refused before any lookup.
+    expect((await track({ orderNumber: placed.orderNumber, phone: "050" } as never)).status).toBe(
+      400,
+    );
+  });
   it("gate: repeated lines for one variant are one line, one sale and one request", async () => {
     const item2 = await variant(3000n, 10);
     const whole = [{ variantId: item2.id, quantity: 5 }];

@@ -601,8 +601,8 @@ model Order {
   cancellation                 OrderCancellation?
   id                           String                  @id @default(dbgenerated("uuidv7()")) @db.Uuid
   collectionRecords            OrderCollectionRecord[]
-  /// Sequential display number assigned by the database; gaps are normal.
-  orderNumber                  BigInt                  @unique @default(autoincrement()) @map("order_number")
+  /// Random 12-digit display number assigned by a trigger (ADR 0104); earlier orders are sequential.
+  orderNumber                  BigInt                  @unique @default(dbgenerated()) @map("order_number")
   customerId                   String                  @map("customer_id") @db.Uuid
   customer                     Customer                @relation(fields: [customerId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   status                       String                  @default("pending") @db.VarChar(20)

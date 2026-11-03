@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition, type FormEvent, type ReactNode } from "react";
-import type { StoreSearchResponse } from "@ih/contracts";
+import type { CoolingBand, StoreSearchResponse } from "@ih/contracts";
 import { Icon } from "@/components/icons";
 import { Dirham } from "@/components/money";
 import { ProductGridSkeleton } from "@/components/product-card";
@@ -21,6 +21,12 @@ import {
 } from "@/lib/store/search";
 
 type Facets = StoreSearchResponse["facets"];
+/** Cooling bands on the 0–5 scale (ADR 0103). */
+const COOLING_LABELS: Record<CoolingBand, string> = {
+  none: "No cooling",
+  light: "Light cooling",
+  strong: "Strong cooling",
+};
 type Fixed = { type?: boolean; brand?: boolean; sale?: boolean };
 
 const TYPE_LABELS = {
@@ -160,6 +166,27 @@ export function ShopLayout({
       label: value,
       text: value,
       href: without({ nicotine: own.nicotine.filter((item) => item !== value) }),
+    });
+  for (const value of own.origins)
+    chips.push({
+      key: `origin-${value}`,
+      label: `TEREA ${value}`,
+      text: `TEREA ${value}`,
+      href: without({ origins: own.origins.filter((item) => item !== value) }),
+    });
+  for (const value of own.cooling)
+    chips.push({
+      key: `cool-${value}`,
+      label: COOLING_LABELS[value],
+      text: COOLING_LABELS[value],
+      href: without({ cooling: own.cooling.filter((item) => item !== value) }),
+    });
+  if (own.capsule)
+    chips.push({
+      key: "capsule",
+      label: "Click capsule",
+      text: "Click capsule",
+      href: without({ capsule: false }),
     });
   if (own.inStock)
     chips.push({
@@ -305,6 +332,66 @@ export function ShopLayout({
                   <span className="cn">{item.count}</span>
                 </label>
               ))}
+            </div>
+          </fieldset>
+        )}
+        {facets.origins.length > 0 && (
+          <fieldset className="fgroup">
+            <legend>TEREA version</legend>
+            <div className="opts">
+              {facets.origins.map((item) => (
+                <label key={item.value} className="check row" htmlFor={id("origin", item.value)}>
+                  <input
+                    type="checkbox"
+                    id={id("origin", item.value)}
+                    name="origin"
+                    value={item.value}
+                    defaultChecked={own.origins.some(
+                      (value) => value.toLowerCase() === item.value.toLowerCase(),
+                    )}
+                  />
+                  <span className="ct">{item.value}</span>
+                  <span className="cn">{item.count}</span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
+        )}
+        {facets.cooling.length > 0 && (
+          <fieldset className="fgroup">
+            <legend>Cooling</legend>
+            <div className="opts">
+              {facets.cooling.map((item) => (
+                <label key={item.value} className="check row" htmlFor={id("cool", item.value)}>
+                  <input
+                    type="checkbox"
+                    id={id("cool", item.value)}
+                    name="cooling"
+                    value={item.value}
+                    defaultChecked={own.cooling.includes(item.value)}
+                  />
+                  <span className="ct">{COOLING_LABELS[item.value]}</span>
+                  <span className="cn">{item.count}</span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
+        )}
+        {facets.capsule > 0 && (
+          <fieldset className="fgroup">
+            <legend>Capsule</legend>
+            <div className="opts">
+              <label className="row" htmlFor={id("capsule", "")}>
+                <span>Click capsule flavours</span>
+                <input
+                  type="checkbox"
+                  className="switch"
+                  id={id("capsule", "")}
+                  name="capsule"
+                  value="true"
+                  defaultChecked={own.capsule}
+                />
+              </label>
             </div>
           </fieldset>
         )}

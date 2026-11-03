@@ -97,6 +97,11 @@ export default async function ShopLayout({ children }: { children: ReactNode }) 
               <h4>Help</h4>
               <ul>
                 <li>
+                  <Link href="/track" prefetch={false}>
+                    Track your order
+                  </Link>
+                </li>
+                <li>
                   <Link href="/help#help-delivery" prefetch={false}>
                     Delivery information
                   </Link>
@@ -190,6 +195,12 @@ export default async function ShopLayout({ children }: { children: ReactNode }) 
           <p className="foot-warn">
             These products contain nicotine, which is addictive, and are not intended for
             non-smokers, pregnant or breastfeeding women.
+          </p>
+          {/* Independent-retailer disclosure (client blueprint, ADR 0103). */}
+          <p className="foot-warn">
+            {SITE.name} is an independent retailer and is not affiliated with, endorsed by or
+            sponsored by Philip Morris International. IQOS, ILUMA and TEREA are trademarks of their
+            respective owners.
           </p>
           <div className="foot-bottom">
             <span>

@@ -3,7 +3,12 @@ import { ORDER_LIMITS, UAE_EMIRATES } from "@ih/domain";
 import { catalogueSlugSchema } from "./catalogue";
 import { checkoutAddressSchema, orderLinesSchema, storeContactSchema } from "./checkout";
 import { couponCodeInputSchema } from "./coupons";
-import { productFilsSchema, productSpecsSchema, productTypeSchema } from "./products";
+import {
+  COOLING_BANDS,
+  productFilsSchema,
+  productSpecsSchema,
+  productTypeSchema,
+} from "./products";
 import { STORE_REVIEWS_SHOWN, storeRatingSchema, storeReviewSchema } from "./reviews";
 
 /**
@@ -176,6 +181,12 @@ export const storeSearchQuerySchema = z
     maxPuffs: puffs.optional(),
     /** Values of the "nicotine" option, as stored on variants (for example "20 mg"). */
     nicotine: list(z.string().trim().min(1).max(40), 6).optional(),
+    /** TEREA version (sticks `specs.origin`), ADR 0103. */
+    origin: list(z.string().trim().min(1).max(60), 10).optional(),
+    /** A product matches when any of its flavours is in a chosen cooling band. */
+    cooling: list(z.enum(COOLING_BANDS), 3).optional(),
+    /** Only products with at least one click-capsule flavour. */
+    capsule: flag.optional(),
     inStock: flag.optional(),
     onSale: flag.optional(),
     /** Defaults to relevance when there is a search term, otherwise newest. */
@@ -222,6 +233,9 @@ export const storeSearchResponseSchema = z.strictObject({
       .array(z.strictObject({ puffCount: z.number().int().positive(), count: facetCount }))
       .max(100),
     nicotine: z.array(z.strictObject({ value: z.string(), count: facetCount })).max(50),
+    origins: z.array(z.strictObject({ value: z.string(), count: facetCount })).max(50),
+    cooling: z.array(z.strictObject({ value: z.enum(COOLING_BANDS), count: facetCount })).max(3),
+    capsule: facetCount,
     /** Lowest and highest price among the products the other filters leave. */
     price: z.strictObject({ minFils: productFilsSchema, maxFils: productFilsSchema }).nullable(),
     inStock: facetCount,
@@ -447,6 +461,39 @@ export type OrderConfirmationResponse = z.infer<typeof orderConfirmationResponse
 
 export const orderConfirmationQuerySchema = z.strictObject({});
 
+// --- Order tracking (ADR 0104) ---
+/**
+ * `POST /v1/store/order-tracking`: the order number alone, as the shopper typed it. A POST, so
+ * the number (which is what grants the look) never sits in a URL, a log line or the history.
+ */
+export const orderTrackingRequestSchema = z.strictObject({
+  orderNumber: z.string().trim().min(1).max(40),
+});
+export type OrderTrackingRequest = z.input<typeof orderTrackingRequestSchema>;
+const orderStatusSchema = orderConfirmationResponseSchema.shape.status;
+/**
+ * What tracking shows: where the order is, what is in it and what to pay. Nothing about who
+ * ordered or the delivery address beyond its area, and no internal IDs, because anyone holding
+ * the number sees it. `timeline` is each status the order reached, oldest first.
+ */
+export const orderTrackingResponseSchema = z.strictObject({
+  orderNumber: z.string().regex(/^IH-[0-9]{6,}$/),
+  placedAt: z.iso.datetime(),
+  status: orderStatusSchema,
+  timeline: z
+    .array(z.strictObject({ status: orderStatusSchema, at: z.iso.datetime() }))
+    .min(1)
+    .max(20),
+  merchandiseSubtotalFils: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
+  discountFils: z.number().int().nonnegative(),
+  deliveryFeeFils: z.number().int().nonnegative(),
+  totalFils: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
+  etaText: z.string().max(500),
+  area: z.strictObject({ name: z.string().max(100), emirate: z.string().max(32) }),
+  items: orderConfirmationResponseSchema.shape.items,
+});
+export type OrderTrackingResponse = z.infer<typeof orderTrackingResponseSchema>;
+
 // --- Published home content (step 98, ADR 0066) ---
 /** A link inside the store, resolved from the content's IDs to the current slug. */
 const homeHref = z
@@ -470,9 +517,12 @@ export const storeHomeResponseSchema = z.strictObject({
   heroSlides: z
     .array(
       homeBannerSchema.extend({
-        style: z.enum(["navy", "lilac", "coral"]),
+        /** `banner` (ADR 0105): a designed picture shown edge to edge, linked by `cta`. */
+        style: z.enum(["navy", "lilac", "coral", "banner"]),
         eyebrow: z.string().max(40).nullable(),
         secondaryCta: homeLinkSchema.nullable(),
+        /** A banner's phone picture; null uses `image` on phones too. */
+        mobileImage: storeImageSchema.nullable(),
       }),
     )
     .max(3),

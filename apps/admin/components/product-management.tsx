@@ -18,6 +18,7 @@ import { slugify } from "../lib/catalogue";
 import { filsToAed, managementRequest, type ResponseContract } from "../lib/management";
 import {
   formatExtraSpecs,
+  formatFlavourProfiles,
   PRODUCT_TYPE_LABELS,
   productCreateCommand,
   productTypeChoices,
@@ -1028,6 +1029,32 @@ function ProductForm({
                         label="Flavour notes"
                         value={value("flavourNotes")}
                       />
+                      <div className="field" style={{ gridColumn: "1 / -1" }}>
+                        <label className="label" htmlFor="pe-profiles">
+                          <span>
+                            Flavour profiles{" "}
+                            <span className="opt">
+                              One per line, “flavour | body | intensity | cooling | capsule or - |
+                              notes”
+                            </span>
+                          </span>
+                        </label>
+                        <textarea
+                          id="pe-profiles"
+                          form={form}
+                          name="specs.profiles"
+                          className="textarea"
+                          rows={6}
+                          maxLength={20000}
+                          defaultValue={formatFlavourProfiles(
+                            (specs.profiles as Parameters<typeof formatFlavourProfiles>[0]) ?? [],
+                          )}
+                        />
+                        <p className="small muted">
+                          Body and intensity 1–5, cooling 0–5. Example: sun pearl | 3 | 4 | 3 |
+                          capsule | Watermelon when the capsule is crushed.
+                        </p>
+                      </div>
                     </>
                   ) : type === "disposable" ? (
                     <>

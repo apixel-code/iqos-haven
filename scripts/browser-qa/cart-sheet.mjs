@@ -131,9 +131,19 @@ try {
   if (await choice.count()) await choice.first().click();
   await quick.getByRole("button", { name: "Add to cart" }).click();
   const side = sheetOf(wide.page);
-  await quick.waitFor({ state: "hidden", timeout: 2000 }).catch(() => {});
-  check(!(await quick.isVisible()), "quick add closes after adding");
-  await openFromHeader(wide.page);
+  // ADR 0105: the same sheet says "Added" and offers Checkout, so no second popup appears.
+  const done = wide.page.getByRole("dialog", { name: "Added to cart" });
+  await done.waitFor();
+  check(
+    (await done.getByRole("button", { name: "Checkout" }).count()) === 1 &&
+      (await wide.page.locator(".toast", { hasText: "Added to cart" }).count()) === 0,
+    "quick add shows Added with Checkout in its own sheet, without a toast",
+  );
+  await done.getByRole("button", { name: "Continue shopping" }).click();
+  await done.waitFor({ state: "hidden" });
+  check(true, "Continue shopping closes the quick add sheet");
+  await wide.page.getByRole("link", { name: /^Cart, / }).click();
+  await side.waitFor({ timeout: 10000 });
   const panel = await side.boundingBox();
   check(
     panel && Math.round(panel.x + panel.width) === 1280 && Math.round(panel.height) === 800,
