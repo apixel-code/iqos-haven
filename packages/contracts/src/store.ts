@@ -461,6 +461,39 @@ export type OrderConfirmationResponse = z.infer<typeof orderConfirmationResponse
 
 export const orderConfirmationQuerySchema = z.strictObject({});
 
+// --- Order tracking (ADR 0104) ---
+/**
+ * `POST /v1/store/order-tracking`: the order number alone, as the shopper typed it. A POST, so
+ * the number (which is what grants the look) never sits in a URL, a log line or the history.
+ */
+export const orderTrackingRequestSchema = z.strictObject({
+  orderNumber: z.string().trim().min(1).max(40),
+});
+export type OrderTrackingRequest = z.input<typeof orderTrackingRequestSchema>;
+const orderStatusSchema = orderConfirmationResponseSchema.shape.status;
+/**
+ * What tracking shows: where the order is, what is in it and what to pay. Nothing about who
+ * ordered or the delivery address beyond its area, and no internal IDs, because anyone holding
+ * the number sees it. `timeline` is each status the order reached, oldest first.
+ */
+export const orderTrackingResponseSchema = z.strictObject({
+  orderNumber: z.string().regex(/^IH-[0-9]{6,}$/),
+  placedAt: z.iso.datetime(),
+  status: orderStatusSchema,
+  timeline: z
+    .array(z.strictObject({ status: orderStatusSchema, at: z.iso.datetime() }))
+    .min(1)
+    .max(20),
+  merchandiseSubtotalFils: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
+  discountFils: z.number().int().nonnegative(),
+  deliveryFeeFils: z.number().int().nonnegative(),
+  totalFils: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
+  etaText: z.string().max(500),
+  area: z.strictObject({ name: z.string().max(100), emirate: z.string().max(32) }),
+  items: orderConfirmationResponseSchema.shape.items,
+});
+export type OrderTrackingResponse = z.infer<typeof orderTrackingResponseSchema>;
+
 // --- Published home content (step 98, ADR 0066) ---
 /** A link inside the store, resolved from the content's IDs to the current slug. */
 const homeHref = z

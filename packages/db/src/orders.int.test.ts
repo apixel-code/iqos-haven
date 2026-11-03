@@ -5,7 +5,12 @@ import {
   loadEnv,
   loadLocalEnvFile,
 } from "@ih/config";
-import { ORDER_STATUSES, canTransition, formatOrderNumber } from "@ih/domain";
+import {
+  ORDER_STATUSES,
+  canTransition,
+  formatOrderNumber,
+  isTrackableOrderNumber,
+} from "@ih/domain";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createDatabase, createPool } from "./client";
 import { applyMigrations, seedOrder } from "./test-schema";
@@ -87,14 +92,17 @@ describe("orders, lines and status history (real PostgreSQL, isolated schema)", 
     await pool.query('DROP SCHEMA IF EXISTS "' + namespace + '" CASCADE');
     await pool.end();
   });
-  it("starts empty and numbers orders in sequence from 1001", async () => {
+  it("starts empty and gives each order a random 12-digit number (ADR 0104)", async () => {
     for (const table of ["orders", "order_items", "order_status_history"])
       expect((await pool.query(`SELECT count(*)::int AS n FROM ${table}`)).rows[0].n).toBe(0);
     const first = await seedOrder(pool);
     const second = await seedOrder(pool);
-    expect(first.orderNumber).toBe(1001);
-    expect(second.orderNumber).toBe(1002);
-    expect(formatOrderNumber(first.orderNumber)).toBe("IH-001001");
+    for (const order of [first, second]) {
+      expect(isTrackableOrderNumber(order.orderNumber)).toBe(true);
+      expect(formatOrderNumber(order.orderNumber)).toMatch(/^IH-[1-9]\d{11}$/);
+    }
+    // Not a sequence: the second is not the first plus one.
+    expect(second.orderNumber).not.toBe(first.orderNumber + 1);
     const created = await row(first.orderId);
     expect(created).toMatchObject({
       status: "pending",
@@ -603,7 +611,8 @@ describe("orders, lines and status history (real PostgreSQL, isolated schema)", 
          SELECT customer_id, source, customer_name, customer_phone_e164, area_id, area_code, area_name, area_emirate, address_type, address_building, merchandise_subtotal_fils, delivery_fee_fils, total_fils, delivery_eta_text, area_version, delivery_configuration_version, quote_fingerprint, age_confirmed_at, age_policy_version, 'runtime', creation_key_hash, creation_payload_hash FROM ${table("orders")} WHERE id=$1 RETURNING id, order_number`,
         [seeded.orderId],
       );
-      expect(Number(inserted.rows[0].order_number)).toBeGreaterThan(seeded.orderNumber);
+      // Random (ADR 0104): in the 12-digit range, not the next number after the seeded order.
+      expect(isTrackableOrderNumber(Number(inserted.rows[0].order_number))).toBe(true);
       await client.query("ROLLBACK");
     } finally {
       client.release();

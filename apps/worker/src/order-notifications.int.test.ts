@@ -7,6 +7,7 @@ import {
   loadLocalEnvFile,
 } from "@ih/config";
 import { defineEvent } from "@ih/contracts";
+import { formatOrderNumber } from "@ih/domain";
 import {
   createDatabase,
   createPool,
@@ -254,13 +255,21 @@ describe("new-order notification and email (real PostgreSQL)", () => {
     expect(await runner.run(data.job("email"))).toBe("duplicate");
     expect(messages).toHaveLength(1);
     const [message] = messages;
-    const number = `IH-${String(data.orderNumber).padStart(6, "0")}`;
+    const number = formatOrderNumber(data.orderNumber);
     expect([...message!.bcc].sort()).toEqual(["second@iqoshaven.test", SHOP]);
     // 2 × AED 50.00 + AED 15.00 delivery.
     expect(message!.subject).toBe(`New order ${number} (AED 115.00)`);
     expect(message!.text).toContain("Items: 2 items");
     expect(message!.text).toContain("Area: " + data.order.areaName);
-    for (const text of [...personal(data.order), data.orderId, "http"])
+    // Who ordered and what (Marina 2026-11-03, ADR 0104), so the shop can call from the email.
+    expect(message!.text).toContain("Name: " + data.order.customerName);
+    expect(message!.text).toContain("Phone: " + data.order.customerPhoneE164);
+    expect(message!.text).toContain("Email: Not given");
+    expect(message!.text).toMatch(/\n- .+ × 2: AED 100\.00\n/);
+    // Still not the address or anything that grants access.
+    for (const text of [data.order.addressBuilding, data.orderId, "http"].filter(
+      (text): text is string => Boolean(text),
+    ))
       expect(message!.subject + message!.text + message!.html).not.toContain(text);
     await setNotifications(null);
   });
@@ -288,18 +297,18 @@ describe("new-order notification and email (real PostgreSQL)", () => {
     expect(await runner.run(job)).toBe("duplicate");
     expect(messages).toHaveLength(1);
     const [message] = messages;
-    const number = `IH-${String(data.orderNumber).padStart(6, "0")}`;
+    const number = formatOrderNumber(data.orderNumber);
     expect([...message!.bcc]).toEqual(["buyer@example.test"]);
     expect(message!.subject).toBe(`Order ${number} received (AED 115.00)`);
     expect(message!.text).toContain("Total (cash on delivery): AED 115.00");
     expect(message!.text).toContain("Delivery to " + data.order.areaName);
-    // The shopper's own message: no phone, address or internal ID in it.
-    for (const text of [
-      data.order.customerPhoneE164,
-      data.order.customerPhoneE164.slice(-8),
-      data.order.addressBuilding,
-      data.orderId,
-    ].filter((text): text is string => Boolean(text)))
+    // The details the shopper gave are repeated to them (ADR 0104); the address and IDs are not.
+    expect(message!.text).toContain("Order number: " + number);
+    expect(message!.text).toContain("Phone: " + data.order.customerPhoneE164);
+    expect(message!.text).toContain("Email: buyer@example.test");
+    for (const text of [data.order.addressBuilding, data.orderId].filter((text): text is string =>
+      Boolean(text),
+    ))
       expect(message!.subject + message!.text + message!.html).not.toContain(text);
     // An order without an email (older or staff-entered) completes without sending.
     const silent = await placed();

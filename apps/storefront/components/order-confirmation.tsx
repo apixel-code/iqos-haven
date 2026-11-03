@@ -168,7 +168,11 @@ export function OrderConfirmation({ whatsappNumber }: { whatsappNumber: string |
             </Step>
             <Step done={order.status !== "pending"} title="We confirm your order">
               We will contact you on the mobile number you gave. A copy of this order is on its way
-              to your email.
+              to your email. Track it any time on{" "}
+              <Link href="/track" prefetch={false} className="link">
+                Track your order
+              </Link>{" "}
+              with its number.
             </Step>
             <Step done={order.status === "delivered"} title="Delivery">
               {order.etaText}

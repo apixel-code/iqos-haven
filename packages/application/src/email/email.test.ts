@@ -170,9 +170,17 @@ describe("branded email layout", () => {
       total: "AED 99.00",
       units: 2,
       areaName: "Al <b>Barsha</b>",
+      customer: { name: "Sam <i>", phone: "+971501234567", email: null },
+      items: [{ label: "TEREA UAE · silver × 2", total: "AED 64.00" }],
     });
     expect(order.html).toContain("Al &lt;b&gt;Barsha&lt;/b&gt;");
     expect(order.text).toContain("Area: Al <b>Barsha</b>");
+    // Who ordered and what (ADR 0104), escaped; no email given reads as such.
+    expect(order.html).toContain("Sam &lt;i&gt;");
+    expect(order.html).not.toContain("Sam <i>");
+    expect(order.text).toContain("Phone: +971501234567");
+    expect(order.text).toContain("Email: Not given");
+    expect(order.text).toContain("- TEREA UAE · silver × 2: AED 64.00");
     // The body stays inside the white card: it comes after the heading and before the card's
     // closing tags and the footnote (a formatter once closed the card early, see layout.ts).
     const body = invite.html.indexOf("Accept the invitation to set");
@@ -193,6 +201,8 @@ describe("branded email layout", () => {
       areaName: "Al Barsha",
       eta: "1–2 days",
       whatsappUrl: "https://wa.me/971500000000",
+      customer: { name: "Sam <i> Lee", phone: "+971501234567", email: "sam@example.com" },
+      trackUrl: "https://iqoshaven.com/track",
     };
     const mail = renderEmail(orderConfirmationTemplate, data);
     expect(mail.subject).toBe("Order IH-001002 received (AED 395.00)");
@@ -202,12 +212,21 @@ describe("branded email layout", () => {
     expect(mail.html).not.toContain("Discount");
     expect(mail.html).toContain("Message us on WhatsApp");
     expect(mail.text).toContain("- TEREA UAE · silver × 2: AED 360.00");
+    // The details given and the tracking page (ADR 0104); the link never carries the number.
+    expect(mail.text).toContain("Order number: IH-001002");
+    expect(mail.text).toContain("Phone: +971501234567");
+    expect(mail.text).toContain("Email: sam@example.com");
+    expect(mail.html).toContain("Sam &lt;i&gt; Lee");
+    expect(mail.html).toContain('href="https://iqoshaven.com/track"');
+    expect(mail.html).not.toMatch(/track\?|track\/IH/);
     const plain = renderEmail(orderConfirmationTemplate, {
       ...data,
       discount: "AED 36.00",
       whatsappUrl: null,
+      trackUrl: null,
     });
     expect(plain.html).toContain("−AED 36.00");
     expect(plain.html).not.toContain("wa.me");
+    expect(plain.text).not.toContain("Track your order");
   });
 });
