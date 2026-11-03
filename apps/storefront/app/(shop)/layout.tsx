@@ -97,6 +97,11 @@ export default async function ShopLayout({ children }: { children: ReactNode }) 
               <h4>Help</h4>
               <ul>
                 <li>
+                  <Link href="/track" prefetch={false}>
+                    Track your order
+                  </Link>
+                </li>
+                <li>
                   <Link href="/help#help-delivery" prefetch={false}>
                     Delivery information
                   </Link>

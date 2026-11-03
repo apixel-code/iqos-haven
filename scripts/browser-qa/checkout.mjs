@@ -384,7 +384,7 @@ check(
   "stock went down by exactly the one unit sold",
 );
 check(
-  sql("SELECT string_agg(total_fils::text, ',' ORDER BY order_number) FROM orders") === "6400,6600",
+  sql("SELECT string_agg(total_fils::text, ',' ORDER BY id) FROM orders") === "6400,6600",
   "each order is stored at the total its shopper accepted",
 );
 

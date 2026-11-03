@@ -40,6 +40,7 @@ export * from "./order-create";
 export * from "./order-confirmation-email";
 
 export * from "./order-confirmation";
+export * from "./order-tracking";
 export * from "./order-admin";
 export * from "./order-choices";
 export * from "./order-transitions";

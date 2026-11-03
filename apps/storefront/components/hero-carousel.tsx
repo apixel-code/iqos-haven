@@ -13,6 +13,8 @@ const LOOK = {
   navy: { className: "s1", theme: "dark" },
   lilac: { className: "s2", theme: "light" },
   coral: { className: "s3", theme: "dark" },
+  // A designed picture (ADR 0105): its own colours, so the controls sit on a dark pill.
+  banner: { className: "s-banner", theme: "dark" },
 } as const;
 const AUTO_MS = 5000;
 
@@ -23,7 +25,8 @@ const reducedMotion = () =>
  * Home hero (prototype `heroBanner`, ADR 0097): one to three slides from published content.
  * Swipe, dots and arrows move between slides; it advances every five seconds, pausing on hover
  * and focus, with its pause button, and not at all with reduced motion (WCAG 2.2.2). One slide
- * shows no controls. Below it, the phone search button and the trust line.
+ * shows no controls. Below it, the phone search button and the trust line. A `banner` slide
+ * (ADR 0105) is the client's designed picture, edge to edge, with its own phone picture.
  */
 export function HeroCarousel({ slides }: { slides: readonly Slide[] }) {
   const track = useRef<HTMLDivElement>(null);
@@ -70,6 +73,7 @@ export function HeroCarousel({ slides }: { slides: readonly Slide[] }) {
           <div
             className={paused ? "hb-main paused" : "hb-main"}
             data-theme={LOOK[current.style].theme}
+            data-look={current.style}
             role="region"
             aria-roledescription="carousel"
             aria-label="Featured offers"
@@ -85,6 +89,18 @@ export function HeroCarousel({ slides }: { slides: readonly Slide[] }) {
                 const look = LOOK[slide.style];
                 const away = at !== index ? -1 : undefined;
                 const Title = at === 0 ? "h1" : "h2";
+                if (slide.style === "banner" && slide.image)
+                  return (
+                    <BannerSlide
+                      key={at}
+                      slide={slide}
+                      image={slide.image}
+                      at={at}
+                      count={count}
+                      away={away}
+                      Title={Title}
+                    />
+                  );
                 return (
                   <article
                     key={at}
@@ -215,5 +231,67 @@ export function HeroCarousel({ slides }: { slides: readonly Slide[] }) {
         </span>
       </div>
     </section>
+  );
+}
+
+/**
+ * A designed banner (ADR 0105): the client's picture says everything, so it fills the slide and
+ * the whole slide is its first button's link. The headline is kept for screen readers only. On
+ * phones the separate tall picture is shown when there is one.
+ */
+function BannerSlide({
+  slide,
+  image,
+  at,
+  count,
+  away,
+  Title,
+}: {
+  slide: Slide;
+  image: NonNullable<Slide["image"]>;
+  at: number;
+  count: number;
+  away: -1 | undefined;
+  Title: "h1" | "h2";
+}) {
+  const picture = (
+    <picture>
+      {slide.mobileImage && (
+        <source
+          media="(max-width: 719px)"
+          srcSet={slide.mobileImage.urls.large}
+          width={slide.mobileImage.width}
+          height={slide.mobileImage.height}
+        />
+      )}
+      {/* Signed link to a sanitized content image; the optimizer is not used (inside <picture>). */}
+      <img
+        src={image.urls.large}
+        alt={image.alt}
+        width={image.width}
+        height={image.height}
+        decoding="async"
+        fetchPriority={at === 0 ? "high" : "auto"}
+      />
+    </picture>
+  );
+  return (
+    <article
+      className="hb-slide s-banner"
+      data-theme="dark"
+      aria-roledescription="slide"
+      aria-label={`${at + 1} of ${count}`}
+      aria-hidden={away ? true : undefined}
+    >
+      <Title className="sr">{slide.title}</Title>
+      {slide.cta ? (
+        <Link href={slide.cta.href} prefetch={false} tabIndex={away} className="hb-banner">
+          {picture}
+          <span className="sr">{slide.cta.label}</span>
+        </Link>
+      ) : (
+        <div className="hb-banner">{picture}</div>
+      )}
+    </article>
   );
 }

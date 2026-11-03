@@ -773,7 +773,7 @@ try {
   const home = await page("/");
   for (const text of [
     "Shop by category",
-    "New in",
+    "New arrivals",
     "Orbe Halo Grape",
     "Shop by brand",
     "Skip to content",
@@ -857,6 +857,7 @@ try {
         cta: { label: "Synthetic hero button", href: "/brands/orbe" },
         secondaryCta: { label: "Synthetic second button", href: "/shop" },
         image: null,
+        mobileImage: null,
       },
       {
         style: "lilac",
@@ -866,6 +867,36 @@ try {
         cta: null,
         secondaryCta: null,
         image: null,
+        mobileImage: null,
+      },
+      {
+        // A designed banner (ADR 0105): picture only, phone picture, whole banner is the link.
+        style: "banner",
+        eyebrow: null,
+        title: "Synthetic banner slide",
+        subtitle: null,
+        cta: { label: "Synthetic banner link", href: "/shop" },
+        secondaryCta: null,
+        image: {
+          alt: "Synthetic banner picture",
+          width: 1920,
+          height: 640,
+          urls: {
+            thumb: "https://media.preview-check.test/banner-thumb.webp",
+            medium: "https://media.preview-check.test/banner-medium.webp",
+            large: "https://media.preview-check.test/banner-wide.webp",
+          },
+        },
+        mobileImage: {
+          alt: "Synthetic banner picture",
+          width: 1080,
+          height: 1080,
+          urls: {
+            thumb: "https://media.preview-check.test/banner-phone-thumb.webp",
+            medium: "https://media.preview-check.test/banner-phone-medium.webp",
+            large: "https://media.preview-check.test/banner-phone.webp",
+          },
+        },
       },
     ],
     featured: [card("Synthetic Featured Pick")],
@@ -891,7 +922,7 @@ try {
       "Synthetic second button",
       "Synthetic second slide",
       "Pause slides",
-      "Popular right now",
+      "Best sellers",
       "Synthetic Best Seller",
       "Synthetic banner title",
       "Synthetic offers title",
@@ -899,6 +930,15 @@ try {
       "Pause offers ticker",
     ])
       check(curated.includes(text), `home shows published content "${text}"`);
+    check(
+      /<source media="\(max-width: 719px\)" srcSet="https:\/\/media\.preview-check\.test\/banner-phone\.webp"/i.test(
+        curated,
+      ) &&
+        /class="hb-banner"[^>]*href="\/shop"|href="\/shop"[^>]*class="hb-banner"/.test(curated) &&
+        curated.includes("banner-wide.webp") &&
+        curated.includes("Synthetic banner slide"),
+      "a designed banner shows its wide and phone pictures and links as a whole (ADR 0105)",
+    );
     check(
       /href="\/brands\/orbe"[^>]*>Synthetic hero button/.test(curated),
       "hero button links to the resolved store page",

@@ -223,7 +223,7 @@ describe("atomic order creation (real PostgreSQL)", () => {
     const placed = await orders.place(placing);
     // 12999 + 2 × 4500 = 21999; 10 % = 2199.9 → 2200; + 1500 delivery.
     expect(placed).toMatchObject({ replayed: false, response: { totalFils: 21299 } });
-    expect(placed.response.orderNumber).toMatch(/^IH-\d{6}$/);
+    expect(placed.response.orderNumber).toMatch(/^IH-[1-9]\d{11}$/);
     // The answer holds nothing personal.
     expect(Object.keys(placed.response).sort()).toEqual(["orderNumber", "placedAt", "totalFils"]);
     const order = await db.order.findUniqueOrThrow({
@@ -772,7 +772,8 @@ describe("atomic order creation (real PostgreSQL)", () => {
     const third = await place("Second Name", "202");
     const rows = await db.order.findMany({
       where: { id: { in: [first.orderId!, second.orderId!, third.orderId!] } },
-      orderBy: { orderNumber: "asc" },
+      // Placement order: the ID is time-ordered (uuidv7); the number is random (ADR 0104).
+      orderBy: { id: "asc" },
     });
     expect(new Set(rows.map((row) => row.customerId)).size).toBe(1);
     expect(rows.map((row) => row.customerName)).toEqual([
@@ -780,9 +781,9 @@ describe("atomic order creation (real PostgreSQL)", () => {
       "Second Name",
       "Second Name",
     ]);
-    expect(rows.map((row) => Number(row.orderNumber))).toEqual(
-      [...rows.map((row) => Number(row.orderNumber))].sort((x, y) => x - y),
-    );
+    // Each its own random 12-digit number (ADR 0104), not a sequence.
+    for (const row of rows) expect(String(row.orderNumber)).toMatch(/^[1-9]\d{11}$/);
+    expect(new Set(rows.map((row) => row.orderNumber)).size).toBe(3);
     const customer = await db.customer.findUniqueOrThrow({
       where: { id: rows[0]!.customerId },
       include: { addresses: true },

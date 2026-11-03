@@ -37,9 +37,10 @@ export interface PublishedHome {
   ticker: { messages: string[] } | null;
   heroSlides: Array<
     HomeBanner & {
-      style: "navy" | "lilac" | "coral";
+      style: "navy" | "lilac" | "coral" | "banner";
       eyebrow: string | null;
       secondaryCta: HomeLink | null;
+      mobileImage: StoreImageRow | null;
     }
   >;
   featured: StoreProductCardRow[];
@@ -210,6 +211,7 @@ export async function readPublishedHome(
           cta: cta(slide.cta),
           secondaryCta: cta(slide.secondaryCta),
           image: image(slide.image),
+          mobileImage: image(slide.mobileImage),
         })),
         featured: productCards(featured?.productIds ?? []),
         bestSellers: best_sellers

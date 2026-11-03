@@ -1,13 +1,44 @@
 import { storeSettingsSchema, whatsappSettingsSchema } from "@ih/contracts";
 import { formatOrderNumber } from "@ih/domain";
-import { Prisma, type Database } from "./client";
+import { Prisma, type Database, type Tx } from "./client";
 
 /** What the shopper's order confirmation says (ADR 0102), loaded from the order's snapshots. */
+/** One order line as both order emails list it, from the order's own snapshot. */
+export interface OrderEmailItem {
+  name: string;
+  options: string;
+  quantity: number;
+  totalFils: number;
+}
+/** The order's lines, in a stable order, for the shopper's and the shop's order emails. */
+export async function orderEmailItems(
+  db: Database | Tx,
+  orderId: string,
+): Promise<OrderEmailItem[]> {
+  const items = await db.$queryRaw<
+    Array<{ name: string; attributes: unknown; quantity: number; totalFils: bigint }>
+  >(Prisma.sql`
+    SELECT product_name AS name, attributes, quantity, total_fils AS "totalFils"
+    FROM order_items WHERE order_id=${orderId}::uuid ORDER BY product_name, sku`);
+  return items.map((item) => ({
+    name: item.name,
+    options: Object.values(
+      item.attributes && typeof item.attributes === "object" ? item.attributes : {},
+    )
+      .filter((part): part is string => typeof part === "string")
+      .join(" · "),
+    quantity: item.quantity,
+    totalFils: Number(item.totalFils),
+  }));
+}
+
 export interface CustomerOrderEmail {
   email: string;
   customerName: string;
+  /** E.164, e.g. +971501234567. */
+  phone: string;
   orderNumber: string;
-  items: Array<{ name: string; options: string; quantity: number; totalFils: number }>;
+  items: OrderEmailItem[];
   merchandiseSubtotalFils: number;
   discountFils: number;
   deliveryFeeFils: number;
@@ -29,6 +60,7 @@ export async function loadCustomerOrderEmail(
     Array<{
       email: string | null;
       customerName: string;
+      phone: string;
       orderNumber: bigint;
       merchandiseSubtotalFils: bigint;
       discountFils: bigint;
@@ -38,18 +70,15 @@ export async function loadCustomerOrderEmail(
       deliveryEtaText: string;
     }>
   >(Prisma.sql`
-    SELECT customer_email AS email, customer_name AS "customerName", order_number AS "orderNumber",
+    SELECT customer_email AS email, customer_name AS "customerName", customer_phone_e164 AS phone,
+      order_number AS "orderNumber",
       merchandise_subtotal_fils AS "merchandiseSubtotalFils", discount_fils AS "discountFils",
       delivery_fee_fils AS "deliveryFeeFils", total_fils AS "totalFils", area_name AS "areaName",
       delivery_eta_text AS "deliveryEtaText"
     FROM orders WHERE id=${orderId}::uuid`);
   if (!order) return null;
   if (!order.email) return { email: null };
-  const items = await db.$queryRaw<
-    Array<{ name: string; attributes: unknown; quantity: number; totalFils: bigint }>
-  >(Prisma.sql`
-    SELECT product_name AS name, attributes, quantity, total_fils AS "totalFils"
-    FROM order_items WHERE order_id=${orderId}::uuid ORDER BY product_name, sku`);
+  const items = await orderEmailItems(db, orderId);
   const settings = await db.$queryRaw<Array<{ key: string; value: unknown }>>(Prisma.sql`
     SELECT key, value FROM settings WHERE key IN ('store', 'whatsapp')`);
   const value = (key: string) => settings.find((row) => row.key === key)?.value;
@@ -58,17 +87,9 @@ export async function loadCustomerOrderEmail(
   return {
     email: order.email,
     customerName: order.customerName,
+    phone: order.phone,
     orderNumber: formatOrderNumber(order.orderNumber),
-    items: items.map((item) => ({
-      name: item.name,
-      options: Object.values(
-        item.attributes && typeof item.attributes === "object" ? item.attributes : {},
-      )
-        .filter((part): part is string => typeof part === "string")
-        .join(" · "),
-      quantity: item.quantity,
-      totalFils: Number(item.totalFils),
-    })),
+    items,
     merchandiseSubtotalFils: Number(order.merchandiseSubtotalFils),
     discountFils: Number(order.discountFils),
     deliveryFeeFils: Number(order.deliveryFeeFils),

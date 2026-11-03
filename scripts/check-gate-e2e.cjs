@@ -529,6 +529,7 @@ async function main() {
             from: "no-reply@iqoshaven.local",
             planners: {
               "order.created": notifications.newOrderEmailPlanner(db),
+              "order.confirmation_requested": notifications.customerOrderEmailPlanner(db),
               "inventory.low": lowStock.lowStockEmailPlanner(db, log),
             },
             adapter: {
@@ -579,7 +580,14 @@ async function main() {
       check(!settingsLeak(html), `verified ${target} shows no other Owner settings`);
       return html;
     };
-    const homeHtml = await page("/", 200, "New in", NAMES[0], "Gatebrand", "Shop by category");
+    const homeHtml = await page(
+      "/",
+      200,
+      "New arrivals",
+      NAMES[0],
+      "Gatebrand",
+      "Shop by category",
+    );
     check(
       homeHtml.includes(`https://wa.me/${WHATSAPP.slice(1)}?text=`),
       "a verified shopper's footer has the WhatsApp link with the configured number",
