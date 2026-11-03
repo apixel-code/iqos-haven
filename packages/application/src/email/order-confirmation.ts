@@ -6,6 +6,12 @@ const money = z.string().min(1).max(40);
 const schema = z.strictObject({
   firstName: z.string().min(1).max(100),
   orderNumber: z.string().min(1).max(32),
+  /** What the shopper gave at checkout, repeated so they can check it (ADR 0104). */
+  customer: z.strictObject({
+    name: z.string().min(1).max(100),
+    phone: z.string().min(1).max(20),
+    email: z.string().min(1).max(254),
+  }),
   /** "TEREA UAE · silver × 2" and its formatted line total. */
   items: z
     .array(z.strictObject({ label: z.string().min(1).max(400), total: money }))
@@ -20,16 +26,18 @@ const schema = z.strictObject({
   eta: z.string().min(1).max(500),
   /** A https://wa.me/… link when the store has a WhatsApp number. */
   whatsappUrl: z.url().max(100).nullable(),
+  /** The store's order tracking page (ADR 0104) when the store has a domain; carries no number. */
+  trackUrl: z.url().max(300).nullable(),
 });
 /**
  * The shopper's order confirmation (ADR 0102), sent to the email given at checkout. It repeats
  * what the confirmation page showed: the order number, the items and the total to pay in cash.
- * It carries no link that grants anything (cross-device order access is out of scope); the only
- * action is the store's WhatsApp, when set.
+ * Since ADR 0104 it also repeats the name, phone and email given, and points to the tracking
+ * page, where the order number alone shows the order's status. No link carries the number.
  */
 export const orderConfirmationTemplate: EmailTemplate<typeof schema> = {
   id: "order.confirmation",
-  version: 1,
+  version: 2,
   schema,
   render: (data, html) => {
     const rows: Array<readonly [string, string]> = [
@@ -40,6 +48,14 @@ export const orderConfirmationTemplate: EmailTemplate<typeof schema> = {
     ];
     const itemsText = data.items.map((item) => `- ${item.label}: ${item.total}`).join("\n");
     const rowsText = rows.map(([label, value]) => `${label}: ${value}`).join("\n");
+    const details: Array<readonly [string, string]> = [
+      ["Order number", data.orderNumber],
+      ["Name", data.customer.name],
+      ["Phone", data.customer.phone],
+      ["Email", data.customer.email],
+    ];
+    const detailsText = details.map(([label, value]) => `${label}: ${value}`).join("\n");
+    const track = data.trackUrl ? `Track your order with its number at ${data.trackUrl}\n\n` : "";
     const contact = data.whatsappUrl
       ? `Questions? Message us on WhatsApp: ${data.whatsappUrl}`
       : "Questions? Reply through the contact details on our website.";
@@ -47,9 +63,9 @@ export const orderConfirmationTemplate: EmailTemplate<typeof schema> = {
       subject: `Order ${data.orderNumber} received (${data.total})`,
       text:
         `Hi ${data.firstName},\n\nThank you for your order. We have received it and will call you ` +
-        `to confirm it before delivery.\n\nOrder: ${data.orderNumber}\n\n${itemsText}\n\n` +
+        `to confirm it before delivery.\n\n${detailsText}\n\n${itemsText}\n\n` +
         `${rowsText}\n\nDelivery to ${data.areaName}: ${data.eta}\n` +
-        `Pay in cash when your order arrives.\n\n${contact}\n`,
+        `Pay in cash when your order arrives.\n\n${track}${contact}\n`,
       html: brandedEmail(html, {
         preheader: `Order ${data.orderNumber}: ${data.total}, cash on delivery to ${data.areaName}.`,
         heading: `Thank you, ${data.firstName}`,
@@ -58,6 +74,7 @@ export const orderConfirmationTemplate: EmailTemplate<typeof schema> = {
             We have received your order <strong>${data.orderNumber}</strong> and will call you to
             confirm it before delivery.
           </p>` +
+          factsTable(html, details) +
           factsTable(
             html,
             data.items.map((item) => [item.label, item.total] as const),
@@ -65,7 +82,13 @@ export const orderConfirmationTemplate: EmailTemplate<typeof schema> = {
           factsTable(html, rows) +
           html`<p style="margin:0">
             Delivery to ${data.areaName}: ${data.eta}<br />Pay in cash when your order arrives.
-          </p>`,
+          </p>` +
+          (data.trackUrl
+            ? html`<p style="margin:0">
+                Track your order any time: enter <strong>${data.orderNumber}</strong> at
+                <a href="${data.trackUrl}">${data.trackUrl}</a>
+              </p>`
+            : ""),
         ...(data.whatsappUrl
           ? { action: { label: "Message us on WhatsApp", url: data.whatsappUrl } }
           : {}),

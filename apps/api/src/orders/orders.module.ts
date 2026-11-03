@@ -1,5 +1,6 @@
 import { OrderConfirmationController } from "./order-confirmation.controller";
 import { OrderConfirmationService } from "./order-confirmation.service";
+import { OrderTrackingController } from "./order-tracking.controller";
 import { Module } from "@nestjs/common";
 import { StoreModule } from "../store/store.module";
 import { CreateOrderService } from "./create-order.service";
@@ -19,6 +20,7 @@ import { ReviewLinkController } from "./review-link.controller";
   controllers: [
     StoreOrdersController,
     OrderConfirmationController,
+    OrderTrackingController,
     AdminOrdersController,
     OrderTransitionsController,
     OrderCancellationController,

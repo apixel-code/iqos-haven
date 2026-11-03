@@ -529,6 +529,7 @@ async function main() {
             from: "no-reply@iqoshaven.local",
             planners: {
               "order.created": notifications.newOrderEmailPlanner(db),
+              "order.confirmation_requested": notifications.customerOrderEmailPlanner(db),
               "inventory.low": lowStock.lowStockEmailPlanner(db, log),
             },
             adapter: {

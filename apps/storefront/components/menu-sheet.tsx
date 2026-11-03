@@ -13,6 +13,7 @@ import { WhatsAppLink } from "./whatsapp-link";
 import { Icon } from "@/components/icons";
 
 const HELP_LINKS = [
+  { href: "/track", label: "Track your order" },
   { href: "/help#help-delivery", label: "Delivery information" },
   { href: "/help#help-faq", label: "FAQ" },
   { href: "/help#help-contact", label: "Contact" },

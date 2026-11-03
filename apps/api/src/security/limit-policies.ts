@@ -222,6 +222,26 @@ export const ORDER_CONFIRMATION_POLICY: EndpointLimitPolicy<"ip"> = {
 };
 
 /**
+ * Order tracking by number (ADR 0104). Every lookup counts per address; separately, numbers that
+ * match no trackable order count per address and across the whole store. With 9 × 10^11 random
+ * numbers, the store-wide miss budget keeps even a guesser with many addresses to a few thousand
+ * tries a day. Both fail closed: tracking is a convenience, never worth an unlimited guess.
+ */
+export const ORDER_TRACKING_POLICY: EndpointLimitPolicy<"ip"> = {
+  endpoint: "order_tracking",
+  rules: { ip: perMinute(20) },
+  outage: "fail_closed",
+};
+export const ORDER_TRACKING_MISS_POLICY: EndpointLimitPolicy<"ip" | "store"> = {
+  endpoint: "order_tracking_miss",
+  rules: {
+    ip: { limit: 10, windowMs: 15 * MINUTE },
+    store: { limit: 300, windowMs: 60 * MINUTE },
+  },
+  outage: "fail_closed",
+};
+
+/**
  * Review links (step 94, ADR 0062), per client address. Opening a link reads products only;
  * submitting writes a pending review. A token is 256 random bits, so these budgets slow
  * abuse of a real link rather than guessing. IP only: rotating tokens must not create an

@@ -223,7 +223,7 @@ describe("atomic order creation (real PostgreSQL)", () => {
     const placed = await orders.place(placing);
     // 12999 + 2 × 4500 = 21999; 10 % = 2199.9 → 2200; + 1500 delivery.
     expect(placed).toMatchObject({ replayed: false, response: { totalFils: 21299 } });
-    expect(placed.response.orderNumber).toMatch(/^IH-\d{6}$/);
+    expect(placed.response.orderNumber).toMatch(/^IH-[1-9]\d{11}$/);
     // The answer holds nothing personal.
     expect(Object.keys(placed.response).sort()).toEqual(["orderNumber", "placedAt", "totalFils"]);
     const order = await db.order.findUniqueOrThrow({
