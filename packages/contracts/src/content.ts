@@ -92,6 +92,29 @@ export const heroSlideSchema = z.strictObject({
   image: contentImageSchema.nullable(),
 });
 const heroV2 = z.strictObject({ slides: z.array(heroSlideSchema).min(1).max(HERO_SLIDES_MAX) });
+/**
+ * Version 3 (ADR 0105, client feedback 2026-11-03): a slide may also be a **banner**, a picture
+ * the client designed with its own words in it. A banner shows its image edge to edge, with a
+ * separate tall image for phones, and the whole banner is its first button's link. Its headline
+ * is still required: it is the banner's text for screen readers and search, never painted.
+ */
+export const HERO_LOOKS = [...HERO_STYLES, "banner"] as const;
+export const heroSlideV3Schema = heroSlideSchema
+  .extend({
+    style: z.enum(HERO_LOOKS),
+    /**
+     * The phone picture of a banner (about 1080 × 1080); the wide image is used when absent. Left
+     * out reads as none, so an editor from before v3 can still save.
+     */
+    mobileImage: contentImageSchema.nullable().default(null),
+  })
+  .refine((slide) => slide.style !== "banner" || slide.image !== null, {
+    message: "A banner needs its picture",
+    path: ["image"],
+  });
+const heroV3 = z.strictObject({
+  slides: z.array(heroSlideV3Schema).min(1).max(HERO_SLIDES_MAX),
+});
 export const FEATURED_MAX = 8;
 const featuredV1 = z.strictObject({ productIds: ids(FEATURED_MAX) });
 export const BEST_SELLERS_COUNT = 8;
@@ -126,7 +149,7 @@ const offersV1 = z.strictObject({
 /** Every schema version of every section. Add a version; never change a released one. */
 export const CONTENT_SCHEMAS = {
   ticker: { 1: tickerV1 },
-  hero: { 1: heroV1, 2: heroV2 },
+  hero: { 1: heroV1, 2: heroV2, 3: heroV3 },
   featured: { 1: featuredV1 },
   best_sellers: { 1: bestSellersV1 },
   brands: { 1: brandsV1 },
@@ -136,7 +159,7 @@ export const CONTENT_SCHEMAS = {
 /** The version a new draft is written at. */
 export const CURRENT_CONTENT_SCHEMA = {
   ticker: 1,
-  hero: 2,
+  hero: 3,
   featured: 1,
   best_sellers: 1,
   brands: 1,
@@ -155,12 +178,17 @@ export class ContentSchemaError extends Error {}
 
 /**
  * A validated document read at its stored version, in the current version's shape: what the
- * editor shows and the store renders. Hero v1 becomes one navy slide without a second button.
+ * editor shows and the store renders. Hero v1 becomes one navy slide without a second button;
+ * hero v1 and v2 slides gain an empty phone picture (v3).
  */
 export function upgradeContent(key: ContentSectionKey, version: number, content: unknown): unknown {
   if (key === "hero" && version === 1) {
     const hero = content as z.output<typeof heroV1>;
-    return { slides: [{ style: "navy", ...hero, secondaryCta: null }] };
+    return { slides: [{ style: "navy", ...hero, secondaryCta: null, mobileImage: null }] };
+  }
+  if (key === "hero" && version === 2) {
+    const hero = content as z.output<typeof heroV2>;
+    return { slides: hero.slides.map((slide) => ({ ...slide, mobileImage: null })) };
   }
   return content;
 }

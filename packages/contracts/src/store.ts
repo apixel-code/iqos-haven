@@ -484,9 +484,12 @@ export const storeHomeResponseSchema = z.strictObject({
   heroSlides: z
     .array(
       homeBannerSchema.extend({
-        style: z.enum(["navy", "lilac", "coral"]),
+        /** `banner` (ADR 0105): a designed picture shown edge to edge, linked by `cta`. */
+        style: z.enum(["navy", "lilac", "coral", "banner"]),
         eyebrow: z.string().max(40).nullable(),
         secondaryCta: homeLinkSchema.nullable(),
+        /** A banner's phone picture; null uses `image` on phones too. */
+        mobileImage: storeImageSchema.nullable(),
       }),
     )
     .max(3),

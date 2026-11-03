@@ -14,11 +14,45 @@ import {
   resolveSelection,
   valueState,
   variantLabel,
+  type Variant,
 } from "@/lib/store/selection";
 import { Icon } from "@/components/icons";
 import { Money } from "@/components/money";
 
 type Feedback = { kind: "added" | "note" | "error"; text: string } | null;
+
+/** What was just added, for the toast or the quick-add sheet's "added" view (ADR 0105). */
+export interface AddedItem {
+  title: string;
+  sub: string;
+  image: string | null;
+}
+/**
+ * Puts one variant in the device cart with the product page's own snapshot, and says what was
+ * added. Shared by the buy box and the card's one-tap add, so both write the same line.
+ */
+export function addVariant(product: StoreProductResponse, variant: Variant, quantity: number) {
+  const chosen = variantLabel(product, variant.attributes);
+  const result = addToCart(
+    {
+      variantId: variant.id,
+      productSlug: product.slug,
+      snapshot: {
+        name: product.name,
+        brand: product.brand.name,
+        options: chosen,
+        priceFils: variant.priceFils,
+      },
+    },
+    quantity,
+  );
+  const item: AddedItem = {
+    title: "Added to cart",
+    sub: chosen ? `${product.name} · ${chosen}` : product.name,
+    image: product.images[0]?.urls.thumb ?? null,
+  };
+  return { result, item };
+}
 
 /** Options shown as the prototype's segmented control rather than chips. */
 const SEGMENTED = new Set(["nicotine", "strength"]);
@@ -43,8 +77,11 @@ export function BuyBox({
   save?: ReactNode;
   /** WhatsApp link for the sticky bar on phones (product page only). */
   whatsappHref?: string | null;
-  /** Called after a successful add, before the cart sheet opens (quick add closes itself). */
-  onAdded?: () => void;
+  /**
+   * Called after a successful add with what was added. When given, the caller shows it (quick
+   * add's sheet, ADR 0105) and no toast is raised; otherwise a toast offers the way to checkout.
+   */
+  onAdded?: (item: AddedItem) => void;
 }) {
   const router = useRouter();
   const options = offeredOptions(product);
@@ -129,19 +166,7 @@ export function BuyBox({
       return;
     }
     if (selection.status !== "ready") return;
-    const result = addToCart(
-      {
-        variantId: selection.variant.id,
-        productSlug: product.slug,
-        snapshot: {
-          name: product.name,
-          brand: product.brand.name,
-          options: variantLabel(product, selection.variant.attributes),
-          priceFils: selection.variant.priceFils,
-        },
-      },
-      quantity,
-    );
+    const { result, item } = addVariant(product, selection.variant, quantity);
     setFeedback(
       result.full
         ? { kind: "error", text: "Your cart is full. Remove an item to add another." }
@@ -155,15 +180,10 @@ export function BuyBox({
     if (!result.full) setAdded(true);
     // Marina 2026-11-02 (ADR 0102): adding no longer opens the cart sheet. The header cart
     // count goes up and a toast offers the way to checkout; the sheet opens from the header.
+    // Quick add shows the same in its own sheet instead (ADR 0105): one surface, not two.
     if (!result.full) {
-      onAdded?.();
-      const chosen = variantLabel(product, selection.variant.attributes);
-      toast({
-        title: "Added to cart",
-        sub: chosen ? `${product.name} · ${chosen}` : product.name,
-        image: product.images[0]?.urls.thumb ?? null,
-        action: { label: "Checkout", run: () => router.push("/checkout") },
-      });
+      if (onAdded) onAdded(item);
+      else toast({ ...item, action: { label: "Checkout", run: () => router.push("/checkout") } });
     }
   }
 

@@ -1,6 +1,11 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
-import type { StoreBrandsResponse, StoreHomeResponse, StoreImage } from "@ih/contracts";
+import type {
+  StoreBrandsResponse,
+  StoreHomeResponse,
+  StoreImage,
+  StoreProductCard,
+} from "@ih/contracts";
 import { Icon } from "@/components/icons";
 import { ProductRail } from "./product-card";
 
@@ -94,6 +99,33 @@ export function CategoryTiles({
   );
 }
 
+/**
+ * One row of products on the home page (ADR 0105): heading, a line below, the products (a
+ * swipeable row on phones, a grid of four from 1040 px) and a link to the full list. Left out
+ * when there is nothing to show.
+ */
+export function ProductSection({
+  id,
+  title,
+  sub,
+  products,
+  more,
+}: {
+  id: string;
+  title: string;
+  sub: string;
+  products: readonly StoreProductCard[];
+  more: { label: string; href: string };
+}) {
+  if (!products.length) return null;
+  return (
+    <section className="sec" style={{ paddingTop: 0 }} aria-labelledby={id}>
+      <SectionHead id={id} title={title} sub={sub} more={more} />
+      <ProductRail products={products.slice(0, 8)} />
+    </section>
+  );
+}
+
 /** One brand (prototype `brandTile`): its logo when the Owner set one, else the name. */
 export function BrandTile({
   brand,
@@ -118,32 +150,85 @@ export function BrandTile({
   );
 }
 
-/** "Shop by brand" (prototype `brandTile`): the logo when the Owner set one, else the name. */
+/** A brand's first sentence, for its card; the full text is on the brand page. */
+const firstSentence = (text: string) => {
+  const sentence = text.trim().split(/(?<=[.!?])\s/u)[0] ?? "";
+  return sentence.length > 110 ? `${sentence.slice(0, 107).trimEnd()}…` : sentence;
+};
+
+/**
+ * "Shop by brand" (client feedback 2026-11-03, ADR 0105): the store carries two brands, IQOS
+ * and TEREA, so each gets a wide card with its logo or name, a line about it, a product photo
+ * and its own button, instead of the prototype's row of small tiles. More brands fall back to
+ * the tiles.
+ */
 export function HomeBrands({
   brands,
   logos,
+  photos,
 }: {
   brands: StoreHomeResponse["brands"];
   logos: StoreBrandsResponse["items"];
+  /** A product photo per brand slug, from the products on this page. */
+  photos: Readonly<Record<string, StoreImage | null>>;
 }) {
   if (!brands.length) return null;
+  const showcase = brands.length <= 2;
   return (
     <section className="sec" style={{ paddingTop: 0 }} aria-labelledby="br-h">
       <SectionHead
         id="br-h"
         title="Shop by brand"
-        sub="Every brand we stock, in one place."
-        more={{ label: "All brands", href: "/brands" }}
+        more={showcase ? undefined : { label: "All brands", href: "/brands" }}
       />
-      <div className="brands">
-        {brands.map((brand) => (
-          <BrandTile
-            key={brand.slug}
-            brand={brand}
-            logo={logos.find((item) => item.slug === brand.slug)?.logo ?? null}
-          />
-        ))}
-      </div>
+      {showcase ? (
+        <div className="bshow">
+          {brands.map((brand, index) => {
+            const about = logos.find((item) => item.slug === brand.slug);
+            const photo = photos[brand.slug] ?? null;
+            return (
+              <Link
+                key={brand.slug}
+                href={`/brands/${brand.slug}`}
+                prefetch={false}
+                className={`bshow-card ${index === 0 ? "dark" : "light"}${photo ? "" : " no-art"}`}
+              >
+                <span className="bshow-copy">
+                  {about?.logo ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img className="bshow-logo" src={about.logo.urls.thumb} alt={brand.name} />
+                  ) : (
+                    <span className="bshow-name">{brand.name}</span>
+                  )}
+                  {about?.description && (
+                    <span className="bshow-about">{firstSentence(about.description)}</span>
+                  )}
+                  <span className="bshow-count">{plural(brand.productCount, "product")}</span>
+                  <span className="bshow-cta">
+                    Shop {brand.name} <Icon name="arrow-r" size="sm" />
+                  </span>
+                </span>
+                {photo && (
+                  <span className="bshow-art" aria-hidden="true">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={photo.urls.medium} alt="" loading="lazy" decoding="async" />
+                  </span>
+                )}
+              </Link>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="brands">
+          {brands.map((brand) => (
+            <BrandTile
+              key={brand.slug}
+              brand={brand}
+              logo={logos.find((item) => item.slug === brand.slug)?.logo ?? null}
+            />
+          ))}
+        </div>
+      )}
     </section>
   );
 }
