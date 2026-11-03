@@ -396,7 +396,7 @@ describe("manual orders through the real API and PostgreSQL", () => {
     ])
       expect(await errorCode(await create(changed, attempt))).toBe("IDEMPOTENCY_CONFLICT");
     const placed = await one<{ id: string }>(
-      "SELECT id FROM orders ORDER BY order_number DESC LIMIT 1",
+      "SELECT id FROM orders ORDER BY id DESC LIMIT 1",
     );
     // Who created it is on the order, its first history row and its audit entry.
     const [staffRow] = (
