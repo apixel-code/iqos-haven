@@ -522,8 +522,16 @@ function SectionEditor({
                   <option value="navy">Navy, light text</option>
                   <option value="lilac">Lilac, dark text</option>
                   <option value="coral">Coral, light text</option>
+                  <option value="banner">Designed banner (your own picture)</option>
                 </select>
               </Field>
+              {slide.style === "banner" && (
+                <p className="help">
+                  Your picture is shown edge to edge with its own words, and the whole banner opens
+                  the first button&apos;s page. The headline is not shown: screen readers and search
+                  read it instead, so describe the banner there.
+                </p>
+              )}
               <Field label="Eyebrow (optional)">
                 <input
                   value={(slide.eyebrow as string | null) ?? ""}
@@ -566,8 +574,20 @@ function SectionEditor({
               <ImageField
                 value={slide.image as Doc | null}
                 onChange={(next) => setSlide(index, { ...slide, image: next })}
-                hint="1600 × 900 px"
+                hint={
+                  slide.style === "banner"
+                    ? "Wide picture for computers: 1920 × 640 px, important words in the middle"
+                    : "1600 × 900 px"
+                }
               />
+              {slide.style === "banner" && (
+                <ImageField
+                  label="Phone picture (optional)"
+                  value={(slide.mobileImage as Doc | null) ?? null}
+                  onChange={(next) => setSlide(index, { ...slide, mobileImage: next })}
+                  hint="Square or tall picture for phones: 1080 × 1080 px. Without it, phones show the wide picture."
+                />
+              )}
               <div className="row">
                 {index > 0 && (
                   <button
@@ -1074,10 +1094,13 @@ function ImageField({
   value,
   onChange,
   hint,
+  label = "Image (optional)",
 }: {
   value: Doc | null;
   onChange: (next: Doc | null) => void;
   hint: string;
+  /** The group's name, when a section takes more than one image. */
+  label?: string;
 }) {
   const images = useManagementResource("/content/images", contentImagesResponseSchema);
   const [note, setNote] = useState("");
@@ -1128,7 +1151,7 @@ function ImageField({
   const chosen = images.data?.items.find((item) => item.id === value?.assetId);
   return (
     <fieldset className="ct-group form">
-      <legend>Image (optional)</legend>
+      <legend>{label}</legend>
       {value ? (
         <>
           {chosen?.url ? (

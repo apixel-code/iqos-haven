@@ -1,8 +1,13 @@
 import type { Metadata } from "next";
 import type { StoreHomeResponse } from "@ih/contracts";
 import { HeroCarousel } from "@/components/hero-carousel";
-import { CategoryTiles, HomeBanners, HomeBrands, HomeOffers } from "@/components/home-sections";
-import { PopularProducts, type PopularList } from "@/components/popular-products";
+import {
+  CategoryTiles,
+  HomeBanners,
+  HomeBrands,
+  HomeOffers,
+  ProductSection,
+} from "@/components/home-sections";
 import { RecentlyViewed } from "@/components/recently-viewed";
 import { SITE } from "@/lib/site";
 import { TYPE_PAGES, type ListedType } from "@/lib/store/listing";
@@ -19,16 +24,18 @@ const DEFAULT_SLIDE: StoreHomeResponse["heroSlides"][number] = {
   cta: { label: "Shop now", href: "/shop" },
   secondaryCta: { label: "Browse brands", href: "/brands" },
   image: null,
+  mobileImage: null,
 };
 
 /**
- * Home page (roadmap steps 64 and 99; the prototype's `home` since ADR 0097): the hero
- * carousel, category tiles, popular lists, brands, campaigns, offers, puff-count bands and
- * recently viewed. Published content (ADR 0066) and live catalogue counts; a section with
- * nothing to show is left out. Restricted like every page.
+ * Home page (roadmap steps 64 and 99; the prototype's `home` since ADR 0097), laid out as a full
+ * shop since ADR 0105 (client feedback 2026-11-03): the hero, categories, then products on every
+ * row — best sellers, the two brands, new arrivals, featured, TEREA sticks and IQOS devices —
+ * campaigns, offers and recently viewed. Published content (ADR 0066) and live catalogue
+ * counts; a section with nothing to show is left out. Restricted like every page.
  */
 export default async function HomePage() {
-  const [content, [fresh, brands, counts]] = await Promise.all([
+  const [content, [fresh, brands, counts, sticks, devices]] = await Promise.all([
     storeHome(),
     storeRead((api, shopper) =>
       Promise.all([
@@ -36,10 +43,18 @@ export default async function HomePage() {
         api.brands(shopper),
         // Termless search: counts for the category tiles (catalogue budget, cached).
         api.search(shopper, [["limit", "1"]]),
+        api.products(shopper, { type: "sticks", sort: "name", limit: 8 }),
+        api.products(shopper, { type: "device", sort: "price_asc", limit: 8 }),
       ]),
     ),
   ]);
-  const pictured = [...fresh.items, ...content.bestSellers, ...content.featured];
+  const pictured = [
+    ...fresh.items,
+    ...content.bestSellers,
+    ...content.featured,
+    ...sticks.items,
+    ...devices.items,
+  ];
   const photo = (match: (card: (typeof pictured)[number]) => boolean) =>
     pictured.find((card) => card.image && match(card))?.image ?? null;
   const typeCount = (type: ListedType) =>
@@ -50,26 +65,10 @@ export default async function HomePage() {
         .filter((brand) => brand.productCount > 0)
         .slice(0, 6)
         .map(({ name, slug, productCount }) => ({ name, slug, productCount }));
-  const popular: PopularList[] = [
-    {
-      key: "best",
-      label: "Best sellers",
-      products: content.bestSellers,
-      more: { label: "Shop all best sellers", href: "/shop" },
-    },
-    {
-      key: "featured",
-      label: "Featured",
-      products: content.featured,
-      more: { label: "Shop all products", href: "/shop" },
-    },
-    {
-      key: "new",
-      label: "New in",
-      products: fresh.items,
-      more: { label: "See everything new", href: "/shop?sort=newest" },
-    },
-  ].filter((list) => list.products.length > 0);
+  /** A product photo for each brand's card (ADR 0105), from the products on this page. */
+  const brandPhotos = Object.fromEntries(
+    shownBrands.map((brand) => [brand.slug, photo((card) => card.brand.slug === brand.slug)]),
+  );
   return (
     <>
       <HeroCarousel slides={content.heroSlides.length ? content.heroSlides : [DEFAULT_SLIDE]} />
@@ -105,8 +104,42 @@ export default async function HomePage() {
           },
         ]}
       />
-      <PopularProducts lists={popular} />
-      <HomeBrands brands={shownBrands} logos={brands.items} />
+      <ProductSection
+        id="best-h"
+        title="Best sellers"
+        sub="What other customers order most"
+        products={content.bestSellers}
+        more={{ label: "Shop all", href: "/shop" }}
+      />
+      <HomeBrands brands={shownBrands} logos={brands.items} photos={brandPhotos} />
+      <ProductSection
+        id="new-h"
+        title="New arrivals"
+        sub="Just added to the shop"
+        products={fresh.items}
+        more={{ label: "See everything new", href: "/shop?sort=newest" }}
+      />
+      <ProductSection
+        id="feat-h"
+        title="Featured"
+        sub="Picked for you"
+        products={content.featured}
+        more={{ label: "Shop all", href: "/shop" }}
+      />
+      <ProductSection
+        id="sticks-h"
+        title={TYPE_PAGES.sticks.title}
+        sub="Every TEREA edition, by flavour"
+        products={sticks.items}
+        more={{ label: "All TEREA sticks", href: TYPE_PAGES.sticks.path }}
+      />
+      <ProductSection
+        id="devices-h"
+        title={TYPE_PAGES.device.title}
+        sub="IQOS ILUMA devices in every colour"
+        products={devices.items}
+        more={{ label: "All IQOS devices", href: TYPE_PAGES.device.path }}
+      />
       <HomeBanners banners={content.banners} />
       <HomeOffers offers={content.offers} />
       <RecentlyViewed />

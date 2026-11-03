@@ -28,7 +28,7 @@ describe("content section schemas (step 96)", () => {
     ]);
     for (const key of CONTENT_SECTION_KEYS)
       expect(() => contentSchema(key, CURRENT_CONTENT_SCHEMA[key])).not.toThrow();
-    expect(() => contentSchema("hero", 3)).toThrow(ContentSchemaError);
+    expect(() => contentSchema("hero", 4)).toThrow(ContentSchemaError);
   });
 
   it("holds one to three hero slides and reads a v1 hero as one navy slide (ADR 0097)", () => {
@@ -53,13 +53,42 @@ describe("content section schemas (step 96)", () => {
       cta: null,
       image: null,
     };
+    const v3 = contentSchema("hero", 3);
     expect(upgradeContent("hero", 1, v1)).toEqual({
-      slides: [{ style: "navy", ...v1, secondaryCta: null }],
+      slides: [{ style: "navy", ...v1, secondaryCta: null, mobileImage: null }],
     });
-    expect(v2.safeParse(upgradeContent("hero", 1, v1)).success).toBe(true);
-    // Other sections and current versions pass through unchanged.
-    expect(upgradeContent("hero", 2, { slides: [slide] })).toEqual({ slides: [slide] });
+    expect(v3.safeParse(upgradeContent("hero", 1, v1)).success).toBe(true);
+    // A v2 slide gains an empty phone picture; the current version passes through unchanged.
+    expect(upgradeContent("hero", 2, { slides: [slide] })).toEqual({
+      slides: [{ ...slide, mobileImage: null }],
+    });
+    const current = { slides: [{ ...slide, mobileImage: null }] };
+    expect(upgradeContent("hero", 3, current)).toEqual(current);
     expect(upgradeContent("brands", 1, { brandIds: [] })).toEqual({ brandIds: [] });
+  });
+
+  it("takes a designed banner only with its picture, and a phone picture on any slide (ADR 0105)", () => {
+    const v3 = contentSchema("hero", 3);
+    const picture = { assetId: "01a1a051-f525-76f9-9f0c-31cd249711c3", alt: "IQOS ILUMA offer" };
+    const banner = {
+      style: "banner",
+      eyebrow: null,
+      title: "IQOS ILUMA offer",
+      subtitle: null,
+      cta: { label: "Shop", link: { kind: "shop" } },
+      secondaryCta: null,
+      image: picture,
+      mobileImage: { ...picture, alt: "IQOS ILUMA offer, phone" },
+    };
+    expect(v3.safeParse({ slides: [banner] }).success).toBe(true);
+    expect(v3.safeParse({ slides: [{ ...banner, mobileImage: null }] }).success).toBe(true);
+    expect(v3.safeParse({ slides: [{ ...banner, image: null }] }).success).toBe(false);
+    // v2 never knew banners; a v3 slide without the phone field has none.
+    expect(contentSchema("hero", 2).safeParse({ slides: [banner] }).success).toBe(false);
+    const { mobileImage: _phone, ...withoutPhone } = banner;
+    expect(v3.parse({ slides: [withoutPhone] })).toMatchObject({
+      slides: [{ mobileImage: null }],
+    });
   });
 
   it("keeps text plain: trimmed, one line, no markup or hidden characters", () => {

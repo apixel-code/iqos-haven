@@ -52,6 +52,7 @@ export function emptyHeroSlide(): Record<string, unknown> {
     cta: null,
     secondaryCta: null,
     image: null,
+    mobileImage: null,
   };
 }
 
