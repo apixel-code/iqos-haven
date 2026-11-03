@@ -45,6 +45,80 @@ export function extraSpecs(value: string) {
 export function formatExtraSpecs(rows: ReadonlyArray<{ label: string; value: string }>) {
   return rows.map((row) => `${row.label}: ${row.value}`).join("\n");
 }
+/**
+ * TEREA flavour profiles (ADR 0103), one per line:
+ * "flavour | body 1–5 | intensity 1–5 | cooling 0–5 | capsule or - | notes (optional)".
+ */
+export function flavourProfiles(value: string) {
+  return value
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const parts = line.split("|");
+      const [flavour, body, intensity, cooling, capsule] = parts
+        .slice(0, 5)
+        .map((part) => part.trim());
+      // Notes may contain "|" themselves: everything after the fifth separator, as typed.
+      const note = parts.slice(5).join("|").trim();
+      const score = (raw: string | undefined, min: number) =>
+        raw !== undefined && /^\d$/.test(raw) && Number(raw) >= min && Number(raw) <= 5
+          ? Number(raw)
+          : undefined;
+      const parsed = {
+        flavour: flavour ?? "",
+        body: score(body, 1),
+        intensity: score(intensity, 1),
+        cooling: score(cooling, 0),
+        capsule: /^(capsule|yes)$/i.test(capsule ?? "")
+          ? true
+          : /^(-|no)$/i.test(capsule ?? "")
+            ? false
+            : undefined,
+      };
+      if (
+        !parsed.flavour ||
+        parsed.body === undefined ||
+        parsed.intensity === undefined ||
+        parsed.cooling === undefined ||
+        parsed.capsule === undefined
+      )
+        throw new FormValidationError(
+          `Write each flavour profile as "flavour | body 1-5 | intensity 1-5 | cooling 0-5 | capsule or - | notes": ${line.slice(0, 60)}`,
+        );
+      return {
+        flavour: parsed.flavour.toLowerCase(),
+        body: parsed.body,
+        intensity: parsed.intensity,
+        cooling: parsed.cooling,
+        capsule: parsed.capsule,
+        ...(note ? { notes: note } : {}),
+      };
+    });
+}
+export function formatFlavourProfiles(
+  rows: ReadonlyArray<{
+    flavour: string;
+    body: number;
+    intensity: number;
+    cooling: number;
+    capsule: boolean;
+    notes?: string;
+  }>,
+) {
+  return rows
+    .map((row) =>
+      [
+        row.flavour,
+        row.body,
+        row.intensity,
+        row.cooling,
+        row.capsule ? "capsule" : "-",
+        ...(row.notes ? [row.notes] : []),
+      ].join(" | "),
+    )
+    .join("\n");
+}
 function specs(type: string, data: FormData) {
   const extra = extraSpecs(text(data, "specs.extra"));
   const defined = <T extends Record<string, unknown>>(value: T) =>
@@ -63,6 +137,10 @@ function specs(type: string, data: FormData) {
       sticksPerPack: optionalInt(data, "specs.sticksPerPack", "Sticks per pack"),
       packsPerUnit: optionalInt(data, "specs.packsPerUnit", "Packs per unit"),
       flavourNotes: optionalText(data, "specs.flavourNotes"),
+      profiles: (() => {
+        const rows = flavourProfiles(text(data, "specs.profiles"));
+        return rows.length ? rows : undefined;
+      })(),
       extra,
     });
   if (type === "kit")

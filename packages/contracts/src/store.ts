@@ -3,7 +3,12 @@ import { ORDER_LIMITS, UAE_EMIRATES } from "@ih/domain";
 import { catalogueSlugSchema } from "./catalogue";
 import { checkoutAddressSchema, orderLinesSchema, storeContactSchema } from "./checkout";
 import { couponCodeInputSchema } from "./coupons";
-import { productFilsSchema, productSpecsSchema, productTypeSchema } from "./products";
+import {
+  COOLING_BANDS,
+  productFilsSchema,
+  productSpecsSchema,
+  productTypeSchema,
+} from "./products";
 import { STORE_REVIEWS_SHOWN, storeRatingSchema, storeReviewSchema } from "./reviews";
 
 /**
@@ -176,6 +181,12 @@ export const storeSearchQuerySchema = z
     maxPuffs: puffs.optional(),
     /** Values of the "nicotine" option, as stored on variants (for example "20 mg"). */
     nicotine: list(z.string().trim().min(1).max(40), 6).optional(),
+    /** TEREA version (sticks `specs.origin`), ADR 0103. */
+    origin: list(z.string().trim().min(1).max(60), 10).optional(),
+    /** A product matches when any of its flavours is in a chosen cooling band. */
+    cooling: list(z.enum(COOLING_BANDS), 3).optional(),
+    /** Only products with at least one click-capsule flavour. */
+    capsule: flag.optional(),
     inStock: flag.optional(),
     onSale: flag.optional(),
     /** Defaults to relevance when there is a search term, otherwise newest. */
@@ -222,6 +233,9 @@ export const storeSearchResponseSchema = z.strictObject({
       .array(z.strictObject({ puffCount: z.number().int().positive(), count: facetCount }))
       .max(100),
     nicotine: z.array(z.strictObject({ value: z.string(), count: facetCount })).max(50),
+    origins: z.array(z.strictObject({ value: z.string(), count: facetCount })).max(50),
+    cooling: z.array(z.strictObject({ value: z.enum(COOLING_BANDS), count: facetCount })).max(3),
+    capsule: facetCount,
     /** Lowest and highest price among the products the other filters leave. */
     price: z.strictObject({ minFils: productFilsSchema, maxFils: productFilsSchema }).nullable(),
     inStock: facetCount,

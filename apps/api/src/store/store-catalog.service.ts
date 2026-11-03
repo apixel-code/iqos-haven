@@ -218,6 +218,10 @@ export class StoreCatalogService {
       query.minPuffs ?? null,
       query.maxPuffs ?? null,
       sorted(query.nicotine),
+      // Taste filters (ADR 0103).
+      sorted(query.origin),
+      sorted(query.cooling),
+      query.capsule ?? null,
       query.inStock ?? null,
       query.onSale ?? null,
       query.sort ?? null,
