@@ -7,6 +7,7 @@ import { SiteHeader } from "@/components/site-header";
 import { StoreOverlays } from "@/components/store-overlays";
 import { Toasts } from "@/components/toasts";
 import { AGE_COPY } from "@/lib/age/copy";
+import { businessLine, readBusiness } from "@/lib/business";
 import { POLICY_PAGES, SITE } from "@/lib/site";
 import { shellBrands, storeHome, storeInfo } from "@/lib/store/server";
 
@@ -17,11 +18,13 @@ import { shellBrands, storeHome, storeInfo } from "@/lib/store/server";
  * the client's approved wording (BI-01, BI-04).
  */
 export default async function ShopLayout({ children }: { children: ReactNode }) {
-  const [{ whatsappNumber, social }, { ticker }, brands] = await Promise.all([
+  const [{ whatsappNumber, social }, { ticker }, brands, business] = await Promise.all([
     storeInfo(),
     storeHome(),
     shellBrands(),
+    readBusiness(),
   ]);
+  const operator = businessLine(business);
   return (
     <>
       <IconSprite />
@@ -206,6 +209,7 @@ export default async function ShopLayout({ children }: { children: ReactNode }) 
             <span>
               © {new Date().getFullYear()} {SITE.name}. All rights reserved.
             </span>
+            {operator && <span>{operator}</span>}
             <span>{AGE_COPY.footer}</span>
             <span>Payment: Cash on delivery</span>
           </div>

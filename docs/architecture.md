@@ -401,6 +401,7 @@ Browser-visible endpoints use the same-origin `/api` gateway prefix. Nest routes
 | Quote / order | `POST /api/v1/store/cart/quote`, `/orders` | Age, validation, rate limits; orders require quote and idempotency |
 | Confirmation | `GET /api/v1/store/order-confirmation` | Storefront-origin HttpOnly capability cookie; no URL token or order-number-only access; no-store |
 | Tracking | `POST /api/v1/store/order-tracking` | ADR 0104: random 12-digit order number alone, in the body; age ticket; status, items and totals only (no PII); per-address and store-wide miss budgets, fail closed; no-store |
+| Business details | `GET /api/v1/public/business` | ADR 0106: legal name and trade licence number only, for the shop footer and the terms; public (no age ticket, no catalogue data); cached 60 s |
 | Reviews | `POST /api/v1/store/reviews` | Age, rate limit, moderation; signed order-review proof for verified label |
 | Telemetry | `POST /api/v1/store/events` | Age where applicable, bounded schema/batch, rate limit; no customer PII |
 | Admin orders | `/api/v1/admin/orders`, `/:id/transitions`, `/:id/cancel`, `/:id/collection`, `/bulk-confirm` | Session, granular RBAC, Origin/CSRF, versions, command idempotency |

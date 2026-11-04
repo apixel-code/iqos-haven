@@ -210,6 +210,7 @@ const DETAIL = {
   ],
 };
 const apiCalls = [];
+const BUSINESS = { legalName: "Gatecheck Trading LLC", tradeLicence: "CN-0000001" };
 let apiMode = "ok";
 /** The Owner's indexing policy as the stub API answers it (step 113); null = API failure. */
 let seoPolicy = { indexing: "closed" };
@@ -223,6 +224,8 @@ const stub = createHttpServer((request, response) => {
   // Public: read without a ticket by robots.txt, the sitemap and the policy pages.
   if (url.pathname === "/v1/public/seo")
     return seoPolicy ? send(200, seoPolicy) : send(503, { error: { code: "SERVICE_UNAVAILABLE" } });
+  // Public business details for the shop footer and the terms (ADR 0106).
+  if (url.pathname === "/v1/public/business") return send(200, BUSINESS);
   if (
     !/^ih_age=v1\.check\.[\w-]+\.[\w-]+$/.test(request.headers.cookie ?? "") ||
     apiMode === "refuse"
@@ -551,6 +554,10 @@ try {
   ])
     check(shop.includes(text), `shop page shows "${text}"`);
   check(
+    shop.includes("Gatecheck Trading LLC · Trade licence no. CN-0000001"),
+    "footer shows the legal name and trade licence",
+  );
+  check(
     /href="\/shop\?brand=orbe&amp;sort=price_asc&amp;cursor=bmV4dC1wYWdl"/.test(shop),
     "next-page link carries only listing state and the cursor",
   );
@@ -567,12 +574,20 @@ try {
     "API receives only contract parameters",
     listCall?.search,
   );
+  // Catalogue calls carry the ticket; the public reads (seo, business) carry no cookie at all.
+  const storeCalls = apiCalls.filter((call) => call.path.startsWith("/v1/store/"));
   check(
-    apiCalls.length > 0 && apiCalls.every((call) => call.headers.cookie === `ih_age=${ticket}`),
+    storeCalls.length > 0 && storeCalls.every((call) => call.headers.cookie === `ih_age=${ticket}`),
     "API receives only the age cookie",
   );
   check(
-    apiCalls.every((call) => call.headers["x-ih-client-ip"] === "203.0.113.9"),
+    apiCalls
+      .filter((call) => call.path.startsWith("/v1/public/"))
+      .every((call) => call.headers.cookie === undefined),
+    "public reads carry no cookie",
+  );
+  check(
+    storeCalls.every((call) => call.headers["x-ih-client-ip"] === "203.0.113.9"),
     "API receives the client address",
   );
   check(
@@ -1091,6 +1106,13 @@ try {
         !FORBIDDEN.some((pattern) => pattern.test(html)),
         `${label} ${path}: no catalogue data`,
       );
+      if (path === "/terms")
+        check(
+          html
+            .replace(/<!-- -->/g, "")
+            .includes("operated by Gatecheck Trading LLC, UAE trade licence no. CN-0000001."),
+          `${label} /terms: names the operator and trade licence`,
+        );
       pages[path] = {
         header: response.headers.get("x-robots-tag") ?? "",
         meta: /<meta name="robots" content="([^"]+)"/.exec(html)?.[1] ?? "",

@@ -81,7 +81,12 @@ const call = (path: string, method = "GET", body?: unknown, cookie = ownerCookie
     body: body === undefined ? undefined : JSON.stringify(body),
   });
 
-const store = { name: "Approved Test Store", domain: "store.example.test", legalName: null };
+const store = {
+  name: "Approved Test Store",
+  domain: "store.example.test",
+  legalName: null,
+  tradeLicence: null,
+};
 const contact = {
   email: "support@example.test",
   phone: "+971500000001",
@@ -383,5 +388,35 @@ describe("versioned settings through real API/PostgreSQL", () => {
     } finally {
       await other.close();
     }
+  });
+  it("publishes only the legal name and trade licence, without a session, and reads old values", async () => {
+    const business = async () => {
+      const r = await fetch(`${base}/v1/public/business`, {
+        headers: { "x-ih-client-ip": "192.0.2.3" },
+      });
+      expect(r.status).toBe(200);
+      expect(r.headers.get("cache-control")).toBe("public, max-age=60");
+      return r.json();
+    };
+    // A value saved before the field existed reads as "no licence number".
+    await pool.query(
+      `UPDATE settings SET value='{"name":"Old Store","domain":"old.example.test","legalName":"Old LLC"}'::jsonb WHERE key='store'`,
+    );
+    expect(await business()).toEqual({ legalName: "Old LLC", tradeLicence: null });
+    const read = (await (await call("")).json()) as {
+      items: Array<{ key: string; version: number; value: unknown }>;
+    };
+    const current = read.items.find((item) => item.key === "store")!;
+    expect(current.value).toMatchObject({ legalName: "Old LLC", tradeLicence: null });
+    const saved = await call("", "PATCH", {
+      key: "store",
+      version: current.version,
+      value: { ...store, legalName: "Test Trading LLC", tradeLicence: "CN-1234567" },
+    });
+    expect(saved.status).toBe(200);
+    const body = await business();
+    expect(body).toEqual({ legalName: "Test Trading LLC", tradeLicence: "CN-1234567" });
+    // Nothing else from settings (domain, contact, recipients, templates) is in the answer.
+    expect(JSON.stringify(body)).not.toMatch(/example\.test|\+971|\{\{/);
   });
 });
