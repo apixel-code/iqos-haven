@@ -7,7 +7,8 @@ import { catalogueText } from "./catalogue";
  * (step 49) marks the asset `ready`.
  */
 export const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
-export const MAX_PRODUCT_IMAGES = 8;
+/** Raised from 8 for flavour pictures (ADR 0107): one per flavour plus general photos. */
+export const MAX_PRODUCT_IMAGES = 24;
 export const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
 export const MEDIA_STATES = [
   "pending",
@@ -67,6 +68,8 @@ export const galleryImageSchema = z.strictObject({
   alt: z.string(),
   width: z.number().int().positive(),
   height: z.number().int().positive(),
+  /** The flavour (variant) this picture shows, if any (ADR 0107). */
+  variantId: z.uuid().nullable(),
   version: z.number().int().positive(),
   /** Short-lived signed links to sanitized derivatives (admin preview only; never public). */
   urls: z.strictObject({ large: z.url(), medium: z.url(), thumb: z.url() }),
@@ -86,6 +89,11 @@ export const galleryUpdateRequestSchema = z.strictObject({
   alt: catalogueText(0, 500),
   /** `true` moves the primary image here; the primary cannot be unset directly. */
   isPrimary: z.boolean(),
+  /**
+   * The flavour this picture shows (ADR 0107): a variant of the same product, or null for none.
+   * A flavour already shown by another picture moves here. Left out, it stays as it is.
+   */
+  variantId: z.uuid().nullable().optional(),
 });
 export const galleryReorderRequestSchema = z.strictObject({
   /** Every current image exactly once, in the new order. */

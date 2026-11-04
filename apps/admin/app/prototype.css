@@ -4294,6 +4294,23 @@
   .mtile .ctl button:disabled {
     opacity: 0.45;
   }
+  /* Flavour picture label (ADR 0107). */
+  .mtile .flav {
+    position: absolute;
+    right: 6px;
+    top: 6px;
+    max-width: calc(100% - 70px);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    background: var(--surface);
+    color: var(--ink);
+    font-size: 10.5px;
+    font-weight: 600;
+    padding: 2px 7px;
+    border-radius: 5px;
+    box-shadow: 0 0 0 1px var(--line);
+  }
   .upload-list {
     list-style: none;
     margin: 0;

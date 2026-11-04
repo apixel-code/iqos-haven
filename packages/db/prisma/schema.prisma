@@ -515,6 +515,9 @@ model ProductImage {
   /// The processed (ready) media asset this image shows (step 50).
   mediaAssetId String     @unique @map("media_asset_id") @db.Uuid
   mediaAsset   MediaAsset @relation(fields: [mediaAssetId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  /// The flavour (variant) this picture shows, if any (ADR 0107). Composite FK to a variant of
+  /// the same product and one picture per variant: both in the migration, not modelled here.
+  variantId    String?    @map("variant_id") @db.Uuid
   version      Int        @default(1)
   createdAt    DateTime   @default(dbgenerated("statement_timestamp()")) @map("created_at") @db.Timestamptz(6)
   updatedAt    DateTime   @default(dbgenerated("statement_timestamp()")) @map("updated_at") @db.Timestamptz(6)

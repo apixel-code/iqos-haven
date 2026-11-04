@@ -3,6 +3,7 @@ import { ORDER_LIMITS, UAE_EMIRATES } from "@ih/domain";
 import { catalogueSlugSchema } from "./catalogue";
 import { checkoutAddressSchema, orderLinesSchema, storeContactSchema } from "./checkout";
 import { couponCodeInputSchema } from "./coupons";
+import { MAX_PRODUCT_IMAGES } from "./media";
 import {
   COOLING_BANDS,
   productFilsSchema,
@@ -145,7 +146,10 @@ export const storeProductResponseSchema = z.strictObject({
     .min(1)
     .max(500),
   soldOut: z.boolean(),
-  images: z.array(storeImageSchema).max(8),
+  /** `variantId`: the flavour a picture shows (ADR 0107); the product page brings it forward. */
+  images: z
+    .array(storeImageSchema.extend({ variantId: z.uuid().nullable() }))
+    .max(MAX_PRODUCT_IMAGES),
   /** From approved reviews only (step 95); null while none is approved. */
   rating: storeRatingSchema.nullable(),
   /** The newest approved reviews. */

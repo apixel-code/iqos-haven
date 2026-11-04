@@ -5,6 +5,7 @@ import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import type { StoreProductResponse } from "@ih/contracts";
 import { CART_LIMITS } from "@/lib/cart/cart";
 import { addToCart } from "@/lib/cart/store";
+import { announceVariant, variantThumb } from "@/lib/store/flavour-picture";
 import { discountPercent } from "@/lib/store/listing";
 import { toast } from "@/lib/ui/toast";
 import {
@@ -49,7 +50,7 @@ export function addVariant(product: StoreProductResponse, variant: Variant, quan
   const item: AddedItem = {
     title: "Added to cart",
     sub: chosen ? `${product.name} · ${chosen}` : product.name,
-    image: product.images[0]?.urls.thumb ?? null,
+    image: variantThumb(product, variant.id),
   };
   return { result, item };
 }
@@ -126,6 +127,11 @@ export function BuyBox({
   }, [compact]);
   const selection = resolveSelection(product, chosen);
   const variant = "variant" in selection ? selection.variant : null;
+  // The gallery brings the chosen flavour's picture forward (ADR 0107).
+  const chosenId = variant?.id ?? null;
+  useEffect(() => {
+    if (!compact) announceVariant(product.slug, chosenId);
+  }, [compact, product.slug, chosenId]);
   const prices = product.variants.map((item) => item.priceFils);
   const lowest = Math.min(...prices);
   const priceFils = variant ? variant.priceFils : lowest;

@@ -41,7 +41,7 @@ The prototypes define the visual and interaction contract. Production code imple
 | Area | Storefront requirement | Admin requirement | Owning domain |
 | --- | --- | --- | --- |
 | Age gate | 18+ interstitial; rejection page; remembered decision; second checkout confirmation | Copy and duration in controlled configuration; no MVP management screen | Compliance |
-| Catalogue | Disposables and kits; options, specs; New/Sale/Sold-out badges; up to eight images | Draft/publish, CRUD, trash, restore; actual variant rows | Catalogue |
+| Catalogue | Disposables and kits; options, specs; New/Sale/Sold-out badges; up to 24 images, each optionally showing one flavour (ADR 0107) | Draft/publish, CRUD, trash, restore; actual variant rows | Catalogue |
 | Categories and brands | Navigation, brand pages, Shop by Brand | CRUD, ordering, active toggle, logos, trash/restore | Catalogue |
 | Search and filters | Suggestions; category, brand, price, puffs, nicotine, stock and sale facets; sorting | Search demand and no-result reports | Search / analytics |
 | Cart | Device persistence, quick add, totals preview; delivery progress only when enabled | — | Pricing / client state |

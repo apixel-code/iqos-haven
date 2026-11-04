@@ -8,7 +8,7 @@ import {
   loadLocalEnvFile,
   storageIntegrationTestEnvSchema,
 } from "@ih/config";
-import type { MediaAsset, MediaUploadResponse } from "@ih/contracts";
+import { MAX_PRODUCT_IMAGES, type MediaAsset, type MediaUploadResponse } from "@ih/contracts";
 import { authorizeMediaUpload, createDatabase, createPool } from "@ih/db";
 import { applyMigrations } from "@ih/db/testing";
 import { Argon2PasswordHasher, ObjectStorage, storageConfigFromEnv } from "@ih/platform";
@@ -252,17 +252,17 @@ describe("quarantine upload authorization (real API, PostgreSQL and MinIO)", () 
     expect(await db.mediaAsset.count({ where: { productId: row.id } })).toBe(0);
   });
 
-  it("enforces the eight-image limit under concurrency; expired grants free their slot", async () => {
+  it("enforces the image limit under concurrency; expired grants free their slot", async () => {
     const row = await product();
     const results = await Promise.allSettled(
-      Array.from({ length: 12 }, () =>
+      Array.from({ length: MAX_PRODUCT_IMAGES + 4 }, () =>
         authorizeMediaUpload(db, { actorId: ownerId, requestId: randomUUID() }, row.id, {
           contentType: "image/png",
           bytes: 100,
         }),
       ),
     );
-    expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(8);
+    expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(MAX_PRODUCT_IMAGES);
     expect(
       await code(
         await call(`/products/${row.id}/media/uploads`, "POST", {
@@ -286,7 +286,7 @@ describe("quarantine upload authorization (real API, PostgreSQL and MinIO)", () 
     const list = (await (await call(`/products/${row.id}/media`)).json()) as {
       items: MediaAsset[];
     };
-    expect(list.items).toHaveLength(9);
+    expect(list.items).toHaveLength(MAX_PRODUCT_IMAGES + 1);
     expect(list.items.filter((i) => i.state === "expired")).toHaveLength(1);
   });
 

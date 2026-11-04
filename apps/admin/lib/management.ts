@@ -1,4 +1,5 @@
 import {
+  MAX_PRODUCT_IMAGES,
   settingsWriteRequestSchema,
   deliveryConfigurationWriteRequestSchema,
   type SettingsWriteRequest,
@@ -171,9 +172,11 @@ export function managementError(error: unknown, mutation = false) {
     if (error.status === 409 && error.code === "DUPLICATE")
       return "That name or link is already used (including in Trash). Choose another.";
     if (error.status === 409 && error.code === "IMAGE_LIMIT")
-      return "This product already has eight images or uploads in progress. Remove one first.";
+      return `This product already has ${MAX_PRODUCT_IMAGES} images or uploads in progress. Remove one first.`;
     if (error.status === 409 && error.code === "MEDIA_NOT_READY")
       return "This image is not processed yet. Wait for it to be ready.";
+    if (error.status === 409 && error.code === "VARIANT_MISMATCH")
+      return "That flavour is not one of this product's. Reload and choose again.";
     if (error.status === 409 && error.code === "ORDER_MISMATCH")
       return "The gallery changed meanwhile. Reload and arrange again.";
     if (error.status === 409 && error.code === "UPLOAD_EXPIRED")

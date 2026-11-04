@@ -28,7 +28,7 @@ import {
  * Product image gallery (roadmap step 50, ADR 0020). Every mutation locks the actor, then the
  * product row FOR UPDATE, which serializes the cross-row rules: at most eight images, exactly one
  * primary while any exist, a dense sort order, and only `ready` assets of the same product (also
- * enforced by a DB trigger). Images reference sanitized derivative keys; callers sign short-lived
+ * enforced by a DB trigger), and at most one picture per flavour (ADR 0107). Images reference sanitized derivative keys; callers sign short-lived
  * links for display. A removed image marks its asset `removed` (frees the slot, keeps history).
  */
 export interface GalleryImageRow {
@@ -39,13 +39,14 @@ export interface GalleryImageRow {
   alt: string;
   width: number;
   height: number;
+  variantId: string | null;
   version: number;
   derivativeKeys: Record<string, string>;
 }
 
 const IMAGES = (productId: string) => Prisma.sql`
   SELECT i.id, i.media_asset_id AS "mediaAssetId", i.is_primary AS "isPrimary",
-    i.sort_order AS "sortOrder", i.alt, i.width, i.height, i.version,
+    i.sort_order AS "sortOrder", i.alt, i.width, i.height, i.variant_id AS "variantId", i.version,
     m.derivative_keys AS "derivativeKeys"
   FROM product_images i JOIN media_assets m ON m.id=i.media_asset_id
   WHERE i.product_id=${productId}::uuid ORDER BY i.sort_order, i.id`;
@@ -201,8 +202,23 @@ export async function updateGalleryImage(
     if (!image) throw new CatalogueNotFoundError();
     if (image.version !== command.version) throw new CatalogueConflictError("VERSION_CONFLICT");
     if (image.isPrimary && !command.isPrimary) throw new CatalogueConflictError("DEFAULT_REQUIRED");
-    if (image.alt === command.alt && image.isPrimary === command.isPrimary)
+    const variantId = command.variantId === undefined ? image.variantId : command.variantId;
+    if (
+      image.alt === command.alt &&
+      image.isPrimary === command.isPrimary &&
+      image.variantId === variantId
+    )
       return gallery(tx, productId);
+    if (variantId !== image.variantId && variantId !== null) {
+      const [variant] = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+        SELECT id FROM variants WHERE id=${variantId}::uuid AND product_id=${productId}::uuid`);
+      if (!variant) throw new CatalogueConflictError("VARIANT_MISMATCH");
+      // One picture per flavour: the flavour moves here from any other picture.
+      await tx.$executeRaw(Prisma.sql`
+        UPDATE product_images SET variant_id=NULL, version=version+1,
+          updated_at=statement_timestamp()
+        WHERE product_id=${productId}::uuid AND variant_id=${variantId}::uuid`);
+    }
     if (command.isPrimary && !image.isPrimary)
       await tx.$executeRaw(Prisma.sql`
         UPDATE product_images SET is_primary=false, version=version+1,
@@ -210,11 +226,13 @@ export async function updateGalleryImage(
         WHERE product_id=${productId}::uuid AND is_primary`);
     await tx.$executeRaw(Prisma.sql`
       UPDATE product_images SET alt=${command.alt}, is_primary=${command.isPrimary},
-        version=version+1, updated_at=statement_timestamp()
+        variant_id=${variantId}::uuid, version=version+1, updated_at=statement_timestamp()
       WHERE id=${imageId}::uuid`);
     await record(tx, context, productId, "updated", imageId, {
       isPrimary: command.isPrimary,
       altChanged: image.alt !== command.alt,
+      variantChanged: image.variantId !== variantId,
+      variantId,
     });
     return gallery(tx, productId);
   });

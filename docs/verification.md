@@ -2876,3 +2876,13 @@ Server `srv2113068`, 201.18.206.74, Mumbai (ADR 0100 update). Release a520471 (b
 | Live tracking                | PASS: `/track` 200; legacy IH-001001 → 404 not found; API without an age ticket → 403.                |
 | Live storefront (no ticket)  | PASS: home redirects (307) with no product data.                                                      |
 | Designed banner, real upload | NOT RUN: no client banner uploaded yet.                                                               |
+
+## ADR 0107 — flavour pictures (2026-11-05, local)
+
+| Check                  | Result                                                                                                                                                                                                                                                                  |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm verify`          | PASS (storefront: flavour picture lookup and toast thumbnail)                                                                                                                                                                                                           |
+| `pnpm test:migrations` | PASS (expand-only)                                                                                                                                                                                                                                                      |
+| `pnpm test:int`        | platform 7, db 144, worker 93 PASS; api 432/434: the two dashboard tests fail between 00:00 and 03:00 Dubai, also on `main` (ADR 0107). Media and store files rerun: 32/32 PASS (new: link, move, mismatch, clear, DB FK and uniqueness, store hides inactive flavours) |
+| Browser                | PASS at 390 and 1280 px: `flavour-pictures.mjs` (main picture first; mint and grape bring their pack forward; toast shows grape)                                                                                                                                        |
+| Admin select           | NOT RUN in a browser; the command is covered by the API tests.                                                                                                                                                                                                          |
