@@ -136,12 +136,22 @@ describe("versioned form payloads", () => {
       settingsCommand(
         "store",
         0,
-        data({ name: " Store ", domain: "store.example.test", legalName: "" }),
+        data({
+          name: " Store ",
+          domain: "store.example.test",
+          legalName: "",
+          tradeLicence: " CN-1234567 ",
+        }),
       ),
     ).toEqual({
       key: "store",
       version: 0,
-      value: { name: "Store", domain: "store.example.test", legalName: null },
+      value: {
+        name: "Store",
+        domain: "store.example.test",
+        legalName: null,
+        tradeLicence: "CN-1234567",
+      },
     });
     expect(
       settingsCommand(

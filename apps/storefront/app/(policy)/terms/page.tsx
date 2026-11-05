@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { readBusiness } from "@/lib/business";
 import { SITE } from "@/lib/site";
 import { PolicyPage, PolicySection, PolicyUpdated } from "../policy-page";
 
@@ -9,7 +10,8 @@ export const metadata: Metadata = { title: `Terms & conditions · ${SITE.name}` 
  * states, ADR 0102 confirmation email); returns rules approved by the client 2026-11-02. Not
  * legal advice.
  */
-export default function TermsPage() {
+export default async function TermsPage() {
+  const { legalName, tradeLicence } = await readBusiness();
   return (
     <PolicyPage title="Terms & conditions">
       <PolicyUpdated />
@@ -24,6 +26,14 @@ export default function TermsPage() {
         by Philip Morris International; IQOS, ILUMA and TEREA are trademarks of their respective
         owners. Every product we sell is supplied in its original factory-sealed packaging.
       </p>
+
+      {/* The Owner's details from Admin → Settings → Store (ADR 0106); hidden until entered. */}
+      {(legalName || tradeLicence) && (
+        <p>
+          The store is operated by {legalName ?? SITE.name}
+          {tradeLicence && <>, UAE trade licence no. {tradeLicence}</>}.
+        </p>
+      )}
 
       <PolicySection id="eligibility" title="1. Who can buy">
         <ul className="list-disc space-y-1 pl-5">
