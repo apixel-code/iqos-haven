@@ -27,6 +27,11 @@ export const storeSettingsSchema = z.strictObject({
     .max(253)
     .regex(/^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/),
   legalName: text(200).nullable(),
+  /**
+   * UAE trade licence number, shown with the legal name in the shop footer and the terms (ADR
+   * 0106). Defaults to null so that values saved before it still read.
+   */
+  tradeLicence: text(100).nullable().default(null),
 });
 export const contactSettingsSchema = z.strictObject({
   email: z.email().max(254).nullable(),
@@ -72,6 +77,15 @@ export const whatsappSettingsSchema = z.strictObject({
     support: template,
   }),
 });
+/**
+ * `GET /v1/public/business` (ADR 0106): the business details every visitor may see, with or
+ * without an age ticket. Business facts only, never catalogue data.
+ */
+export const publicBusinessSchema = z.strictObject({
+  legalName: z.string().max(200).nullable(),
+  tradeLicence: z.string().max(100).nullable(),
+});
+export type PublicBusiness = z.infer<typeof publicBusinessSchema>;
 const values = {
   store: storeSettingsSchema,
   contact: contactSettingsSchema,

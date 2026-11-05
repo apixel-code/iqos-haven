@@ -2877,6 +2877,15 @@ Server `srv2113068`, 201.18.206.74, Mumbai (ADR 0100 update). Release a520471 (b
 | Live storefront (no ticket)  | PASS: home redirects (307) with no product data.                                                      |
 | Designed banner, real upload | NOT RUN: no client banner uploaded yet.                                                               |
 
+## ADR 0106 — trade licence number and public business details (2026-11-04, local)
+
+| Check                   | Result                                                                                                                      |
+| ----------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm verify`           | PASS (admin: the store command carries the licence; storefront: business reader fails closed, held a minute)                |
+| `pnpm test:age-preview` | PASS, 2256 checks (new: footer and terms show the legal name and licence; public reads carry no cookie)                     |
+| `pnpm test:int`         | PASS: platform 7, db 144, worker 93, api 434 (new: public route without a session, old value reads, no other settings leak) |
+| Browser                 | NOT RUN for the admin field; the storefront HTML is covered by the age-preview checks.                                      |
+
 ## ADR 0107 — flavour pictures (2026-11-05, local)
 
 | Check                  | Result                                                                                                                                                                                                                                                                  |

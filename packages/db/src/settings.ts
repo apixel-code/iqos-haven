@@ -3,7 +3,9 @@ import {
   settingsWriteRequestSchema,
   settingResponseSchema,
   settingKeySchema,
+  storeSettingsSchema,
   defineEvent,
+  type PublicBusiness,
   type SettingsWriteRequest,
 } from "@ih/contracts";
 import { toAuditEntry, type CommandContext } from "@ih/application";
@@ -44,6 +46,17 @@ export async function readSettings(db: Database, actorId: string) {
       ),
     ),
   };
+}
+/**
+ * The public business details (ADR 0106): legal name and trade licence number from the store
+ * setting, and nothing else from `settings`. Not configured (or not readable) reads as nulls.
+ */
+export async function readPublicBusiness(db: Database): Promise<PublicBusiness> {
+  const row = await db.setting.findUnique({ where: { key: "store" } });
+  const store = storeSettingsSchema.safeParse(row?.value);
+  return store.success
+    ? { legalName: store.data.legalName, tradeLicence: store.data.tradeLicence }
+    : { legalName: null, tradeLicence: null };
 }
 export async function writeSetting(
   db: Database,

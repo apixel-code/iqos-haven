@@ -99,6 +99,7 @@ export function settingsCommand(
       name: text(data, "name"),
       domain: text(data, "domain"),
       legalName: optional(data, "legalName"),
+      tradeLicence: optional(data, "tradeLicence"),
     };
   if (key === "contact")
     value = {

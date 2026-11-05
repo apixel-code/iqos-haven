@@ -31,7 +31,18 @@ const groups: Array<{
         max: 253,
         help: "Lower-case hostname, without https:// or a path.",
       },
-      { name: "legalName", label: "Business name", max: 200 },
+      {
+        name: "legalName",
+        label: "Business name",
+        max: 200,
+        help: "The legal name on the trade licence. Shown in the shop footer and the terms.",
+      },
+      {
+        name: "tradeLicence",
+        label: "Trade licence number",
+        max: 100,
+        help: "Shown with the business name in the shop footer and the terms.",
+      },
     ],
   },
   {
