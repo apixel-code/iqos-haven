@@ -43,3 +43,30 @@ check "$IH_PORT_ADMIN" "$IH_HOST_ADMIN" /health 200
 check "$IH_PORT_STORE" "$IH_HOST_STORE" /api/v1/admin/staff 404
 mv "$joined" release.current.env
 echo "Released $(grep '^# Release' "$release") to $IH_PROJECT"
+
+# Old release images (ADR 0109): each release pulls six images (~3 GB), and nothing removed them,
+# so the disk filled. After a good release, remove this app's images that no container on this
+# host runs (staging and production share the daemon) and that the newest IH_KEEP_RELEASES release
+# files (default 2: this one and the one before, for a rollback) do not name. Other images
+# (postgres, redis, minio, caddy, mailpit) are never touched. Images stay in GHCR by digest, so an
+# older release can still be deployed: it is pulled again. A failure here never fails the release.
+prune_images() {
+  keep=".release.keep"
+  # Full image IDs of every container on this host, running or stopped, of any project.
+  docker ps -aq | xargs -r docker inspect --format '{{.Image}}' > "$keep"
+  # shellcheck disable=SC2012 # release names are hex hashes, ls -t is safe
+  ls -t releases/*.env 2>/dev/null | head -n "${IH_KEEP_RELEASES:-2}" | while read -r file; do
+    sed -n 's/^IH_IMAGE_[A-Z]*=//p' "$file"
+  done >> "$keep"
+  removed=0
+  docker images --digests --no-trunc --format '{{.Repository}} {{.Digest}} {{.ID}}' \
+    | grep '^ghcr.io/apixel-code/iqos-haven-' > .release.images || true
+  while read -r repo digest id; do
+    grep -qxF "$repo@$digest" "$keep" && continue
+    grep -qxF "$id" "$keep" && continue
+    docker rmi "$id" > /dev/null 2>&1 && removed=$((removed + 1))
+  done < .release.images
+  rm -f "$keep" .release.images
+  echo "Removed $removed old release image(s); kept the newest ${IH_KEEP_RELEASES:-2} releases and every image in use"
+}
+prune_images || echo "Image clean-up skipped (the release itself succeeded)" >&2

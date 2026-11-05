@@ -2912,3 +2912,10 @@ Server `srv2113068`, 201.18.206.74, Mumbai (ADR 0100 update). Release a520471 (b
 | `pnpm verify`           | PASS                                                                                                                                                                          |
 | `pnpm test:age-preview` | PASS, 2257 checks                                                                                                                                                             |
 | Fit on phones           | PASS: the new CSS applied in a browser on the live home page, all three slides at 360×800, 375×667, 390×844, 412×915 and 360×640; button and dots above the bottom navigation |
+
+## ADR 0109 — release image clean-up (2026-11-05)
+
+| Check          | Result                                                                                                                                                                           |
+| -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `sh -n`        | PASS                                                                                                                                                                             |
+| Dry run on VPS | Read-only, the same selection without `docker rmi`: keep 12 (newest two releases × 6), remove 54 of 66 app images; the 4 running app images are also kept by full image ID alone |
