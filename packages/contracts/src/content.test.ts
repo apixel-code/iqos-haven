@@ -91,6 +91,24 @@ describe("content section schemas (step 96)", () => {
     });
   });
 
+  it("takes a photo slide only with its picture, in either text colour (ADR 0108)", () => {
+    const v3 = contentSchema("hero", 3);
+    const picture = { assetId: "01a1a051-f525-76f9-9f0c-31cd249711c3", alt: "IQOS ILUMA i range" };
+    const photo = {
+      style: "photo-light",
+      eyebrow: "New",
+      title: "IQOS ILUMA i",
+      subtitle: "Four colours.",
+      cta: { label: "Shop", link: { kind: "shop" } },
+      secondaryCta: { label: "TEREA", link: { kind: "shop" } },
+      image: picture,
+      mobileImage: null,
+    };
+    expect(v3.safeParse({ slides: [photo, { ...photo, style: "photo-dark" }] }).success).toBe(true);
+    expect(v3.safeParse({ slides: [{ ...photo, image: null }] }).success).toBe(false);
+    expect(v3.safeParse({ slides: [{ ...photo, style: "photo" }] }).success).toBe(false);
+  });
+
   it("keeps text plain: trimmed, one line, no markup or hidden characters", () => {
     const ok = parse("ticker", { enabled: true, messages: ["  Cash on   delivery ", "UAE-wide"] });
     expect(ok.success && ok.data).toEqual({

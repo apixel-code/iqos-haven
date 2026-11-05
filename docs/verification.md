@@ -2895,3 +2895,12 @@ Server `srv2113068`, 201.18.206.74, Mumbai (ADR 0100 update). Release a520471 (b
 | `pnpm test:int`        | platform 7, db 144, worker 93 PASS; api 432/434: the two dashboard tests fail between 00:00 and 03:00 Dubai, also on `main` (ADR 0107). Media and store files rerun: 32/32 PASS (new: link, move, mismatch, clear, DB FK and uniqueness, store hides inactive flavours) |
 | Browser                | PASS at 390 and 1280 px: `flavour-pictures.mjs` (main picture first; mint and grape bring their pack forward; toast shows grape)                                                                                                                                        |
 | Admin select           | NOT RUN in a browser; the command is covered by the API tests.                                                                                                                                                                                                          |
+
+## ADR 0108 — hero photo slides (2026-11-05, local)
+
+| Check                   | Result                                                                                                                                          |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm verify`           | PASS (contracts: photo looks need their picture; unknown look rejected)                                                                         |
+| `pnpm test:age-preview` | PASS, 2257 checks (new: a photo slide shows its words and button over its wide and phone pictures; unverified visitors still see none)          |
+| Layout                  | PASS at 1440 and 390 px: a static page with the storefront CSS and the client's pictures (words left over the fade; phone: picture, then words) |
+| `pnpm test:int`         | NOT RUN: no database or API change (a new value in a JSON content enum only)                                                                    |

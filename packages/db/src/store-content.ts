@@ -37,7 +37,7 @@ export interface PublishedHome {
   ticker: { messages: string[] } | null;
   heroSlides: Array<
     HomeBanner & {
-      style: "navy" | "lilac" | "coral" | "banner";
+      style: "navy" | "lilac" | "coral" | "banner" | "photo-light" | "photo-dark";
       eyebrow: string | null;
       secondaryCta: HomeLink | null;
       mobileImage: StoreImageRow | null;
