@@ -2904,3 +2904,11 @@ Server `srv2113068`, 201.18.206.74, Mumbai (ADR 0100 update). Release a520471 (b
 | `pnpm test:age-preview` | PASS, 2257 checks (new: a photo slide shows its words and button over its wide and phone pictures; unverified visitors still see none)          |
 | Layout                  | PASS at 1440 and 390 px: a static page with the storefront CSS and the client's pictures (words left over the fade; phone: picture, then words) |
 | `pnpm test:int`         | NOT RUN: no database or API change (a new value in a JSON content enum only)                                                                    |
+
+## ADR 0108 follow-up — photo slide fits the phone screen (2026-11-05)
+
+| Check                   | Result                                                                                                                                                                        |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm verify`           | PASS                                                                                                                                                                          |
+| `pnpm test:age-preview` | PASS, 2257 checks                                                                                                                                                             |
+| Fit on phones           | PASS: the new CSS applied in a browser on the live home page, all three slides at 360×800, 375×667, 390×844, 412×915 and 360×640; button and dots above the bottom navigation |

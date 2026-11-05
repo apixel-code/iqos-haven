@@ -29,6 +29,7 @@ Neither suits a photograph that needs the shop's own words over it. Marina chose
   - The phone picture (or the wide one, cropped square) comes first at full width.
   - The words follow on a plain panel, so they never cover the product.
   - As on the other looks, the second button is hidden below 720 px.
+  - The slide fits the first screen (Marina 2026-11-05, after the first release). It is as tall as the space left between the search bar and the bottom navigation, and the picture takes whatever the words leave, so the button and the dots never sit behind the navigation. It is at least 400 px tall, and at most a square picture plus the words. The phone text is a little smaller.
 - **Missing picture:** if the picture is missing (not processed yet), the slide falls back to the lilac or navy look with the same text colour.
 - **Admin:** the Look select gains "Photo with dark text (bright picture)" and "Photo with light text (dark picture)". A short help text appears, the picture hint asks for a 3 : 1 photo with the product on the right, and the phone picture field shows.
 
