@@ -5326,16 +5326,54 @@
       max-width: min(46%, 560px);
     }
   }
+  /*
+   * store: on phones a photo slide fits the first screen (Marina 2026-11-05): the slide is as
+   * tall as what is left between the search bar (the hero starts about 173 px down) and the
+   * bottom navigation (62 px + safe area), and the picture takes whatever the words leave, so
+   * the button and the dots are never behind the navigation. Very tall phones stop at a square
+   * picture plus the words; very short ones scroll a little rather than squash the picture.
+   */
   @media (max-width: 719px) {
     .hb-slide.s-photo {
-      padding: 0 0 56px;
+      height: calc(100vh - 236px - env(safe-area-inset-bottom, 0px));
+      height: calc(100dvh - 236px - env(safe-area-inset-bottom, 0px));
+      min-height: 400px;
+      max-height: calc(100vw + 260px);
+      padding: 0 0 40px;
+      gap: 12px;
     }
     .hb-photo {
-      aspect-ratio: 1 / 1;
-      margin-bottom: 4px;
+      flex: 1 1 0;
+      min-height: 140px;
+      overflow: hidden;
+    }
+    .hb-photo img {
+      object-position: center;
     }
     .s-photo .hb-copy {
+      flex: none;
       padding: 0 20px;
+      gap: 8px;
+    }
+    .s-photo .hb-eyebrow {
+      height: 24px;
+      font-size: 11px;
+    }
+    .s-photo .hb-title {
+      font-size: clamp(21px, 6.2vw, 26px);
+    }
+    .s-photo .hb-sub {
+      font-size: 13.5px;
+      line-height: 1.45;
+    }
+    .s-photo .hb-ctas {
+      margin-top: 2px;
+    }
+    .s-photo .hb-ctas .btn {
+      height: 44px;
+    }
+    .hb-main[data-look^="photo"] .hb-ui {
+      bottom: 8px;
     }
   }
 
