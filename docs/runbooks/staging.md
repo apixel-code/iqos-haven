@@ -44,8 +44,9 @@ Staging directory on the server: `/opt/iqos-staging`. It holds:
 1. Merge to `main`. The **Images** workflow pushes five images and shows `release.env`, with digests, in its summary.
 2. Put that file on the server as `releases/<sha>.env` and run `./deploy.sh releases/<sha>.env`.
 3. Exit 0 means migrations were applied, every service is healthy and the smoke checks passed.
+4. Afterwards `deploy.sh` removes old release images (ADR 0109). It keeps every image a container on the host uses (staging and production share the Docker daemon) and the images of the newest two release files (`IH_KEEP_RELEASES`, default 2). A clean-up failure never fails the release.
 
-**Roll back:** run `./deploy.sh` with the previous release file. This works only while the schema is compatible (deploy-and-rollback.md).
+**Roll back:** run `./deploy.sh` with the previous release file. This works only while the schema is compatible (deploy-and-rollback.md). An older release whose images were removed is pulled again from GHCR by digest.
 
 ## Operator commands on staging
 
