@@ -259,7 +259,12 @@ export class StoreCatalogService {
         return {
           ...product,
           specs: this.specs(product.type, product.specs),
-          images: await Promise.all(product.images.map((row) => this.image(row))),
+          images: await Promise.all(
+            product.images.map(async ({ variantId, ...row }) => ({
+              ...(await this.image(row)),
+              variantId,
+            })),
+          ),
         };
       });
     } catch (error) {

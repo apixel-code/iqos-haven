@@ -336,6 +336,16 @@ describe("gated store catalogue reads (real API, PostgreSQL, Ed25519 ticket)", (
       ],
       images: 2,
     });
+    // Flavour pictures (ADR 0107): the first shows "mint"; the second an inactive flavour.
+    const [, mintVariant, , retiredVariant] = seeded.variants;
+    for (const [assetId, variantId] of [
+      [seeded.assets[0]!, mintVariant!.id],
+      [seeded.assets[1]!, retiredVariant!.id],
+    ])
+      await pool.query("UPDATE product_images SET variant_id=$1 WHERE media_asset_id=$2", [
+        variantId,
+        assetId,
+      ]);
     await cache.invalidate();
     const response = await get(`/products/${seeded.slug}`);
     const text = await response.text();
@@ -392,6 +402,8 @@ describe("gated store catalogue reads (real API, PostgreSQL, Ed25519 ticket)", (
         expect(url).not.toContain("quarantine");
       }
     expect(detail.images[0]!.urls.thumb).toContain(seeded.assets[0]!);
+    // A picture names its flavour only while that flavour is on sale.
+    expect(detail.images.map((image) => image.variantId)).toEqual([mintVariant!.id, null]);
 
     const [card] = (await all(`brand=${brand.slug}`)).filter((item) => item.slug === seeded.slug);
     expect(card).toMatchObject({

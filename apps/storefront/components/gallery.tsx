@@ -1,19 +1,50 @@
 "use client";
 
-import { useEffect, useRef, useState, type MouseEvent } from "react";
-import type { StoreImage } from "@ih/contracts";
+import { useCallback, useEffect, useRef, useState, type MouseEvent } from "react";
+import type { StoreImage, StoreProductResponse } from "@ih/contracts";
 import { Icon } from "@/components/icons";
+import { pictureIndex, VARIANT_CHOSEN, type VariantChosen } from "@/lib/store/flavour-picture";
 
 /**
  * Product images (prototype `gal`, parity G-S12): a scroll-snap track that swipes on phones,
  * dots under it on phones and thumbnails from 720px. "Zoom" opens the large image in a modal
  * dialog; there a click (or Enter) toggles 2× magnification at the pointer and the arrow keys
- * step through the images. The prototype's "Demo render" pill is not carried over.
+ * step through the images. The prototype's "Demo render" pill is not carried over. Choosing a
+ * flavour in the buy box brings that flavour's picture into view (ADR 0107).
  */
-export function Gallery({ images, name }: { images: readonly StoreImage[]; name: string }) {
+export function Gallery({
+  images,
+  name,
+  productSlug,
+}: {
+  images: StoreProductResponse["images"];
+  name: string;
+  productSlug: string;
+}) {
   const [index, setIndex] = useState(0);
   const [zoomOpen, setZoomOpen] = useState(false);
   const track = useRef<HTMLDivElement>(null);
+  const show = useCallback((position: number, smooth = true) => {
+    const element = track.current;
+    if (!element) return;
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    element.scrollTo({
+      left: position * element.clientWidth,
+      behavior: smooth && !reduced ? "smooth" : "instant",
+    });
+    setIndex(position);
+  }, []);
+
+  useEffect(() => {
+    const onChosen = (event: Event) => {
+      const { detail } = event as VariantChosen;
+      if (detail.productSlug !== productSlug) return;
+      const at = pictureIndex(images, detail.variantId);
+      if (at >= 0) show(at);
+    };
+    window.addEventListener(VARIANT_CHOSEN, onChosen);
+    return () => window.removeEventListener(VARIANT_CHOSEN, onChosen);
+  }, [images, productSlug, show]);
 
   if (images.length === 0)
     return (
@@ -32,16 +63,6 @@ export function Gallery({ images, name }: { images: readonly StoreImage[]; name:
     if (!element || element.clientWidth === 0) return;
     const shown = Math.round(element.scrollLeft / element.clientWidth);
     setIndex(Math.min(images.length - 1, Math.max(0, shown)));
-  };
-  const show = (position: number, smooth = true) => {
-    const element = track.current;
-    if (!element) return;
-    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    element.scrollTo({
-      left: position * element.clientWidth,
-      behavior: smooth && !reduced ? "smooth" : "instant",
-    });
-    setIndex(position);
   };
 
   return (

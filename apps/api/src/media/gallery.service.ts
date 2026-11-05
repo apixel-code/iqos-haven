@@ -77,6 +77,7 @@ export class GalleryService {
           alt: row.alt,
           width: row.width,
           height: row.height,
+          variantId: row.variantId,
           version: row.version,
           urls,
         };

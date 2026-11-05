@@ -2,14 +2,17 @@
 import { confirmDialog } from "../lib/ui/confirm";
 import { useEffect, useId, useState } from "react";
 import {
+  MAX_PRODUCT_IMAGES,
   mediaAssetSchema,
   mediaUploadResponseSchema,
   productGalleryResponseSchema,
+  productVariantsResponseSchema,
   type GalleryImage,
   type ProductGalleryResponse,
 } from "@ih/contracts";
 import { managementRequest, validate } from "../lib/management";
 import { moved, movedTo, rejectionMessage, uploadForm, uploadRequestFor } from "../lib/media";
+import { describeAttributes } from "../lib/variants";
 import { galleryUpdateRequestSchema } from "@ih/contracts";
 import { Icon } from "./icons";
 import { ResourceNotice, useManagementResource } from "./management-resource";
@@ -18,11 +21,20 @@ import { Modal } from "./overlays";
 /**
  * Product images (steps 48–50). Files go straight to private quarantine storage with a
  * short-lived policy; the worker validates and re-encodes them; only processed images can join
- * the gallery. Previews are short-lived signed links to sanitized derivatives.
+ * the gallery. Previews are short-lived signed links to sanitized derivatives. A picture can show
+ * one flavour (ADR 0107): choosing that flavour on the product page brings it forward.
  */
 export function ProductImages({ productId, canWrite }: { productId: string; canWrite: boolean }) {
   const path = `/products/${productId}/images`;
   const gallery = useManagementResource(path, productGalleryResponseSchema);
+  const variants = useManagementResource(
+    `/products/${productId}/variants`,
+    productVariantsResponseSchema,
+  ).data?.variants;
+  const flavourOf = (variantId: string | null) => {
+    const variant = variantId ? variants?.find((row) => row.id === variantId) : undefined;
+    return variant ? Object.values(variant.attributes).join(" / ") : null;
+  };
   const data = gallery.data;
   const [note, setNote] = useState("");
   // Only uploads the worker is handling drive polling; a pending grant just waits for its file.
@@ -104,13 +116,23 @@ export function ProductImages({ productId, canWrite }: { productId: string; canW
         signal,
       ),
     );
-  const update = (image: GalleryImage, alt: string, isPrimary: boolean) =>
+  const update = (
+    image: GalleryImage,
+    alt: string,
+    isPrimary: boolean,
+    variantId: string | null = image.variantId,
+  ) =>
     save((signal) =>
       managementRequest(
         `/products/${productId}/images/${image.id}`,
         productGalleryResponseSchema,
         "PATCH",
-        validate(galleryUpdateRequestSchema, { version: image.version, alt, isPrimary }),
+        validate(galleryUpdateRequestSchema, {
+          version: image.version,
+          alt,
+          isPrimary,
+          variantId,
+        }),
         signal,
       ),
     );
@@ -193,6 +215,9 @@ export function ProductImages({ productId, canWrite }: { productId: string; canW
                 />
                 {image.isPrimary && <span className="prim">Primary</span>}
                 {!image.alt && <span className="noalt">No alt text</span>}
+                {flavourOf(image.variantId) && (
+                  <span className="flav">{flavourOf(image.variantId)}</span>
+                )}
                 {canWrite && (
                   <>
                     <span className="grip" aria-hidden="true">
@@ -219,7 +244,7 @@ export function ProductImages({ productId, canWrite }: { productId: string; canW
                       )}
                       <button
                         type="button"
-                        aria-label={`Alt text of image ${index + 1}`}
+                        aria-label={`Alt text and flavour of image ${index + 1}`}
                         disabled={locked}
                         onClick={() => setEditing(image)}
                       >
@@ -324,7 +349,7 @@ export function ProductImages({ productId, canWrite }: { productId: string; canW
             <b>Drag images here or browse</b>
             <span className="small muted">
               PNG, JPG or WebP · 200–8000 px a side, square from 1000 px looks best · up to 8 MB
-              each · up to 8 images
+              each · up to {MAX_PRODUCT_IMAGES} images
             </span>
             <input
               type="file"
@@ -352,15 +377,15 @@ export function ProductImages({ productId, canWrite }: { productId: string; canW
       <Modal
         open={editing !== null}
         onClose={() => setEditing(null)}
-        title="Alt text"
-        sub="Describes the image for people using screen readers."
+        title="Image details"
+        sub="Alt text describes the image for people using screen readers. A flavour picture comes forward when a shopper chooses that flavour."
         foot={
           <>
             <button type="button" className="btn btn-s" onClick={() => setEditing(null)}>
               Cancel
             </button>
             <button type="submit" form={altForm} className="btn btn-p" disabled={locked}>
-              Save alt text
+              Save
             </button>
           </>
         }
@@ -373,9 +398,11 @@ export function ProductImages({ productId, canWrite }: { productId: string; canW
             onSubmit={(e) => {
               e.preventDefault();
               const image = editing;
-              const alt = String(new FormData(e.currentTarget).get("alt") ?? "").trim();
+              const form = new FormData(e.currentTarget);
+              const alt = String(form.get("alt") ?? "").trim();
+              const variantId = String(form.get("variantId") ?? "") || null;
               setEditing(null);
-              void update(image, alt, image.isPrimary);
+              void update(image, alt, image.isPrimary, variantId);
             }}
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -394,6 +421,30 @@ export function ProductImages({ productId, canWrite }: { productId: string; canW
                 placeholder="e.g. Orbe Halo 7K in Grape Ice, front view"
               />
             </div>
+            {variants && variants.length > 1 && (
+              <div className="field">
+                <label className="label" htmlFor="image-flavour">
+                  Flavour shown
+                </label>
+                <select
+                  id="image-flavour"
+                  className="select"
+                  name="variantId"
+                  defaultValue={editing.variantId ?? ""}
+                >
+                  <option value="">None (a general picture)</option>
+                  {variants.map((variant) => (
+                    <option key={variant.id} value={variant.id}>
+                      {describeAttributes(variant.attributes)}
+                      {variant.active ? "" : " (inactive)"}
+                    </option>
+                  ))}
+                </select>
+                <p className="help">
+                  One picture per flavour: choosing a flavour another picture shows moves it here.
+                </p>
+              </div>
+            )}
           </form>
         )}
       </Modal>

@@ -48,6 +48,8 @@ export const CONFLICT_CODES = [
   "UPLOAD_EXPIRED",
   "MEDIA_NOT_READY",
   "ORDER_MISMATCH",
+  /** A flavour picture must show a flavour of the same product (ADR 0107). */
+  "VARIANT_MISMATCH",
   "NOT_TRASHED",
   /** A password reset cannot be sent to a deactivated staff member (parity G-A11). */
   "STAFF_INACTIVE",

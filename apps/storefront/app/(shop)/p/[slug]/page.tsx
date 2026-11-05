@@ -162,7 +162,7 @@ export default async function ProductPage({ params }: Props) {
         ]}
       />
       <div className="pdp">
-        <Gallery images={product.images} name={product.name} />
+        <Gallery images={product.images} name={product.name} productSlug={product.slug} />
         <div className="buy" id="buybox">
           <div className="buy-top">
             <a href={`/brands/${product.brand.slug}`} className="brandlink">

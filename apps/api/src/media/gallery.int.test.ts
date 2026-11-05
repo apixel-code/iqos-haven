@@ -8,7 +8,7 @@ import {
   loadLocalEnvFile,
   storageIntegrationTestEnvSchema,
 } from "@ih/config";
-import type { ProductGalleryResponse } from "@ih/contracts";
+import { MAX_PRODUCT_IMAGES, type ProductGalleryResponse } from "@ih/contracts";
 import { attachGalleryImage, createDatabase, createPool } from "@ih/db";
 import { applyMigrations } from "@ih/db/testing";
 import { Argon2PasswordHasher } from "@ih/platform";
@@ -194,9 +194,11 @@ describe("product image gallery (real API, PostgreSQL and signed links)", () => 
     });
   });
 
-  it("keeps at most eight images and exactly one primary under concurrency", async () => {
+  it("keeps at most MAX_PRODUCT_IMAGES images and exactly one primary under concurrency", async () => {
     const row = await product();
-    const assets = await Promise.all(Array.from({ length: 10 }, () => asset(row.id)));
+    const assets = await Promise.all(
+      Array.from({ length: MAX_PRODUCT_IMAGES + 2 }, () => asset(row.id)),
+    );
     const results = await Promise.allSettled(
       assets.map((mediaAssetId) =>
         attachGalleryImage(db, { actorId: ownerId, requestId: randomUUID() }, row.id, {
@@ -204,11 +206,11 @@ describe("product image gallery (real API, PostgreSQL and signed links)", () => 
         }),
       ),
     );
-    expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(8);
+    expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(MAX_PRODUCT_IMAGES);
     const gallery = await view(await call(`/${row.id}/images`));
-    expect(gallery.images).toHaveLength(8);
+    expect(gallery.images).toHaveLength(MAX_PRODUCT_IMAGES);
     expect(gallery.images.filter((i) => i.isPrimary)).toHaveLength(1);
-    expect(gallery.images.map((i) => i.sortOrder)).toEqual([0, 1, 2, 3, 4, 5, 6, 7]);
+    expect(gallery.images.map((i) => i.sortOrder)).toEqual([...Array(MAX_PRODUCT_IMAGES).keys()]);
     expect(
       await code(await call(`/${row.id}/images`, "POST", { mediaAssetId: await asset(row.id) })),
     ).toBe("IMAGE_LIMIT");
@@ -267,6 +269,69 @@ describe("product image gallery (real API, PostgreSQL and signed links)", () => 
     expect(
       await code(await call(`/${row.id}/images/order`, "PUT", { imageIds: [c.id, a.id] })),
     ).toBe("ORDER_MISMATCH");
+  });
+
+  it("links a picture to one flavour of the same product and moves it between pictures", async () => {
+    const row = await product();
+    const flavour = (productId: string, value: string) =>
+      db.variant.create({
+        data: {
+          productId,
+          sku: "FLAVOUR-" + randomUUID().slice(0, 8).toUpperCase(),
+          attributes: { flavour: value },
+          active: true,
+        },
+      });
+    const [amber, silver] = [await flavour(row.id, "amber"), await flavour(row.id, "silver")];
+    const foreign = await flavour((await product()).id, "amber");
+    for (const mediaAssetId of [await asset(row.id), await asset(row.id)])
+      await call(`/${row.id}/images`, "POST", { mediaAssetId });
+    const images = async () => (await view(await call(`/${row.id}/images`))).images;
+    const patch = (image: ProductGalleryResponse["images"][number], body: object) =>
+      call(`/${row.id}/images/${image.id}`, "PATCH", {
+        version: image.version,
+        alt: image.alt,
+        isPrimary: image.isPrimary,
+        ...body,
+      });
+    let [a, b] = await images();
+    expect([a!.variantId, b!.variantId]).toEqual([null, null]);
+    expect((await patch(a!, { variantId: amber.id })).status).toBe(200);
+    [a, b] = await images();
+    expect(a!.variantId).toBe(amber.id);
+    // One picture per flavour: amber moves to b, a loses it.
+    expect((await patch(b!, { variantId: amber.id })).status).toBe(200);
+    [a, b] = await images();
+    expect([a!.variantId, b!.variantId]).toEqual([null, amber.id]);
+    // Only a flavour of this product.
+    expect(await code(await patch(a!, { variantId: foreign.id }))).toBe("VARIANT_MISMATCH");
+    expect(await code(await patch(a!, { variantId: randomUUID() }))).toBe("VARIANT_MISMATCH");
+    // Left out, the flavour stays; null clears it.
+    expect((await patch(b!, { alt: "Amber pack" })).status).toBe(200);
+    [a, b] = await images();
+    expect(b).toMatchObject({ alt: "Amber pack", variantId: amber.id });
+    expect((await patch(a!, { variantId: silver.id })).status).toBe(200);
+    expect((await patch((await images())[1]!, { variantId: null })).status).toBe(200);
+    expect((await images()).map((image) => image.variantId)).toEqual([silver.id, null]);
+    // The database holds the same rules for any writer.
+    const fail = (sql: string, params: unknown[]) =>
+      pool.query(sql, params).then(
+        () => "ok",
+        (error: { code?: string }) => error.code,
+      );
+    const [first, second] = await images();
+    expect(
+      await fail("UPDATE product_images SET variant_id=$1 WHERE id=$2", [foreign.id, second!.id]),
+    ).toBe("23503");
+    expect(
+      await fail("UPDATE product_images SET variant_id=$1 WHERE id=$2", [silver.id, second!.id]),
+    ).toBe("23505");
+    expect(first!.variantId).toBe(silver.id);
+    const audit = await db.auditLog.findFirst({
+      where: { action: "catalog.image_updated", entityId: second!.id },
+      orderBy: { id: "desc" },
+    });
+    expect(JSON.stringify(audit?.diff)).toContain('"variantChanged":{"to":true');
   });
 
   it("removes images, promotes the next primary and frees the upload slot", async () => {

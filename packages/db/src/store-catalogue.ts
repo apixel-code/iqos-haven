@@ -1,4 +1,5 @@
 import {
+  MAX_PRODUCT_IMAGES,
   type ProductType,
   storeProductsQuerySchema,
   type StoreProductSort,
@@ -252,7 +253,7 @@ export interface StoreProductDetail {
     available: boolean;
   }>;
   soldOut: boolean;
-  images: StoreImageRow[];
+  images: Array<StoreImageRow & { variantId: string | null }>;
   rating: StoreRating | null;
   reviews: StoreReview[];
 }
@@ -315,11 +316,16 @@ export async function readStoreProduct(
           coalesce(price_override_fils, ${product.basePriceFils})::int AS "priceFils"
         FROM variants WHERE product_id=${product.id}::uuid AND active
         ORDER BY is_default DESC, option_signature, id LIMIT 500`);
-      const images = await tx.$queryRaw<StoreImageRow[]>(Prisma.sql`
-        SELECT i.alt, i.width, i.height, m.derivative_keys AS "derivativeKeys"
+      // A flavour picture names its variant only while that variant is on sale (ADR 0107).
+      const images = await tx.$queryRaw<Array<StoreImageRow & { variantId: string | null }>>(
+        Prisma.sql`
+        SELECT i.alt, i.width, i.height, m.derivative_keys AS "derivativeKeys",
+          CASE WHEN v.active THEN i.variant_id END AS "variantId"
         FROM product_images i JOIN media_assets m ON m.id=i.media_asset_id
+          LEFT JOIN variants v ON v.id=i.variant_id
         WHERE i.product_id=${product.id}::uuid AND m.state='ready'
-        ORDER BY i.is_primary DESC, i.sort_order, i.id LIMIT 8`);
+        ORDER BY i.is_primary DESC, i.sort_order, i.id LIMIT ${MAX_PRODUCT_IMAGES}`,
+      );
       const availability = productAvailability(
         variants.map((variant) => ({ ...variant, active: true })),
       );
