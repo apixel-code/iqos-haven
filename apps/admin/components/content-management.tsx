@@ -424,6 +424,8 @@ function Field({ label, children, help }: { label: string; children: ReactNode; 
   );
 }
 const textOrNull = (value: string) => (value.trim() ? value : null);
+/** The photo looks (ADR 0108): a photograph with the slide's words over it. */
+const isPhoto = (style: unknown) => style === "photo-light" || style === "photo-dark";
 
 function SectionEditor({
   sectionKey,
@@ -523,6 +525,8 @@ function SectionEditor({
                   <option value="lilac">Lilac, dark text</option>
                   <option value="coral">Coral, light text</option>
                   <option value="banner">Designed banner (your own picture)</option>
+                  <option value="photo-light">Photo with dark text (bright picture)</option>
+                  <option value="photo-dark">Photo with light text (dark picture)</option>
                 </select>
               </Field>
               {slide.style === "banner" && (
@@ -530,6 +534,13 @@ function SectionEditor({
                   Your picture is shown edge to edge with its own words, and the whole banner opens
                   the first button&apos;s page. The headline is not shown: screen readers and search
                   read it instead, so describe the banner there.
+                </p>
+              )}
+              {isPhoto(slide.style) && (
+                <p className="help">
+                  Your photo fills the slide and the words below are set over its left side, so keep
+                  the left of the picture calm. On phones the phone picture comes first and the
+                  words follow under it.
                 </p>
               )}
               <Field label="Eyebrow (optional)">
@@ -577,10 +588,12 @@ function SectionEditor({
                 hint={
                   slide.style === "banner"
                     ? "Wide picture for computers: 1920 × 640 px, important words in the middle"
-                    : "1600 × 900 px"
+                    : isPhoto(slide.style)
+                      ? "Wide photo for computers: about 3 × 1 (1920 × 640 px), product on the right"
+                      : "1600 × 900 px"
                 }
               />
-              {slide.style === "banner" && (
+              {(slide.style === "banner" || isPhoto(slide.style)) && (
                 <ImageField
                   label="Phone picture (optional)"
                   value={(slide.mobileImage as Doc | null) ?? null}

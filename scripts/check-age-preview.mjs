@@ -875,14 +875,33 @@ try {
         mobileImage: null,
       },
       {
-        style: "lilac",
+        // A photo slide (ADR 0108): its own words over a photograph, with a phone picture.
+        style: "photo-dark",
         eyebrow: null,
         title: "Synthetic second slide",
         subtitle: null,
-        cta: null,
+        cta: { label: "Synthetic photo button", href: "/shop" },
         secondaryCta: null,
-        image: null,
-        mobileImage: null,
+        image: {
+          alt: "Synthetic photo picture",
+          width: 3584,
+          height: 1184,
+          urls: {
+            thumb: "https://media.preview-check.test/photo-thumb.webp",
+            medium: "https://media.preview-check.test/photo-medium.webp",
+            large: "https://media.preview-check.test/photo-wide.webp",
+          },
+        },
+        mobileImage: {
+          alt: "Synthetic photo picture",
+          width: 1080,
+          height: 1080,
+          urls: {
+            thumb: "https://media.preview-check.test/photo-phone-thumb.webp",
+            medium: "https://media.preview-check.test/photo-phone-medium.webp",
+            large: "https://media.preview-check.test/photo-phone.webp",
+          },
+        },
       },
       {
         // A designed banner (ADR 0105): picture only, phone picture, whole banner is the link.
@@ -953,6 +972,14 @@ try {
         curated.includes("banner-wide.webp") &&
         curated.includes("Synthetic banner slide"),
       "a designed banner shows its wide and phone pictures and links as a whole (ADR 0105)",
+    );
+    check(
+      /class="hb-slide s-photo photo-dark"/.test(curated) &&
+        /<h2 class="hb-title">Synthetic second slide<\/h2>/.test(curated) &&
+        /srcSet="https:\/\/media\.preview-check\.test\/photo-phone\.webp"/.test(curated) &&
+        curated.includes("photo-wide.webp") &&
+        /href="\/shop"[^>]*>Synthetic photo button/.test(curated),
+      "a photo slide shows its words and button over its wide and phone pictures (ADR 0108)",
     );
     check(
       /href="\/brands\/orbe"[^>]*>Synthetic hero button/.test(curated),

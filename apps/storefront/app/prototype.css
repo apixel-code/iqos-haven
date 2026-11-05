@@ -5269,6 +5269,76 @@
     padding: 2px 8px;
   }
 
+  /*
+   * store: a photo slide (ADR 0108). From 720 px the photograph fills the slide at about its own
+   * wide proportions, kept to the right (where the product stands), and the words sit on its left
+   * over a soft fade for contrast. Below 720 px the phone picture comes first at full width and the
+   * words follow on a plain panel, so they never cover the product.
+   */
+  .hb-slide.s-photo {
+    background: #f3f1ee;
+    color: var(--ink);
+  }
+  .hb-slide.s-photo.photo-dark {
+    background: #0e1116;
+    color: #fff;
+  }
+  .hb-photo picture,
+  .hb-photo img {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+  .hb-photo img {
+    object-fit: cover;
+    object-position: right center;
+  }
+  @media (min-width: 720px) {
+    .hb-slide.s-photo {
+      aspect-ratio: 3 / 1;
+      max-height: 560px;
+    }
+    .hb-photo {
+      position: absolute;
+      inset: 0;
+      z-index: -1;
+    }
+    .hb-photo::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(
+        90deg,
+        rgba(243, 241, 238, 0.86) 0%,
+        rgba(243, 241, 238, 0.55) 38%,
+        rgba(243, 241, 238, 0) 62%
+      );
+    }
+    .photo-dark .hb-photo::after {
+      background: linear-gradient(
+        90deg,
+        rgba(14, 17, 22, 0.82) 0%,
+        rgba(14, 17, 22, 0.5) 38%,
+        rgba(14, 17, 22, 0) 62%
+      );
+    }
+    .s-photo .hb-copy {
+      max-width: min(46%, 560px);
+    }
+  }
+  @media (max-width: 719px) {
+    .hb-slide.s-photo {
+      padding: 0 0 56px;
+    }
+    .hb-photo {
+      aspect-ratio: 1 / 1;
+      margin-bottom: 4px;
+    }
+    .s-photo .hb-copy {
+      padding: 0 20px;
+    }
+  }
+
   /* store: a brand's own logo (parity G-A7) takes the wordmark's place; no demo hue stripe. */
   .brand .stripe {
     background: var(--line-2);

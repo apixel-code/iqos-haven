@@ -98,18 +98,27 @@ const heroV2 = z.strictObject({ slides: z.array(heroSlideSchema).min(1).max(HERO
  * separate tall image for phones, and the whole banner is its first button's link. Its headline
  * is still required: it is the banner's text for screen readers and search, never painted.
  */
-export const HERO_LOOKS = [...HERO_STYLES, "banner"] as const;
+export const HERO_LOOKS = [...HERO_STYLES, "banner", "photo-light", "photo-dark"] as const;
+/**
+ * The **photo** looks (ADR 0108, Marina 2026-11-05): a photograph without words fills the slide
+ * and the slide's own eyebrow, headline, text and buttons are set over its left side (on phones,
+ * under the picture). `photo-light` is for a bright picture (dark text), `photo-dark` for a dark
+ * one (light text). Like a banner, it needs its picture.
+ */
+export const PHOTO_LOOKS = ["photo-light", "photo-dark"] as const;
+/** Looks that are a picture first and need one: the designed banner and the photo looks. */
+const PICTURE_LOOKS: readonly string[] = ["banner", ...PHOTO_LOOKS];
 export const heroSlideV3Schema = heroSlideSchema
   .extend({
     style: z.enum(HERO_LOOKS),
     /**
-     * The phone picture of a banner (about 1080 × 1080); the wide image is used when absent. Left
+     * The phone picture of a banner or photo slide (about 1080 × 1080); the wide image is used when absent. Left
      * out reads as none, so an editor from before v3 can still save.
      */
     mobileImage: contentImageSchema.nullable().default(null),
   })
-  .refine((slide) => slide.style !== "banner" || slide.image !== null, {
-    message: "A banner needs its picture",
+  .refine((slide) => !PICTURE_LOOKS.includes(slide.style) || slide.image !== null, {
+    message: "This look needs its picture",
     path: ["image"],
   });
 const heroV3 = z.strictObject({

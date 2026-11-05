@@ -15,6 +15,10 @@ const LOOK = {
   coral: { className: "s3", theme: "dark" },
   // A designed picture (ADR 0105): its own colours, so the controls sit on a dark pill.
   banner: { className: "s-banner", theme: "dark" },
+  // A photograph with the slide's words over it (ADR 0108). Without its picture (not ready), it
+  // falls back to the plain look of the same text colour.
+  "photo-light": { className: "s2", theme: "light" },
+  "photo-dark": { className: "s1", theme: "dark" },
 } as const;
 const AUTO_MS = 5000;
 
@@ -26,7 +30,9 @@ const reducedMotion = () =>
  * Swipe, dots and arrows move between slides; it advances every five seconds, pausing on hover
  * and focus, with its pause button, and not at all with reduced motion (WCAG 2.2.2). One slide
  * shows no controls. Below it, the phone search button and the trust line. A `banner` slide
- * (ADR 0105) is the client's designed picture, edge to edge, with its own phone picture.
+ * (ADR 0105) is the client's designed picture, edge to edge, with its own phone picture. A
+ * `photo-light` / `photo-dark` slide (ADR 0108) is a photograph with the slide's words over its
+ * left side on wider screens and under it on phones.
  */
 export function HeroCarousel({ slides }: { slides: readonly Slide[] }) {
   const track = useRef<HTMLDivElement>(null);
@@ -101,6 +107,22 @@ export function HeroCarousel({ slides }: { slides: readonly Slide[] }) {
                       Title={Title}
                     />
                   );
+                if ((slide.style === "photo-light" || slide.style === "photo-dark") && slide.image)
+                  return (
+                    <article
+                      key={at}
+                      className={`hb-slide s-photo ${slide.style}`}
+                      data-theme={look.theme}
+                      aria-roledescription="slide"
+                      aria-label={`${at + 1} of ${count}`}
+                      aria-hidden={at !== index || undefined}
+                    >
+                      <div className="hb-photo">
+                        <SlidePicture slide={slide} image={slide.image} at={at} />
+                      </div>
+                      <SlideCopy slide={slide} Title={Title} away={away} theme={look.theme} />
+                    </article>
+                  );
                 return (
                   <article
                     key={at}
@@ -112,37 +134,7 @@ export function HeroCarousel({ slides }: { slides: readonly Slide[] }) {
                   >
                     <i className="hb-shape a" aria-hidden="true" />
                     <i className="hb-shape b" aria-hidden="true" />
-                    <div className="hb-copy">
-                      {slide.eyebrow && <span className="hb-eyebrow">{slide.eyebrow}</span>}
-                      <Title className="hb-title">{slide.title}</Title>
-                      {slide.subtitle && <p className="hb-sub">{slide.subtitle}</p>}
-                      {(slide.cta || slide.secondaryCta) && (
-                        <div className="hb-ctas">
-                          {slide.cta && (
-                            <Link
-                              href={slide.cta.href}
-                              prefetch={false}
-                              tabIndex={away}
-                              className={
-                                look.theme === "dark" ? "btn btn-light" : "btn btn-primary"
-                              }
-                            >
-                              {slide.cta.label} <Icon name="arrow-r" />
-                            </Link>
-                          )}
-                          {slide.secondaryCta && (
-                            <Link
-                              href={slide.secondaryCta.href}
-                              prefetch={false}
-                              tabIndex={away}
-                              className="btn hb-ghost"
-                            >
-                              {slide.secondaryCta.label}
-                            </Link>
-                          )}
-                        </div>
-                      )}
-                    </div>
+                    <SlideCopy slide={slide} Title={Title} away={away} theme={look.theme} />
                     {slide.image && (
                       <div className="hb-art n1">
                         {/* Signed link to a sanitized content image; the optimizer is not used. */}
@@ -254,7 +246,84 @@ function BannerSlide({
   away: -1 | undefined;
   Title: "h1" | "h2";
 }) {
-  const picture = (
+  const picture = <SlidePicture slide={slide} image={image} at={at} />;
+  return (
+    <article
+      className="hb-slide s-banner"
+      data-theme="dark"
+      aria-roledescription="slide"
+      aria-label={`${at + 1} of ${count}`}
+      aria-hidden={away ? true : undefined}
+    >
+      <Title className="sr">{slide.title}</Title>
+      {slide.cta ? (
+        <Link href={slide.cta.href} prefetch={false} tabIndex={away} className="hb-banner">
+          {picture}
+          <span className="sr">{slide.cta.label}</span>
+        </Link>
+      ) : (
+        <div className="hb-banner">{picture}</div>
+      )}
+    </article>
+  );
+}
+
+/** A slide's eyebrow, headline, supporting text and buttons (every look but the banner). */
+function SlideCopy({
+  slide,
+  Title,
+  away,
+  theme,
+}: {
+  slide: Slide;
+  Title: "h1" | "h2";
+  away: -1 | undefined;
+  theme: "dark" | "light";
+}) {
+  return (
+    <div className="hb-copy">
+      {slide.eyebrow && <span className="hb-eyebrow">{slide.eyebrow}</span>}
+      <Title className="hb-title">{slide.title}</Title>
+      {slide.subtitle && <p className="hb-sub">{slide.subtitle}</p>}
+      {(slide.cta || slide.secondaryCta) && (
+        <div className="hb-ctas">
+          {slide.cta && (
+            <Link
+              href={slide.cta.href}
+              prefetch={false}
+              tabIndex={away}
+              className={theme === "dark" ? "btn btn-light" : "btn btn-primary"}
+            >
+              {slide.cta.label} <Icon name="arrow-r" />
+            </Link>
+          )}
+          {slide.secondaryCta && (
+            <Link
+              href={slide.secondaryCta.href}
+              prefetch={false}
+              tabIndex={away}
+              className="btn hb-ghost"
+            >
+              {slide.secondaryCta.label}
+            </Link>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** The wide picture, with the phone picture (if any) below 720 px. */
+function SlidePicture({
+  slide,
+  image,
+  at,
+}: {
+  slide: Slide;
+  image: NonNullable<Slide["image"]>;
+  at: number;
+}) {
+  return (
     <picture>
       {slide.mobileImage && (
         <source
@@ -274,24 +343,5 @@ function BannerSlide({
         fetchPriority={at === 0 ? "high" : "auto"}
       />
     </picture>
-  );
-  return (
-    <article
-      className="hb-slide s-banner"
-      data-theme="dark"
-      aria-roledescription="slide"
-      aria-label={`${at + 1} of ${count}`}
-      aria-hidden={away ? true : undefined}
-    >
-      <Title className="sr">{slide.title}</Title>
-      {slide.cta ? (
-        <Link href={slide.cta.href} prefetch={false} tabIndex={away} className="hb-banner">
-          {picture}
-          <span className="sr">{slide.cta.label}</span>
-        </Link>
-      ) : (
-        <div className="hb-banner">{picture}</div>
-      )}
-    </article>
   );
 }
