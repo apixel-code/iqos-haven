@@ -694,7 +694,7 @@ try {
   const edition = await get("/p/terea-japan", verified);
   check(
     edition.status === 308 &&
-      new URL(edition.headers.get("location") ?? "/", ORIGIN).pathname === "/category/terea-japan",
+      new URL(edition.headers.get("location") ?? "/", ORIGIN).pathname === "/categories/terea-japan",
     "a retired TEREA edition page redirects to its country category (ADR 0110)",
     `${edition.status} ${edition.headers.get("location")}`,
   );

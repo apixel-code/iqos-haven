@@ -2929,4 +2929,4 @@ Server `srv2113068`, 201.18.206.74, Mumbai (ADR 0100 update). Release a520471 (b
 | Re-run (dry run)        | Nothing left to do: 48 exist, 0 to create, 0 units left on the editions                                                                                                              |
 | Home content            | Offers: 6 flavour products and IQOS ILUMA; Featured: each edition replaced by its main-flavour product (8)                                                                           |
 | `pnpm verify`           | PASS                                                                                                                                                                                 |
-| `pnpm test:age-preview` | PASS, 2258 checks (new: `/p/terea-japan` → 308 `/category/terea-japan`)                                                                                                              |
+| `pnpm test:age-preview` | PASS, 2258 checks (new: `/p/terea-japan` → 308 `/categories/terea-japan`)                                                                                                              |

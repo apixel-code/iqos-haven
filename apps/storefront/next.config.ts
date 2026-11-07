@@ -34,7 +34,7 @@ const nextConfig: NextConfig = {
       // retired edition pages send visitors to that country's flavours.
       ...TEREA_EDITIONS.map((country) => ({
         source: `/p/terea-${country}`,
-        destination: `/category/terea-${country}`,
+        destination: `/categories/terea-${country}`,
         permanent: true,
       })),
     ];

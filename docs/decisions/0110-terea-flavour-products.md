@@ -24,7 +24,7 @@ This is a catalogue change, not a model change. The catalogue already supports p
 - **Stock:** each flavour's stock moved through the ledger. `INITIAL_STOCK` was added on the new product and `MANUAL` removed on the edition's flavour, both with notes and deterministic command IDs.
 - **Without a picture:** a product cannot be published without one, so the flavours that had no pack picture stay as drafts until one is added (Indonesia: Black Green, Apricity, Yugen; Japan: Smooth Regular, Menthol, Fusion Menthol, Rich Regular).
 - **Editions:** the seven edition products are unpublished and moved into their country category, never deleted, because past orders refer to them.
-- **Old links:** the storefront permanently redirects `/p/terea-<country>` to `/category/terea-<country>` (`next.config.ts`).
+- **Old links:** the storefront permanently redirects `/p/terea-<country>` to `/categories/terea-<country>` (`next.config.ts`).
 - **Offers:** the home Offers section now lists flavour products. The `/offers` page lists every product with a compare-at price on its own.
 
 ## Consequences
