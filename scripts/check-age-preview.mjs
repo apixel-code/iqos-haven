@@ -691,6 +691,13 @@ try {
     "a former slug redirects permanently to the current one",
     `${renamed.status} ${renamed.headers.get("location")}`,
   );
+  const edition = await get("/p/terea-japan", verified);
+  check(
+    edition.status === 308 &&
+      new URL(edition.headers.get("location") ?? "/", ORIGIN).pathname === "/category/terea-japan",
+    "a retired TEREA edition page redirects to its country category (ADR 0110)",
+    `${edition.status} ${edition.headers.get("location")}`,
+  );
   await page("/p/unknown-product", 404);
   // The shell still reads its settings; the product itself is never asked for.
   const productCalls = () =>

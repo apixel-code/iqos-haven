@@ -2919,3 +2919,14 @@ Server `srv2113068`, 201.18.206.74, Mumbai (ADR 0100 update). Release a520471 (b
 | -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `sh -n`        | PASS                                                                                                                                                                             |
 | Dry run on VPS | Read-only, the same selection without `docker rmi`: keep 12 (newest two releases × 6), remove 54 of 66 app images; the 4 running app images are also kept by full image ID alone |
+
+## ADR 0110 — TEREA flavours as their own products (2026-11-08, production)
+
+| Check                   | Result                                                                                                                                                                               |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Backup                  | `ih-backup@production` right before the change: `ih-backup-20261107T192956Z` on the client's Drive                                                                                   |
+| Catalogue (admin API)   | 7 country categories; 48 flavour products (41 published, 7 drafts without a pack picture); 2,393 units moved through the ledger; 7 editions unpublished; "TEREA sticks" in the trash |
+| Re-run (dry run)        | Nothing left to do: 48 exist, 0 to create, 0 units left on the editions                                                                                                              |
+| Home content            | Offers: 6 flavour products and IQOS ILUMA; Featured: each edition replaced by its main-flavour product (8)                                                                           |
+| `pnpm verify`           | PASS                                                                                                                                                                                 |
+| `pnpm test:age-preview` | PASS, 2258 checks (new: `/p/terea-japan` → 308 `/category/terea-japan`)                                                                                                              |
