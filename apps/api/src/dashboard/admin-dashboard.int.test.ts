@@ -47,6 +47,10 @@ let staffRoleId = "";
 let host = 10;
 let delayedOrder = "";
 let lowVariant = "";
+/** When the delayed order was placed (three hours before the run). */
+let lateAt = 0;
+/** Whether the delayed order falls on today's Dubai date (false between 00:00 and 03:00). */
+const lateIsToday = () => dubaiDate(new Date(lateAt)) === dubaiDate(new Date());
 
 const dashboard = async (cookie: string) => {
   const response = await fetch(`${base}/v1/admin/dashboard`, {
@@ -104,6 +108,7 @@ describe("admin operational dashboard through the real API and PostgreSQL", () =
     // Three open orders: one pending placed three hours ago (delayed), one fresh pending, one
     // confirmed. Each seeded order has its own published variant (stock 0 = out of stock).
     const late = await seedOrder(pool);
+    lateAt = Date.now() - 3 * 3_600_000;
     delayedOrder = late.orderId;
     await pool.query(
       `ALTER TABLE orders DISABLE TRIGGER USER;
@@ -153,7 +158,8 @@ describe("admin operational dashboard through the real API and PostgreSQL", () =
     expect(view.sales).toBeNull();
     await rollupDay(db, dubaiDate(new Date()), ["products"]);
     const top = (await read(staff)).topProducts!;
-    expect(top.items.reduce((sum, item) => sum + item.units, 0)).toBe(4);
+    // The delayed order (1 unit) belongs to today only after 03:00 in Dubai.
+    expect(top.items.reduce((sum, item) => sum + item.units, 0)).toBe(lateIsToday() ? 4 : 3);
     expect(top.items.every((item) => item.netFils === null)).toBe(true);
   });
 
@@ -182,14 +188,13 @@ describe("admin operational dashboard through the real API and PostgreSQL", () =
     expect(before.sales).toMatchObject({ currency: "AED", today: null, yesterday: null });
     await rollupDay(db, today);
     const after = (await read(owner)).sales!;
-    // 6500 + 6500 + 11500 placed today, all booked.
-    expect(after.today).toMatchObject({
-      day: today,
-      orders: 3,
-      totalFils: 24_500,
-      aovFils: 8167,
-      cancelledOrders: 0,
-    });
+    // 6500 + 6500 + 11500 placed today, all booked. Between 00:00 and 03:00 in Dubai the delayed
+    // order (6500, placed three hours ago) is yesterday's, so today holds the other two.
+    expect(after.today).toMatchObject(
+      lateIsToday()
+        ? { day: today, orders: 3, totalFils: 24_500, aovFils: 8167, cancelledOrders: 0 }
+        : { day: today, orders: 2, totalFils: 18_000, aovFils: 9000, cancelledOrders: 0 },
+    );
     expect(Date.parse(after.today!.computedAt)).toBeLessThanOrEqual(Date.now());
     expect(after.taxNote).toMatch(/no separate VAT/);
     const top = (await read(owner)).topProducts!;
