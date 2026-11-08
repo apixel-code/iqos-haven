@@ -63,6 +63,10 @@ export function SiteHeader({
           >
             Home
           </Link>
+          {/* All products, as on the phone menus (Marina 2026-11-08). */}
+          <Link href="/shop" prefetch={false} aria-current={current(at("/shop"))}>
+            Shop
+          </Link>
           <Link href="/devices" prefetch={false} aria-current={current(at("/devices"))}>
             IQOS Devices
           </Link>
@@ -80,7 +84,7 @@ export function SiteHeader({
           <SearchSheet />
           {wa && (
             <a
-              className="ibtn only-md"
+              className="ibtn only-md hdr-wa"
               href={wa}
               target="_blank"
               rel="noopener noreferrer"
