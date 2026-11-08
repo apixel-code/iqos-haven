@@ -3022,6 +3022,55 @@
     border-top: 1px solid #222832;
     margin-top: 24px;
   }
+  /*
+   * store (Marina 2026-11-08): the bottom row is three items, the location in the centre; on
+   * phones the footer is tighter so it ends within about one screen.
+   */
+  @media (min-width: 720px) {
+    .foot-bottom {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+      align-items: center;
+    }
+    .foot-bottom > :nth-child(2) {
+      text-align: center;
+    }
+    .foot-bottom > :last-child {
+      text-align: right;
+    }
+  }
+  @media (max-width: 719px) {
+    .foot-grid {
+      gap: 18px 16px;
+      padding-block: 28px 18px;
+    }
+    .foot-brand {
+      gap: 8px;
+    }
+    .foot-brand p {
+      font-size: 12.5px;
+    }
+    .foot h4 {
+      margin-bottom: 8px;
+    }
+    .foot ul {
+      gap: 5px;
+      font-size: 13.5px;
+    }
+    .foot-warn {
+      font-size: 11.5px;
+      line-height: 1.45;
+    }
+    .foot-bottom {
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      margin-top: 16px;
+      padding-block: 14px 16px;
+      font-size: 12px;
+      text-align: center;
+    }
+  }
   .foot-pad {
     padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px));
   }
