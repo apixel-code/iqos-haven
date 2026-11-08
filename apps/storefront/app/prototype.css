@@ -5525,6 +5525,7 @@
     }
     .hb-ui {
       bottom: 12px;
+      right: 96px; /* clear of the floating WhatsApp button */
     }
   }
 
