@@ -75,7 +75,7 @@ export function SiteHeader({
           <SearchSheet />
           {wa && (
             <a
-              className="ibtn only-md hdr-wa"
+              className="ibtn only-md"
               href={wa}
               target="_blank"
               rel="noopener noreferrer"
