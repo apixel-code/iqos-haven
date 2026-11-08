@@ -55,13 +55,9 @@ export function SiteHeader({
           </span>
         </Link>
         <nav className="mainnav" aria-label="Main">
-          <Link
-            href="/"
-            prefetch={false}
-            className="home-l"
-            aria-current={current(pathname === "/")}
-          >
-            Home
+          {/* The logo leads home; "Shop" (all products) takes the old Home place (Marina 2026-11-08). */}
+          <Link href="/shop" prefetch={false} aria-current={current(at("/shop"))}>
+            Shop
           </Link>
           <Link href="/devices" prefetch={false} aria-current={current(at("/devices"))}>
             IQOS Devices
@@ -80,7 +76,7 @@ export function SiteHeader({
           <SearchSheet />
           {wa && (
             <a
-              className="ibtn only-md"
+              className="ibtn only-md hdr-wa"
               href={wa}
               target="_blank"
               rel="noopener noreferrer"

@@ -1224,12 +1224,18 @@
     border-radius: 50%;
     background: var(--coral);
   }
-  .mainnav .home-l {
-    display: none;
-  }
-  @media (min-width: 1180px) {
-    .mainnav .home-l {
-      display: inline-flex;
+  /*
+   * store: on narrow tablets (720–899 px) the menu with "Shop" (Marina 2026-11-08) fits only with
+   * tighter links; the header WhatsApp icon steps aside there (the floating WhatsApp button stays).
+   */
+  @media (min-width: 720px) and (max-width: 899px) {
+    .mainnav > a,
+    .mainnav > .dd > :is(button, a) {
+      padding: 0 8px;
+      font-size: 13.5px;
+    }
+    .hdr-actions .hdr-wa {
+      display: none !important; /* over .only-md's !important */
     }
   }
   .dd {
