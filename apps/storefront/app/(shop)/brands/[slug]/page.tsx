@@ -50,19 +50,21 @@ export default async function BrandPage({ params, searchParams }: Props) {
         // brand read carries no lowest price, and a guessed one could be wrong.
         <header className="bhero">
           <div className="bhero-t">
+            <span className="eyebrow">Brand</span>
+            {/* With a logo, the logo is the name on screen; the heading stays for screen readers
+                and search (Marina 2026-11-08: the name was shown twice). */}
             {brand.logo && (
               // Signed link to a sanitized derivative; the Next image optimizer is not used.
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 className="bhero-logo"
                 src={brand.logo.urls.medium}
-                alt={brand.logo.alt}
+                alt=""
                 width={brand.logo.width}
                 height={brand.logo.height}
               />
             )}
-            <span className="eyebrow">Brand</span>
-            <h1 className="bw">{brand.name}</h1>
+            <h1 className={brand.logo ? "sr" : "bw"}>{brand.name}</h1>
             {brand.description && <p className="muted bhero-d">{brand.description}</p>}
           </div>
           <div className="stats">

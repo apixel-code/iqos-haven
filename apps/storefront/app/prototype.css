@@ -6326,6 +6326,17 @@
   }
   .bhero {
     background: var(--saffron-soft);
+    /* store: room before the filters and sort row (it sat flush under the card). */
+    margin-bottom: 24px;
+  }
+  /* store: the count on one line, "6 products", lined up with the brand's text. */
+  .bhero .stats span {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 6px;
+  }
+  .bhero .stats b {
+    display: inline;
   }
   .bhero-t {
     display: flex;
