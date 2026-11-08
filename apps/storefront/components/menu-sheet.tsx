@@ -71,7 +71,7 @@ export function MenuSheet({ whatsappNumber }: { whatsappNumber: string | null })
           setOpen(true);
           ensureBrands();
         }}
-        className="ibtn only-sm"
+        className="ibtn only-sm hdr-menu"
         aria-label="Open menu"
       >
         <Icon name="menu" />
