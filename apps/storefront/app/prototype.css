@@ -5512,6 +5512,61 @@
     height: 100%;
     object-fit: cover;
   }
+  /*
+   * store (Marina 2026-11-08): "Shop by category" and "Shop by brand" fit on one screen together,
+   * so the tiles are shorter and the brand cards keep a small fixed photo.
+   */
+  @media (min-width: 720px) {
+    .c4-img {
+      aspect-ratio: 3/2;
+    }
+    #main .sec[aria-labelledby="cat-h"] {
+      padding-block: 16px 24px;
+    }
+    .bshow-card {
+      grid-template-columns: minmax(0, 1fr) clamp(120px, 13vw, 168px);
+      min-height: 0;
+      padding: 18px 22px;
+    }
+    .bshow-copy {
+      gap: 6px;
+    }
+  }
+  @media (min-width: 1040px) {
+    .c4-img {
+      aspect-ratio: 3/2;
+    }
+  }
+  @media (max-width: 719px) {
+    .bshow {
+      gap: 10px;
+    }
+    .bshow-card {
+      grid-template-columns: minmax(0, 1fr) 96px;
+      padding: 14px 16px;
+    }
+    .bshow-copy {
+      gap: 5px;
+    }
+    .bshow-logo {
+      max-height: 26px;
+    }
+    .bshow-name {
+      font-size: 26px;
+    }
+    .bshow-about {
+      font-size: 13px;
+      line-height: 1.4;
+    }
+    .bshow-count {
+      font-size: 11px;
+    }
+    .bshow-cta {
+      margin-top: 4px;
+      padding: 7px 13px;
+      font-size: 13px;
+    }
+  }
   .camp-art img {
     width: 100%;
     height: 100%;
