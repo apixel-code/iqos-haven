@@ -5572,6 +5572,15 @@
     height: 100%;
     object-fit: cover;
   }
+  /* store (client 2026-11-08): every second banner, picture left and words right, from 720 px. */
+  @media (min-width: 720px) {
+    .camp.flip {
+      grid-template-columns: 1fr 1.2fr;
+    }
+    .camp.flip .camp-art {
+      order: -1;
+    }
+  }
 
   /* store: a product photo in the category tile, like the prototype's art. */
   .c4-img img {

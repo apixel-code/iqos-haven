@@ -245,7 +245,8 @@ export function HomeBanners({ banners }: { banners: readonly Banner[] }) {
           style={{ paddingTop: 0 }}
           aria-labelledby={`camp-h-${index}`}
         >
-          <div className="camp">
+          {/* Every second banner shows its picture on the left (client, 2026-11-08). */}
+          <div className={index % 2 === 1 && banner.image ? "camp flip" : "camp"}>
             <div className="camp-copy">
               <h2 id={`camp-h-${index}`}>{banner.title}</h2>
               {banner.subtitle && <p>{banner.subtitle}</p>}
