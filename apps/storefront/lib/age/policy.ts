@@ -16,8 +16,8 @@ export const AGE_RECHECK_PATH = `${AGE_CHECK_PATH}?recheck=1`;
 /** Exact paths: a future route under /api/age/ is gated unless it is added here. */
 const DECISION_PATHS: readonly string[] = ["/api/age/accept", "/api/age/reject"];
 /**
- * Public pages without catalogue data: policy pages, the crawler policy and the one generic
- * preview image. Kept in step with `POLICY_PAGES` in `lib/site.ts` by a unit test.
+ * Public pages without catalogue data: policy pages, the crawler policy, the one generic
+ * preview image and the store icons. Kept in step with `POLICY_PAGES` in `lib/site.ts` by a unit test.
  */
 const PUBLIC_INFO_PATHS: readonly string[] = [
   "/responsible-use",
@@ -27,6 +27,9 @@ const PUBLIC_INFO_PATHS: readonly string[] = [
   // Policy pages only, and only while the Owner offers them; otherwise empty (step 113).
   "/sitemap.xml",
   "/opengraph-image",
+  // The store's browser and home-screen icons (the logo mark only; no catalogue data).
+  "/icon.png",
+  "/apple-icon.png",
 ];
 const MAX_RETURN_LENGTH = 512;
 const BASE = "http://storefront.invalid";

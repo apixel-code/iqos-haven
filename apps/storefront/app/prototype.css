@@ -1066,6 +1066,31 @@
   .wm span {
     font-weight: 300;
   }
+  /* store: the logo image (client, 2026-11-08) in place of the text wordmark. */
+  .site-logo {
+    display: block;
+    flex: none;
+    align-self: flex-start;
+    height: 36px;
+    width: auto;
+    max-width: 100%;
+    object-fit: contain;
+  }
+  .logo .site-logo {
+    align-self: center;
+  }
+  .sheet-logo {
+    height: 30px;
+    align-self: center;
+  }
+  .foot-logo {
+    height: 38px;
+  }
+  @media (max-width: 719px) {
+    .logo .site-logo {
+      height: 30px;
+    }
+  }
   .logo {
     display: flex;
     align-items: center;

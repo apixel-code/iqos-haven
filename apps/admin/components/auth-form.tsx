@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { authError, authRequest, consumeLinkToken } from "../lib/auth";
+import { AdminLogo } from "./admin-logo";
 
 type Mode = "login" | "forgot" | "reset" | "invite";
 export function AuthForm({ mode }: { mode: Mode }) {
@@ -104,11 +105,8 @@ export function AuthForm({ mode }: { mode: Mode }) {
   return (
     <main className="auth-page">
       <div className="auth-brand">
-        <span className="brand-mark" aria-hidden="true">
-          IH
-        </span>
-        <span>
-          Iqos <strong>Haven</strong>
+        <span className="auth-logo-img">
+          <AdminLogo />
         </span>
         <span className="badge">Admin</span>
       </div>

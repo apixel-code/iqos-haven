@@ -224,9 +224,15 @@ describe("routing gate", () => {
 });
 
 describe("public information pages", () => {
-  it("lists every policy page, the crawler policy and the generic preview image as public", () => {
+  it("lists every policy page, the crawler policy, the preview image and the icons as public", () => {
     for (const page of POLICY_PAGES) expect(isPublicPath(page.path), page.path).toBe(true);
-    for (const path of ["/robots.txt", "/sitemap.xml", "/opengraph-image"])
+    for (const path of [
+      "/robots.txt",
+      "/sitemap.xml",
+      "/opengraph-image",
+      "/icon.png",
+      "/apple-icon.png",
+    ])
       expect(isPublicPath(path)).toBe(true);
     // Near misses stay gated.
     for (const path of [

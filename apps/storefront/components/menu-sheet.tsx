@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, type ReactNode } from "react";
+import { BrandLogo } from "@/components/brand-logo";
 import { useDeviceLists } from "@/lib/device/store";
 import { useStoreBrands } from "@/lib/store/client-hooks";
 import { POLICY_PAGES, PRIMARY_NAV, SITE } from "@/lib/site";
@@ -82,9 +83,7 @@ export function MenuSheet({ whatsappNumber }: { whatsappNumber: string | null })
         side="left"
         head={
           <div className="sh-head">
-            <span className="wm">
-              Iqos <span>Haven</span>
-            </span>
+            <BrandLogo className="sheet-logo" />
             <button type="button" className="ibtn" aria-label="Close menu" onClick={close}>
               <Icon name="x" />
             </button>

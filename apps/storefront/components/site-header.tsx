@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { MouseEvent } from "react";
+import { BrandLogo } from "@/components/brand-logo";
 import { BrandsMenu } from "@/components/brands-menu";
 import { CountBadge } from "@/components/count-badge";
 import { Icon } from "@/components/icons";
@@ -50,9 +51,7 @@ export function SiteHeader({
       <div className="wrap hdr-in">
         <MenuSheet whatsappNumber={whatsappNumber} />
         <Link className="logo" href="/" prefetch={false} aria-label={`${SITE.name} home`}>
-          <span className="wm">
-            Iqos <span>Haven</span>
-          </span>
+          <BrandLogo alt="" />
         </Link>
         <nav className="mainnav" aria-label="Main">
           {/* The logo leads home; "Shop" (all products) takes the old Home place (Marina 2026-11-08). */}

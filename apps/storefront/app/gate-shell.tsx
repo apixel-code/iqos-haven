@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { BrandLogo } from "@/components/brand-logo";
 import { IconSprite } from "@/components/icons";
 import { AGE_COPY } from "@/lib/age/copy";
 import { PolicyLinks } from "./(policy)/policy-page";
@@ -27,9 +28,7 @@ export function GateShell({
       </div>
       <header className="gate-top">
         <span className="logo">
-          <span className="wm">
-            Iqos <span>Haven</span>
-          </span>
+          <BrandLogo />
         </span>
         <span className="badge badge-soft">{AGE_COPY.badge}</span>
       </header>
