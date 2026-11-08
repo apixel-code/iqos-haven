@@ -96,9 +96,16 @@ export function ProductGrid({ products }: { products: readonly StoreProductCard[
 }
 
 /** The prototype's horizontal rail: swipe on phones, four across on wide screens. */
-export function ProductRail({ products }: { products: readonly StoreProductCard[] }) {
+export function ProductRail({
+  products,
+  swipe = false,
+}: {
+  products: readonly StoreProductCard[];
+  /** One swipeable line on phones too, instead of the home page's two-by-two grid. */
+  swipe?: boolean;
+}) {
   return (
-    <ul className="rail">
+    <ul className={swipe ? "rail swipe" : "rail"}>
       {products.map((product) => (
         <li key={product.slug}>
           <ProductCard product={product} />

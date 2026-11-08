@@ -110,18 +110,22 @@ export function ProductSection({
   sub,
   products,
   more,
+  limit = 8,
 }: {
   id: string;
   title: string;
   sub: string;
   products: readonly StoreProductCard[];
   more: { label: string; href: string };
+  /** Cards shown: 8 is two rows of four on a computer, 4 is one row. */
+  limit?: number;
 }) {
   if (!products.length) return null;
   return (
     <section className="sec" style={{ paddingTop: 0 }} aria-labelledby={id}>
       <SectionHead id={id} title={title} sub={sub} more={more} />
-      <ProductRail products={products.slice(0, 8)} />
+      {/* A one-row section stays one swipeable row on phones (client, 2026-11-08). */}
+      <ProductRail products={products.slice(0, limit)} swipe={limit <= 4} />
     </section>
   );
 }
