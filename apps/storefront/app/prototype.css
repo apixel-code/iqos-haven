@@ -1369,6 +1369,14 @@
     #main .rail > *:nth-child(n + 5) {
       display: none;
     }
+    /* store (client 2026-11-08): a one-row home section (four cards) is one swipeable line. */
+    #main .rail.swipe {
+      grid-auto-flow: column;
+      grid-template-columns: none;
+      grid-auto-columns: 46%;
+      gap: 12px;
+      overflow-x: auto;
+    }
   }
   #feat-box {
     transition: opacity 0.16s var(--ease);
