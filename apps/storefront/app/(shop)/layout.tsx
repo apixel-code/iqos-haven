@@ -24,7 +24,12 @@ export default async function ShopLayout({ children }: { children: ReactNode }) 
     shellBrands(),
     readBusiness(),
   ]);
-  const operator = businessLine(business);
+  // The shop name is already on the location line; the bottom row adds only a different legal
+  // name and the trade licence (Marina 2026-11-08: one line fewer, location centred).
+  const operator = businessLine({
+    ...business,
+    legalName: business.legalName === SITE.name ? null : business.legalName,
+  });
   return (
     <>
       <IconSprite />
@@ -209,8 +214,7 @@ export default async function ShopLayout({ children }: { children: ReactNode }) 
             <span>
               © {new Date().getFullYear()} {SITE.name}. All rights reserved.
             </span>
-            {operator && <span>{operator}</span>}
-            <span>{AGE_COPY.footer}</span>
+            <span>{operator ? `${AGE_COPY.footer} · ${operator}` : AGE_COPY.footer}</span>
             <span>Payment: Cash on delivery</span>
           </div>
         </div>
