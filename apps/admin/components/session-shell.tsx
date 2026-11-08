@@ -4,6 +4,7 @@ import { usePathname } from "next/navigation";
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import type { MeResponse } from "@ih/contracts";
 import { ApiError, authRequest, currentSession } from "../lib/auth";
+import { AdminLogo, AdminMark } from "./admin-logo";
 import { useNavCounts } from "../lib/nav-counts";
 import { navHref, visibleNav, type NavItem } from "../lib/navigation";
 import { GlobalSearch, MobileSearch } from "./global-search";
@@ -270,12 +271,10 @@ function Workspace({
       <div className="app">
         <aside className="side">
           <div className="side-top">
-            <Link href="/" className="side-logo">
-              <span className="mark" aria-hidden="true">
-                IH
-              </span>
+            <Link href="/" className="side-logo" aria-label="Iqos Haven admin, dashboard">
+              <AdminMark />
               <span className="wm">
-                Iqos <span>Haven</span>
+                <AdminLogo alt="" />
               </span>
               <span className="wm-tag">Admin</span>
             </Link>
@@ -317,12 +316,9 @@ function Workspace({
         </aside>
         <div className="main">
           <header className="topbar">
-            <Link href="/" className="mlogo">
-              <span className="mark" aria-hidden="true">
-                IH
-              </span>
+            <Link href="/" className="mlogo" aria-label="Iqos Haven admin, dashboard">
               <span className="wm">
-                Iqos <span>Haven</span>
+                <AdminLogo alt="" />
               </span>
             </Link>
             <GlobalSearch permissions={session.permissions} />

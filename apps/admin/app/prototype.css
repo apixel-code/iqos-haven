@@ -3751,6 +3751,47 @@
     color: var(--surface);
   }
 
+  /*
+   * admin: the logo image (client, 2026-11-08). The ink logo on the light theme, the white one
+   * on the dark theme (system or chosen); the square IH mark only on the narrow sidebar rail.
+   */
+  .admin-logo {
+    display: block;
+    height: 26px;
+    width: auto;
+  }
+  .logo-tone-light {
+    display: none;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) .logo-tone-dark {
+      display: none;
+    }
+    :root:not([data-theme="light"]) .logo-tone-light {
+      display: block;
+    }
+  }
+  :root[data-theme="dark"] .logo-tone-dark {
+    display: none;
+  }
+  :root[data-theme="dark"] .logo-tone-light {
+    display: block;
+  }
+  .admin-mark {
+    display: none;
+    width: 32px;
+    height: 32px;
+    flex: none;
+  }
+  @media (min-width: 720px) and (max-width: 1099px) {
+    .side-top .admin-mark {
+      display: block;
+    }
+  }
+  .auth-logo-img .admin-logo {
+    height: 34px;
+  }
+
   /* admin: the logo is a link to the dashboard. */
   .side-logo,
   .mlogo {

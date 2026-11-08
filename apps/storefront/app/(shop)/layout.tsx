@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { BrandLogo } from "@/components/brand-logo";
 import { CartSheet } from "@/components/cart-sheet";
 import { IconSprite } from "@/components/icons";
 import { PromoTicker } from "@/components/promo-ticker";
@@ -48,9 +49,7 @@ export default async function ShopLayout({ children }: { children: ReactNode }) 
         <div className="wrap">
           <div className="foot-grid">
             <div className="foot-brand">
-              <span className="wm" style={{ color: "#fff" }}>
-                Iqos <span>Haven</span>
-              </span>
+              <BrandLogo tone="light" className="foot-logo" />
               {/* Prototype wording adapted to UAE-wide delivery (BI-03); final copy is BI-01. */}
               <p>
                 An online store for IQOS devices and TEREA sticks, delivering across the UAE. Order
