@@ -28,6 +28,18 @@ function openSheet(event: MouseEvent<HTMLAnchorElement>) {
 }
 
 /**
+ * On the home page the logo takes the shopper back to the top (Marina 2026-11-09): a link to the
+ * page already shown does not scroll on its own. A modified click still opens a new tab.
+ */
+function homeToTop(event: MouseEvent<HTMLAnchorElement>) {
+  if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0)
+    return;
+  event.preventDefault();
+  const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  window.scrollTo({ top: 0, behavior: still ? "auto" : "smooth" });
+}
+
+/**
  * Store header (prototype `header`, ADR 0097): menu (phones), wordmark, sections with the Brands
  * panel, the search bar (wide screens) or search button, WhatsApp, saved items and the cart.
  */
@@ -50,7 +62,13 @@ export function SiteHeader({
     <header className={belowPromo ? "hdr" : "hdr hdr-top"}>
       <div className="wrap hdr-in">
         <MenuSheet whatsappNumber={whatsappNumber} />
-        <Link className="logo" href="/" prefetch={false} aria-label={`${SITE.name} home`}>
+        <Link
+          className="logo"
+          href="/"
+          prefetch={false}
+          aria-label={`${SITE.name} home`}
+          onClick={pathname === "/" ? homeToTop : undefined}
+        >
           <BrandLogo alt="" />
         </Link>
         <nav className="mainnav" aria-label="Main">
