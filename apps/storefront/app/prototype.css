@@ -5755,9 +5755,9 @@
   }
 
   /*
-   * store (Marina 2026-11-09): "Shop by category" from the admin's categories: small tiles,
-   * four to a row on every width. Phone: picture over the name. From 720 px: picture beside the
-   * name and product count.
+   * store (Marina 2026-11-09): "Shop by category" from the admin's categories: square tiles,
+   * picture over the name (the client chose the phone look for every screen): four to a row on
+   * phones, six from 720 px; from 720 px the product count shows under the name.
    */
   .ctiles {
     display: grid;
@@ -5818,27 +5818,25 @@
     font-size: 11.5px;
     color: var(--ink-3);
   }
+  /* From 720 px: the same square tiles as on phones, six to a row so they stay small (client, 2026-11-09). */
   @media (min-width: 720px) {
     .ctiles {
+      grid-template-columns: repeat(6, minmax(0, 1fr));
       gap: 14px;
     }
     .ctile {
-      flex-direction: row;
-      gap: 12px;
-      padding: 10px;
-    }
-    .ctile-img {
-      width: 64px;
+      gap: 8px;
+      padding: 10px 10px 12px;
     }
     .ctile-copy {
-      text-align: left;
       gap: 2px;
     }
     .ctile-t {
-      font-size: 14.5px;
+      font-size: 13.5px;
     }
     .ctile-n {
       display: block;
+      font-size: 11px;
     }
   }
 

@@ -72,9 +72,9 @@ const TILE_TONES = [
 ];
 
 /**
- * "Shop by category" (Marina 2026-11-09): the admin's categories as small tiles, four to a row
- * on every width; any number of categories fills further rows. Computer and tablet: picture
- * beside the name and count. Phone: picture over the name.
+ * "Shop by category" (Marina 2026-11-09): the admin's categories as square tiles, picture over
+ * the name, four to a row on phones and six from 720 px; any number of categories fills further
+ * rows. From 720 px the product count shows under the name.
  */
 export function HomeCategories({
   tiles,
@@ -102,7 +102,7 @@ export function HomeCategories({
             <span className="ctile-img" aria-hidden="true">
               {tile.image && (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={tile.image.urls.thumb} alt="" loading="lazy" decoding="async" />
+                <img src={tile.image.urls.medium} alt="" loading="lazy" decoding="async" />
               )}
             </span>
             <span className="ctile-copy">
