@@ -206,7 +206,7 @@ export default async function ProductPage({ params }: Props) {
               <Icon name="cash" />
               <p>
                 <b>Cash on delivery</b>
-                <span>Pay the courier when your order arrives.</span>
+                <span>All payment methods accepted: cash, bank transfer or online payment.</span>
               </p>
             </div>
             <div>

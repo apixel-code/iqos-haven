@@ -156,6 +156,11 @@ export async function editOrder(
       const noteBefore = lastNote?.note ?? null;
       const noteAfter = input.operationalNote === undefined ? noteBefore : input.operationalNote;
       const diff: Record<string, unknown> = {};
+      // How the customer will pay (ADR 0111): fixed with the other contents once processing starts.
+      const paymentBefore = current!.payment_method as string;
+      const paymentAfter = input.paymentMethod ?? paymentBefore;
+      if (paymentAfter !== paymentBefore)
+        diff.paymentMethod = { before: paymentBefore, after: paymentAfter };
       const commerce =
         input.lines !== undefined || input.couponCode !== undefined || input.address !== undefined;
       let quote: Awaited<ReturnType<typeof lockQuoteForOrderEdit>> | null = null;
@@ -291,10 +296,11 @@ export async function editOrder(
         coupon_percent_bps=${quote.coupon?.percentBps ?? null}::int,delivery_eta_text=${quote.delivery.etaText},
         area_version=${quote.delivery.areaVersion},delivery_configuration_version=${quote.delivery.configurationVersion},
         quote_fingerprint=${canonicalPayloadHash(quoteChargeFacts(quote)).toString("base64url")},
-        version=version+1,updated_at=statement_timestamp() WHERE id=${orderId}::uuid`);
+        payment_method=${paymentAfter},version=version+1,updated_at=statement_timestamp() WHERE id=${orderId}::uuid`);
       } else {
         await tx.$executeRaw(
-          Prisma.sql`UPDATE orders SET version=version+1,updated_at=statement_timestamp() WHERE id=${orderId}::uuid`,
+          Prisma.sql`UPDATE orders SET payment_method=${paymentAfter},version=version+1,
+          updated_at=statement_timestamp() WHERE id=${orderId}::uuid`,
         );
       }
       if (noteAfter !== noteBefore) diff.operationalNote = { before: noteBefore, after: noteAfter };

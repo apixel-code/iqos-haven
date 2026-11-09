@@ -1,7 +1,13 @@
 import { z } from "zod";
 import { COD_STATUSES, ORDER_SOURCES, ORDER_STATUSES } from "@ih/domain";
 import { customerAddressTypeSchema } from "./customers";
-import { checkoutAddressSchema, checkoutContactSchema, orderLinesSchema } from "./checkout";
+import {
+  checkoutAddressSchema,
+  checkoutContactSchema,
+  orderLinesSchema,
+  orderPaymentMethodSchema,
+  paymentMethodSchema,
+} from "./checkout";
 import { couponCodeInputSchema } from "./coupons";
 import { filsSchema } from "./index";
 
@@ -78,13 +84,16 @@ export const orderEditRequestSchema = z
     couponCode: z.string().trim().min(3).max(32).nullable().optional(),
     address: checkoutAddressSchema.optional(),
     operationalNote: z.string().trim().min(1).max(500).nullable().optional(),
+    /** The customer changed how they will pay (ADR 0111). */
+    paymentMethod: paymentMethodSchema.optional(),
   })
   .refine(
     (value) =>
       value.lines !== undefined ||
       value.couponCode !== undefined ||
       value.address !== undefined ||
-      value.operationalNote !== undefined,
+      value.operationalNote !== undefined ||
+      value.paymentMethod !== undefined,
     { message: "At least one edit is required" },
   );
 
@@ -110,6 +119,9 @@ export const orderEditDiffSchema = z.strictObject({
     .strictObject({ before: z.string().nullable(), after: z.string().nullable() })
     .optional(),
   total: z.strictObject({ beforeFils: filsSchema, afterFils: filsSchema }).optional(),
+  paymentMethod: z
+    .strictObject({ before: paymentMethodSchema, after: paymentMethodSchema })
+    .optional(),
 });
 const orderEditRecordSchema = z.strictObject({
   id: z.uuid(),
@@ -139,6 +151,7 @@ export const manualOrderRequestSchema = z
     couponCode: couponCodeInputSchema,
     quoteToken: z.string().min(1).max(256),
     ageConfirmed: z.literal(true),
+    paymentMethod: orderPaymentMethodSchema,
     start: z.enum(["pending", "confirmed"]),
     evidence: z
       .strictObject({
@@ -332,6 +345,7 @@ export const adminOrderSummarySchema = z.strictObject({
   itemCount: z.number().int().min(1),
   areaName: z.string().min(1).max(100),
   totalFils: filsSchema,
+  paymentMethod: paymentMethodSchema,
   codStatus: z.enum(COD_STATUSES),
   version: z.number().int().min(1),
   createdAt: z.iso.datetime(),
@@ -405,6 +419,7 @@ export const adminOrderResponseSchema = z.strictObject({
     })
     .nullable(),
   deliveryEtaText: z.string().min(1).max(500),
+  paymentMethod: paymentMethodSchema,
   codStatus: z.enum(COD_STATUSES),
   /**
    * The first cash record, kept as original evidence and never changed. After an Owner

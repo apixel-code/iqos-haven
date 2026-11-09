@@ -57,7 +57,7 @@ export default async function ShopLayout({ children }: { children: ReactNode }) 
               {/* Prototype wording adapted to UAE-wide delivery (BI-03); final copy is BI-01. */}
               <p>
                 An online store for IQOS devices and TEREA sticks, delivering across the UAE. Order
-                online and pay cash on delivery.
+                online and pay cash on delivery, by bank transfer or online.
               </p>
             </div>
             <nav aria-label="Shop">
@@ -237,7 +237,7 @@ export default async function ShopLayout({ children }: { children: ReactNode }) 
               © {new Date().getFullYear()} {SITE.name}. All rights reserved.
             </span>
             <span>{operator ? `${AGE_COPY.footer} · ${operator}` : AGE_COPY.footer}</span>
-            <span>Payment: Cash on delivery</span>
+            <span>Payment: Cash on delivery · All payment methods accepted</span>
           </div>
         </div>
       </footer>

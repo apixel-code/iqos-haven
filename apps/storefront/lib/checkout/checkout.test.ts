@@ -245,6 +245,7 @@ describe("order confirmation", () => {
     orderNumber: "IH-001001",
     placedAt: "2026-10-13T08:05:00.000Z",
     status: "pending" as const,
+    paymentMethod: "cash_on_delivery" as const,
     totalFils: 15900,
     deliveryFeeFils: 1500,
     discountFils: 1600,

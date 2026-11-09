@@ -3,7 +3,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { adminCustomerResponseSchema, adminCustomersResponseSchema } from "@ih/contracts";
 import { isUuid, newOrderForPhone, orderHref } from "../lib/links";
-import { COD_STATUS_LABELS, money, when } from "../lib/orders";
+import { money, paymentStatusLabel, when } from "../lib/orders";
 import { Icon } from "./icons";
 import { ResourceNotice, useManagementResource } from "./management-resource";
 import { StatusBadge } from "./order-management";
@@ -373,7 +373,9 @@ function CustomerDetail({
                               </td>
                               <td className="small">{when(order.createdAt)}</td>
                               <td className="num">{money(order.totalFils)}</td>
-                              <td className="small">{COD_STATUS_LABELS[order.codStatus]}</td>
+                              <td className="small">
+                                {paymentStatusLabel(order.paymentMethod, order.codStatus)}
+                              </td>
                               <td>
                                 <StatusBadge status={order.status} />
                               </td>
@@ -397,7 +399,9 @@ function CustomerDetail({
                               <span className="amt">{money(order.totalFils)}</span>
                             </span>
                             <span className="meta">
-                              <span>{COD_STATUS_LABELS[order.codStatus]}</span>
+                              <span>
+                                {paymentStatusLabel(order.paymentMethod, order.codStatus)}
+                              </span>
                             </span>
                           </span>
                         </Link>

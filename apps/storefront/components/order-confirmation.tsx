@@ -12,6 +12,7 @@ import {
   subtotalFils,
   type ConfirmationView,
 } from "@/lib/checkout/confirmation";
+import { PAYMENT_METHOD_LABELS, PAYMENT_METHOD_NEXT_STEP } from "@ih/contracts";
 import { SITE } from "@/lib/site";
 import { WHATSAPP_MESSAGES } from "@/lib/whatsapp";
 import { WhatsAppLink } from "./whatsapp-link";
@@ -122,9 +123,9 @@ export function OrderConfirmation({ whatsappNumber }: { whatsappNumber: string |
         <h1 className="h1">{known ? "Your order was placed" : "This order can't be shown here"}</h1>
         {known ? (
           <p className="muted">
-            Order <b className="mono ink">{known.orderNumber}</b> · <Money fils={known.totalFils} />{" "}
-            cash on delivery. We can&apos;t show its details on this device right now, but the order
-            is not affected.
+            Order <b className="mono ink">{known.orderNumber}</b> · <Money fils={known.totalFils} />
+            . We can&apos;t show its details on this device right now, but the order is not
+            affected.
           </p>
         ) : (
           <p className="muted">
@@ -152,7 +153,11 @@ export function OrderConfirmation({ whatsappNumber }: { whatsappNumber: string |
         <p className="done-status">{STATUS_TEXT[order.status]}</p>
       </div>
       <div className="cashbox">
-        <span>Pay in cash on delivery</span>
+        <span>
+          {order.paymentMethod === "cash_on_delivery"
+            ? "Pay in cash on delivery"
+            : `Pay by ${PAYMENT_METHOD_LABELS[order.paymentMethod].toLowerCase()}`}
+        </span>
         <b>
           <Money fils={order.totalFils} />
         </b>
@@ -179,7 +184,9 @@ export function OrderConfirmation({ whatsappNumber }: { whatsappNumber: string |
               <span className="block">To {address.join(", ")}</span>
             </Step>
             <Step done={order.status === "delivered"} title="Pay and receive">
-              Have the cash ready for the courier.
+              {order.paymentMethod === "cash_on_delivery"
+                ? "Have the cash ready for the courier."
+                : PAYMENT_METHOD_NEXT_STEP[order.paymentMethod]}
             </Step>
           </ol>
         </section>

@@ -13,10 +13,13 @@ import {
   manualOrderResponseSchema,
   MANUAL_CONFIRMATION_CHANNELS,
   normalizePhone,
+  PAYMENT_METHOD_LABELS,
+  PAYMENT_METHODS,
   storeDeliveryResponseSchema,
   storeQuoteResponseSchema,
   type AdminCustomerResponse,
   type OrderItemChoice,
+  type PaymentMethod,
   type StoreQuoteResponse,
 } from "@ih/contracts";
 import { ApiError } from "../lib/auth";
@@ -38,6 +41,12 @@ type SavedAddress = AdminCustomerResponse["addresses"][number];
 /** The returning customer found by phone, or `null` when the number has no orders yet. */
 type Lookup = { phone: string; customer: AdminCustomerResponse | null };
 const newKey = () => crypto.randomUUID();
+/** How the customer will pay (ADR 0111); no gateway, staff send the details. */
+const PAYMENT_ICON = {
+  cash_on_delivery: "cash",
+  bank_transfer: "store",
+  online_payment: "card",
+} as const;
 
 /**
  * Manual order (roadmap step 88, ADR 0056): a staff member enters an order for a customer who
@@ -93,6 +102,7 @@ export function ManualOrderPanel({
   const [coupon, setCoupon] = useState("");
   const [quote, setQuote] = useState<StoreQuoteResponse | null>(null);
   const [startAs, setStartAs] = useState<"pending" | "confirmed">("pending");
+  const [payment, setPayment] = useState<PaymentMethod>("cash_on_delivery");
   const [channel, setChannel] = useState<(typeof MANUAL_CONFIRMATION_CHANNELS)[number]>("phone");
   const [evidenceNote, setEvidenceNote] = useState("");
   const [age, setAge] = useState(false);
@@ -254,6 +264,7 @@ export function ManualOrderPanel({
         couponCode: priced().couponCode,
         quoteToken: quote.quote.token,
         ageConfirmed: age,
+        paymentMethod: payment,
         start: startAs,
         ...(startAs === "confirmed" ? { evidence: { channel, note: evidenceNote } } : {}),
       });
@@ -742,19 +753,32 @@ export function ManualOrderPanel({
                   <div className="field">
                     <span className="label">Payment</span>
                     <div className="radios">
-                      <label className="ropt">
-                        <input type="radio" name="pay" checked readOnly />
-                        <span>
-                          <b>
-                            <Icon name="cash" size="sm" /> Cash on Delivery
-                          </b>
-                          <small>
-                            {quote
-                              ? `Courier collects ${money(quote.totalFils)} on delivery.`
-                              : "Courier collects the total on delivery."}
-                          </small>
-                        </span>
-                      </label>
+                      {PAYMENT_METHODS.map((method) => (
+                        <label className="ropt" key={method}>
+                          <input
+                            type="radio"
+                            name="pay"
+                            value={method}
+                            checked={payment === method}
+                            onChange={() => setPayment(method)}
+                          />
+                          <span>
+                            <b>
+                              <Icon name={PAYMENT_ICON[method]} size="sm" />{" "}
+                              {PAYMENT_METHOD_LABELS[method]}
+                            </b>
+                            <small>
+                              {method === "cash_on_delivery"
+                                ? quote
+                                  ? `Courier collects ${money(quote.totalFils)} on delivery.`
+                                  : "Courier collects the total on delivery."
+                                : method === "bank_transfer"
+                                  ? "Send the customer the bank details on WhatsApp."
+                                  : "Send the customer a payment link on WhatsApp."}
+                            </small>
+                          </span>
+                        </label>
+                      ))}
                     </div>
                   </div>
                   {canConfirm && (

@@ -211,7 +211,7 @@ export function HeroCarousel({ slides }: { slides: readonly Slide[] }) {
         </span>
         <span>
           <Icon name="cash" />
-          Cash on delivery
+          Cash on delivery · All payment methods accepted
         </span>
         <span>
           <Icon name="wa" />

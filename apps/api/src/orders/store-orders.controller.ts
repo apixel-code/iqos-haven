@@ -1,3 +1,4 @@
+import type { PaymentMethod } from "@ih/domain";
 import { OrderConfirmationService } from "./order-confirmation.service";
 import {
   BadRequestException,
@@ -46,6 +47,7 @@ class OrderDto extends createZodDto(storeOrderRequestSchema) {
   declare couponCode: string | null;
   declare quoteToken: string;
   declare ageConfirmed: true;
+  declare paymentMethod: PaymentMethod;
 }
 /**
  * `POST /v1/store/orders` (roadmap step 77, ADR 0046): the only way a shopper places an order.
@@ -98,6 +100,7 @@ export class StoreOrdersController {
         address: body.address,
         lines: body.lines,
         couponCode: body.couponCode,
+        paymentMethod: body.paymentMethod,
         quoteToken: body.quoteToken,
         requestId: requestId(request.raw as typeof request.raw & { id?: string }),
       });

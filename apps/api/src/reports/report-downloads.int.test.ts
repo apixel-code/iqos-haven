@@ -253,7 +253,7 @@ describe("report CSV downloads through the real API and PostgreSQL", () => {
       "Order total (AED)",
       "Coupon",
       "Payment",
-      "Cash",
+      "Payment status",
     ]);
     expect(rows).toHaveLength(2);
     const customer = header.indexOf("Customer");

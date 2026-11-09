@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { PAYMENT_METHOD_LABELS, type PaymentMethod } from "@ih/contracts";
 import { useFreshCart } from "@/lib/cart/fresh";
 import { clearCart } from "@/lib/cart/store";
 import { currentAttempt, endAttempt } from "@/lib/checkout/attempt";
@@ -24,6 +25,32 @@ import { CartQuote, type AcceptedOrderQuote } from "./cart-quote";
 import { Icon } from "@/components/icons";
 import { Money } from "@/components/money";
 
+/**
+ * How the shopper can pay (ADR 0111, client 2026-11-09). No gateway: for a bank transfer or an
+ * online payment the team sends the details on WhatsApp after the order is placed.
+ */
+const PAYMENT_CHOICES: ReadonlyArray<{
+  method: PaymentMethod;
+  icon: "cash" | "building" | "lock";
+  hint: string;
+}> = [
+  {
+    method: "cash_on_delivery",
+    icon: "cash",
+    hint: "Pay in cash when your order arrives. Exact change helps.",
+  },
+  {
+    method: "bank_transfer",
+    icon: "building",
+    hint: "After you order, we send our bank details on WhatsApp. Use your order number as the reference.",
+  },
+  {
+    method: "online_payment",
+    icon: "lock",
+    hint: "After you order, we send you a secure payment link on WhatsApp.",
+  },
+];
+
 /** Fields in the order they appear, for the error summary. */
 const FIELD_ORDER: readonly FormField[] = [
   "name",
@@ -36,6 +63,7 @@ const FIELD_ORDER: readonly FormField[] = [
   "makani",
   "notes",
   "areaId",
+  "paymentMethod",
   "ageConfirmed",
 ];
 const FIELD_ID: Record<FormField, string> = {
@@ -49,6 +77,7 @@ const FIELD_ID: Record<FormField, string> = {
   makani: "checkout-makani",
   notes: "checkout-notes",
   areaId: "checkout-area",
+  paymentMethod: "checkout-payment",
   ageConfirmed: "checkout-age",
 };
 const TYPES: ReadonlyArray<{
@@ -175,7 +204,7 @@ export function CheckoutView() {
       return rest;
     });
   };
-  const text = (field: Exclude<keyof CheckoutForm, "type" | "ageConfirmed">) => ({
+  const text = (field: Exclude<keyof CheckoutForm, "type" | "ageConfirmed" | "paymentMethod">) => ({
     id: FIELD_ID[field],
     className: errors[field] ? "input err" : "input",
     value: form[field],
@@ -211,6 +240,7 @@ export function CheckoutView() {
           couponCode: accepted.couponCode,
           quoteToken: accepted.token,
           ageConfirmed: true,
+          paymentMethod: form.paymentMethod,
         }),
       });
       outcome = orderOutcome(response.status, await response.json().catch(() => null));
@@ -281,8 +311,7 @@ export function CheckoutView() {
           Order placed
           {order && (
             <>
-              : <b className="mono ink">{order.orderNumber}</b> · <Money fils={order.totalFils} />{" "}
-              cash on delivery
+              : <b className="mono ink">{order.orderNumber}</b> · <Money fils={order.totalFils} />
             </>
           )}
           . Opening your confirmation…
@@ -596,25 +625,41 @@ export function CheckoutView() {
         </section>
         <section className="co-step">
           <StepHead n={4}>Payment</StepHead>
-          <div className="pay-opt">
-            <Icon name="cash" size="lg" />
-            <span className="pay-t">
-              <b>Cash on delivery</b>
-              <span className="small muted">
-                {total ? (
-                  <>
-                    Pay <b className="num ink">{total}</b> in cash when your order arrives. Exact
-                    change helps.
-                  </>
-                ) : (
-                  "Pay in cash when your order arrives. Exact change helps."
-                )}
-              </span>
-            </span>
-            <span className="pay-ok">
-              <Icon name="check" />
-            </span>
-          </div>
+          <fieldset id={FIELD_ID.paymentMethod} className="pay-opts">
+            <legend className="label">How would you like to pay?</legend>
+            {PAYMENT_CHOICES.map((choice) => {
+              const on = form.paymentMethod === choice.method;
+              return (
+                <label key={choice.method} className={on ? "pay-opt on" : "pay-opt"}>
+                  <input
+                    type="radio"
+                    form="checkout-form"
+                    name="checkout-payment"
+                    value={choice.method}
+                    checked={on}
+                    onChange={() => set("paymentMethod", choice.method)}
+                  />
+                  <Icon name={choice.icon} size="lg" />
+                  <span className="pay-t">
+                    <b>{PAYMENT_METHOD_LABELS[choice.method]}</b>
+                    <span className="small muted">
+                      {choice.method === "cash_on_delivery" && total ? (
+                        <>
+                          Pay <b className="num ink">{total}</b> in cash when your order arrives.
+                          Exact change helps.
+                        </>
+                      ) : (
+                        choice.hint
+                      )}
+                    </span>
+                  </span>
+                  <span className="pay-ok" aria-hidden="true">
+                    {on && <Icon name="check" />}
+                  </span>
+                </label>
+              );
+            })}
+          </fieldset>
           <div className="field">
             <label className="check" htmlFor={FIELD_ID.ageConfirmed}>
               <input

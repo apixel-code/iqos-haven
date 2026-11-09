@@ -35,8 +35,8 @@ export default async function HelpPage() {
   );
   const faq = [
     {
-      q: "How does cash on delivery work?",
-      a: "Place your order without paying online. The courier collects the total in cash when your order arrives. Have the exact amount ready if you can.",
+      q: "How can I pay?",
+      a: "All payment methods are accepted. Choose one at checkout: cash on delivery (pay the courier when your order arrives; have the exact amount ready if you can), bank transfer (we send our bank details on WhatsApp after you order; use your order number as the reference) or online payment (we send you a secure payment link on WhatsApp).",
     },
     {
       q: "Where do you deliver?",
@@ -100,10 +100,12 @@ export default async function HelpPage() {
               <p>{delivery.etaText}</p>
             </>
           )}
-          <h3>On delivery</h3>
+          <h3>Paying</h3>
           <ul>
-            <li>Pay the courier in cash when your order arrives.</li>
-            <li>Have the exact amount ready if you can.</li>
+            <li>Cash on delivery: pay the courier when your order arrives.</li>
+            <li>
+              Bank transfer or online payment: we send the details on WhatsApp after you order.
+            </li>
           </ul>
         </section>
         <section aria-labelledby="help-faq" className="help-sec">

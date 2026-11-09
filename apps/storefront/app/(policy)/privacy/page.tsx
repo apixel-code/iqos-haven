@@ -32,8 +32,10 @@ export default function PrivacyPage() {
           <li>your confirmation that you are 18 or older.</li>
         </ul>
         <p>
-          We do not ask for card or bank details. You pay in cash when your order is delivered, and
-          we do not process any online payment.
+          We do not ask for card details. We record how you chose to pay (cash on delivery, bank
+          transfer or online payment). A bank transfer or online payment is made through your bank
+          or the payment link&apos;s provider, not on our website; we keep only the reference needed
+          to match it to your order.
         </p>
         <p>
           You do not need an account to shop with us. We do not create customer accounts or

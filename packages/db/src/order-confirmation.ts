@@ -8,7 +8,7 @@ export async function readOrderConfirmation(db: Database, hash: Buffer) {
   >(Prisma.sql`
  SELECT order_number::text AS "orderNumber", jsonb_build_object(
    'placedAt',to_char(created_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"'),
-   'status',status,'totalFils',total_fils,'deliveryFeeFils',delivery_fee_fils,'discountFils',discount_fils,
+   'status',status,'totalFils',total_fils,'paymentMethod',payment_method,'deliveryFeeFils',delivery_fee_fils,'discountFils',discount_fils,
    'etaText',delivery_eta_text,'address',jsonb_build_object('area',area_name,'emirate',area_emirate,
      'type',address_type,'building',address_building,'unit',address_unit,'street',address_street),
    'items',(SELECT jsonb_agg(jsonb_build_object('name',product_name,'attributes',attributes,

@@ -7,6 +7,8 @@ import {
   orderLinesSchema,
 } from "./checkout";
 import { customerAddressSchema } from "./customers";
+import { orderEditRequestSchema } from "./orders";
+import { storeOrderRequestSchema } from "./store";
 const AREA = "018f2f6e-7b1a-7c3e-9d4a-2b6c8e0f1a35";
 const id = (n: number) => `00000000-0000-7000-8000-${String(n).padStart(12, "0")}`;
 /** Field → message, the way a form shows them. */
@@ -214,5 +216,39 @@ describe("order lines", () => {
       orderLinesSchema.safeParse([{ variantId: id(1), quantity: 1, priceFils: 1 }]).success,
     ).toBe(false);
     expect(orderLinesSchema.safeParse([{ variantId: "x", quantity: 1 }]).success).toBe(false);
+  });
+});
+
+describe("payment method (ADR 0111)", () => {
+  const order = {
+    contact: { name: "Sam Lee", phone: "0501234567", email: "sam@example.com" },
+    address: { areaId: AREA, type: "villa", building: "Villa 12" },
+    lines: [{ variantId: id(1), quantity: 1 }],
+    couponCode: null,
+    quoteToken: "t",
+    ageConfirmed: true,
+  };
+  it("defaults to cash on delivery so an older checkout page still orders", () => {
+    expect(storeOrderRequestSchema.parse(order).paymentMethod).toBe("cash_on_delivery");
+  });
+  it("takes the three methods and nothing else", () => {
+    for (const method of ["cash_on_delivery", "bank_transfer", "online_payment"])
+      expect(storeOrderRequestSchema.parse({ ...order, paymentMethod: method }).paymentMethod).toBe(
+        method,
+      );
+    for (const method of ["card", "", null, "Bank transfer"])
+      expect(storeOrderRequestSchema.safeParse({ ...order, paymentMethod: method }).success).toBe(
+        false,
+      );
+  });
+  it("lets staff change it in an order edit, alone or with other changes", () => {
+    const edit = { expectedVersion: 1, commandId: id(9) };
+    expect(
+      orderEditRequestSchema.safeParse({ ...edit, paymentMethod: "online_payment" }).success,
+    ).toBe(true);
+    expect(orderEditRequestSchema.safeParse({ ...edit, paymentMethod: "card" }).success).toBe(
+      false,
+    );
+    expect(orderEditRequestSchema.safeParse(edit).success).toBe(false);
   });
 });

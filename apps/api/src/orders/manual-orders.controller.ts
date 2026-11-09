@@ -1,3 +1,4 @@
+import type { PaymentMethod } from "@ih/domain";
 import {
   BadRequestException,
   Body,
@@ -53,6 +54,7 @@ type ManualOrderInput = {
   address: CheckoutAddress;
   lines: OrderLines;
   couponCode: string | null;
+  paymentMethod: PaymentMethod;
   quoteToken: string;
   start: "pending" | "confirmed";
   evidence?: { channel: (typeof MANUAL_CONFIRMATION_CHANNELS)[number]; note: string };
@@ -137,6 +139,7 @@ export class ManualOrdersController {
         address: input.address,
         lines: input.lines,
         couponCode: input.couponCode,
+        paymentMethod: input.paymentMethod,
         quoteToken: input.quoteToken,
         requestId: request.id,
         manual: {

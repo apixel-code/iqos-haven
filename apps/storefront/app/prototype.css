@@ -6346,6 +6346,42 @@
   .pay-opt .pay-ok {
     color: var(--success);
   }
+  /* Payment choice (ADR 0111): three cards, the chosen one outlined in ink. */
+  .pay-opts {
+    display: grid;
+    gap: 10px;
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+  .pay-opts > legend {
+    margin-bottom: 8px;
+    padding: 0;
+  }
+  label.pay-opt {
+    position: relative;
+    border-color: var(--line);
+    cursor: pointer;
+  }
+  label.pay-opt.on {
+    border-color: var(--ink);
+  }
+  label.pay-opt input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    pointer-events: none;
+  }
+  label.pay-opt:has(input:focus-visible) {
+    outline: 2px solid var(--ink);
+    outline-offset: 2px;
+  }
+  label.pay-opt .pay-ok {
+    flex: none;
+    width: 20px;
+  }
   .co-again {
     max-width: 560px;
     margin: 20px auto 56px;

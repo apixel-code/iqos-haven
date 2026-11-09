@@ -7,10 +7,19 @@ import {
   toAsciiDigits,
   ORDER_LIMITS,
   OrderLinesError,
+  PAYMENT_METHODS,
+  DEFAULT_PAYMENT_METHOD,
 } from "@ih/domain";
 import { customerAddressTypeSchema, type CustomerAddressType } from "./customers";
 
-export { ORDER_LIMITS } from "@ih/domain";
+export {
+  ORDER_LIMITS,
+  DEFAULT_PAYMENT_METHOD,
+  PAYMENT_METHODS,
+  PAYMENT_METHOD_LABELS,
+  PAYMENT_METHOD_NEXT_STEP,
+  type PaymentMethod,
+} from "@ih/domain";
 
 /**
  * Checkout input (roadmap step 66): the one set of rules the storefront form and the API both
@@ -166,6 +175,13 @@ const problems = {
   QUANTITY: CHECKOUT_MESSAGES.quantity,
 } as const;
 /** Lines of a quote or order: merged per variant, capped and in variant-ID order. */
+/** How the shopper will pay (ADR 0111); no gateway, staff arrange and record every payment. */
+export const paymentMethodSchema = z.enum(PAYMENT_METHODS);
+/**
+ * The method on an order request. Left out means cash on delivery, so a checkout page loaded
+ * before ADR 0111 still places the order it always placed.
+ */
+export const orderPaymentMethodSchema = paymentMethodSchema.default(DEFAULT_PAYMENT_METHOD);
 export const orderLinesSchema = z
   .array(
     z.strictObject({

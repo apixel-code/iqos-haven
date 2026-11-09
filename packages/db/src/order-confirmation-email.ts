@@ -1,5 +1,5 @@
 import { storeSettingsSchema, whatsappSettingsSchema } from "@ih/contracts";
-import { formatOrderNumber } from "@ih/domain";
+import { formatOrderNumber, type PaymentMethod } from "@ih/domain";
 import { Prisma, type Database, type Tx } from "./client";
 
 /** What the shopper's order confirmation says (ADR 0102), loaded from the order's snapshots. */
@@ -45,6 +45,8 @@ export interface CustomerOrderEmail {
   totalFils: number;
   areaName: string;
   deliveryEtaText: string;
+  /** How the shopper chose to pay (ADR 0111). */
+  paymentMethod: PaymentMethod;
   store: { name: string; domain: string | null; whatsappNumber: string | null };
 }
 
@@ -68,13 +70,14 @@ export async function loadCustomerOrderEmail(
       totalFils: bigint;
       areaName: string;
       deliveryEtaText: string;
+      paymentMethod: PaymentMethod;
     }>
   >(Prisma.sql`
     SELECT customer_email AS email, customer_name AS "customerName", customer_phone_e164 AS phone,
       order_number AS "orderNumber",
       merchandise_subtotal_fils AS "merchandiseSubtotalFils", discount_fils AS "discountFils",
       delivery_fee_fils AS "deliveryFeeFils", total_fils AS "totalFils", area_name AS "areaName",
-      delivery_eta_text AS "deliveryEtaText"
+      delivery_eta_text AS "deliveryEtaText", payment_method AS "paymentMethod"
     FROM orders WHERE id=${orderId}::uuid`);
   if (!order) return null;
   if (!order.email) return { email: null };
@@ -96,6 +99,7 @@ export async function loadCustomerOrderEmail(
     totalFils: Number(order.totalFils),
     areaName: order.areaName,
     deliveryEtaText: order.deliveryEtaText,
+    paymentMethod: order.paymentMethod,
     store: {
       name: store.success ? store.data.name : "Iqos Haven",
       domain: store.success ? store.data.domain : null,

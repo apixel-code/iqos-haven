@@ -51,7 +51,7 @@ export default function OpenGraphImage() {
         Delivery across all seven emirates
       </div>
       <div style={{ display: "flex", gap: 18 }}>
-        {chip("Cash on delivery")}
+        {chip("All payment methods accepted")}
         {chip(AGE_COPY.badge, true)}
       </div>
     </div>,

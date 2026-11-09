@@ -70,7 +70,7 @@ export function newOrderEmailPlanner(db: Database): EmailPlanner {
   return async (context) => {
     const loaded = await loadNewOrderEmail(db, createdOrderId(context));
     if (!loaded) throw new PermanentEffectError("ORDER_NOT_FOUND");
-    const { order, contact, items, recipients } = loaded;
+    const { order, contact, items, recipients, paymentMethod } = loaded;
     return {
       template: newOrderTemplate,
       data: {
@@ -78,6 +78,7 @@ export function newOrderEmailPlanner(db: Database): EmailPlanner {
         total: formatAed(fils(order.totalFils)),
         units: order.units,
         areaName: order.areaName,
+        paymentMethod,
         customer: { name: contact.name, phone: contact.phone, email: contact.email },
         items: items.map(itemLine),
       },
@@ -118,6 +119,7 @@ export function customerOrderEmailPlanner(db: Database): EmailPlanner {
         total: aed(loaded.totalFils),
         areaName: loaded.areaName,
         eta: loaded.deliveryEtaText,
+        paymentMethod: loaded.paymentMethod,
         whatsappUrl: digits ? `https://wa.me/${digits}` : null,
         trackUrl: loaded.store.domain ? `https://${loaded.store.domain}/track` : null,
       },

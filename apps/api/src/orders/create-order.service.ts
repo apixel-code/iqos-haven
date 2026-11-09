@@ -3,7 +3,7 @@ import { Inject, Injectable } from "@nestjs/common";
 import type { ApiEnv } from "@ih/config";
 import type { CheckoutAddress, CheckoutContact } from "@ih/contracts";
 import { createStoreOrder, QuoteNotAcceptedError, type Database } from "@ih/db";
-import type { OrderLine } from "@ih/domain";
+import type { OrderLine, PaymentMethod } from "@ih/domain";
 import { checkAcceptedQuote, verifyQuote } from "@ih/platform";
 import { API_ENV, DATABASE } from "../infra/tokens";
 import { CartQuoteService } from "../store/cart-quote.service";
@@ -14,6 +14,8 @@ export interface PlaceOrderCommand {
   address: CheckoutAddress;
   lines: readonly OrderLine[];
   couponCode: string | null;
+  /** How the shopper will pay (ADR 0111); cash on delivery when left out. */
+  paymentMethod?: PaymentMethod;
   /** The token returned with the total the shopper accepted. */
   quoteToken: string;
   requestId: string;
@@ -58,6 +60,7 @@ export class CreateOrderService {
       address: command.address,
       lines: command.lines,
       couponCode: command.couponCode,
+      ...(command.paymentMethod ? { paymentMethod: command.paymentMethod } : {}),
       quote: {
         fingerprint: claimed,
         accept: (facts) => checkAcceptedQuote(command.quoteToken, this.quotes.keys, now, facts),
