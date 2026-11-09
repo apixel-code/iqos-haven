@@ -46,9 +46,23 @@ export const viewport: Viewport = {
   themeColor: "#f2f4f5",
 };
 
+/**
+ * On a reload the page opens at the top, not where the shopper had scrolled (Marina 2026-11-09),
+ * with no jump. Chrome decides whether to restore when the reload starts, from the mode of the
+ * page being left, so the mode is set to "manual" as the document is unloaded (`pagehide`), and
+ * the new document scrolls to the top in <head>, before its first paint. After it has loaded the
+ * mode goes back to "auto", so back/forward between pages of the store (client navigation, no
+ * unload) still return to where the shopper was. A page restored from the back/forward cache keeps
+ * its own position.
+ */
+const RELOAD_STARTS_AT_TOP = `(function(){try{if(!("scrollRestoration" in history))return;var h=history;addEventListener("pagehide",function(){h.scrollRestoration="manual"});var n=performance.getEntriesByType("navigation")[0];var reload=n&&n.type==="reload";var top=function(){if(reload)window.scrollTo(0,0)};top();document.addEventListener("DOMContentLoaded",top);addEventListener("load",function(){top();setTimeout(function(){h.scrollRestoration="auto"},0)})}catch(e){}})();`;
+
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: RELOAD_STARTS_AT_TOP }} />
+      </head>
       <body>
         <LegacyCleanup />
         {children}
