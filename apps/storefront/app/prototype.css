@@ -3007,9 +3007,11 @@
     height: 24px;
     display: block;
   }
-  .so-fb {
+  .so-fb,
+  .so-tt {
     background: transparent;
   }
+  .so-tt svg,
   .so-fb svg {
     width: 34px;
     height: 34px;
@@ -3023,6 +3025,23 @@
       #d6249f 60%,
       #285aeb 90%
     );
+  }
+  /*
+   * store (Marina 2026-11-09): the Instagram tile at the same visual size as the round Facebook
+   * and TikTok marks (34 px); the full 40 px tile looked bigger than them.
+   */
+  .social {
+    align-items: center;
+  }
+  .social a.so-ig {
+    width: 31px;
+    height: 31px;
+    margin-inline: 4px;
+    border-radius: 9px;
+  }
+  .social a.so-ig svg {
+    width: 19px;
+    height: 19px;
   }
   .foot-warn {
     font-size: 12.5px;
