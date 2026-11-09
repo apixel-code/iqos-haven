@@ -46,7 +46,6 @@ export default function OpenGraphImage() {
         color: "#ffffff",
       }}
     >
-      {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src={OG_LOGO} width={OG_LOGO_SIZE.width} height={OG_LOGO_SIZE.height} alt="" />
       <div style={{ display: "flex", fontSize: 38, color: "#c9cfd6", letterSpacing: -0.5 }}>
         Delivery across all seven emirates
