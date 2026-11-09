@@ -7,7 +7,7 @@ import {
 } from "@ih/contracts";
 import { HeroCarousel } from "@/components/hero-carousel";
 import {
-  CategoryTiles,
+  HomeCategories,
   HomeBanners,
   HomeBrands,
   HomeOffers,
@@ -15,7 +15,7 @@ import {
 } from "@/components/home-sections";
 import { RecentlyViewed } from "@/components/recently-viewed";
 import { SITE } from "@/lib/site";
-import { TYPE_PAGES, type ListedType } from "@/lib/store/listing";
+import { TYPE_PAGES } from "@/lib/store/listing";
 import { storeHome, storeRead } from "@/lib/store/server";
 
 type Card = StoreProductCard;
@@ -61,6 +61,38 @@ async function tereaCountryRows(categories: readonly Category[], sticks: readonl
   return rows.filter((row) => row.products.length);
 }
 
+/**
+ * "Shop by category" (Marina 2026-11-09): every category from the admin that has products on
+ * sale, in the admin's order, so a category added there appears here by itself. Its picture is
+ * the one set in the admin, else a product photo from that category: from the cards this page
+ * already read, or one card read for a category none of them covers.
+ */
+async function categoryTiles(categories: readonly Category[], cards: readonly Card[]) {
+  const shown = categories.filter((category) => category.productCount > 0);
+  const photoOf = (slug: string) =>
+    cards.find((card) => card.category.slug === slug && card.image)?.image ?? null;
+  const missing = shown.filter((category) => !category.image && !photoOf(category.slug));
+  const extra = missing.length
+    ? await storeRead((api, shopper) =>
+        Promise.all(
+          missing.map((category) =>
+            api.products(shopper, { category: category.slug, sort: "name", limit: 1 }),
+          ),
+        ),
+      )
+    : [];
+  return shown.map((category) => ({
+    title: category.name,
+    href: `/categories/${category.slug}`,
+    count: category.productCount,
+    image:
+      category.image ??
+      photoOf(category.slug) ??
+      extra[missing.indexOf(category)]?.items.find((card) => card.image)?.image ??
+      null,
+  }));
+}
+
 export const metadata: Metadata = { title: SITE.name };
 
 /** Shown until the Owner publishes a hero: one navy slide with the store's own words. */
@@ -77,21 +109,19 @@ const DEFAULT_SLIDE: StoreHomeResponse["heroSlides"][number] = {
 
 /**
  * Home page (roadmap steps 64 and 99; the prototype's `home` since ADR 0097), laid out as a full
- * shop since ADR 0105 (client feedback 2026-11-03): the hero, categories, then products on every
+ * shop since ADR 0105 (client feedback 2026-11-03): the hero, the admin's categories, then products on every
  * row — best sellers, the two brands, new arrivals, featured, TEREA sticks, one row per TEREA
  * country and IQOS devices —
  * campaigns, offers and recently viewed. Published content (ADR 0066) and live catalogue
  * counts; a section with nothing to show is left out. Restricted like every page.
  */
 export default async function HomePage() {
-  const [content, [fresh, brands, counts, sticks, devices, categories]] = await Promise.all([
+  const [content, [fresh, brands, sticks, devices, categories]] = await Promise.all([
     storeHome(),
     storeRead((api, shopper) =>
       Promise.all([
         api.products(shopper, { sort: "newest", limit: 8 }),
         api.brands(shopper),
-        // Termless search: counts for the category tiles (catalogue budget, cached).
-        api.search(shopper, [["limit", "1"]]),
         // One page of sticks feeds the TEREA row and the country rows below it.
         api.products(shopper, { type: "sticks", sort: "name", limit: STORE_PAGE_SIZES.max }),
         api.products(shopper, { type: "device", sort: "price_asc", limit: 4 }),
@@ -109,8 +139,7 @@ export default async function HomePage() {
   ];
   const photo = (match: (card: (typeof pictured)[number]) => boolean) =>
     pictured.find((card) => card.image && match(card))?.image ?? null;
-  const typeCount = (type: ListedType) =>
-    counts.facets.types.find((item) => item.type === type)?.count ?? 0;
+  const tiles = await categoryTiles(categories.items, pictured);
   const shownBrands = content.brands.length
     ? content.brands
     : brands.items
@@ -124,38 +153,7 @@ export default async function HomePage() {
   return (
     <>
       <HeroCarousel slides={content.heroSlides.length ? content.heroSlides : [DEFAULT_SLIDE]} />
-      <CategoryTiles
-        tiles={[
-          {
-            title: TYPE_PAGES.device.title,
-            href: TYPE_PAGES.device.path,
-            count: typeCount("device"),
-            tone: "var(--coral-soft)",
-            image: photo((card) => card.type === "device"),
-          },
-          {
-            title: TYPE_PAGES.sticks.title,
-            href: TYPE_PAGES.sticks.path,
-            count: typeCount("sticks"),
-            tone: "var(--lagoon-soft)",
-            image: photo((card) => card.type === "sticks"),
-          },
-          {
-            title: "New Arrivals",
-            href: "/shop?sort=newest",
-            count: null,
-            tone: "var(--orchid-soft)",
-            image: photo((card) => card.isNew),
-          },
-          {
-            title: "Offers",
-            href: "/offers",
-            count: counts.facets.onSale,
-            tone: "var(--saffron-soft)",
-            image: photo((card) => card.compareAtPriceFils !== null),
-          },
-        ]}
-      />
+      <HomeCategories tiles={tiles} />
       <ProductSection
         id="best-h"
         title="Best sellers"

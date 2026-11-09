@@ -63,34 +63,51 @@ export function SectionHead({
 
 const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? "" : "s"}`;
 
-/** "Shop by category" (prototype `catTiles`): four tiles with their product counts. */
-export function CategoryTiles({
+/** Pastel tile backgrounds, in turn. */
+const TILE_TONES = [
+  "var(--coral-soft)",
+  "var(--lagoon-soft)",
+  "var(--orchid-soft)",
+  "var(--saffron-soft)",
+];
+
+/**
+ * "Shop by category" (Marina 2026-11-09): the admin's categories as small tiles, four to a row
+ * on every width; any number of categories fills further rows. Computer and tablet: picture
+ * beside the name and count. Phone: picture over the name.
+ */
+export function HomeCategories({
   tiles,
 }: {
   tiles: ReadonlyArray<{
     title: string;
     href: string;
-    count: number | null;
-    tone: string;
-    /** A product photo for the tile (the prototype draws product art there). */
+    count: number;
     image: StoreImage | null;
   }>;
 }) {
+  if (!tiles.length) return null;
   return (
     <section className="sec" aria-labelledby="cat-h">
       <SectionHead id="cat-h" title="Shop by category" />
-      <div className="cat4">
-        {tiles.map((tile) => (
-          <Link key={tile.href} href={tile.href} prefetch={false} className="c4">
-            <span className="c4-img" style={{ background: tile.tone }} aria-hidden="true">
+      <div className="ctiles">
+        {tiles.map((tile, index) => (
+          <Link
+            key={tile.href}
+            href={tile.href}
+            prefetch={false}
+            className="ctile"
+            style={{ background: TILE_TONES[index % TILE_TONES.length] }}
+          >
+            <span className="ctile-img" aria-hidden="true">
               {tile.image && (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={tile.image.urls.medium} alt="" loading="lazy" decoding="async" />
+                <img src={tile.image.urls.thumb} alt="" loading="lazy" decoding="async" />
               )}
             </span>
-            <span className="c4-t">{tile.title}</span>
-            <span className="c4-n">
-              {tile.count === null ? "See what's new" : plural(tile.count, "product")}
+            <span className="ctile-copy">
+              <span className="ctile-t">{tile.title}</span>
+              <span className="ctile-n">{plural(tile.count, "product")}</span>
             </span>
           </Link>
         ))}

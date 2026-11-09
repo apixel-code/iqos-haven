@@ -5754,6 +5754,94 @@
     }
   }
 
+  /*
+   * store (Marina 2026-11-09): "Shop by category" from the admin's categories: small tiles,
+   * four to a row on every width. Phone: picture over the name. From 720 px: picture beside the
+   * name and product count.
+   */
+  .ctiles {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .ctile {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    padding: 8px 6px 10px;
+    border-radius: var(--r-md);
+    color: var(--ink);
+    text-decoration: none;
+    transition:
+      transform 0.2s var(--ease),
+      box-shadow 0.2s var(--ease);
+  }
+  .ctile:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--sh-1);
+  }
+  .ctile-img {
+    display: grid;
+    place-items: center;
+    width: 100%;
+    aspect-ratio: 1;
+    border-radius: 10px;
+    background: #fff;
+    overflow: hidden;
+    flex: none;
+  }
+  .ctile-img img {
+    width: 86%;
+    height: 86%;
+    object-fit: contain;
+  }
+  .ctile-copy {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    text-align: center;
+  }
+  .ctile-t {
+    font-size: 11.5px;
+    font-weight: 600;
+    line-height: 1.25;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .ctile-n {
+    display: none;
+    font-family: var(--mono);
+    font-size: 11.5px;
+    color: var(--ink-3);
+  }
+  @media (min-width: 720px) {
+    .ctiles {
+      gap: 14px;
+    }
+    .ctile {
+      flex-direction: row;
+      gap: 12px;
+      padding: 10px;
+    }
+    .ctile-img {
+      width: 64px;
+    }
+    .ctile-copy {
+      text-align: left;
+      gap: 2px;
+    }
+    .ctile-t {
+      font-size: 14.5px;
+    }
+    .ctile-n {
+      display: block;
+    }
+  }
+
   /* store: a product photo in the category tile, like the prototype's art. */
   .c4-img img {
     position: absolute;
