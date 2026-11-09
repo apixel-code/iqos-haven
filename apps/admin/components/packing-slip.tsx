@@ -2,6 +2,7 @@
 
 import { useRef } from "react";
 import { Icon } from "./icons";
+import logoDark from "../assets/logo-dark.png";
 import { EMIRATE_NAMES, type AdminOrderResponse } from "@ih/contracts";
 import { isCash, money, ORDER_STATUS_LABELS, PAYMENT_METHOD_LABELS, when } from "../lib/orders";
 
@@ -47,8 +48,8 @@ export function PackingSlip({
       <dialog ref={dialog} className="slip-dialog" aria-labelledby={`slip-${order.id}`}>
         <header className="card-heading slip-chrome">
           <div>
-            <h2 id={`slip-${order.id}`}>Order summary</h2>
-            <p className="muted">Packing slip layout for the courier</p>
+            <h2 id={`slip-${order.id}`}>Order invoice</h2>
+            <p className="muted">Invoice and packing slip for the courier</p>
           </div>
           <div className="form-actions">
             <button type="button" className="primary-button" onClick={() => window.print()}>
@@ -65,15 +66,24 @@ export function PackingSlip({
         </header>
         <article className="packing-slip">
           <div className="slip-head">
-            <strong className="slip-store">{storeName}</strong>
-            <span className="slip-number">{order.orderNumber}</span>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              className="slip-logo"
+              src={logoDark.src}
+              width={logoDark.width}
+              height={logoDark.height}
+              alt={storeName}
+            />
+            <div className="slip-title">
+              <span className="slip-kicker">Order invoice</span>
+              <span className="slip-number">{order.orderNumber}</span>
+              <span className="slip-date">{when(order.createdAt)}</span>
+            </div>
           </div>
           <div className="slip-columns">
-            <section>
+            <section className="slip-box">
               <h3>Deliver to</h3>
-              <p>
-                <strong>{customer.name}</strong>
-              </p>
+              <p className="slip-name">{customer.name}</p>
               <p>{[address.building, address.unit, address.street].filter(Boolean).join(", ")}</p>
               <p>
                 {ADDRESS_TYPES[address.type]}
@@ -85,11 +95,20 @@ export function PackingSlip({
               <p className="slip-mono">{customer.phone}</p>
               {address.notes && <p className="slip-note">Delivery note: {address.notes}</p>}
             </section>
-            <section>
+            <section className="slip-box">
               <h3>Order</h3>
-              <p>{when(order.createdAt)}</p>
-              <p>{ORDER_STATUS_LABELS[order.status]}</p>
-              <p>{method}</p>
+              <p>
+                <span className="slip-label">Status</span>
+                <span className="slip-pill">{ORDER_STATUS_LABELS[order.status]}</span>
+              </p>
+              <p>
+                <span className="slip-label">Payment</span>
+                <strong>{method}</strong>
+              </p>
+              <p>
+                <span className="slip-label">Items</span>
+                <strong>{order.items.reduce((sum, item) => sum + item.quantity, 0)}</strong>
+              </p>
             </section>
           </div>
           <table className="slip-items">
@@ -136,6 +155,10 @@ export function PackingSlip({
               <dd>{collect}</dd>
             </div>
           </dl>
+          <footer className="slip-foot">
+            <span>Thank you for shopping with {storeName}.</span>
+            <span>iqoshaven.com · For adults 18+ only</span>
+          </footer>
         </article>
       </dialog>
     </>
