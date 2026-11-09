@@ -300,7 +300,10 @@ describe("new-order notification and email (real PostgreSQL)", () => {
     const number = formatOrderNumber(data.orderNumber);
     expect([...message!.bcc]).toEqual(["buyer@example.test"]);
     expect(message!.subject).toBe(`Order ${number} received (AED 115.00)`);
-    expect(message!.text).toContain("Total (cash on delivery): AED 115.00");
+    expect(message!.text).toContain("Total: AED 115.00");
+    // The order's own payment method, read from the database (ADR 0111).
+    expect(message!.text).toContain("Payment: Cash on delivery");
+    expect(message!.text).toContain("Pay in cash when your order arrives.");
     expect(message!.text).toContain("Delivery to " + data.order.areaName);
     // The details the shopper gave are repeated to them (ADR 0104); the address and IDs are not.
     expect(message!.text).toContain("Order number: " + number);

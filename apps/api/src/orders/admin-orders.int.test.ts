@@ -632,6 +632,47 @@ describe("admin order list and snapshot detail through the real API and PostgreS
     expect(detail.edits).toHaveLength(2);
   });
 
+  it("changes the payment method while the order is early, and never after processing starts (ADR 0111)", async () => {
+    const target = await seedOrder(pool, { status: "confirmed" });
+    const changed = await edit(target.orderId, {
+      expectedVersion: 1,
+      commandId: randomUUID(),
+      paymentMethod: "bank_transfer",
+    });
+    expect(changed.status, await changed.clone().text()).toBe(200);
+    expect(orderEditResponseSchema.parse(await changed.json())).toMatchObject({
+      orderVersion: 2,
+      diff: { paymentMethod: { before: "cash_on_delivery", after: "bank_transfer" } },
+    });
+    const same = await edit(target.orderId, {
+      expectedVersion: 2,
+      commandId: randomUUID(),
+      paymentMethod: "bank_transfer",
+    });
+    expect(same.status).toBe(409);
+    expect(await errorCode(same)).toBe("NO_CHANGES");
+    const detail = await call(`/${target.orderId}`);
+    expect(((await detail.json()) as { paymentMethod: string }).paymentMethod).toBe(
+      "bank_transfer",
+    );
+    expect(
+      (
+        await transition(target.orderId, {
+          to: "processing",
+          expectedVersion: 2,
+          commandId: randomUUID(),
+        })
+      ).status,
+    ).toBe(200);
+    const late = await edit(target.orderId, {
+      expectedVersion: 3,
+      commandId: randomUUID(),
+      paymentMethod: "online_payment",
+    });
+    expect(late.status).toBe(409);
+    expect(await errorCode(late)).toBe("ORDER_NOT_EDITABLE");
+  });
+
   it("allows only operational notes during processing and refuses stale or unauthorized edits", async () => {
     const target = await seedOrder(pool, { status: "confirmed" });
     const processing = await transition(target.orderId, {

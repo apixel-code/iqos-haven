@@ -15,6 +15,8 @@ import {
   formatOrderNumber,
   renderWhatsappTemplate,
   whatsappMessageHref,
+  PAYMENT_METHOD_LABELS,
+  type PaymentMethod,
   type WhatsappTemplateKind,
 } from "@ih/domain";
 import { Prisma, type Database, type Tx } from "./client";
@@ -194,11 +196,13 @@ export async function readAdminCustomer(
           orderNumber: string;
           status: string;
           codStatus: string;
+          paymentMethod: string;
           totalFils: bigint;
           createdAt: Date;
         }>
       >(Prisma.sql`
         SELECT id, order_number::text AS "orderNumber", status, cod_status AS "codStatus",
+          payment_method AS "paymentMethod",
           total_fils AS "totalFils", created_at AS "createdAt"
         FROM orders WHERE customer_id=${customerId}::uuid
         ORDER BY created_at DESC, id DESC LIMIT 50`);
@@ -223,6 +227,7 @@ export async function readAdminCustomer(
               orderNumber: formatOrderNumber(order.orderNumber),
               status: order.status,
               codStatus: order.codStatus,
+              paymentMethod: order.paymentMethod,
               totalFils: Number(order.totalFils),
               createdAt: order.createdAt.toISOString(),
             }))
@@ -262,10 +267,17 @@ export async function orderWhatsappLinks(
   const rights = await access(db, actorId);
   if (!rights.orders) throw new CustomerReadForbiddenError();
   const [order] = await db.$queryRaw<
-    Array<{ orderNumber: string; status: string; totalFils: bigint; phone: string }>
+    Array<{
+      orderNumber: string;
+      status: string;
+      totalFils: bigint;
+      phone: string;
+      paymentMethod: PaymentMethod;
+    }>
   >(Prisma.sql`
     SELECT order_number::text AS "orderNumber", status, total_fils AS "totalFils",
-      customer_phone_e164 AS phone FROM orders WHERE id=${orderId}::uuid`);
+      customer_phone_e164 AS phone, payment_method AS "paymentMethod"
+    FROM orders WHERE id=${orderId}::uuid`);
   if (!order) throw new AdminCustomerNotFoundError();
   const settings = await db.$queryRaw<Array<{ key: string; value: Record<string, unknown> }>>(
     Prisma.sql`SELECT key, value FROM settings WHERE key IN ('store','whatsapp')`,
@@ -278,6 +290,7 @@ export async function orderWhatsappLinks(
     order_number: formatOrderNumber(order.orderNumber),
     status: STATUS_TEXT[order.status] ?? order.status,
     total: formatAed(fils(Number(order.totalFils))),
+    payment: (PAYMENT_METHOD_LABELS[order.paymentMethod] ?? "").toLowerCase(),
     support_phone: typeof whatsapp?.number === "string" ? whatsapp.number : "",
   };
   const links = (["orderConfirmation", "statusUpdate"] as WhatsappTemplateKind[]).flatMap(

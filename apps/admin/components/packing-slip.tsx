@@ -3,7 +3,7 @@
 import { useRef } from "react";
 import { Icon } from "./icons";
 import { EMIRATE_NAMES, type AdminOrderResponse } from "@ih/contracts";
-import { money, ORDER_STATUS_LABELS, when } from "../lib/orders";
+import { isCash, money, ORDER_STATUS_LABELS, PAYMENT_METHOD_LABELS, when } from "../lib/orders";
 
 const ADDRESS_TYPES = { apartment: "Apartment", villa: "Villa", office: "Office / Hotel" } as const;
 const options = (attributes: Record<string, string>) => Object.values(attributes).join(" · ");
@@ -11,7 +11,8 @@ const options = (attributes: Record<string, string>) => Object.values(attributes
 /**
  * Packing slip for the courier (parity G-A6, ADR 0090): a preview in a dialog and a printed
  * page. Only the slip prints (print rules in globals.css). It carries what the courier and the
- * packer need: where to deliver, what to pack and how much cash to collect. The internal
+ * packer need: where to deliver, what to pack and how much cash to collect (none when the
+ * customer pays by bank transfer or online, ADR 0111). The internal
  * operational note is not printed; the customer's delivery note is.
  */
 export function PackingSlip({
@@ -27,12 +28,16 @@ export function PackingSlip({
   const address = customer.address;
   const emirate =
     EMIRATE_NAMES[order.area.emirate as keyof typeof EMIRATE_NAMES] ?? order.area.emirate;
+  const cash = isCash(order.paymentMethod);
+  const method = PAYMENT_METHOD_LABELS[order.paymentMethod];
   const collect =
     order.status === "cancelled"
       ? "Cancelled: nothing to collect"
-      : order.codStatus === "collected"
-        ? "Already collected"
-        : money(order.totalFils);
+      : !cash
+        ? `Do not collect cash: ${method.toLowerCase()}`
+        : order.codStatus === "collected"
+          ? "Already collected"
+          : money(order.totalFils);
   return (
     <>
       <button type="button" className="btn btn-s" onClick={() => dialog.current?.showModal()}>
@@ -84,7 +89,7 @@ export function PackingSlip({
               <h3>Order</h3>
               <p>{when(order.createdAt)}</p>
               <p>{ORDER_STATUS_LABELS[order.status]}</p>
-              <p>Cash on Delivery</p>
+              <p>{method}</p>
             </section>
           </div>
           <table className="slip-items">
@@ -127,7 +132,7 @@ export function PackingSlip({
               <dd>{order.deliveryFeeFils === 0 ? "Free" : money(order.deliveryFeeFils)}</dd>
             </div>
             <div className="slip-collect">
-              <dt>Collect in cash</dt>
+              <dt>{cash ? "Collect in cash" : "Payment"}</dt>
               <dd>{collect}</dd>
             </div>
           </dl>

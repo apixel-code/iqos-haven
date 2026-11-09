@@ -10,13 +10,14 @@ const values = {
   order_number: "IH-001001",
   status: "Out for delivery",
   total: "AED 159.00",
+  payment: "bank transfer",
   support_phone: "+971501234567",
 };
 
 describe("order WhatsApp templates", () => {
   it("fills every placeholder and leaves the rest as written", () => {
     expect(renderWhatsappTemplate(DEFAULT_WHATSAPP_TEMPLATES.orderConfirmation, values)).toBe(
-      "Hi, this is Iqos Haven. We received your order IH-001001 for AED 159.00, cash on delivery. Please reply YES to confirm delivery.",
+      "Hi, this is Iqos Haven. We received your order IH-001001 for AED 159.00, payment by bank transfer. Please reply YES to confirm delivery.",
     );
     expect(
       renderWhatsappTemplate(

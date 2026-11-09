@@ -1141,6 +1141,10 @@
             ]
           },
           "totalFils": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+          "paymentMethod": {
+            "type": "string",
+            "enum": ["cash_on_delivery", "bank_transfer", "online_payment"]
+          },
           "deliveryFeeFils": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
           "discountFils": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
           "etaText": { "type": "string", "maxLength": 500 },
@@ -1185,6 +1189,7 @@
           "placedAt",
           "status",
           "totalFils",
+          "paymentMethod",
           "deliveryFeeFils",
           "discountFils",
           "etaText",
@@ -1236,6 +1241,10 @@
                   "minimum": -9007199254740991,
                   "maximum": 9007199254740991
                 },
+                "paymentMethod": {
+                  "type": "string",
+                  "enum": ["cash_on_delivery", "bank_transfer", "online_payment"]
+                },
                 "codStatus": {
                   "type": "string",
                   "enum": ["pending", "collected", "not_collected"]
@@ -1255,6 +1264,7 @@
                 "itemCount",
                 "areaName",
                 "totalFils",
+                "paymentMethod",
                 "codStatus",
                 "version",
                 "createdAt"
@@ -1357,6 +1367,10 @@
             "additionalProperties": false
           },
           "deliveryEtaText": { "type": "string", "minLength": 1, "maxLength": 500 },
+          "paymentMethod": {
+            "type": "string",
+            "enum": ["cash_on_delivery", "bank_transfer", "online_payment"]
+          },
           "codStatus": { "type": "string", "enum": ["pending", "collected", "not_collected"] },
           "collectedAmountFils": {
             "nullable": true,
@@ -1646,6 +1660,21 @@
                       },
                       "required": ["beforeFils", "afterFils"],
                       "additionalProperties": false
+                    },
+                    "paymentMethod": {
+                      "type": "object",
+                      "properties": {
+                        "before": {
+                          "type": "string",
+                          "enum": ["cash_on_delivery", "bank_transfer", "online_payment"]
+                        },
+                        "after": {
+                          "type": "string",
+                          "enum": ["cash_on_delivery", "bank_transfer", "online_payment"]
+                        }
+                      },
+                      "required": ["before", "after"],
+                      "additionalProperties": false
                     }
                   },
                   "additionalProperties": false
@@ -1743,6 +1772,7 @@
           "totalFils",
           "coupon",
           "deliveryEtaText",
+          "paymentMethod",
           "codStatus",
           "collectedAmountFils",
           "collectedAt",
@@ -2405,21 +2435,21 @@
                         "type": "string",
                         "minLength": 1,
                         "maxLength": 2000,
-                        "pattern": "^(?:[^{}]|\\{\\{(?:store_name|order_number|status|total|support_phone)\\}\\})+$"
+                        "pattern": "^(?:[^{}]|\\{\\{(?:store_name|order_number|status|total|payment|support_phone)\\}\\})+$"
                       },
                       "statusUpdate": {
                         "nullable": true,
                         "type": "string",
                         "minLength": 1,
                         "maxLength": 2000,
-                        "pattern": "^(?:[^{}]|\\{\\{(?:store_name|order_number|status|total|support_phone)\\}\\})+$"
+                        "pattern": "^(?:[^{}]|\\{\\{(?:store_name|order_number|status|total|payment|support_phone)\\}\\})+$"
                       },
                       "support": {
                         "nullable": true,
                         "type": "string",
                         "minLength": 1,
                         "maxLength": 2000,
-                        "pattern": "^(?:[^{}]|\\{\\{(?:store_name|order_number|status|total|support_phone)\\}\\})+$"
+                        "pattern": "^(?:[^{}]|\\{\\{(?:store_name|order_number|status|total|payment|support_phone)\\}\\})+$"
                       }
                     },
                     "required": ["orderConfirmation", "statusUpdate", "support"],
@@ -2654,21 +2684,21 @@
                         "type": "string",
                         "minLength": 1,
                         "maxLength": 2000,
-                        "pattern": "^(?:[^{}]|\\{\\{(?:store_name|order_number|status|total|support_phone)\\}\\})+$"
+                        "pattern": "^(?:[^{}]|\\{\\{(?:store_name|order_number|status|total|payment|support_phone)\\}\\})+$"
                       },
                       "statusUpdate": {
                         "nullable": true,
                         "type": "string",
                         "minLength": 1,
                         "maxLength": 2000,
-                        "pattern": "^(?:[^{}]|\\{\\{(?:store_name|order_number|status|total|support_phone)\\}\\})+$"
+                        "pattern": "^(?:[^{}]|\\{\\{(?:store_name|order_number|status|total|payment|support_phone)\\}\\})+$"
                       },
                       "support": {
                         "nullable": true,
                         "type": "string",
                         "minLength": 1,
                         "maxLength": 2000,
-                        "pattern": "^(?:[^{}]|\\{\\{(?:store_name|order_number|status|total|support_phone)\\}\\})+$"
+                        "pattern": "^(?:[^{}]|\\{\\{(?:store_name|order_number|status|total|payment|support_phone)\\}\\})+$"
                       }
                     },
                     "required": ["orderConfirmation", "statusUpdate", "support"],
@@ -2921,21 +2951,21 @@
                               "type": "string",
                               "minLength": 1,
                               "maxLength": 2000,
-                              "pattern": "^(?:[^{}]|\\{\\{(?:store_name|order_number|status|total|support_phone)\\}\\})+$"
+                              "pattern": "^(?:[^{}]|\\{\\{(?:store_name|order_number|status|total|payment|support_phone)\\}\\})+$"
                             },
                             "statusUpdate": {
                               "nullable": true,
                               "type": "string",
                               "minLength": 1,
                               "maxLength": 2000,
-                              "pattern": "^(?:[^{}]|\\{\\{(?:store_name|order_number|status|total|support_phone)\\}\\})+$"
+                              "pattern": "^(?:[^{}]|\\{\\{(?:store_name|order_number|status|total|payment|support_phone)\\}\\})+$"
                             },
                             "support": {
                               "nullable": true,
                               "type": "string",
                               "minLength": 1,
                               "maxLength": 2000,
-                              "pattern": "^(?:[^{}]|\\{\\{(?:store_name|order_number|status|total|support_phone)\\}\\})+$"
+                              "pattern": "^(?:[^{}]|\\{\\{(?:store_name|order_number|status|total|payment|support_phone)\\}\\})+$"
                             }
                           },
                           "required": ["orderConfirmation", "statusUpdate", "support"],

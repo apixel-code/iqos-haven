@@ -170,6 +170,7 @@ describe("branded email layout", () => {
       total: "AED 99.00",
       units: 2,
       areaName: "Al <b>Barsha</b>",
+      paymentMethod: "cash_on_delivery",
       customer: { name: "Sam <i>", phone: "+971501234567", email: null },
       items: [{ label: "TEREA UAE · silver × 2", total: "AED 64.00" }],
     });
@@ -181,6 +182,19 @@ describe("branded email layout", () => {
     expect(order.text).toContain("Phone: +971501234567");
     expect(order.text).toContain("Email: Not given");
     expect(order.text).toContain("- TEREA UAE · silver × 2: AED 64.00");
+    expect(order.text).toContain("Payment: Cash on delivery");
+    // A bank transfer or online payment tells the shop what to send (ADR 0111).
+    const transfer = renderEmail(newOrderTemplate, {
+      orderNumber: "IH-1001",
+      total: "AED 99.00",
+      units: 2,
+      areaName: "Al Barsha",
+      paymentMethod: "bank_transfer",
+      customer: { name: "Sam", phone: "+971501234567", email: null },
+      items: [{ label: "TEREA UAE · silver × 2", total: "AED 64.00" }],
+    });
+    expect(transfer.text).toContain("Payment: Bank transfer");
+    expect(transfer.text).toContain("send them the bank details on WhatsApp");
     // The body stays inside the white card: it comes after the heading and before the card's
     // closing tags and the footnote (a formatter once closed the card early, see layout.ts).
     const body = invite.html.indexOf("Accept the invitation to set");
@@ -200,6 +214,7 @@ describe("branded email layout", () => {
       total: "AED 395.00",
       areaName: "Al Barsha",
       eta: "1–2 days",
+      paymentMethod: "cash_on_delivery" as const,
       whatsappUrl: "https://wa.me/971500000000",
       customer: { name: "Sam <i> Lee", phone: "+971501234567", email: "sam@example.com" },
       trackUrl: "https://iqoshaven.com/track",
@@ -208,7 +223,8 @@ describe("branded email layout", () => {
     expect(mail.subject).toBe("Order IH-001002 received (AED 395.00)");
     expect(mail.html).toContain("Thank you, Sam &lt;i&gt;");
     expect(mail.html).toContain("TEREA UAE · silver × 2");
-    expect(mail.html).toContain("Total (cash on delivery)");
+    expect(mail.html).toContain("Cash on delivery");
+    expect(mail.text).toContain("Pay in cash when your order arrives.");
     expect(mail.html).not.toContain("Discount");
     expect(mail.html).toContain("Message us on WhatsApp");
     expect(mail.text).toContain("- TEREA UAE · silver × 2: AED 360.00");
@@ -228,5 +244,13 @@ describe("branded email layout", () => {
     expect(plain.html).toContain("−AED 36.00");
     expect(plain.html).not.toContain("wa.me");
     expect(plain.text).not.toContain("Track your order");
+    // The chosen method and its next step (ADR 0111).
+    const online = renderEmail(orderConfirmationTemplate, {
+      ...data,
+      paymentMethod: "online_payment",
+    });
+    expect(online.text).toContain("Payment: Online payment");
+    expect(online.text).toContain("We'll send you a secure payment link on WhatsApp.");
+    expect(online.text).not.toContain("Pay in cash");
   });
 });

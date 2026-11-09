@@ -1,5 +1,11 @@
 import { defineEvent, type CheckoutAddress, type CheckoutContact } from "@ih/contracts";
-import { formatOrderNumber, mergeOrderLines, type OrderLine } from "@ih/domain";
+import {
+  DEFAULT_PAYMENT_METHOD,
+  formatOrderNumber,
+  mergeOrderLines,
+  type OrderLine,
+  type PaymentMethod,
+} from "@ih/domain";
 import { toAuditEntry } from "@ih/application";
 import { PrismaAuditWriter } from "./audit";
 import { CatalogueForbiddenError, lockCatalogueActor } from "./catalogue-parents";
@@ -49,6 +55,8 @@ export interface CreateStoreOrderInput {
   lines: readonly OrderLine[];
   /** Normalized code or null. */
   couponCode: string | null;
+  /** How the shopper will pay (ADR 0111); cash on delivery when left out. */
+  paymentMethod?: PaymentMethod;
   quote: {
     /** The fingerprint the shopper's token names; part of what makes two requests the same. */
     fingerprint: string;
@@ -100,6 +108,7 @@ export async function createStoreOrder(
       "A manual order starts Confirmed exactly when it has evidence",
     );
   const scope = manual ? `admin.order.create:${manual.actorId}` : STORE_CHECKOUT_SCOPE;
+  const paymentMethod = input.paymentMethod ?? DEFAULT_PAYMENT_METHOD;
   const status = manual?.start ?? "pending";
   // Two requests are the same order when all of this is the same.
   const payloadHash = canonicalPayloadHash({
@@ -113,6 +122,8 @@ export async function createStoreOrder(
     address: { ...input.address },
     lines: lines.map(({ variantId, quantity }) => ({ variantId, quantity })),
     couponCode: input.couponCode,
+    // Absent for cash on delivery, so attempts hashed before ADR 0111 still match.
+    ...(paymentMethod === DEFAULT_PAYMENT_METHOD ? {} : { paymentMethod }),
     quoteFingerprint: input.quote.fingerprint,
     agePolicyVersion: input.age.policyVersion,
   });
@@ -198,7 +209,8 @@ export async function createStoreOrder(
           merchandise_subtotal_fils, discount_fils, delivery_fee_fils, total_fils,
           coupon_code, coupon_percent_bps, delivery_eta_text, area_version,
           delivery_configuration_version, quote_fingerprint, age_confirmed_at,
-          age_policy_version, creation_scope, creation_key_hash, creation_payload_hash, confirmation_hash, confirmation_expires_at)
+          age_policy_version, creation_scope, creation_key_hash, creation_payload_hash, confirmation_hash, confirmation_expires_at,
+          payment_method)
         VALUES (${customer.id}::uuid, ${status}, ${manual ? "manual" : "storefront"},
           ${manual?.actorId ?? null}::uuid, ${customer.displayName},
           ${customer.phoneE164}, ${input.contact.email ?? null},
@@ -211,7 +223,8 @@ export async function createStoreOrder(
           ${quote.delivery.areaVersion}, ${quote.delivery.configurationVersion},
           ${input.quote.fingerprint}, statement_timestamp(), ${input.age.policyVersion},
           ${scope}, ${keyHash}, ${payloadHash}, ${input.confirmation?.hash ?? null},
-          CASE WHEN ${!!input.confirmation} THEN statement_timestamp()+interval '30 minutes' ELSE NULL END)
+          CASE WHEN ${!!input.confirmation} THEN statement_timestamp()+interval '30 minutes' ELSE NULL END,
+          ${paymentMethod})
         RETURNING id, order_number::text AS "orderNumber", created_at AS "createdAt"`);
       const orderId = order!.id;
 
@@ -281,6 +294,7 @@ export async function createStoreOrder(
               deliveryFeeFils: quote.deliveryFeeFils,
               totalFils: quote.totalFils,
               couponCode: quote.coupon?.code ?? null,
+              paymentMethod,
             },
             reason: manual ? "manual order" : "storefront checkout",
           },

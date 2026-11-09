@@ -257,6 +257,8 @@ describe("atomic order creation (real PostgreSQL)", () => {
       deliveryConfigurationVersion: 1,
       agePolicyVersion: POLICY,
       codStatus: "pending",
+      // Left out by the caller: cash on delivery (ADR 0111).
+      paymentMethod: "cash_on_delivery",
       creationScope: "store.checkout",
       confirmationHash: expect.any(Uint8Array),
       version: 1,
@@ -391,11 +393,44 @@ describe("atomic order creation (real PostgreSQL)", () => {
       },
       { address: address({ unit: "9999" }) },
       { couponCode: "OTHER10" },
+      { paymentMethod: "bank_transfer" as const },
     ])
       await expect(orders.place({ ...placing, ...changed })).rejects.toBeInstanceOf(
         IdempotencyConflictError,
       );
     expect(await footprint()).toEqual(after);
+    expect(await stockOf(item.id)).toBe(3);
+  });
+
+  it("keeps the chosen payment method, and naming cash is the same attempt as leaving it out (ADR 0111)", async () => {
+    const item = await variant(8000n, { stock: 5 });
+    const cart = { lines: [{ variantId: item.id, quantity: 1 }] };
+    // An attempt hashed before ADR 0111 named no method; the same attempt naming cash replays.
+    const cash = await checkout(cart);
+    const first = await orders.place(cash);
+    expect(
+      await orders.place({ ...cash, paymentMethod: "cash_on_delivery", requestId: randomUUID() }),
+    ).toEqual({ ...first, replayed: true });
+    // A bank transfer is stored with the order and replays as itself.
+    const transfer = await checkout(cart, { paymentMethod: "bank_transfer" });
+    const placed = await orders.place(transfer);
+    expect(placed.replayed).toBe(false);
+    expect(await orders.place({ ...transfer, requestId: randomUUID() })).toEqual({
+      ...placed,
+      replayed: true,
+    });
+    await expect(
+      orders.place({ ...transfer, paymentMethod: "online_payment" }),
+    ).rejects.toBeInstanceOf(IdempotencyConflictError);
+    const stored = await db.order.findUniqueOrThrow({ where: { id: placed.orderId! } });
+    expect(stored.paymentMethod).toBe("bank_transfer");
+    expect(stored.codStatus).toBe("pending");
+    // The database refuses a method it does not know, whatever the caller.
+    await expect(
+      db.$executeRawUnsafe(
+        `UPDATE orders SET payment_method='card', version=version+1 WHERE id='${placed.orderId}'`,
+      ),
+    ).rejects.toThrow();
     expect(await stockOf(item.id)).toBe(3);
   });
   it("creates one order when the same attempt arrives many times at once", async () => {

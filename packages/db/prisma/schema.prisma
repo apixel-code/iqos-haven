@@ -638,6 +638,8 @@ model Order {
   quoteFingerprint             String                  @map("quote_fingerprint") @db.VarChar(64)
   ageConfirmedAt               DateTime                @map("age_confirmed_at") @db.Timestamptz(6)
   agePolicyVersion             String                  @map("age_policy_version") @db.VarChar(64)
+  /// How the shopper will pay (ADR 0111): cash_on_delivery, bank_transfer or online_payment.
+  paymentMethod                String                  @default("cash_on_delivery") @map("payment_method") @db.VarChar(16)
   codStatus                    String                  @default("pending") @map("cod_status") @db.VarChar(16)
   collectedAmountFils          BigInt?                 @map("collected_amount_fils")
   collectedAt                  DateTime?               @map("collected_at") @db.Timestamptz(6)

@@ -66,7 +66,7 @@ const groups: Array<{
   {
     key: "whatsapp",
     title: "WhatsApp",
-    help: "Configuration only. Saving templates does not send a message. Supported placeholders: {{store_name}}, {{order_number}}, {{status}}, {{total}}, {{support_phone}}.",
+    help: "Configuration only. Saving templates does not send a message. Supported placeholders: {{store_name}}, {{order_number}}, {{status}}, {{total}}, {{payment}}, {{support_phone}}.",
     fields: [
       { name: "number", label: "WhatsApp number", max: 16 },
       ...["orderConfirmation", "statusUpdate", "support"].map((name, index) => ({

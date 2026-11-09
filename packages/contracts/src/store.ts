@@ -1,7 +1,13 @@
 import { z } from "zod";
 import { ORDER_LIMITS, UAE_EMIRATES } from "@ih/domain";
 import { catalogueSlugSchema } from "./catalogue";
-import { checkoutAddressSchema, orderLinesSchema, storeContactSchema } from "./checkout";
+import {
+  checkoutAddressSchema,
+  orderLinesSchema,
+  orderPaymentMethodSchema,
+  paymentMethodSchema,
+  storeContactSchema,
+} from "./checkout";
 import { couponCodeInputSchema } from "./coupons";
 import { MAX_PRODUCT_IMAGES } from "./media";
 import {
@@ -411,6 +417,8 @@ export const storeOrderRequestSchema = z.strictObject({
   quoteToken: z.string().min(1).max(256),
   /** The shopper ticked "I am 18 or older" on the checkout form. Only `true` is an order. */
   ageConfirmed: z.literal(true),
+  /** How the shopper will pay (ADR 0111). */
+  paymentMethod: orderPaymentMethodSchema,
 });
 export type StoreOrderRequest = z.input<typeof storeOrderRequestSchema>;
 /**
@@ -437,6 +445,7 @@ export const orderConfirmationResponseSchema = z.strictObject({
     "cancelled",
   ]),
   totalFils: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
+  paymentMethod: paymentMethodSchema,
   deliveryFeeFils: z.number().int().nonnegative(),
   discountFils: z.number().int().nonnegative(),
   etaText: z.string().max(500),

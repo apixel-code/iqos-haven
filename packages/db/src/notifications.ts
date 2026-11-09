@@ -1,5 +1,5 @@
 import { notificationSettingsSchema } from "@ih/contracts";
-import { fils, formatAed, formatOrderNumber } from "@ih/domain";
+import { fils, formatAed, formatOrderNumber, type PaymentMethod } from "@ih/domain";
 import { Prisma, type Database, type Tx } from "./client";
 import { orderEmailItems, type OrderEmailItem } from "./order-confirmation-email";
 
@@ -132,16 +132,28 @@ export async function loadNewOrderEmail(
   contact: NewOrderContact;
   items: OrderEmailItem[];
   recipients: string[];
+  /** How the customer chose to pay (ADR 0111). */
+  paymentMethod: PaymentMethod;
 } | null> {
   const order = await newOrderSummary(db, orderId);
   if (!order) return null;
   const { newOrderEmail } = await notificationSettings(db);
   const recipients = newOrderEmail.enabled ? [...newOrderEmail.recipients] : [];
-  const [contact] = await db.$queryRaw<Array<NewOrderContact>>(Prisma.sql`
-    SELECT customer_name AS name, customer_phone_e164 AS phone, customer_email AS email
-    FROM orders WHERE id=${orderId}::uuid`);
-  if (!contact) return null;
-  return { order, contact, items: await orderEmailItems(db, orderId), recipients };
+  const [row] = await db.$queryRaw<Array<NewOrderContact & { paymentMethod: PaymentMethod }>>(
+    Prisma.sql`
+    SELECT customer_name AS name, customer_phone_e164 AS phone, customer_email AS email,
+      payment_method AS "paymentMethod"
+    FROM orders WHERE id=${orderId}::uuid`,
+  );
+  if (!row) return null;
+  const { paymentMethod, ...contact } = row;
+  return {
+    order,
+    contact,
+    items: await orderEmailItems(db, orderId),
+    recipients,
+    paymentMethod,
+  };
 }
 
 // --- Low stock (roadmap step 92, ADR 0060) ---

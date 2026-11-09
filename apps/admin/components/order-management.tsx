@@ -29,6 +29,7 @@ import {
   type OrderEditRequest,
   type OrderItemChoice,
   type ReviewLinkResponse,
+  PAYMENT_METHODS,
 } from "@ih/contracts";
 import { ApiError } from "../lib/auth";
 import { isUuid } from "../lib/links";
@@ -36,7 +37,12 @@ import { managementError, managementRequest, validate } from "../lib/management"
 import {
   addressLine,
   aedToFils,
-  COD_STATUS_LABELS,
+  correctPaymentLabel,
+  isCash,
+  PAYMENT_METHOD_LABELS,
+  PAYMENT_SHORT,
+  paymentStatusLabel,
+  recordPaymentLabel,
   inputInstant,
   localInstant,
   money,
@@ -694,8 +700,8 @@ function OrderRow({
         </div>
       </td>
       <td>
-        <span className="small">COD</span>
-        <div className="xs muted">{COD_STATUS_LABELS[order.codStatus]}</div>
+        <span className="small">{PAYMENT_SHORT[order.paymentMethod]}</span>
+        <div className="xs muted">{paymentStatusLabel(order.paymentMethod, order.codStatus)}</div>
       </td>
       <td>
         <StatusBadge status={order.status} />
@@ -904,8 +910,12 @@ function OrderDetail({
                           <b>Order complete</b>
                           <p className="small muted">
                             {data.codStatus === "collected"
-                              ? "Delivered and cash collected."
-                              : "Delivered. Record the cash once it is in hand."}
+                              ? isCash(data.paymentMethod)
+                                ? "Delivered and cash collected."
+                                : "Delivered and payment received."
+                              : isCash(data.paymentMethod)
+                                ? "Delivered. Record the cash once it is in hand."
+                                : "Delivered. Record the payment once it is received."}
                           </p>
                         </>
                       )}
@@ -1015,7 +1025,11 @@ function OrderDetail({
           <Drawer
             open={panel === "collection" && collectable}
             onClose={close}
-            title={data.codStatus === "collected" ? "Correct cash record" : "Record cash collected"}
+            title={
+              data.codStatus === "collected"
+                ? correctPaymentLabel(data.paymentMethod)
+                : recordPaymentLabel(data.paymentMethod)
+            }
           >
             <div className="management-card in-drawer">
               <OrderCollectionPanel
@@ -1058,13 +1072,19 @@ function OrderDetail({
   );
 }
 
+/** The method's icon in the payment card (ADR 0111). */
+const PAYMENT_ICON = {
+  cash_on_delivery: "cash",
+  bank_transfer: "store",
+  online_payment: "card",
+} as const;
 /** The prototype's progress steps (`prog`); Cancelled is not a step. */
 const PROGRESS = ["pending", "confirmed", "processing", "out_for_delivery", "delivered"] as const;
 const NEXT_HINT: Partial<Record<AdminOrderResponse["status"], string>> = {
   pending: "Check the order, then confirm it with the customer.",
   confirmed: "Pick and pack the items.",
   processing: "Hand the parcel to the courier.",
-  out_for_delivery: "Mark it delivered when the customer has it. Cash is recorded separately.",
+  out_for_delivery: "Mark it delivered when the customer has it. Payment is recorded separately.",
 };
 /** " on 18 Oct 2026, 4:21 PM by Owner · Reason: …" from the history entry that cancelled it. */
 function cancelEntry(order: AdminOrderResponse) {
@@ -1127,6 +1147,9 @@ function editCommand(order: AdminOrderResponse, data: FormData): OrderEditReques
         makani: String(data.get("address.makani") ?? "").trim() || null,
         notes: String(data.get("address.notes") ?? "").trim() || null,
       };
+    const payment = data.get("paymentMethod");
+    if (typeof payment === "string" && payment !== order.paymentMethod)
+      command.paymentMethod = payment;
   }
   const note = String(data.get("operationalNote") ?? "").trim() || null;
   if (note !== order.operationalNote) command.operationalNote = note;
@@ -1295,11 +1318,15 @@ function OrderCollectionPanel({
   const [message, setMessage] = useState("");
   return (
     <article className="record-card">
-      <h3>{correcting ? "Correct cash record" : "Record cash collected"}</h3>
+      <h3>
+        {correcting
+          ? correctPaymentLabel(order.paymentMethod)
+          : recordPaymentLabel(order.paymentMethod)}
+      </h3>
       <p className="muted">
         {correcting
           ? "Owner only. The original record stays; the correction is added with its reason."
-          : `Record the cash actually received for this delivered order (order total ${money(order.totalFils)}).`}
+          : `Record the ${isCash(order.paymentMethod) ? "cash" : PAYMENT_METHOD_LABELS[order.paymentMethod].toLowerCase()} actually received for this delivered order (order total ${money(order.totalFils)}).`}
       </p>
       <form
         data-unsaved="this cash record"
@@ -1330,7 +1357,7 @@ function OrderCollectionPanel({
                 collectedAt: at,
               });
               void confirmDialog({
-                title: `Correct the cash record of ${order.orderNumber}?`,
+                title: `Correct the payment record of ${order.orderNumber}?`,
                 ok: "Correct record",
               }).then((ok) => {
                 if (!ok) return;
@@ -1352,7 +1379,7 @@ function OrderCollectionPanel({
               void confirmDialog({
                 title: `Record ${money(amountFils)} collected for ${order.orderNumber}?`,
                 ...(differs ? { body: differs.trim() } : {}),
-                ok: "Record cash",
+                ok: isCash(order.paymentMethod) ? "Record cash" : "Record payment",
               }).then((ok) => {
                 if (!ok) return;
                 setMessage("");
@@ -1362,7 +1389,7 @@ function OrderCollectionPanel({
           } catch {
             setMessage(
               correcting
-                ? "Enter a reason, the amount and the time the cash was received."
+                ? "Enter a reason, the amount and the time the payment was received."
                 : "Check the amount, reference and time.",
             );
           }
@@ -1403,7 +1430,7 @@ function OrderCollectionPanel({
         )}
         <div className="form-actions wide-field">
           <button type="submit" className="primary-button" disabled={disabled}>
-            {correcting ? "Save correction" : "Record cash collected"}
+            {correcting ? "Save correction" : recordPaymentLabel(order.paymentMethod)}
           </button>
           <small className="muted">
             Uses version {order.version}; the same command is retried safely.
@@ -1762,6 +1789,26 @@ function OrderEditPanel({
             </div>
           </section>
         )}
+        {order.status !== "processing" && (
+          <div className="field">
+            <label className="label" htmlFor="e-pay">
+              Payment method
+            </label>
+            <select
+              id="e-pay"
+              className="select"
+              name="paymentMethod"
+              defaultValue={order.paymentMethod}
+            >
+              {PAYMENT_METHODS.map((method) => (
+                <option key={method} value={method}>
+                  {PAYMENT_METHOD_LABELS[method]}
+                </option>
+              ))}
+            </select>
+            <p className="help">When the customer changes how they will pay.</p>
+          </div>
+        )}
         <div className="field">
           <label className="label" htmlFor="e-op">
             Operational note <span className="opt">Optional</span>
@@ -1808,6 +1855,10 @@ function editDiffLines(diff: OrderEditDiff) {
   if (diff.delivery)
     lines.push(
       `Delivery address updated: ${diff.delivery.beforeArea} → ${diff.delivery.afterArea}`,
+    );
+  if (diff.paymentMethod)
+    lines.push(
+      `Payment: ${PAYMENT_METHOD_LABELS[diff.paymentMethod.before]} → ${PAYMENT_METHOD_LABELS[diff.paymentMethod.after]}`,
     );
   if (diff.operationalNote)
     lines.push(`Operational note: ${diff.operationalNote.after ?? "cleared"}`);
@@ -2062,14 +2113,15 @@ function OrderDetailBody({
             <dl className="kv kv-flat">
               <dt>Method</dt>
               <dd>
-                <Icon name="cash" size="sm" /> Cash on delivery
+                <Icon name={PAYMENT_ICON[order.paymentMethod]} size="sm" />{" "}
+                {PAYMENT_METHOD_LABELS[order.paymentMethod]}
               </dd>
               <dt>Status</dt>
               <dd>
                 <span
                   className={`tag ${order.codStatus === "collected" ? "ok" : order.codStatus === "not_collected" ? "muted" : "low"}`}
                 >
-                  {COD_STATUS_LABELS[order.codStatus]}
+                  {paymentStatusLabel(order.paymentMethod, order.codStatus)}
                 </span>
               </dd>
               <dt>Amount</dt>
@@ -2100,7 +2152,9 @@ function OrderDetailBody({
             )}
             {collect && (
               <button type="button" className="btn btn-p pay-btn" onClick={collect}>
-                {order.codStatus === "collected" ? "Correct cash record" : "Record COD collection"}
+                {order.codStatus === "collected"
+                  ? correctPaymentLabel(order.paymentMethod)
+                  : recordPaymentLabel(order.paymentMethod)}
               </button>
             )}
           </div>

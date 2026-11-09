@@ -121,12 +121,12 @@ export function CartView({
           )}
           {checkoutOpen && quoteReady && view.blockedCount === 0 ? (
             <Link href="/checkout" prefetch={false} className="btn btn-primary btn-lg btn-block">
-              Checkout · Cash on delivery
+              Checkout · All payment methods accepted
             </Link>
           ) : (
             <>
               <button type="button" disabled className="btn btn-primary btn-lg btn-block">
-                Checkout · Cash on delivery
+                Checkout · All payment methods accepted
               </button>
               <p className="small muted center">
                 {!checkoutOpen

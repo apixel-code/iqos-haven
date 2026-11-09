@@ -6,8 +6,8 @@ import { PolicyPage, PolicySection, PolicyUpdated } from "../policy-page";
 export const metadata: Metadata = { title: `Terms & conditions · ${SITE.name}` };
 
 /**
- * Written from how the store works (ADR 0036 prices, BI-03 delivery, cash on delivery, order
- * states, ADR 0102 confirmation email); returns rules approved by the client 2026-11-02. Not
+ * Written from how the store works (ADR 0036 prices, BI-03 delivery, ADR 0111 payment methods,
+ * order states, ADR 0102 confirmation email); returns rules approved by the client 2026-11-02. Not
  * legal advice.
  */
 export default async function TermsPage() {
@@ -91,9 +91,25 @@ export default async function TermsPage() {
 
       <PolicySection id="payment" title="4. Payment">
         <p>
-          Payment is cash on delivery only. You pay the courier the order total in cash when your
-          order arrives. Please have the exact amount ready if you can. We do not take card or
-          online payments.
+          All payment methods are accepted. At checkout you choose how you will pay the order total:
+        </p>
+        <ul>
+          <li>
+            <b>Cash on delivery:</b> you pay the courier in cash when your order arrives. Please
+            have the exact amount ready if you can.
+          </li>
+          <li>
+            <b>Bank transfer:</b> after you order, we send you our bank details on WhatsApp. Please
+            use your order number as the transfer reference.
+          </li>
+          <li>
+            <b>Online payment:</b> after you order, we send you a secure payment link on WhatsApp.
+          </li>
+        </ul>
+        <p>
+          We never ask for card details on our website or in a message. A bank transfer or online
+          payment is made through your bank or the payment link&apos;s provider, not on our website.
+          If you would like to change how you pay, message us before your order is processed.
         </p>
       </PolicySection>
 

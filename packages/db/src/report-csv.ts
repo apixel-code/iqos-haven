@@ -9,7 +9,9 @@ import {
   formatOrderNumber,
   percentAmount,
   rateBps,
+  PAYMENT_METHOD_LABELS,
   type CsvValue,
+  type PaymentMethod,
 } from "@ih/domain";
 import { Prisma, type Database, type Tx } from "./client";
 
@@ -35,6 +37,12 @@ const COD_STATUS: Record<string, string> = {
   pending: "Cash pending",
   collected: "Cash collected",
   not_collected: "Not collected",
+};
+/** The same states for a bank transfer or an online payment (ADR 0111). */
+const PAID_STATUS: Record<string, string> = {
+  pending: "Awaiting payment",
+  collected: "Payment received",
+  not_collected: "Not paid",
 };
 type Db = Database | Tx;
 type Rows = AsyncGenerator<CsvValue[], void, undefined>;
@@ -198,7 +206,7 @@ async function* orderRows(db: Db, from: string, to: string, batch: number): Rows
     "Order total (AED)",
     "Coupon",
     "Payment",
-    "Cash",
+    "Payment status",
   ];
   let after: [string, string, string] | null = null;
   for (;;) {
@@ -232,6 +240,7 @@ async function* orderRows(db: Db, from: string, to: string, batch: number): Rows
         total: bigint;
         coupon: string | null;
         cod: string;
+        paymentMethod: PaymentMethod;
       }>
     >(Prisma.sql`
       SELECT o.id AS "orderId", i.id AS "itemId", ${exactTime("o.created_at")} AS cursor,
@@ -243,7 +252,7 @@ async function* orderRows(db: Db, from: string, to: string, batch: number): Rows
         i.discount_fils AS "lineDiscount", i.total_fils AS "lineTotal",
         o.merchandise_subtotal_fils AS merchandise, o.discount_fils AS discount,
         o.delivery_fee_fils AS delivery, o.total_fils AS total, o.coupon_code AS coupon,
-        o.cod_status AS cod
+        o.cod_status AS cod, o.payment_method AS "paymentMethod"
       FROM orders o JOIN order_items i ON i.order_id=o.id
       WHERE o.created_at >= ${start}::timestamptz AND o.created_at < ${end}::timestamptz ${keyset}
       ORDER BY o.created_at, o.id, i.id LIMIT ${batch}`);
@@ -270,8 +279,8 @@ async function* orderRows(db: Db, from: string, to: string, batch: number): Rows
         aedAmount(row.delivery),
         aedAmount(row.total),
         row.coupon,
-        "Cash on delivery",
-        COD_STATUS[row.cod] ?? row.cod,
+        PAYMENT_METHOD_LABELS[row.paymentMethod] ?? row.paymentMethod,
+        (row.paymentMethod === "cash_on_delivery" ? COD_STATUS : PAID_STATUS)[row.cod] ?? row.cod,
       ];
     if (rows.length < batch) return;
     const last = rows.at(-1)!;

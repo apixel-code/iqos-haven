@@ -359,7 +359,7 @@ describe("admin customers and order WhatsApp links through the real API and Post
       ["statusUpdate", true],
     ]);
     expect(placeholder.links[0]!.text).toBe(
-      `Hi, this is Iqos Haven. We received your order ${label} for AED 55.00, cash on delivery. Please reply YES to confirm delivery.`,
+      `Hi, this is Iqos Haven. We received your order ${label} for AED 55.00, payment by cash on delivery. Please reply YES to confirm delivery.`,
     );
     expect(placeholder.links[0]!.href).toBe(
       `https://wa.me/971506500004?text=${encodeURIComponent(placeholder.links[0]!.text)}`,

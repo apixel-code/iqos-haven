@@ -1,4 +1,4 @@
-import type { AdminOrderResponse } from "@ih/contracts";
+import { PAYMENT_METHOD_LABELS, type AdminOrderResponse, type PaymentMethod } from "@ih/contracts";
 
 export const ORDER_STATUS_LABELS: Record<string, string> = {
   pending: "Pending",
@@ -13,6 +13,28 @@ export const COD_STATUS_LABELS: Record<string, string> = {
   collected: "Cash collected",
   not_collected: "Not collected",
 };
+/** The same states for a bank transfer or an online payment (ADR 0111). */
+const PAID_STATUS_LABELS: Record<string, string> = {
+  pending: "Awaiting payment",
+  collected: "Payment received",
+  not_collected: "Not paid",
+};
+/** Short method names for the orders table. */
+export const PAYMENT_SHORT: Record<PaymentMethod, string> = {
+  cash_on_delivery: "COD",
+  bank_transfer: "Bank transfer",
+  online_payment: "Online payment",
+};
+export { PAYMENT_METHOD_LABELS };
+export const isCash = (method: PaymentMethod) => method === "cash_on_delivery";
+export function paymentStatusLabel(method: PaymentMethod, codStatus: string) {
+  return (isCash(method) ? COD_STATUS_LABELS : PAID_STATUS_LABELS)[codStatus] ?? codStatus;
+}
+/** "Record cash collected" or "Record payment received", for the payment record actions. */
+export const recordPaymentLabel = (method: PaymentMethod) =>
+  isCash(method) ? "Record cash collected" : "Record payment received";
+export const correctPaymentLabel = (method: PaymentMethod) =>
+  isCash(method) ? "Correct cash record" : "Correct payment record";
 export const money = (fils: number) =>
   new Intl.NumberFormat("en-AE", { style: "currency", currency: "AED" }).format(fils / 100);
 /** "65", "65.5" or "65.50" AED as integer fils, or null. Parsed as text: no float arithmetic. */

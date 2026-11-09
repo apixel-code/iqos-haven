@@ -32,6 +32,7 @@ interface OrderListRow {
   itemCount: number;
   areaName: string;
   totalFils: bigint;
+  paymentMethod: string;
   codStatus: string;
   version: number;
   createdAt: Date;
@@ -151,7 +152,8 @@ export async function listAdminOrders(db: Database, actorId: string, input: Admi
       -- made the first page cost grow with the whole order history.
       (SELECT sum(i.quantity)::int FROM order_items i WHERE i.order_id=o.id) AS "itemCount",
       o.area_name AS "areaName",
-      o.total_fils AS "totalFils", o.cod_status AS "codStatus", o.version,
+      o.total_fils AS "totalFils", o.payment_method AS "paymentMethod",
+      o.cod_status AS "codStatus", o.version,
       o.created_at AS "createdAt", o.created_at::text AS "cursorCreatedAt"
     FROM orders o
     ${where}
@@ -170,6 +172,7 @@ export async function listAdminOrders(db: Database, actorId: string, input: Admi
       itemCount: row.itemCount,
       areaName: row.areaName,
       totalFils: Number(row.totalFils),
+      paymentMethod: row.paymentMethod,
       codStatus: row.codStatus,
       version: row.version,
       createdAt: row.createdAt.toISOString(),
@@ -262,6 +265,7 @@ export async function readAdminOrder(
             ? { code: order.couponCode, percentBps: order.couponPercentBps }
             : null,
         deliveryEtaText: order.deliveryEtaText,
+        paymentMethod: order.paymentMethod,
         codStatus: order.codStatus,
         collectedAmountFils:
           order.collectedAmountFils === null ? null : Number(order.collectedAmountFils),

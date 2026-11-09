@@ -44,6 +44,26 @@ export type OrderSource = (typeof ORDER_SOURCES)[number];
 /** Cash on delivery. New orders are pending; a cancelled order is not_collected. */
 export const COD_STATUSES = ["pending", "collected", "not_collected"] as const;
 export type CodStatus = (typeof COD_STATUSES)[number];
+/**
+ * How the shopper will pay (ADR 0111). There is no payment gateway: bank transfer details and
+ * online payment links are sent by the team, and every payment is recorded by staff.
+ */
+export const PAYMENT_METHODS = ["cash_on_delivery", "bank_transfer", "online_payment"] as const;
+export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
+export const DEFAULT_PAYMENT_METHOD: PaymentMethod = "cash_on_delivery";
+/** The method's name wherever it is shown: checkout, admin, packing slip and emails. */
+export const PAYMENT_METHOD_LABELS: Readonly<Record<PaymentMethod, string>> = {
+  cash_on_delivery: "Cash on delivery",
+  bank_transfer: "Bank transfer",
+  online_payment: "Online payment",
+};
+/** What the shopper does next, after the order is placed (confirmation page and email). */
+export const PAYMENT_METHOD_NEXT_STEP: Readonly<Record<PaymentMethod, string>> = {
+  cash_on_delivery: "Pay in cash when your order arrives.",
+  bank_transfer:
+    "We'll send our bank details on WhatsApp. Please use your order number as the transfer reference.",
+  online_payment: "We'll send you a secure payment link on WhatsApp.",
+};
 /** The status an order may be created in: the store creates pending; staff may enter confirmed. */
 export function initialStatuses(source: OrderSource): readonly OrderStatus[] {
   return source === "manual" ? ["pending", "confirmed"] : ["pending"];

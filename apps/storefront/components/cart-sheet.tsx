@@ -132,7 +132,8 @@ function SheetBody({ whatsappNumber }: { whatsappNumber: string | null }) {
             </div>
           </dl>
           <p className="small muted">
-            Delivery and any discount are added at checkout. Cash on delivery.
+            Delivery and any discount are added at checkout. Cash on delivery · All payment methods
+            accepted.
           </p>
           <Link
             href="/checkout"

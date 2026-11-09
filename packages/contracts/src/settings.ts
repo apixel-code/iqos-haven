@@ -18,7 +18,7 @@ const template = z
   .trim()
   .min(1)
   .max(2000)
-  .regex(/^(?:[^{}]|\{\{(?:store_name|order_number|status|total|support_phone)\}\})+$/)
+  .regex(/^(?:[^{}]|\{\{(?:store_name|order_number|status|total|payment|support_phone)\}\})+$/)
   .nullable();
 export const storeSettingsSchema = z.strictObject({
   name: text(100),

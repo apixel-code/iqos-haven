@@ -1,4 +1,6 @@
 import {
+  DEFAULT_PAYMENT_METHOD,
+  type PaymentMethod,
   CHECKOUT_MESSAGES,
   checkoutAddressSchema,
   storeContactSchema,
@@ -23,6 +25,8 @@ export interface CheckoutForm {
   street: string;
   makani: string;
   notes: string;
+  /** How the shopper will pay (ADR 0111); cash on delivery until they choose another. */
+  paymentMethod: PaymentMethod;
   ageConfirmed: boolean;
 }
 export const EMPTY_FORM: CheckoutForm = {
@@ -35,6 +39,7 @@ export const EMPTY_FORM: CheckoutForm = {
   street: "",
   makani: "",
   notes: "",
+  paymentMethod: DEFAULT_PAYMENT_METHOD,
   ageConfirmed: false,
 };
 export type FormField = keyof Omit<CheckoutForm, "type"> | "areaId" | "type";
@@ -78,6 +83,7 @@ const FIELD_OF_PATH: Record<string, FormField> = {
   "contact.email": "email",
   "address.areaId": "areaId",
   "address.type": "type",
+  paymentMethod: "paymentMethod",
   "address.building": "building",
   "address.unit": "unit",
   "address.street": "street",

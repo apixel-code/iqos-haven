@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   COD_STATUSES,
   ORDER_SOURCES,
+  PAYMENT_METHODS,
   ORDER_STATUSES,
   canTransition,
   formatOrderNumber,
@@ -80,5 +81,7 @@ describe("order numbers, sources and cash status", () => {
     expect(ORDER_STATUSES.filter(isEditable)).toEqual(["pending", "confirmed"]);
     expect(COD_STATUSES).toEqual(["pending", "collected", "not_collected"]);
     expect(ORDER_SOURCES).toEqual(["storefront", "manual"]);
+    // The database CHECK (migration 20261109000100) names exactly these.
+    expect(PAYMENT_METHODS).toEqual(["cash_on_delivery", "bank_transfer", "online_payment"]);
   });
 });

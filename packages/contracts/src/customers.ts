@@ -1,6 +1,7 @@
 import { z } from "zod";
 /** One phone identity on both sides: the admin looks a customer up the way orders store it. */
 export { InvalidPhoneError, normalizePhone } from "@ih/domain";
+import { PAYMENT_METHODS } from "@ih/domain";
 /** Stored customer phone identity. Typed input is normalized by `normalizePhone` first. */
 export const phoneE164Schema = z.string().regex(/^\+[1-9]\d{7,14}$/);
 export const customerAddressTypeSchema = z.enum(["apartment", "villa", "office"]);
@@ -100,6 +101,7 @@ export const adminCustomerResponseSchema = z.strictObject({
           "cancelled",
         ]),
         codStatus: z.enum(["pending", "collected", "not_collected"]),
+        paymentMethod: z.enum(PAYMENT_METHODS),
         totalFils: filsAmount,
         createdAt: z.iso.datetime(),
       }),
