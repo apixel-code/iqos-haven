@@ -441,6 +441,44 @@ describe("product publication, trash/restore and purge (real API and PostgreSQL)
     // The runtime path cannot bypass the function: direct deletes stay refused for products.
   });
 
+  it("purges past derived rows (saved-list figures, alert window) but refuses sales history", async () => {
+    const purge = async (id: string) =>
+      call(`/${id}/purge`, "POST", { version: await version(id) }, cookies.owner);
+    // Saved-list figures and a low-stock quiet window are derived: they go with the product.
+    const saved = await completeProduct();
+    const savedVariant = await db.variant.findFirstOrThrow({ where: { productId: saved.id } });
+    await pool.query(
+      "INSERT INTO wishlist_daily (day, product_id, adds, removes) VALUES ('2026-11-01', $1, 2, 1)",
+      [saved.id],
+    );
+    await pool.query(
+      "INSERT INTO low_stock_alerts (variant_id, channel, source_event_id) VALUES ($1, 'inbox', $2)",
+      [savedVariant.id, randomUUID()],
+    );
+    await call(`/${saved.id}/trash`, "POST", { version: await version(saved.id) });
+    expect((await purge(saved.id)).status).toBe(200);
+    expect(await db.product.findUnique({ where: { id: saved.id } })).toBeNull();
+    expect(
+      (await pool.query("SELECT 1 FROM wishlist_daily WHERE product_id=$1", [saved.id])).rowCount,
+    ).toBe(0);
+    // Sales figures are history: refused with a clear answer, nothing removed.
+    const sold = await completeProduct();
+    await pool.query(
+      `INSERT INTO product_sales_daily (day, product_id, brand_name, ordered_units, ordered_net_fils,
+        delivered_units, delivered_net_fils, delivered_discount_fils)
+       VALUES ('2026-11-01', $1, 'Brand', 1, 1000, 0, 0, 0)`,
+      [sold.id],
+    );
+    await call(`/${sold.id}/trash`, "POST", { version: await version(sold.id) });
+    expect(await code(await purge(sold.id))).toBe("IN_USE");
+    expect(await db.product.findUnique({ where: { id: sold.id } })).not.toBeNull();
+    // The pinned search_path survives the function's replacement.
+    const config = await pool.query(
+      "SELECT proconfig FROM pg_proc WHERE proname='catalogue_purge_product'",
+    );
+    expect(String(config.rows[0].proconfig)).toMatch(/search_path=/);
+  });
+
   it("requires the publish and trash permissions", async () => {
     const product = await completeProduct({ taxApproved: true });
     const role = await db.role.findUniqueOrThrow({ where: { key: "staff" } });
