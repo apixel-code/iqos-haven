@@ -68,7 +68,7 @@ export class CartQuoteService {
       discountFils: quote.discountFils,
       deliveryFeeFils: quote.deliveryFeeFils,
       totalFils: quote.totalFils,
-      freeDeliveryThresholdFils: null,
+      freeDeliveryThresholdFils: quote.freeDeliveryThresholdFils,
       delivery: {
         areaId: quote.delivery.areaId,
         areaName: quote.delivery.areaName,

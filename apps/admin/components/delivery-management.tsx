@@ -81,6 +81,8 @@ export function DeliveryManagement({ embedded = false }: { embedded?: boolean })
     return outcome.ok;
   }
   const fee = row?.value ? `AED ${filsToAed(row.value.flatFeeFils)}` : null;
+  const freeFrom =
+    row?.value?.freeThresholdFils != null ? `AED ${filsToAed(row.value.freeThresholdFils)}` : null;
   return (
     <>
       {!embedded && (
@@ -105,7 +107,9 @@ export function DeliveryManagement({ embedded = false }: { embedded?: boolean })
                 {row?.value
                   ? "One charge for every active area."
                   : "Not configured. Obtain the approved fee and delivery promise before saving."}{" "}
-                Free delivery is disabled.
+                {freeFrom
+                  ? `Free delivery from ${freeFrom} (items after any coupon).`
+                  : "Free delivery is off."}
               </p>
             </div>
             <span className="tag">One fee across the UAE</span>
@@ -124,10 +128,23 @@ export function DeliveryManagement({ embedded = false }: { embedded?: boolean })
                       help: "Up to two decimal places; zero must be explicitly approved.",
                     },
                     { name: "etaText", label: "Delivery promise", required: true, max: 500 },
+                    {
+                      name: "freeFrom",
+                      label: "Free delivery from (AED)",
+                      max: 12,
+                      help: "Orders whose items total this or more, after any coupon, pay no delivery. Leave empty to switch free delivery off.",
+                    },
                   ]}
                   value={
                     row.value
-                      ? { fee: filsToAed(row.value.flatFeeFils), etaText: row.value.etaText }
+                      ? {
+                          fee: filsToAed(row.value.flatFeeFils),
+                          etaText: row.value.etaText,
+                          freeFrom:
+                            row.value.freeThresholdFils === null
+                              ? ""
+                              : filsToAed(row.value.freeThresholdFils),
+                        }
                       : null
                   }
                 />

@@ -231,8 +231,6 @@ async function deliverySelection(tx: Database | Tx, areaId: string, lock: boolea
   const delivery = deliveryForArea(config, area);
   return {
     ...delivery,
-    /** Free delivery is off at launch; the configuration cannot hold a threshold. */
-    freeThresholdFils: null,
     areaId: area!.id,
     areaCode: area!.code,
     areaName: area!.name,
@@ -277,7 +275,7 @@ export async function readStoreDelivery(db: Database) {
   return {
     feeFils: config?.flatFeeFils ?? null,
     etaText: config?.etaText ?? null,
-    freeThresholdFils: null,
+    freeThresholdFils: config?.freeThresholdFils ?? null,
     areas: areas.filter((area) => isDeliverableArea({ ...area, active: true })),
   };
 }

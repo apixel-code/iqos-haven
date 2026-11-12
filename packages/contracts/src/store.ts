@@ -339,13 +339,13 @@ export type StoreInfoResponse = z.infer<typeof storeInfoResponseSchema>;
 // --- Delivery choices for the checkout form (roadmap step 70) ---
 /**
  * Active delivery areas and the one flat fee. `feeFils` and `etaText` are null until the Owner
- * has configured delivery. `freeThresholdFils` is always null at launch: free delivery is off
- * and the storefront shows no progress towards it.
+ * has configured delivery. `freeThresholdFils` is null while free delivery is off; otherwise
+ * orders whose merchandise after discount reaches it pay no fee (ADR 0113).
  */
 export const storeDeliveryResponseSchema = z.strictObject({
   feeFils: z.number().int().min(0).max(1_000_000_000).nullable(),
   etaText: z.string().nullable(),
-  freeThresholdFils: z.null(),
+  freeThresholdFils: z.number().int().min(1).nullable(),
   areas: z
     .array(z.strictObject({ id: z.uuid(), name: z.string(), emirate: z.enum(UAE_EMIRATES) }))
     .max(500),
@@ -385,7 +385,8 @@ export const storeQuoteResponseSchema = z.strictObject({
   discountFils: z.number().int().min(0),
   deliveryFeeFils: z.number().int().min(0),
   totalFils: z.number().int().min(0),
-  freeDeliveryThresholdFils: z.null(),
+  /** Null while free delivery is off (ADR 0113). `deliveryFeeFils` is already 0 when reached. */
+  freeDeliveryThresholdFils: z.number().int().min(1).nullable(),
   delivery: z.strictObject({
     areaId: z.uuid(),
     areaName: z.string(),

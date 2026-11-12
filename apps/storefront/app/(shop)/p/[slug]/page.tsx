@@ -199,7 +199,7 @@ export default async function ProductPage({ params }: Props) {
               <Icon name="truck" />
               <p>
                 <b>Delivery across the UAE</b>
-                <span>All seven emirates, one flat delivery fee shown at checkout.</span>
+                <span>All seven emirates; the delivery fee is shown at checkout.</span>
               </p>
             </div>
             <div>

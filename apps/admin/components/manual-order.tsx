@@ -352,7 +352,7 @@ export function ManualOrderPanel({
           </div>
           <div>
             <span className="muted">Delivery</span>
-            <span>{money(quote.deliveryFeeFils)}</span>
+            <span>{quote.deliveryFeeFils === 0 ? "Free" : money(quote.deliveryFeeFils)}</span>
           </div>
           <div className="tot">
             <span>Total to collect</span>

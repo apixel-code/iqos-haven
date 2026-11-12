@@ -2070,7 +2070,12 @@
             "properties": {
               "flatFeeFils": { "type": "integer", "minimum": 0, "maximum": 1000000000 },
               "etaText": { "type": "string", "minLength": 1, "maxLength": 500 },
-              "freeThresholdFils": { "type": "string", "nullable": true, "enum": [null] }
+              "freeThresholdFils": {
+                "nullable": true,
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 1000000000
+              }
             },
             "required": ["flatFeeFils", "etaText", "freeThresholdFils"],
             "additionalProperties": false
@@ -2089,7 +2094,12 @@
             "properties": {
               "flatFeeFils": { "type": "integer", "minimum": 0, "maximum": 1000000000 },
               "etaText": { "type": "string", "minLength": 1, "maxLength": 500 },
-              "freeThresholdFils": { "type": "string", "nullable": true, "enum": [null] }
+              "freeThresholdFils": {
+                "nullable": true,
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 1000000000
+              }
             },
             "required": ["flatFeeFils", "etaText", "freeThresholdFils"],
             "additionalProperties": false

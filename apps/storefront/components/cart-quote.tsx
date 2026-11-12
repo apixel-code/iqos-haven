@@ -368,7 +368,7 @@ export function CartQuote({
             <div>
               <dt>Delivery to {current.delivery.areaName}</dt>
               <dd>
-                <Money fils={current.deliveryFeeFils} />
+                {current.deliveryFeeFils === 0 ? "Free" : <Money fils={current.deliveryFeeFils} />}
               </dd>
             </div>
             <div className="grand">
@@ -407,7 +407,7 @@ export function CartQuote({
   );
 }
 
-/** Hidden while free delivery is off (always at launch: the API answers `null`). */
+/** Hidden while free delivery is off (the API answers `null`); ADR 0113 lets the Owner switch it on. */
 function FreeDelivery({
   thresholdFils,
   afterDiscountFils,

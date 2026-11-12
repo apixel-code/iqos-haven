@@ -115,7 +115,7 @@ export function customerOrderEmailPlanner(db: Database): EmailPlanner {
         items: loaded.items.map(itemLine),
         subtotal: aed(loaded.merchandiseSubtotalFils),
         discount: loaded.discountFils > 0 ? aed(loaded.discountFils) : null,
-        delivery: aed(loaded.deliveryFeeFils),
+        delivery: loaded.deliveryFeeFils === 0 ? "Free" : aed(loaded.deliveryFeeFils),
         total: aed(loaded.totalFils),
         areaName: loaded.areaName,
         eta: loaded.deliveryEtaText,

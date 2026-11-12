@@ -1935,7 +1935,7 @@ function OrderDetailBody({
               </div>
               <div>
                 <span className="muted">Delivery</span>
-                <span>{money(order.deliveryFeeFils)}</span>
+                <span>{order.deliveryFeeFils === 0 ? "Free" : money(order.deliveryFeeFils)}</span>
               </div>
               <div className="tot">
                 <span>
@@ -2101,7 +2101,7 @@ function OrderDetailBody({
               <dt>Promise</dt>
               <dd>{order.deliveryEtaText}</dd>
               <dt>Charge</dt>
-              <dd>{money(order.deliveryFeeFils)}</dd>
+              <dd>{order.deliveryFeeFils === 0 ? "Free" : money(order.deliveryFeeFils)}</dd>
             </dl>
           </div>
         </section>

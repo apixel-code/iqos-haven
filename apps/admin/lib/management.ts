@@ -150,12 +150,19 @@ export function filsToAed(value: number) {
   return `${Math.floor(value / 100)}.${String(value % 100).padStart(2, "0")}`;
 }
 export function deliveryCommand(version: number, data: FormData) {
+  // Blank = free delivery off (ADR 0113); a threshold must be above zero.
+  const freeFrom = text(data, "freeFrom").trim();
+  const freeThresholdFils = freeFrom === "" ? null : aedToFils(freeFrom);
+  if (freeThresholdFils === 0)
+    throw new FormValidationError(
+      "Leave free delivery empty to switch it off, or enter an amount above zero.",
+    );
   return validate(deliveryConfigurationWriteRequestSchema, {
     version,
     value: {
       flatFeeFils: aedToFils(text(data, "fee")),
       etaText: text(data, "etaText"),
-      freeThresholdFils: null,
+      freeThresholdFils,
     },
   });
 }
