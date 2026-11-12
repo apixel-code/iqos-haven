@@ -20,6 +20,15 @@ const TEREA_EDITIONS = [
   "swiss",
   "uae",
 ];
+/** The retired device products (ADR 0112): each colour is its own product in a model category of the same slug. */
+const DEVICE_MODELS = [
+  "iqos-iluma",
+  "iqos-iluma-one",
+  "iqos-iluma-prime",
+  "iqos-iluma-i",
+  "iqos-iluma-i-one",
+  "iqos-iluma-i-prime",
+];
 
 const nextConfig: NextConfig = {
   output: "standalone",
@@ -35,6 +44,12 @@ const nextConfig: NextConfig = {
       ...TEREA_EDITIONS.map((country) => ({
         source: `/p/terea-${country}`,
         destination: `/categories/terea-${country}`,
+        permanent: true,
+      })),
+      // Each device colour became its own product in a model category (ADR 0112).
+      ...DEVICE_MODELS.map((model) => ({
+        source: `/p/${model}`,
+        destination: `/categories/${model}`,
         permanent: true,
       })),
     ];
