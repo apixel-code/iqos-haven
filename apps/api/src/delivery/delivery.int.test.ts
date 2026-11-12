@@ -144,7 +144,7 @@ describe("delivery configuration through real API/PostgreSQL", () => {
     expect((await call("?unknown=true")).status).toBe(400);
     expect((await call("/configuration?limit=1")).status).toBe(400);
   });
-  it("rejects floats, negative/oversized fees, free thresholds and unbounded/unknown area inputs", async () => {
+  it("rejects floats, negative/oversized fees, non-positive thresholds and unbounded/unknown area inputs", async () => {
     for (const v of [
       { ...value, flatFeeFils: -1 },
       { ...value, flatFeeFils: 0.5 },
@@ -152,7 +152,10 @@ describe("delivery configuration through real API/PostgreSQL", () => {
       { ...value, flatFeeFils: "1250" },
       { ...value, etaText: " " },
       { ...value, etaText: "x".repeat(501) },
-      { ...value, freeThresholdFils: 15000 },
+      { ...value, freeThresholdFils: 0 },
+      { ...value, freeThresholdFils: -1 },
+      { ...value, freeThresholdFils: 150.5 },
+      { ...value, freeThresholdFils: "15000" },
       { ...value, zoneFee: 500 },
     ])
       expect((await call("/configuration", "PATCH", { version: 0, value: v })).status).toBe(400);
@@ -347,7 +350,9 @@ describe("delivery configuration through real API/PostgreSQL", () => {
       {},
       { ...value, flatFeeFils: -1 },
       { ...value, flatFeeFils: 0.1 },
-      { ...value, freeThresholdFils: 100 },
+      { ...value, freeThresholdFils: 0 },
+      { ...value, freeThresholdFils: 0.5 },
+      { ...value, freeThresholdFils: "100" },
       { ...value, etaText: " " },
       { ...value, extra: true },
     ])

@@ -244,11 +244,11 @@ async function setArea(target: Area, active: boolean) {
   target.version = updated.version;
 }
 let feeVersion = 0;
-async function setFee(flatFeeFils: number) {
+async function setFee(flatFeeFils: number, freeThresholdFils: number | null = null) {
   const updated = await ok<{ version: number }>(
     await admin("/delivery-areas/configuration", "PATCH", {
       version: feeVersion,
-      value: { flatFeeFils, etaText: "Synthetic ETA", freeThresholdFils: null },
+      value: { flatFeeFils, etaText: "Synthetic ETA", freeThresholdFils },
     }),
   );
   feeVersion = updated.version;
@@ -508,7 +508,7 @@ describe("pricing and promotion acceptance through the real API and PostgreSQL",
     expect(await quoted(input)).toMatchObject({ discountFils: 1200 });
     expect(await couponCountMismatches(db)).toEqual([]);
   });
-  it("PRICE-04: one flat fee everywhere, no free delivery, and a closed area is refused", async () => {
+  it("PRICE-04: one flat fee everywhere, free delivery only when switched on, and a closed area is refused", async () => {
     const item = await product(5000, [{ flavour: "grape", stock: 9 }]);
     const cart = (areaId: string, quantity = 1) => ({
       lines: [{ variantId: item.variant("grape").id, quantity }],
@@ -526,15 +526,39 @@ describe("pricing and promotion acceptance through the real API and PostgreSQL",
         freeDeliveryThresholdFils: null,
         totalFils: total,
       });
-    // A free-delivery threshold cannot be configured.
-    expect(
-      (
-        await admin("/delivery-areas/configuration", "PATCH", {
-          version: feeVersion,
-          value: { flatFeeFils: 1500, etaText: "Synthetic ETA", freeThresholdFils: 10000 },
-        })
-      ).status,
-    ).toBe(400);
+    // Free delivery from a threshold (ADR 0113): merchandise after discount at or above it pays
+    // no fee, below it pays the flat fee; a zero or fractional threshold is refused.
+    for (const freeThresholdFils of [0, -1, 1.5, "45000"])
+      expect(
+        (
+          await admin("/delivery-areas/configuration", "PATCH", {
+            version: feeVersion,
+            value: { flatFeeFils: 1500, etaText: "Synthetic ETA", freeThresholdFils },
+          })
+        ).status,
+      ).toBe(400);
+    await setFee(1500, 45000);
+    expect(await ok<StoreDeliveryResponse>(await store("/delivery"))).toMatchObject({
+      feeFils: 1500,
+      freeThresholdFils: 45000,
+    });
+    for (const [quantity, fee, total] of [
+      [8, 1500, 41500],
+      [9, 0, 45000],
+    ] as const)
+      expect(await quoted(cart(marina.id, quantity))).toMatchObject({
+        deliveryFeeFils: fee,
+        freeDeliveryThresholdFils: 45000,
+        totalFils: total,
+      });
+    // A coupon that takes the goods below the threshold brings the fee back.
+    await ok(await coupon("ACCFREE", { percentBps: 1000 }), 201);
+    expect(await quoted({ ...cart(marina.id, 9), couponCode: "ACCFREE" })).toMatchObject({
+      discountFils: 4500,
+      deliveryFeeFils: 1500,
+      totalFils: 42000,
+    });
+    await setFee(1500);
     // Shoppers are offered active areas only, and an inactive or unknown one cannot be quoted.
     const offered = await ok<StoreDeliveryResponse>(await store("/delivery"));
     expect(offered).toMatchObject({ feeFils: 1500, freeThresholdFils: null });

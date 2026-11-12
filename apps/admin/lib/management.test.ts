@@ -124,12 +124,19 @@ describe("versioned form payloads", () => {
     for (const input of ["", "-1", "1.001", "1e3", "1,000", "Infinity", "10000000.01"])
       expect(() => aedToFils(input)).toThrow(FormValidationError);
   });
-  it("never guesses missing fees or enables the threshold", () => {
+  it("never guesses missing fees; free delivery is off unless an amount is entered (ADR 0113)", () => {
     expect(() => deliveryCommand(0, data({ etaText: "Approved ETA" }))).toThrow();
     expect(deliveryCommand(7, data({ fee: "0.29", etaText: " Approved ETA " }))).toEqual({
       version: 7,
       value: { flatFeeFils: 29, etaText: "Approved ETA", freeThresholdFils: null },
     });
+    expect(
+      deliveryCommand(7, data({ fee: "20", etaText: "Approved ETA", freeFrom: " 400 " })).value,
+    ).toEqual({ flatFeeFils: 2000, etaText: "Approved ETA", freeThresholdFils: 40000 });
+    for (const freeFrom of ["0", "0.00", "-1", "40O"])
+      expect(() =>
+        deliveryCommand(7, data({ fee: "20", etaText: "Approved ETA", freeFrom })),
+      ).toThrow(FormValidationError);
   });
   it("builds complete typed settings groups, retains expected version and maps optional blanks to null", () => {
     expect(

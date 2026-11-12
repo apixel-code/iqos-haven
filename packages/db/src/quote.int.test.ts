@@ -177,7 +177,7 @@ describe("quote assembly (real PostgreSQL, isolated schema)", () => {
         await previewQuote(db, { lines: [{ variantId: kit.id, quantity: 2 }], areaId, couponCode }),
       ).toMatchObject({ discountFils: 0, totalFils: 27498, coupon: null });
   });
-  it("charges the same flat fee whatever the order is worth: free delivery is off", async () => {
+  it("charges the same flat fee whatever the order is worth unless free delivery is on (ADR 0113)", async () => {
     const cheap = await variant(100n, 5);
     const dear = await variant(1_000_000_000n, 5);
     for (const [variantId, quantity, total] of [
@@ -189,12 +189,35 @@ describe("quote assembly (real PostgreSQL, isolated schema)", () => {
         freeDeliveryThresholdFils: null,
         totalFils: total,
       });
-    // The configuration cannot hold a threshold at all.
-    await expect(
-      pool.query(
-        `UPDATE settings SET value=jsonb_set(value,'{freeThresholdFils}','15000') WHERE key='delivery'`,
-      ),
-    ).rejects.toMatchObject({ code: "23514" });
+    // A threshold must be a positive whole number of fils (ADR 0113).
+    for (const bad of ["0", "-5", "150.5", '"15000"'])
+      await expect(
+        pool.query(
+          `UPDATE settings SET value=jsonb_set(value,'{freeThresholdFils}',$1::jsonb) WHERE key='delivery'`,
+          [bad],
+        ),
+      ).rejects.toMatchObject({ code: "23514" });
+    // Switched on, the order reaching it pays no fee and the one below pays the flat fee.
+    await pool.query(
+      `UPDATE settings SET value=jsonb_set(value,'{freeThresholdFils}','1000') WHERE key='delivery'`,
+    );
+    try {
+      for (const [quantity, fee, total] of [
+        [9, 1500, 2400],
+        [10, 0, 1000],
+      ] as const)
+        expect(
+          await previewQuote(db, { lines: [{ variantId: cheap.id, quantity }], areaId }),
+        ).toMatchObject({
+          deliveryFeeFils: fee,
+          freeDeliveryThresholdFils: 1000,
+          totalFils: total,
+        });
+    } finally {
+      await pool.query(
+        `UPDATE settings SET value=jsonb_set(value,'{freeThresholdFils}','null') WHERE key='delivery'`,
+      );
+    }
   });
   it("names lines that could not be filled now, without reserving anything", async () => {
     const plenty = await variant(4500n, 3);

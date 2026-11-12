@@ -1,4 +1,4 @@
-import { mergeOrderLines, type OrderLine, type PricedLine } from "@ih/domain";
+import { deliveryFeeFor, mergeOrderLines, type OrderLine, type PricedLine } from "@ih/domain";
 import { Prisma, type Database, type Tx } from "./client";
 import {
   lockCouponForOrder,
@@ -32,8 +32,8 @@ export interface Quote {
   discountFils: number;
   deliveryFeeFils: number;
   totalFils: number;
-  /** Always null at launch: free delivery is off. */
-  freeDeliveryThresholdFils: null;
+  /** Null while free delivery is off; `deliveryFeeFils` is already 0 once it is reached (ADR 0113). */
+  freeDeliveryThresholdFils: number | null;
   delivery: {
     areaId: string;
     areaCode: string;
@@ -53,9 +53,13 @@ function assemble(
   prices: readonly OrderPriceLine[],
   coupon: AppliedCoupon | null,
 ): Quote {
+  const discountBasisPoints = coupon?.percentBps ?? 0;
+  // The fee depends on the merchandise after discount (free-delivery threshold, ADR 0113), so the
+  // goods are priced first and the order is priced once more with the fee that applies.
+  const goods = priceOrderLines(prices, { discountBasisPoints, deliveryFeeFils: 0 });
   const priced = priceOrderLines(prices, {
-    discountBasisPoints: coupon?.percentBps ?? 0,
-    deliveryFeeFils: delivery.feeFils,
+    discountBasisPoints,
+    deliveryFeeFils: deliveryFeeFor(delivery, goods.merchandiseSubtotalFils - goods.discountFils),
   });
   // The coupon and the order arithmetic must agree on the discount to the fil.
   if (coupon && coupon.discountFils !== priced.discountFils)

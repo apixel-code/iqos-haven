@@ -6,7 +6,8 @@ const version = z.number().int().min(0).max(2147483646);
 export const deliveryConfigurationSchema = z.strictObject({
   flatFeeFils: z.number().int().min(0).max(1_000_000_000),
   etaText: z.string().trim().min(1).max(500),
-  freeThresholdFils: z.null(),
+  /** Free delivery from this merchandise amount after discount (ADR 0113); null = off. */
+  freeThresholdFils: z.number().int().min(1).max(1_000_000_000).nullable(),
 });
 export const deliveryConfigurationWriteRequestSchema = z.strictObject({
   version,

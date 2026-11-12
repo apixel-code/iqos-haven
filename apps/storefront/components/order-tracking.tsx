@@ -202,9 +202,7 @@ function TrackedOrder({ view: { order } }: { view: Extract<TrackingView, { kind:
           )}
           <div>
             <dt>Delivery</dt>
-            <dd>
-              <Money fils={order.deliveryFeeFils} />
-            </dd>
+            <dd>{order.deliveryFeeFils === 0 ? "Free" : <Money fils={order.deliveryFeeFils} />}</dd>
           </div>
           <div className="grand">
             <dt>Total</dt>

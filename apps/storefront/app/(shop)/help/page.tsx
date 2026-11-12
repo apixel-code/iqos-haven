@@ -91,6 +91,13 @@ export default async function HelpPage() {
             ) : (
               <>
                 <Money fils={delivery.feeFils} /> per order, the same in every emirate.
+                {delivery.freeThresholdFils !== null && (
+                  <>
+                    {" "}
+                    Free when your items total <Money fils={delivery.freeThresholdFils} /> or more
+                    after any discount.
+                  </>
+                )}
               </>
             )}
           </p>
