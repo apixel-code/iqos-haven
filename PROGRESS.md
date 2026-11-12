@@ -4,14 +4,14 @@
 
 - Date: 2026-11-12
 - Milestone: all gates M0–M11 PASSED. The store is live on iqoshaven.com (client VPS); work is post-launch client requests and handover.
-- Status: no open PRs. `main` at the purge fix PR (after 1fa283b); production and staging run release 1fa283b (migration `20261112000100_free_delivery_threshold` applied).
+- Status: no open PRs. `main` at 0a879f0 (PR #192, purge fix); production and staging run release 0a879f0 (migration `20261112000200_purge_product_stats` applied 2026-11-12, after backup `ih-backup-20261112T161357Z`).
 - Catalogue (production, final per Marina 2026-11-12): 74 published products — 26 IQOS device colours (ADR 0112, six model categories sort 1–6) and 48 TEREA flavours (ADR 0110, seven country categories). Every product has its own Gemini-made picture. The six old model products and the TEREA editions are drafts (stock history keeps them). The remaining client-sheet rows and the 200-product target are dropped; IQOS BONDS is not sold.
 - Delivery (ADR 0113): AED 20 flat, free when merchandise after coupon is AED 400 or more; ticker and hero copy updated.
 - Branch: `main`. See docs/verification.md for checks.
 
 ## Next action
 
-**NEXT (start here):** merge and deploy the purge fix (branch `step/purge-product-stats`, migration `20261112000200_purge_product_stats`) when Marina asks: staging, then production (release env from the Images run, `deploy.sh`). After that nothing is planned; handover to the client. Catalogue changes on production go through the admin API (scripts in the session scratchpad, admin cookie in a file that is deleted afterwards); the admin API allows 300 picture requests per hour per staff member, so bulk picture scripts must wait and retry.
+**NEXT (start here):** nothing is planned; handover to the client. Deploys: release env from the main Images run, `deploy.sh` on staging, then production after a backup. Catalogue changes on production go through the admin API (scripts in the session scratchpad, admin cookie in a file that is deleted afterwards); the admin API allows 300 picture requests per hour per staff member, so bulk picture scripts must wait and retry.
 
 **Start of a new session:**
 
