@@ -19,6 +19,7 @@ const BADGE_CLASS = {
 export function ProductCard({ product }: { product: StoreProductCard }) {
   const badges = cardBadges(product);
   const onSale = badges.some((badge) => badge.kind === "sale");
+  const meta = cardMeta(product);
   const href = `/p/${product.slug}`;
   return (
     <article className={product.soldOut ? "card oos" : "card"}>
@@ -59,7 +60,7 @@ export function ProductCard({ product }: { product: StoreProductCard }) {
         <Link href={href} prefetch={false} className="name">
           {product.name}
         </Link>
-        <span className="meta">{cardMeta(product)}</span>
+        {meta && <span className="meta">{meta}</span>}
         <div className="card-foot">
           <div className="price">
             <span className={onSale ? "now sale" : "now"}>
