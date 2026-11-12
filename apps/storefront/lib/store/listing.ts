@@ -60,15 +60,18 @@ export function discountPercent(priceFils: number, compareAtFils: number | null)
   return percent >= 1 ? percent : null;
 }
 
-/** The mono line under the product name. */
+/**
+ * The mono line under the product name, or "" when there is nothing to say. A product with a
+ * single option shows no count (Marina 2026-11-12: every product is now one flavour or colour).
+ */
 export function cardMeta(card: Pick<StoreProductCard, "type" | "puffCount" | "variantCount">) {
-  const options = `${card.variantCount} ${card.variantCount === 1 ? "option" : "options"}`;
-  if (card.type === "disposable" && card.puffCount) {
-    const puffs =
-      card.puffCount >= 1000 ? `${Math.round(card.puffCount / 1000)}K` : String(card.puffCount);
-    return `${puffs} puffs · ${options}`;
-  }
-  return options;
+  const parts: string[] = [];
+  if (card.type === "disposable" && card.puffCount)
+    parts.push(
+      `${card.puffCount >= 1000 ? `${Math.round(card.puffCount / 1000)}K` : String(card.puffCount)} puffs`,
+    );
+  if (card.variantCount > 1) parts.push(`${card.variantCount} options`);
+  return parts.join(" · ");
 }
 
 export type CardBadge = { kind: "soldOut" | "sale" | "new"; label: string };

@@ -123,13 +123,12 @@ describe("price and card text", () => {
     expect(discountPercent(9999, 10000)).toBeNull();
   });
 
-  it("describes disposables by puffs and every product by its options", () => {
+  it("describes disposables by puffs and counts options only when there is a choice", () => {
     expect(cardMeta({ type: "disposable", puffCount: 7000, variantCount: 6 })).toBe(
       "7K puffs · 6 options",
     );
-    expect(cardMeta({ type: "disposable", puffCount: 800, variantCount: 1 })).toBe(
-      "800 puffs · 1 option",
-    );
+    expect(cardMeta({ type: "disposable", puffCount: 800, variantCount: 1 })).toBe("800 puffs");
+    expect(cardMeta({ type: "sticks", puffCount: null, variantCount: 1 })).toBe("");
     expect(cardMeta({ type: "kit", puffCount: null, variantCount: 3 })).toBe("3 options");
   });
 
