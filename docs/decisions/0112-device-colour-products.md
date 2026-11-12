@@ -29,4 +29,5 @@ This is a catalogue change, not a model change. It is made on production through
 
 - Device listings show 26 cards instead of six.
 - Saved carts, wishlists and recently viewed items that point to a model's colours show as unavailable.
-- A fresh encrypted backup is taken right before the change, and a dry run is checked first. The script can be re-run and skips finished steps.
+- Done on production 2026-11-12 after a dry run and a fresh encrypted backup (`ih-backup-20261112T071222Z`). New SKUs are `<SLUG>-01`, because the model colours keep their old SKUs. Model categories sort 1–6, before the TEREA countries. Featured and Offers swap each model for its first colour, so each keeps its size.
+- The admin API allows 300 picture requests per hour per staff member, so the script waits and retries when it is rate-limited. The script can be re-run and skips finished steps.
