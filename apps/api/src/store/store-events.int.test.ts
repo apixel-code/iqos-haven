@@ -201,6 +201,20 @@ describe("anonymous browsing events through the real API and PostgreSQL", () => 
     expect(tooLarge.status).toBe(413);
   });
 
+  it("drops a search crawler's batches: statistics count shoppers only (ADR 0115)", async () => {
+    const product = await visibleProduct();
+    const pass = signAgeTicket(signer, { policyVersion: POLICY, ttlSeconds: 600, crawler: true });
+    const before = await db.browsingEvent.count();
+    const batch = { events: [{ id: id(), type: "product_view", productSlug: product.slug }] };
+    const dropped = await answer(
+      await post(batch, { cookie: `${AGE_COOKIE}=${pass.ticket}`, origin: STORE }),
+    );
+    expect(dropped).toEqual({ stored: 0, duplicate: 0, dropped: 1 });
+    expect(await db.browsingEvent.count()).toBe(before);
+    // The same batch from a shopper is stored.
+    expect(await answer(await post(batch))).toEqual({ stored: 1, duplicate: 0, dropped: 0 });
+  });
+
   it("limits batches per address", async () => {
     const ip = "203.0.113.90";
     const statuses: number[] = [];

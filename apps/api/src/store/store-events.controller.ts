@@ -9,7 +9,7 @@ import { createLogger } from "@ih/logger";
 import type { ApiEnv } from "@ih/config";
 import type { FastifyReply, FastifyRequest } from "fastify";
 import { isIP } from "node:net";
-import { AgeVerified } from "../auth/access";
+import { AgeVerified, type AgeVerifiedRequest } from "../auth/access";
 import { Serialize } from "../auth/serialize";
 import { createZodDto } from "../http/zod-validation.pipe";
 import { API_ENV, DATABASE } from "../infra/tokens";
@@ -29,6 +29,8 @@ export const MAX_CONCURRENT_EVENT_WRITES = 2;
  * Behind the age ticket and the store Origin rules, limited per address, at most 20 events and
  * 8 KB per batch. Always 202: a batch shed under load or after a database error is reported as
  * dropped, never as a failure the shop has to handle. Nothing about the shopper is stored.
+ * A search crawler renders pages like a browser and sends the same batches; its ticket carries a
+ * signed mark, and those batches are dropped so statistics count shoppers only (ADR 0115).
  */
 @Controller({ path: "store/events", version: "1" })
 export class StoreEventsController {
@@ -60,6 +62,7 @@ export class StoreEventsController {
       reply,
     );
     const all = { stored: 0, duplicate: 0, dropped: body.events.length };
+    if ((request as AgeVerifiedRequest).ageTicket?.crawler) return all;
     if (this.writing >= MAX_CONCURRENT_EVENT_WRITES) return all;
     this.writing += 1;
     try {

@@ -879,4 +879,25 @@ describe("gated store catalogue reads (real API, PostgreSQL, Ed25519 ticket)", (
     // Another address is unaffected.
     expect((await get("/categories")).status).toBe(200);
   });
+
+  it("gives a ticket with the signed crawler mark its own, larger read budget (ADR 0115)", async () => {
+    const address = "203.0.113.201";
+    const pass = signAgeTicket(signer, { policyVersion: POLICY, ttlSeconds: 600, crawler: true });
+    const crawler = { cookie: `${AGE_COOKIE}=${pass.ticket}`, "x-ih-client-ip": address };
+    const shopper = { cookie, "x-ih-client-ip": address };
+    const read = async (headers: Record<string, string>, count: number) =>
+      (await Promise.all(Array.from({ length: count }, () => get("/categories", headers)))).map(
+        (response) => response.status,
+      );
+    // The shopper budget on this address is spent...
+    const shopperStatuses = [...(await read(shopper, 120)), ...(await read(shopper, 121))];
+    expect(shopperStatuses.filter((status) => status === 429)).toHaveLength(1);
+    // ...and the crawler still reads well past it, counted apart.
+    const statuses: number[] = [];
+    for (let batch = 0; batch < 3; batch++) statuses.push(...(await read(crawler, 100)));
+    expect(statuses.every((status) => status === 200)).toBe(true);
+    // The mark grants nothing by name: a browser that calls itself a crawler stays a shopper.
+    const named = await get("/categories", { ...shopper, "user-agent": "Googlebot/2.1" });
+    expect(named.status).toBe(429);
+  });
 });

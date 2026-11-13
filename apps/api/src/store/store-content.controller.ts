@@ -5,7 +5,7 @@ import type { FastifyReply, FastifyRequest } from "fastify";
 import { isIP } from "node:net";
 import { AgeVerified } from "../auth/access";
 import { Serialize } from "../auth/serialize";
-import { STORE_CATALOG_POLICY } from "../security/limit-policies";
+import { storeCatalogPolicy } from "../security/limit-policies";
 import { RateLimitService } from "../security/rate-limit.service";
 import { StoreCatalogService } from "./store-catalog.service";
 
@@ -28,7 +28,7 @@ export class StoreContentController {
     reply.header("Cache-Control", "private, no-store").header("Vary", "Cookie");
     const header = request.headers["x-ih-client-ip"];
     await this.limits.enforce(
-      STORE_CATALOG_POLICY,
+      storeCatalogPolicy(request),
       { ip: typeof header === "string" && isIP(header) ? header : request.ip },
       request,
       reply,

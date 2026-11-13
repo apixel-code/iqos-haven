@@ -60,8 +60,11 @@ describe("routing gate: search crawlers and indexing (ADR 0114)", () => {
       policyVersion: "v1",
     });
     expect(ticket.ok).toBe(true);
-    if (ticket.ok)
+    if (ticket.ok) {
       expect(ticket.claims.exp - Math.floor(Date.now() / 1000)).toBeLessThanOrEqual(600);
+      // The signed mark the API uses for the crawler read budget and statistics (ADR 0115).
+      expect(ticket.claims.via).toBe("crawler");
+    }
     expect(response.headers.get("set-cookie")).toMatch(/^ih_age=.+Max-Age=600; .*HttpOnly/);
     expect(response.headers.get("x-robots-tag")).toBeNull();
     expect(response.headers.get("cache-control")).toBe("private, no-store");

@@ -1,6 +1,6 @@
 # 0114 — Catalogue indexing for verified search crawlers
 
-- Status: Accepted (changes ADRs 0026 and 0079; changes the age-gate invariant "no bypass")
+- Status: Accepted (changes ADRs 0026 and 0079; changes the age-gate invariant "no bypass"; "the API has no crawler rule of its own" is changed by ADR 0115)
 - Date: 2026-11-13
 - Decided by: Marina (client decision: sales are to come from organic search, with no paid advertising)
 

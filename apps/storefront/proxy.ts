@@ -32,6 +32,9 @@ export async function proxy(request: NextRequest) {
       pass = signAgeTicket(runtime.signer, {
         policyVersion: runtime.policyVersion,
         ttlSeconds: CRAWLER_PASS_SECONDS,
+        // Signed mark: the API gives crawlers their own read budget and keeps their visits out
+        // of browsing statistics (ADR 0115).
+        crawler: true,
       }).ticket;
   }
   const action = pass
