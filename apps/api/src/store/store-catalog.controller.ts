@@ -36,7 +36,7 @@ import { createZodDto } from "../http/zod-validation.pipe";
 import {
   STORE_CARDS_POLICY,
   STORE_CART_POLICY,
-  STORE_CATALOG_POLICY,
+  storeCatalogPolicy,
 } from "../security/limit-policies";
 import { RateLimitService } from "../security/rate-limit.service";
 import { StoreCatalogService } from "./store-catalog.service";
@@ -69,7 +69,7 @@ export class StoreCatalogController {
     reply.header("Cache-Control", "private, no-store").header("Vary", "Cookie");
     const header = request.headers["x-ih-client-ip"];
     await this.limits.enforce(
-      STORE_CATALOG_POLICY,
+      storeCatalogPolicy(request),
       { ip: typeof header === "string" && isIP(header) ? header : request.ip },
       request,
       reply,

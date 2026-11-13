@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   AGE_COOKIE,
   MAX_AGE_TICKET_TTL_SECONDS,
+  MAX_CRAWLER_TICKET_TTL_SECONDS,
   ageTicketKeyRing,
   ageTicketPublicKey,
   ageTicketSigner,
@@ -146,11 +147,31 @@ describe("age ticket", () => {
       { ...valid, iat: "now" },
       { ...valid, exp: 1.5 },
       { ...valid, extra: true },
+      { ...valid, via: "shopper" },
+      { ...valid, via: true },
+      { ...valid, via: "crawler", extra: true },
+      { ...valid, via: "crawler", exp: iat + 60 * 60 + 1 },
       { iss: valid.iss, aud: valid.aud, iat, exp: valid.exp, pol: "p1" },
       [valid],
       "accepted",
     ])
       expect(reason(forge(bad)), JSON.stringify(bad)).toBe("INVALID_CLAIMS");
+  });
+
+  it("marks a crawler pass, keeps it short, and leaves a shopper's ticket unmarked", () => {
+    const shopper = verifyAgeTicket(mint(), options);
+    expect(shopper.ok && "via" in shopper.claims).toBe(false);
+    const pass = verifyAgeTicket(mint({ ttlSeconds: 600, crawler: true }), options);
+    expect(pass.ok && pass.claims.via).toBe("crawler");
+    expect(pass.ok && pass.claims.exp - pass.claims.iat).toBe(600);
+    expect(reason(forge({ ...valid, via: "crawler", exp: iat + 60 * 60 }))).toBe("ok");
+    expect(() => mint({ ttlSeconds: MAX_CRAWLER_TICKET_TTL_SECONDS + 1, crawler: true })).toThrow(
+      RangeError,
+    );
+    // The mark is under the signature: adding it to a shopper's ticket breaks the ticket.
+    const [version, kid, , signature] = mint().split(".") as [string, string, string, string];
+    const marked = Buffer.from(JSON.stringify({ ...valid, via: "crawler" })).toString("base64url");
+    expect(reason([version, kid, marked, signature].join("."))).toBe("BAD_SIGNATURE");
   });
 
   it("validates key material and refuses duplicate key ids", () => {

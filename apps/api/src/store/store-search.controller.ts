@@ -22,9 +22,9 @@ import { Serialize } from "../auth/serialize";
 import { createZodDto } from "../http/zod-validation.pipe";
 import { DATABASE } from "../infra/tokens";
 import {
-  STORE_CATALOG_POLICY,
   STORE_SEARCH_POLICY,
   STORE_SUGGEST_POLICY,
+  storeCatalogPolicy,
 } from "../security/limit-policies";
 import { RateLimitService } from "../security/rate-limit.service";
 import { StoreCatalogService } from "./store-catalog.service";
@@ -74,7 +74,7 @@ export class StoreSearchController {
   ): Promise<StoreSearchResponse> {
     const query = raw as unknown as StoreSearchQuery;
     const browsing = !query.q?.trim();
-    await this.guard(browsing ? STORE_CATALOG_POLICY : STORE_SEARCH_POLICY, request, reply);
+    await this.guard(browsing ? storeCatalogPolicy(request) : STORE_SEARCH_POLICY, request, reply);
     try {
       // Refuse a malformed cursor before any query runs.
       assertStoreSearchCursor(query);

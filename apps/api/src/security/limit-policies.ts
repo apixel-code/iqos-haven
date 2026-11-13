@@ -155,6 +155,27 @@ export const STORE_CATALOG_POLICY: EndpointLimitPolicy<"ip"> = {
 };
 
 /**
+ * Catalogue reads by a DNS-verified search crawler (ADR 0115). The signed mark on the crawler's
+ * age ticket selects this budget, never the User-Agent. One page costs about six reads, so the
+ * shopper budget stops a crawler near forty pages a minute and the shop answers with an error
+ * page; this one allows about two hundred. Counted apart from shoppers on the same address.
+ */
+export const STORE_CATALOG_CRAWLER_POLICY: EndpointLimitPolicy<"ip"> = {
+  endpoint: "store_catalog_crawler",
+  rules: { ip: perMinute(1200) },
+  outage: { fallback: { ip: perMinute(600) }, processCeiling: perMinute(6000) },
+};
+
+/**
+ * The catalogue read budget for this request: the crawler's when the verified age ticket the
+ * AccessGuard attached (`AgeVerifiedRequest.ageTicket`) carries the mark.
+ */
+export function storeCatalogPolicy(request: object): EndpointLimitPolicy<"ip"> {
+  const ticket = (request as { ageTicket?: { readonly crawler?: boolean } }).ageTicket;
+  return ticket?.crawler === true ? STORE_CATALOG_CRAWLER_POLICY : STORE_CATALOG_POLICY;
+}
+
+/**
  * Quotes (step 71) read prices, the area and a coupon without a cache, and a wrong coupon code
  * is answered here, so the budget is tight enough to make guessing codes slow.
  */

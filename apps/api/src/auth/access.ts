@@ -19,9 +19,16 @@ import { SERIALIZE } from "./serialize";
 import { readSessionToken } from "./session-cookie";
 
 export type AuthenticatedRequest = FastifyRequest & { staff?: AuthenticatedStaff };
-/** Set on store routes once the age ticket verified: the affirmed policy and its expiry. */
+/**
+ * Set on store routes once the age ticket verified: the affirmed policy, its expiry, and whether
+ * it is a pass minted for a DNS-verified search crawler (ADRs 0114, 0115).
+ */
 export type AgeVerifiedRequest = FastifyRequest & {
-  ageTicket?: { readonly policyVersion: string; readonly expiresAt: Date };
+  ageTicket?: {
+    readonly policyVersion: string;
+    readonly expiresAt: Date;
+    readonly crawler: boolean;
+  };
 };
 
 /**
@@ -123,6 +130,7 @@ export class AccessGuard implements CanActivate {
       (request as AgeVerifiedRequest).ageTicket = {
         policyVersion: result.claims.pol,
         expiresAt: new Date(result.claims.exp * 1000),
+        crawler: result.claims.via === "crawler",
       };
       return true;
     }

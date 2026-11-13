@@ -15,7 +15,9 @@ import {
  * the format version, so a token cannot ask for a weaker one. Keys are found only by `kid` in the
  * verifier's own allowlist; nothing in a token can point at another key.
  *
- * Only the storefront acceptance handler holds a private key and calls `signAgeTicket`. Every
+ * Only the storefront holds a private key and calls `signAgeTicket`: the acceptance handler for
+ * shoppers, and the routing gate for a DNS-verified search crawler's short pass, which carries
+ * the extra claim `via: "crawler"` (ADRs 0114, 0115). Every
  * verifier (storefront routing gate, API `AgeGuard`) holds public keys only.
  *
  * This file has no dependencies beyond node:crypto so the storefront can import it through
@@ -28,6 +30,8 @@ export type AgeTicketAudience = (typeof AGE_TICKET_AUDIENCES)[number];
 /** Hard ceiling on a ticket's lifetime, whatever the configured duration is. */
 export const MAX_AGE_TICKET_TTL_SECONDS = 30 * 24 * 60 * 60;
 export const AGE_TICKET_CLOCK_SKEW_SECONDS = 60;
+/** A crawler's pass (ADR 0114) is for one page and what it loads; a longer one is refused. */
+export const MAX_CRAWLER_TICKET_TTL_SECONDS = 60 * 60;
 const MAX_TICKET_LENGTH = 512;
 const VERSION = "v1";
 const DOMAIN = "ih-age-ticket/v1";
@@ -47,6 +51,12 @@ export interface AgeTicketClaims {
   /** Version of the age policy the shopper affirmed (business input BI-04). */
   readonly pol: string;
   readonly dec: "accepted";
+  /**
+   * Present only on a pass the routing gate minted for a DNS-verified search crawler
+   * (ADRs 0114, 0115). Absent on a shopper's ticket. The API reads it to give crawlers their
+   * own read budget and to leave their visits out of browsing statistics.
+   */
+  readonly via?: "crawler";
 }
 
 export interface AgeTicketSigner {
@@ -106,7 +116,7 @@ const signingInput = (kid: string, payload: string) => Buffer.from(`${DOMAIN}\n$
 /** Mints a ticket for an explicit acceptance. `ttlSeconds` is capped at 30 days. */
 export function signAgeTicket(
   signer: AgeTicketSigner,
-  options: { policyVersion: string; ttlSeconds: number; now?: number },
+  options: { policyVersion: string; ttlSeconds: number; now?: number; crawler?: boolean },
 ): { ticket: string; claims: AgeTicketClaims } {
   if (!POLICY_PATTERN.test(options.policyVersion)) throw new RangeError("Invalid policy version");
   if (
@@ -115,6 +125,8 @@ export function signAgeTicket(
     options.ttlSeconds > MAX_AGE_TICKET_TTL_SECONDS
   )
     throw new RangeError("Age-ticket lifetime must be between 1 second and 30 days");
+  if (options.crawler && options.ttlSeconds > MAX_CRAWLER_TICKET_TTL_SECONDS)
+    throw new RangeError("A crawler pass lasts at most one hour");
   const iat = Math.floor((options.now ?? Date.now()) / 1000);
   const claims: AgeTicketClaims = {
     iss: AGE_TICKET_ISSUER,
@@ -123,6 +135,7 @@ export function signAgeTicket(
     exp: iat + options.ttlSeconds,
     pol: options.policyVersion,
     dec: "accepted",
+    ...(options.crawler ? { via: "crawler" as const } : {}),
   };
   const payload = Buffer.from(JSON.stringify(claims)).toString("base64url");
   const signature = sign(null, signingInput(signer.kid, payload), signer.privateKey);
@@ -163,8 +176,11 @@ function parseClaims(payload: string): AgeTicketClaims | null {
   }
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const claims = value as Record<string, unknown>;
-  const { iss, aud, iat, exp, pol, dec } = claims;
-  if (Object.keys(claims).length !== 6) return null;
+  const { iss, aud, iat, exp, pol, dec, via } = claims;
+  // Exactly the six shopper claims, or those six plus the crawler mark. Nothing else.
+  const crawler = "via" in claims;
+  if (Object.keys(claims).length !== (crawler ? 7 : 6)) return null;
+  if (crawler && via !== "crawler") return null;
   if (iss !== AGE_TICKET_ISSUER || dec !== "accepted") return null;
   if (typeof pol !== "string" || !POLICY_PATTERN.test(pol)) return null;
   if (!Number.isSafeInteger(iat) || !Number.isSafeInteger(exp)) return null;
@@ -182,6 +198,7 @@ function parseClaims(payload: string): AgeTicketClaims | null {
     exp: exp as number,
     pol,
     dec,
+    ...(crawler ? { via: "crawler" as const } : {}),
   };
 }
 
@@ -215,6 +232,8 @@ export function verifyAgeTicket(
   const claims = parseClaims(payload);
   if (!claims) return { ok: false, reason: "INVALID_CLAIMS" };
   if (claims.exp <= claims.iat || claims.exp - claims.iat > MAX_AGE_TICKET_TTL_SECONDS)
+    return { ok: false, reason: "INVALID_CLAIMS" };
+  if (claims.via && claims.exp - claims.iat > MAX_CRAWLER_TICKET_TTL_SECONDS)
     return { ok: false, reason: "INVALID_CLAIMS" };
   if (!claims.aud.includes(options.audience)) return { ok: false, reason: "WRONG_AUDIENCE" };
   if (claims.pol !== options.policyVersion) return { ok: false, reason: "POLICY_CHANGED" };
