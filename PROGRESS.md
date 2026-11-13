@@ -4,14 +4,14 @@
 
 - Date: 2026-11-13
 - Milestone: all gates M0–M11 PASSED. The store is live on iqoshaven.com (client VPS); work is post-launch client requests and handover.
-- Status: PR open from `step/seo-catalogue-indexing` (ADR 0114: catalogue indexing for verified search crawlers; no migration). `main` at 6725f94; production and staging run release 0a879f0. Search engines are still closed out on production until this is deployed and the Owner chooses "Whole catalogue" in Admin → SEO.
+- Status: no open PRs. `main` at 1f44c68 (PR #194, ADR 0114: catalogue indexing for verified search crawlers; no migration); production and staging run release 1f44c68 (deployed 2026-11-13 after backup `ih-backup-20261113T163518Z`). The production SEO policy is still `public_pages`: search engines see only the policy pages until the Owner chooses "Whole catalogue" in Admin → SEO.
 - Catalogue (production, final per Marina 2026-11-12): 74 published products — 26 IQOS device colours (ADR 0112, six model categories sort 1–6) and 48 TEREA flavours (ADR 0110, seven country categories). Every product has its own Gemini-made picture. The six old model products and the TEREA editions are drafts (stock history keeps them). The remaining client-sheet rows and the 200-product target are dropped; IQOS BONDS is not sold.
 - Delivery (ADR 0113): AED 20 flat, free when merchandise after coupon is AED 400 or more; ticker and hero copy updated.
 - Branch: `main`. See docs/verification.md for checks.
 
 ## Next action
 
-**NEXT (start here):** when Marina asks, merge the SEO PR and deploy (staging, then production after a backup; no migration). Then in Admin → SEO choose "Whole catalogue" (production), check `https://iqoshaven.com/robots.txt` and `/sitemap.xml`, and have Marina add the domain to Google Search Console and Bing Webmaster (DNS TXT), submit the sitemap and run a live URL inspection of one product page (it must show the product, not the age check). After that the SEO plan continues (Marina approved all of it 2026-11-13): keyword pages for the non-UAE TEREA flavours and per-emirate delivery pages, guides (two a week), real reviews, directory links, Arabic pages; still not built: stable pictures in the sitemap, `seo` fields for brands/categories in the store API, verified link previews. Deploys: release env from the main Images run, `deploy.sh` on staging, then production after a backup. Catalogue changes on production go through the admin API (scripts in the session scratchpad, admin cookie in a file that is deleted afterwards); the admin API allows 300 picture requests per hour per staff member, so bulk picture scripts must wait and retry.
+**NEXT (start here):** in Admin → SEO choose "Whole catalogue" on production (Marina, or Claude with an admin token), check `https://iqoshaven.com/robots.txt` and `/sitemap.xml`, and have Marina add the domain to Google Search Console and Bing Webmaster (DNS TXT), submit the sitemap and run a live URL inspection of one product page (it must show the product, not the age check). After that the SEO plan continues (Marina approved all of it 2026-11-13): keyword pages for the non-UAE TEREA flavours and per-emirate delivery pages, guides (two a week), real reviews, directory links, Arabic pages; still not built: stable pictures in the sitemap, `seo` fields for brands/categories in the store API, verified link previews. Deploys: release env from the main Images run, `deploy.sh` on staging, then production after a backup. Catalogue changes on production go through the admin API (scripts in the session scratchpad, admin cookie in a file that is deleted afterwards); the admin API allows 300 picture requests per hour per staff member, so bulk picture scripts must wait and retry.
 
 **Start of a new session:**
 
@@ -251,7 +251,7 @@ Files: `packages/contracts/src/seo.ts`, `packages/db/src/seo.ts`, `apps/api/src/
 
 Tests: `pnpm verify` PASS; `pnpm test:int` PASS (db 144, worker 93, api 438, platform 7); `pnpm test:age-preview` PASS (2296 checks); `pnpm test:gate` PASS (2688 checks). Real DNS checked by hand for Googlebot (IPv4, IPv6) and Bingbot addresses. NOT RUN: a real Googlebot fetch (only possible on production, through Search Console URL inspection).
 
-Unfinished: merge + deploy; choose the policy on production; Search Console and Bing Webmaster (needs Marina's Google account); the rest of the SEO plan. The session's SSH config for the VPS was lost from the scratchpad: a deploy needs SSH access set up again.
+Unfinished: choose the policy on production; Search Console and Bing Webmaster (needs Marina's Google account); the rest of the SEO plan. VPS access: `ssh root@201.18.206.74` works with Marina's Mac key (the scratchpad `ssh.conf` is only an alias and can be recreated). When counting error logs use `docker logs ih-production-<service>-1`; `docker compose logs` fails outside `deploy.sh` because `site.env` is not loaded.
 
 ## History (summary)
 
