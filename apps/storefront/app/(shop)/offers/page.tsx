@@ -1,8 +1,12 @@
 import type { Metadata } from "next";
-import { SITE } from "@/lib/site";
+import { pageDescription, SITE } from "@/lib/site";
 import { ListingPage } from "../listing-page";
 
-export const metadata: Metadata = { title: `Offers · ${SITE.name}` };
+export const metadata: Metadata = {
+  title: `Offers · ${SITE.name}`,
+  description: pageDescription("IQOS devices and TEREA sticks currently at a reduced price."),
+  alternates: { canonical: "/offers" },
+};
 
 /**
  * Offers (roadmap step 100; prototype shop view with the sale filter): products the API shows

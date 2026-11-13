@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound, permanentRedirect } from "next/navigation";
-import { SITE } from "@/lib/site";
+import { metaDescription } from "@/lib/seo-data";
+import { pageDescription, SITE } from "@/lib/site";
 import { storeRead } from "@/lib/store/server";
 import { ListingPage } from "../../listing-page";
 
@@ -26,6 +27,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   if (!brand) return { title: SITE.name };
   return {
     title: `${brand.name} · ${SITE.name}`,
+    description: brand.description
+      ? metaDescription(brand.description)
+      : pageDescription(`${brand.name}.`),
     alternates: { canonical: `/brands/${brand.slug}` },
   };
 }

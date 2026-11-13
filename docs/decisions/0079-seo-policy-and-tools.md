@@ -1,7 +1,7 @@
 # 0079 — SEO policy, issue report, public sitemap and the SEO screen
 
 - Date: 2026-10-16
-- Status: accepted (product indexing still waits for BI-05)
+- Status: accepted; product indexing added by ADR 0114 (2026-11-13) as a third policy, `catalogue`
 - Step(s): 113 (follows ADRs 0026 and 0068)
 
 ## Context

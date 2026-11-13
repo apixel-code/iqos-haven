@@ -57,21 +57,24 @@ export function SeoManagement({ canReport }: { canReport: boolean }) {
 
   async function choose(indexing: SeoOverview["policy"]["indexing"]) {
     if (!overview || overview.policy.indexing === indexing) return;
-    const message =
-      indexing === "public_pages"
-        ? "Offer the responsible-use, terms and privacy pages to search engines? Products stay hidden from them."
-        : "Close the store to search engines again? robots.txt will disallow everything.";
-    if (
-      !(await confirmDialog({
-        title:
-          indexing === "public_pages"
-            ? "Open policy pages to search engines?"
-            : "Close the store to search engines?",
-        body: message,
-        ok: indexing === "public_pages" ? "Open to search engines" : "Close to search engines",
-      }))
-    )
-      return;
+    const dialog = {
+      closed: {
+        title: "Close the store to search engines?",
+        body: "Close the store to search engines again? robots.txt will disallow everything.",
+        ok: "Close to search engines",
+      },
+      public_pages: {
+        title: "Open policy pages to search engines?",
+        body: "Offer the responsible-use, terms and privacy pages to search engines? Products stay hidden from them.",
+        ok: "Open to search engines",
+      },
+      catalogue: {
+        title: "Open the whole catalogue to search engines?",
+        body: "Google and Bing will read and list your products, with names, pictures and prices, in their search results. Visitors still pass the age check on the site. Check that this is allowed where you sell.",
+        ok: "Open the catalogue",
+      },
+    }[indexing];
+    if (!(await confirmDialog(dialog))) return;
     setBusy(true);
     setNotice(null);
     try {
@@ -201,14 +204,27 @@ export function SeoManagement({ canReport }: { canReport: boolean }) {
                       </small>
                     </span>
                   </label>
+                  <label className="ropt">
+                    <input
+                      type="radio"
+                      name="indexing"
+                      checked={overview.policy.indexing === "catalogue"}
+                      onChange={() => void choose("catalogue")}
+                    />
+                    <span>
+                      <b>Whole catalogue</b>
+                      <small>
+                        Products, brands and categories may be indexed too. Verified Google and Bing
+                        crawlers read them without the age check; visitors still pass it.
+                      </small>
+                    </span>
+                  </label>
                 </div>
               </fieldset>
               <p className="help">
                 {overview.updatedAt
                   ? `Last changed ${dubaiTime(overview.updatedAt)}.`
-                  : "Never changed."}{" "}
-                Product indexing needs a separate decision (business input BI-05) and is not offered
-                here.
+                  : "Never changed."}
               </p>
             </div>
           </section>

@@ -7,28 +7,33 @@ import "@fontsource/jetbrains-mono/400.css";
 import "@fontsource/jetbrains-mono/500.css";
 import "./globals.css";
 import type { Metadata, Viewport } from "next";
+import { headers } from "next/headers";
 import type { ReactNode } from "react";
 import { LegacyCleanup } from "@/components/legacy-cleanup";
 import { ageGate } from "@/lib/age/runtime";
+import { INDEXABLE_HEADER } from "@/lib/seo-policy";
 import { SITE } from "@/lib/site";
 
 /**
  * Generic metadata only (architecture §9, ADR 0026): the same store name, description and
- * preview image for every URL and every visitor, verified or not. Pages may refine the title for
- * verified shoppers later, but product names, images, prices and JSON-LD must never be put in
- * metadata that an unverified request can receive; the routing gate redirects those requests to
- * the age check before any page metadata is produced.
+ * preview image for every URL and every visitor, verified or not. Pages refine the title and
+ * description for requests the routing gate let through, but product names, images, prices and
+ * JSON-LD must never be put in metadata that an unverified request can receive; the routing gate
+ * redirects those requests to the age check before any page metadata is produced. Link previews
+ * (Open Graph) stay generic on every page.
  */
 // Every page is rendered per request: nothing is prerendered at build time or stored in a
 // shared cache, so a verified shopper's HTML can never be served to someone else (ADR 0025).
 export const dynamic = "force-dynamic";
 
-export function generateMetadata(): Metadata {
+export async function generateMetadata(): Promise<Metadata> {
+  // Set by the routing gate for pages the Owner's indexing policy offers (ADRs 0079, 0114).
+  const indexable = (await headers()).get(INDEXABLE_HEADER) === "1";
   return {
     metadataBase: new URL(ageGate().runtime.origins[0]!),
     title: SITE.name,
     description: SITE.description,
-    robots: { index: false, follow: false },
+    robots: { index: indexable, follow: indexable },
     openGraph: {
       type: "website",
       siteName: SITE.name,

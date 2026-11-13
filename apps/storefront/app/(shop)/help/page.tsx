@@ -10,7 +10,12 @@ import { storeInfo, storeRead } from "@/lib/store/server";
 import { WHATSAPP_MESSAGES } from "@/lib/whatsapp";
 import { Money } from "@/components/money";
 
-export const metadata: Metadata = { title: `Help · ${SITE.name}` };
+export const metadata: Metadata = {
+  title: `Help · ${SITE.name}`,
+  description:
+    "How delivery across the UAE and cash on delivery work at Iqos Haven, and how to reach us.",
+  alternates: { canonical: "/help" },
+};
 
 /** The prototype's help topics (`tabs`); here they jump to the sections or open a policy. */
 const TOPICS = [

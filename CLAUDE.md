@@ -78,7 +78,7 @@ Tests: `*.test.ts` = unit, `*.int.test.ts` = integration (separate vitest config
 - Stock changes only through `stock_movements`. Zero stock does NOT unpublish.
 - Order states: Pending → Confirmed → Processing → Out for Delivery → Delivered | Cancelled. Delivered ≠ collected; collection is an explicit command.
 - Orders never deleted. Cancel needs reason + command ID; stock released exactly once.
-- Age gate server-side (Ed25519 HttpOnly ticket, private signing key only in storefront acceptance handler + API `AgeGuard`). Unverified = zero product data (name, image, price, JSON-LD). No UA bypass.
+- Age gate server-side (Ed25519 HttpOnly ticket, private signing key only in storefront acceptance handler + API `AgeGuard`). Unverified = zero product data (name, image, price, JSON-LD). No UA bypass; the one exception is a DNS-verified search crawler on catalogue pages while the Owner's SEO policy is `catalogue` (ADR 0114).
 - RBAC in API (guards + field filtering), not only hidden UI. Last Owner cannot be removed.
 - Audit + outbox written atomically with the mutation.
 - Structured redacted logs. No PII, tokens, cookies, raw SQL, stack traces to clients.

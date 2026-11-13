@@ -166,7 +166,7 @@ describe("SEO policy, overview and issue report through the real API and Postgre
     const overview = seoOverviewSchema.parse(await opened.json());
     expect(overview).toMatchObject({ policy: { indexing: "public_pages" }, version: 1 });
     expect(overview.features.find((f) => f.key === "public_sitemap")!.state).toBe("active");
-    // Product indexing never turns on from here.
+    // Public pages never turn product indexing on.
     expect(overview.features.find((f) => f.key === "product_indexing")!.state).toBe("inactive");
     expect(await publicPolicy()).toEqual({ indexing: "public_pages" });
     // A stale version is refused; the same choice again changes nothing.
@@ -186,8 +186,21 @@ describe("SEO policy, overview and issue report through the real API and Postgre
     expect(same.version).toBe(1);
     expect(await db.auditLog.count({ where: { action: "seo.policy_updated" } })).toBe(1);
     expect(await db.outboxEvent.count({ where: { eventType: "seo.policy_updated" } })).toBe(1);
+    // The whole catalogue (ADR 0114): product indexing and structured data turn on, previews do not.
+    const catalogue = seoOverviewSchema.parse(
+      await (
+        await call("/admin/seo/policy", owner, { expectedVersion: 1, indexing: "catalogue" })
+      ).json(),
+    );
+    expect(catalogue).toMatchObject({ policy: { indexing: "catalogue" }, version: 2 });
+    const state = (key: string) => catalogue.features.find((f) => f.key === key)!.state;
+    expect(state("product_indexing")).toBe("active");
+    expect(state("product_json_ld")).toBe("active");
+    expect(state("public_sitemap")).toBe("active");
+    expect(state("product_previews")).toBe("inactive");
+    expect(await publicPolicy()).toEqual({ indexing: "catalogue" });
     // Back to closed.
-    await call("/admin/seo/policy", owner, { expectedVersion: 1, indexing: "closed" });
+    await call("/admin/seo/policy", owner, { expectedVersion: 2, indexing: "closed" });
     expect(await publicPolicy()).toEqual({ indexing: "closed" });
     // The general Settings screen does not list or write it.
     const settings = (await (await call("/admin/settings", owner)).json()) as {

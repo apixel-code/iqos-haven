@@ -1,12 +1,12 @@
 import { z } from "zod";
 
 /**
- * SEO (roadmap step 113, ADR 0079; architecture §9). The indexing policy is the Owner's choice
- * between a closed store (nothing offered to crawlers, the default) and offering the public
- * policy pages only. Product indexing, product previews and JSON-LD are not choices here: they
- * stay inactive until BI-05 is decided and a verified-crawler edge exists.
+ * SEO (roadmap step 113, ADR 0079; architecture §9). The indexing policy is the Owner's choice:
+ * a closed store (nothing offered to crawlers, the default), the public policy pages only, or
+ * the whole catalogue (ADR 0114, client decision 2026-11-13): verified search crawlers read the
+ * catalogue pages without the age check, and the sitemap and JSON-LD name products.
  */
-export const SEO_INDEXING = ["closed", "public_pages"] as const;
+export const SEO_INDEXING = ["closed", "public_pages", "catalogue"] as const;
 export const seoPolicySchema = z.strictObject({ indexing: z.enum(SEO_INDEXING) });
 export type SeoPolicy = z.infer<typeof seoPolicySchema>;
 

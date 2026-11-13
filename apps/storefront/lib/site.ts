@@ -1,14 +1,21 @@
 import { MINIMUM_AGE } from "./age/copy";
 
 /**
- * The only store facts an unverified visitor, a link-preview fetcher or a crawler may see
- * (architecture §9 "Search indexing and social previews", ADR 0026): a consistent store name
- * and a generic description. Never a product name, image, price, SKU or JSON-LD.
+ * The only store facts an unverified visitor, a link-preview fetcher or an unverified crawler
+ * may see (architecture §9 "Search indexing and social previews", ADR 0026): a consistent store
+ * name and a generic description. Never a product name, image, price, SKU or JSON-LD.
  */
 export const SITE = {
   name: "Iqos Haven",
   description: `Adults-only store delivering across the UAE. ${MINIMUM_AGE}+.`,
 } as const;
+
+/**
+ * Meta description of a catalogue page (ADR 0114): what the page lists, then how the store
+ * delivers. Only pages behind the routing gate use it.
+ */
+export const pageDescription = (subject: string) =>
+  `${subject} Delivery across the UAE, cash on delivery. Adults only, ${MINIMUM_AGE}+.`;
 
 /**
  * Public policy pages (prototype "Legal" links). Reachable without the age check and free of

@@ -105,7 +105,7 @@ export function evaluateLaunch(facts: LaunchFacts, shipped: readonly string[]): 
     "WARN",
   );
   add(
-    settings.seoIndexing === "public_pages",
+    settings.seoIndexing === "public_pages" || settings.seoIndexing === "catalogue",
     "search indexing is open (BI-05)",
     "SEO policy is closed: search engines are asked not to index the store",
     "WARN",
