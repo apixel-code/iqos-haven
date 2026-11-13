@@ -14,7 +14,7 @@ import {
   ProductSection,
 } from "@/components/home-sections";
 import { RecentlyViewed } from "@/components/recently-viewed";
-import { SITE } from "@/lib/site";
+import { pageDescription, SITE } from "@/lib/site";
 import { TYPE_PAGES } from "@/lib/store/listing";
 import { storeHome, storeRead } from "@/lib/store/server";
 
@@ -93,7 +93,11 @@ async function categoryTiles(categories: readonly Category[], cards: readonly Ca
   }));
 }
 
-export const metadata: Metadata = { title: SITE.name };
+export const metadata: Metadata = {
+  title: `IQOS ILUMA devices & TEREA sticks in the UAE · ${SITE.name}`,
+  description: pageDescription("IQOS ILUMA devices and TEREA sticks."),
+  alternates: { canonical: "/" },
+};
 
 /** Shown until the Owner publishes a hero: one navy slide with the store's own words. */
 const DEFAULT_SLIDE: StoreHomeResponse["heroSlides"][number] = {

@@ -4,10 +4,14 @@ import { BrandTile } from "@/components/home-sections";
 import { Icon } from "@/components/icons";
 import { Breadcrumbs, EmptyState, PageHead } from "@/components/listing";
 import { TYPE_PAGES } from "@/lib/store/listing";
-import { SITE } from "@/lib/site";
+import { pageDescription, SITE } from "@/lib/site";
 import { storeRead } from "@/lib/store/server";
 
-export const metadata: Metadata = { title: `Brands · ${SITE.name}` };
+export const metadata: Metadata = {
+  title: `Brands · ${SITE.name}`,
+  description: pageDescription("The brands we stock."),
+  alternates: { canonical: "/brands" },
+};
 
 /** Brands index (prototype `brandsPage`): a tile per brand, then the two product types. */
 export default async function BrandsPage() {

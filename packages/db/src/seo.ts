@@ -59,7 +59,8 @@ async function requireRight(
 }
 
 function features(policy: SeoPolicy): SeoOverview["features"] {
-  const open = policy.indexing === "public_pages";
+  const catalogue = policy.indexing === "catalogue";
+  const open = policy.indexing === "public_pages" || catalogue;
   return [
     {
       key: "generic_previews",
@@ -81,29 +82,35 @@ function features(policy: SeoPolicy): SeoOverview["features"] {
     },
     {
       key: "public_sitemap",
-      label: "Sitemap of public pages",
+      label: "Sitemap",
       state: open ? "active" : "inactive",
-      note: open
-        ? "robots.txt and sitemap.xml offer the public policy pages only (responsible use, terms, privacy)."
-        : "The store is closed to search engines: robots.txt disallows everything.",
+      note: catalogue
+        ? "sitemap.xml lists the shop pages, every brand, category and published product, and the policy pages."
+        : open
+          ? "robots.txt and sitemap.xml offer the public policy pages only (responsible use, terms, privacy)."
+          : "The store is closed to search engines: robots.txt disallows everything.",
     },
     {
       key: "product_indexing",
       label: "Product indexing",
-      state: "inactive",
-      note: "Off until the indexing policy (BI-05) is decided and verified search crawlers can be told apart safely.",
+      state: catalogue ? "active" : "inactive",
+      note: catalogue
+        ? "Verified Google and Bing crawlers read the catalogue pages without the age check; every visitor still passes it."
+        : 'Off: catalogue pages are hidden from search engines. Choose "Whole catalogue" to open them.',
     },
     {
       key: "product_previews",
       label: "Product link previews",
       state: "inactive",
-      note: "Off: a product's name, image or price never appears before the age check.",
+      note: "Off: a link shared in a chat or on social media shows the generic store preview, never a product.",
     },
     {
       key: "product_json_ld",
       label: "Product structured data (JSON-LD)",
-      state: "inactive",
-      note: "Off together with product indexing.",
+      state: catalogue ? "active" : "inactive",
+      note: catalogue
+        ? "Product pages describe the product, its price and availability to search engines."
+        : "Off together with product indexing.",
     },
   ];
 }

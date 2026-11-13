@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound, permanentRedirect } from "next/navigation";
-import { SITE } from "@/lib/site";
+import { pageDescription, SITE } from "@/lib/site";
 import { storeRead } from "@/lib/store/server";
 import { ListingPage } from "../../listing-page";
 
@@ -25,6 +25,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   if (!category) return { title: SITE.name };
   return {
     title: `${category.name} · ${SITE.name}`,
+    description: pageDescription(`${category.name}.`),
     alternates: { canonical: `/categories/${category.slug}` },
   };
 }

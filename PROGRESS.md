@@ -2,16 +2,16 @@
 
 ## Current position
 
-- Date: 2026-11-12
+- Date: 2026-11-13
 - Milestone: all gates M0–M11 PASSED. The store is live on iqoshaven.com (client VPS); work is post-launch client requests and handover.
-- Status: no open PRs. `main` at 0a879f0 (PR #192, purge fix); production and staging run release 0a879f0 (migration `20261112000200_purge_product_stats` applied 2026-11-12, after backup `ih-backup-20261112T161357Z`).
+- Status: PR open from `step/seo-catalogue-indexing` (ADR 0114: catalogue indexing for verified search crawlers; no migration). `main` at 6725f94; production and staging run release 0a879f0. Search engines are still closed out on production until this is deployed and the Owner chooses "Whole catalogue" in Admin → SEO.
 - Catalogue (production, final per Marina 2026-11-12): 74 published products — 26 IQOS device colours (ADR 0112, six model categories sort 1–6) and 48 TEREA flavours (ADR 0110, seven country categories). Every product has its own Gemini-made picture. The six old model products and the TEREA editions are drafts (stock history keeps them). The remaining client-sheet rows and the 200-product target are dropped; IQOS BONDS is not sold.
 - Delivery (ADR 0113): AED 20 flat, free when merchandise after coupon is AED 400 or more; ticker and hero copy updated.
 - Branch: `main`. See docs/verification.md for checks.
 
 ## Next action
 
-**NEXT (start here):** nothing is planned; handover to the client. Deploys: release env from the main Images run, `deploy.sh` on staging, then production after a backup. Catalogue changes on production go through the admin API (scripts in the session scratchpad, admin cookie in a file that is deleted afterwards); the admin API allows 300 picture requests per hour per staff member, so bulk picture scripts must wait and retry.
+**NEXT (start here):** when Marina asks, merge the SEO PR and deploy (staging, then production after a backup; no migration). Then in Admin → SEO choose "Whole catalogue" (production), check `https://iqoshaven.com/robots.txt` and `/sitemap.xml`, and have Marina add the domain to Google Search Console and Bing Webmaster (DNS TXT), submit the sitemap and run a live URL inspection of one product page (it must show the product, not the age check). After that the SEO plan continues (Marina approved all of it 2026-11-13): keyword pages for the non-UAE TEREA flavours and per-emirate delivery pages, guides (two a week), real reviews, directory links, Arabic pages; still not built: stable pictures in the sitemap, `seo` fields for brands/categories in the store API, verified link previews. Deploys: release env from the main Images run, `deploy.sh` on staging, then production after a backup. Catalogue changes on production go through the admin API (scripts in the session scratchpad, admin cookie in a file that is deleted afterwards); the admin API allows 300 picture requests per hour per staff member, so bulk picture scripts must wait and retry.
 
 **Start of a new session:**
 
@@ -229,6 +229,7 @@ None. Owner settings still to fill in by the client when they have them: trade l
 - card meta — no "1 option" on single-option cards — bfb12d9 (PR #190)
 - ADR 0113 — free delivery from a threshold (setting, domain `deliveryFeeFor`, quote, admin field, "Free" display, migration `20261112000100_free_delivery_threshold`) — 1fa283b (PR #191)
 - purge fix — `catalogue_purge_product` removes wishlist figures and low-stock windows, refuses order lines and sales figures with IH004 (migration `20261112000200_purge_product_stats`) — 32a8aec (branch `step/purge-product-stats`)
+- SEO catalogue indexing — third SEO policy `catalogue`; DNS-verified Google/Bing crawlers read catalogue pages with a 10-minute ticket minted by the routing gate; `noindex` decided by the gate; robots.txt, sitemap, Product/Breadcrumb JSON-LD, stable picture address `/p/<slug>/image`, descriptions and canonicals (ADR 0114, BI-05 changed) — PR from `step/seo-catalogue-indexing`.
 
 ## Known deviations
 
@@ -239,22 +240,22 @@ None. Owner settings still to fill in by the client when they have them: trade l
 - Client-requested deviation from the prototypes (ADR 0101): vape categories, specs and copy replaced by IQOS devices / TEREA sticks; layout and interactions unchanged. Vape types stay readable (`disposable`, `kit`) until a later `*_contract` migration, if ever.
 - `audit_log` migration revokes UPDATE/DELETE/TRUNCATE only from a role named `ih_app`; other runtime role names must be revoked at provisioning (trigger blocks mutations regardless).
 
-## Last session handoff (2026-11-12, catalogue pictures, device split, free delivery)
+## Last session handoff (2026-11-13, purge fix live, SEO catalogue indexing)
 
 Done:
 
-- Production content through the admin API: 26 device colour pictures linked to their colours, a new TEREA Purple Menthol pack, 54 new descriptions and flavour notes; then the device split (ADR 0112: 26 products, 6 model categories with pictures, stock moved through the ledger, Featured/Offers swapped to first colours). Backups before each change: `ih-backup-20261112T062526Z`, `ih-backup-20261112T071222Z`.
-- PRs #189 (device redirects + ADR 0112), #190 (no "1 option"), #191 (free delivery, ADR 0113) merged and deployed to staging and production; production set to AED 20, free from AED 400.
-- Purge fix committed on `step/purge-product-stats` (not merged yet).
+- PR #192 (purge fix) and #193 (progress) merged; release 0a879f0 deployed to staging and production after backup `ih-backup-20261112T161357Z`.
+- Client decision (Marina, 2026-11-13): no paid advertising, sales from organic search, so the catalogue is opened to search engines (BI-05 changed, ADR 0114). Built on `step/seo-catalogue-indexing`: policy `catalogue`, verified-crawler pass in the routing gate, robots/sitemap, JSON-LD, stable picture address, page descriptions and canonicals, admin SEO screen option.
 
-Files: `apps/storefront/next.config.ts`, `apps/storefront/lib/store/listing.ts`, `apps/storefront/components/{product-card,cart-quote,order-confirmation,order-tracking}.tsx`, `apps/storefront/app/(shop)/{help,p/[slug]}/page.tsx`, `apps/admin/{lib/management.ts,components/{delivery-management,manual-order,order-management}.tsx}`, `apps/api/src/store/cart-quote.service.ts`, `apps/worker/src/order-notifications.ts`, `packages/{domain,contracts,db}/src/…delivery/quote`, migrations `20261112000100_free_delivery_threshold`, `20261112000200_purge_product_stats`, `docs/decisions/0112-*.md`, `0113-*.md`, `docs/api.openapi.json`.
+Files: `packages/contracts/src/seo.ts`, `packages/db/src/seo.ts`, `apps/api/src/{cli/launch-check.ts,seo/admin-seo.int.test.ts}`, `apps/admin/components/seo-management.tsx`, `apps/storefront/{proxy.ts,next.config.ts,app/{layout.tsx,robots.ts,sitemap.ts},app/(policy)/layout.tsx,app/(shop)/**/page.tsx,app/(shop)/p/[slug]/image/route.ts,components/json-ld.tsx,lib/{seo-policy.ts,seo-data.ts,site.ts},lib/age/{crawler.ts,crawler.test.ts,proxy.test.ts}}`, `scripts/check-age-preview.mjs`, `docs/{architecture.md,business-inputs.md,decisions/0079-*.md,decisions/0114-*.md}`, `CLAUDE.md`, `apps/storefront/CLAUDE.md`.
 
-Tests: `pnpm verify` PASS; `pnpm test:int` PASS (db 144, worker 93, api 438, platform 7; one unrelated flake in store-orders tracking — a timestamp contained a test digit string — passed on rerun). Live checks: quotes AED 125/375 → fee 20, AED 500 → free; old model links 308 to their categories.
+Tests: `pnpm verify` PASS; `pnpm test:int` PASS (db 144, worker 93, api 438, platform 7); `pnpm test:age-preview` PASS (2296 checks); `pnpm test:gate` PASS (2688 checks). Real DNS checked by hand for Googlebot (IPv4, IPv6) and Bingbot addresses. NOT RUN: a real Googlebot fetch (only possible on production, through Search Console URL inspection).
 
-Unfinished: merge + deploy the purge fix.
+Unfinished: merge + deploy; choose the policy on production; Search Console and Bing Webmaster (needs Marina's Google account); the rest of the SEO plan. The session's SSH config for the VPS was lost from the scratchpad: a deploy needs SSH access set up again.
 
 ## History (summary)
 
+- 2026-11-12: catalogue pictures and descriptions, device split into 26 colour products (ADR 0112), "1 option" removed (#190), free delivery from AED 400 (ADR 0113, #191), purge fix (#192); all deployed.
 - 2026-11-01 heated-tobacco catalogue (ADR 0101): device/sticks types, `/devices` + `/sticks`, specs and copy (012c018); later live.
 
 - 2026-10-29 step 122a: staging on the shared KL VPS (ADR 0100), five-target Dockerfile, Images workflow; later moved to the client VPS (PRs #146–#152).

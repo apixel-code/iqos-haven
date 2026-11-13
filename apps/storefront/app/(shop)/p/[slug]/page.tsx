@@ -10,8 +10,12 @@ import { FlavourProfiles } from "@/components/flavour-profiles";
 import { Gallery } from "@/components/gallery";
 import { SectionHead } from "@/components/home-sections";
 import { Icon } from "@/components/icons";
+import { JsonLd } from "@/components/json-ld";
 import { Breadcrumbs } from "@/components/listing";
 import { ProductRail } from "@/components/product-card";
+import { ageGate } from "@/lib/age/runtime";
+import { breadcrumbJsonLd, metaDescription, productJsonLd } from "@/lib/seo-data";
+import { readSeoPolicy } from "@/lib/seo-policy";
 import { SITE } from "@/lib/site";
 import { relatedProducts, TYPE_PAGES } from "@/lib/store/listing";
 import { offeredOptions } from "@/lib/store/selection";
@@ -28,14 +32,15 @@ async function productOf(slug: string) {
   return storeRead((api, shopper) => api.product(shopper, slug));
 }
 
-// Runs only for requests the routing gate let through (ADR 0026): the product name may appear
-// in the title of a verified shopper's page. Link previews stay generic.
+// Runs only for requests the routing gate let through (ADR 0026): a verified shopper, or a
+// verified search crawler while the Owner offers the catalogue (ADR 0114). Link previews stay generic.
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const product = await productOf((await params).slug);
   if (!product) return { title: SITE.name };
   return {
     title: `${product.seo.title ?? product.name} · ${SITE.name}`,
-    ...(product.seo.description ? { description: product.seo.description } : {}),
+    // The Owner's own text, else the start of the product description.
+    description: product.seo.description ?? metaDescription(product.description),
     // The current slug, also when reached through a former one (step 101).
     alternates: { canonical: `/p/${product.slug}` },
   };
@@ -152,15 +157,19 @@ export default async function ProductPage({ params }: Props) {
     soldOut: product.soldOut,
   });
   const whatsapp = whatsappHref(whatsappNumber, whatsappMessage);
+  const trail = [
+    { label: "Home", href: "/" },
+    { label: typePage.title, href: typePage.path },
+    { label: product.name },
+  ];
+  // Structured data only while the Owner offers the catalogue to search engines (ADR 0114).
+  const offered = (await readSeoPolicy()).indexing === "catalogue";
+  const origin = ageGate().runtime.origins[0]!;
   return (
     <>
-      <Breadcrumbs
-        trail={[
-          { label: "Home", href: "/" },
-          { label: typePage.title, href: typePage.path },
-          { label: product.name },
-        ]}
-      />
+      {offered && <JsonLd data={productJsonLd(product, origin)} />}
+      {offered && <JsonLd data={breadcrumbJsonLd(trail, origin)} />}
+      <Breadcrumbs trail={trail} />
       <div className="pdp">
         <Gallery images={product.images} name={product.name} productSlug={product.slug} />
         <div className="buy" id="buybox">

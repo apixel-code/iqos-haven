@@ -509,7 +509,9 @@ try {
   }
 
   // 4. Until now nobody was verified, so the storefront must not have asked the API anything.
-  check(apiCalls.length === 0, "unverified requests never reach the API", String(apiCalls.length));
+  // The routing gate reads the public indexing policy (no catalogue data) for every request.
+  const early = apiCalls.filter((call) => !call.path.startsWith("/v1/public/"));
+  check(early.length === 0, "unverified requests never reach the store API", String(early.length));
 
   // 5. A verified shopper sees the catalogue pages; only the ticket and address go to the API.
   const { ageTicketSigner, signAgeTicket } = createRequire(
@@ -1073,7 +1075,10 @@ try {
   check(!hostile.includes("<script>alert(1)</script>"), "search text is escaped in the page");
 
   // 6. What the verified shopper just loaded is still refused to the next unverified request.
-  const callsBefore = apiCalls.length;
+  // Store reads only: the gate's read of the public indexing policy carries no catalogue data.
+  const storeCallCount = () =>
+    apiCalls.filter((call) => !call.path.startsWith("/v1/public/")).length;
+  const callsBefore = storeCallCount();
   for (const path of [
     "/shop",
     "/brands",
@@ -1094,7 +1099,7 @@ try {
       gated(response, `after warm-up ${path} ${Object.keys(headers).join("+") || "plain"}`);
       check(!/Halo|Synthetic|AED|grape/.test(body), `after warm-up ${path}: no catalogue data`);
     }
-  check(apiCalls.length === callsBefore, "refused requests add no API calls");
+  check(storeCallCount() === callsBefore, "refused requests add no store API calls");
 
   // 7. A ticket the API no longer accepts sends the shopper back to the age check.
   apiMode = "refuse";
@@ -1218,7 +1223,91 @@ try {
     /noindex/.test(catalogue.headers.get("x-robots-tag") ?? ""),
     "public pages: catalogue still noindex",
   );
+  // Whole catalogue (ADR 0114): search engines are offered the catalogue; visitors still pass the gate.
+  seoPolicy = { indexing: "catalogue" };
+  const robotsOpen = await (await get("/robots.txt")).text();
+  check(/^Allow: \/$/m.test(robotsOpen), "catalogue: robots allows the store");
+  for (const path of ["/cart", "/checkout", "/search", "/wishlist", "/track", "/age-check"])
+    check(robotsOpen.includes(`Disallow: ${path}`), `catalogue: robots disallows ${path}`);
+  check(
+    robotsOpen.includes(`Sitemap: ${ORIGIN}/sitemap.xml`),
+    "catalogue: robots names the sitemap",
+  );
+  const mapOpen = await (await get("/sitemap.xml", { "x-ih-client-ip": "203.0.113.9" })).text();
+  for (const path of [
+    "/",
+    "/shop",
+    "/brands/orbe",
+    "/categories/disposables",
+    "/p/orbe-halo-grape",
+    "/p/orbe-second-page",
+    "/terms",
+  ])
+    check(mapOpen.includes(`<loc>${ORIGIN}${path}</loc>`), `catalogue: sitemap lists ${path}`);
+  check(!mapOpen.includes("empty-brand"), "catalogue: sitemap skips a brand without products");
+  check(!/\/(cart|checkout|search)</.test(mapOpen), "catalogue: sitemap lists no shopper page");
+  // A crawler's name from an address that is not a search engine's is gated like anyone else.
+  for (const agent of ["googlebot", "bingbot"]) {
+    const response = await get("/p/orbe-halo-7k", {
+      "user-agent": AGENTS[agent],
+      "x-ih-client-ip": "203.0.113.9",
+    });
+    gated(response, `catalogue: ${agent} name from an unconfirmed address`);
+    check(
+      !response.headers.get("set-cookie"),
+      `catalogue: ${agent} name from an unconfirmed address gets no ticket`,
+    );
+  }
+  const productView = async () => {
+    const response = await get("/p/orbe-halo-7k", verified);
+    const html = await response.text();
+    return {
+      header: response.headers.get("x-robots-tag") ?? "",
+      meta: /<meta name="robots" content="([^"]+)"/.exec(html)?.[1] ?? "",
+      structured: /<script type="application\/ld\+json">[^<]*"@type":"Product"/.test(html),
+    };
+  };
+  const offered = await productView();
+  check(!/noindex/.test(offered.header), "catalogue: product page has no noindex header");
+  check(offered.meta === "index, follow", "catalogue: product page index meta", offered.meta);
+  check(offered.structured, "catalogue: product page carries Product structured data");
+  const cart = await get("/cart", verified);
+  check(
+    /noindex/.test(cart.headers.get("x-robots-tag") ?? ""),
+    "catalogue: the cart stays noindex",
+  );
+  // The product's stable picture address: a redirect to the current storage link, behind the gate.
+  check(
+    (await get("/p/orbe-halo-7k/image", verified)).status === 404,
+    "catalogue: no picture, no picture address",
+  );
+  const large = "https://media.preview-check.test/halo-large.webp?signature=short-lived";
+  DETAIL.images = [
+    {
+      alt: "Orbe Halo 7K",
+      width: 1600,
+      height: 1200,
+      urls: { thumb: large, medium: large, large },
+      variantId: null,
+    },
+  ];
+  const picture = await get("/p/orbe-halo-7k/image", verified);
+  check(
+    picture.status === 302 && picture.headers.get("location") === large,
+    "catalogue: picture address redirects to the storage link",
+    `${picture.status} ${picture.headers.get("location")}`,
+  );
+  check(
+    !/noindex/.test(picture.headers.get("x-robots-tag") ?? ""),
+    "catalogue: picture address is not noindex",
+  );
+  gated(await get("/p/orbe-halo-7k/image"), "catalogue: picture address without a ticket");
+  DETAIL.images = [];
   seoPolicy = { indexing: "closed" };
+  const hidden = await productView();
+  check(/noindex/.test(hidden.header), "closed: product page noindex header");
+  check(/noindex/.test(hidden.meta), "closed: product page noindex meta", hidden.meta);
+  check(!hidden.structured, "closed: product page has no structured data");
   const image = await get("/opengraph-image");
   check(
     image.status === 200 && image.headers.get("content-type") === "image/png",

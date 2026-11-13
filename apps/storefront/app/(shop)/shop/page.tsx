@@ -1,8 +1,12 @@
 import type { Metadata } from "next";
-import { SITE } from "@/lib/site";
+import { pageDescription, SITE } from "@/lib/site";
 import { ListingPage } from "../listing-page";
 
-export const metadata: Metadata = { title: `All products · ${SITE.name}` };
+export const metadata: Metadata = {
+  title: `All products · ${SITE.name}`,
+  description: pageDescription("Every IQOS device and TEREA flavour we stock."),
+  alternates: { canonical: "/shop" },
+};
 
 export default function ShopPage({
   searchParams,
