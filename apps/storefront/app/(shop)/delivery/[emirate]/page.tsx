@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { arabicCategory, languageAlternates } from "@/lib/ar";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { JsonLd } from "@/components/json-ld";
@@ -29,7 +30,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return {
     title: `IQOS ILUMA & TEREA delivery in ${place.name} · ${SITE.name}`,
     description: `Order IQOS ILUMA devices and TEREA sticks with delivery in ${place.name}, cash on delivery. ${place.areas.length} ${place.areas.length === 1 ? "area" : "areas"} served. Adults only, 18+.`,
-    alternates: { canonical: `/delivery/${place.slug}` },
+    alternates: languageAlternates(`/delivery/${place.slug}`, "en"),
   };
 }
 

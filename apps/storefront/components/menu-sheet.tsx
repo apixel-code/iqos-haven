@@ -19,6 +19,7 @@ const HELP_LINKS = [
   { href: "/help#help-faq", label: "FAQ" },
   { href: "/delivery", label: "Delivery by emirate" },
   { href: "/guides", label: "Guides" },
+  { href: "/ar", label: "العربية" },
   { href: "/help#help-contact", label: "Contact" },
   ...POLICY_PAGES.map((page) => ({ href: page.path, label: page.title })),
 ];

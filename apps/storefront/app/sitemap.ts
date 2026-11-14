@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import { isIP } from "node:net";
 import { AGE_COOKIE, signAgeTicket } from "@ih/platform/age-ticket";
 import { ageGate } from "@/lib/age/runtime";
+import { arabicCategory } from "@/lib/ar";
 import { servedEmirates } from "@/lib/emirates";
 import { storefrontEnv } from "@/lib/env";
 import { CATALOGUE_STATIC_PAGES, INDEXABLE_PATHS, readSeoPolicy } from "@/lib/seo-policy";
@@ -49,6 +50,11 @@ async function catalogueEntries(): Promise<Array<string | Entry>> {
     ...CATALOGUE_STATIC_PAGES,
     ...guides.items.map((guide) => `/guides/${guide.slug}`),
     ...servedEmirates(delivery).map((place) => `/delivery/${place.slug}`),
+    // Arabic pages (ADR 0120): the same served emirates, and categories with an Arabic heading.
+    ...servedEmirates(delivery).map((place) => `/ar/delivery/${place.slug}`),
+    ...categories.items
+      .filter((c) => c.productCount > 0 && arabicCategory(c))
+      .map((c) => `/ar/categories/${c.slug}`),
     ...brands.items.filter((b) => b.productCount > 0).map((b) => `/brands/${b.slug}`),
     ...categories.items.filter((c) => c.productCount > 0).map((c) => `/categories/${c.slug}`),
   ];

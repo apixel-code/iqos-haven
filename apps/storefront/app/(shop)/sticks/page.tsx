@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { arabicCategory, languageAlternates } from "@/lib/ar";
 import { TYPE_PAGES } from "@/lib/store/listing";
 import { pageDescription, SITE } from "@/lib/site";
 import { RelatedGuides } from "@/components/related-guides";
@@ -8,7 +9,7 @@ const PAGE = TYPE_PAGES.sticks;
 export const metadata: Metadata = {
   title: `${PAGE.title} · ${SITE.name}`,
   description: pageDescription("TEREA sticks for IQOS ILUMA, by version and flavour."),
-  alternates: { canonical: PAGE.path },
+  alternates: languageAlternates(PAGE.path, "en"),
 };
 
 export default function SticksPage({

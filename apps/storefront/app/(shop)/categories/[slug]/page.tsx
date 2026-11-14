@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { arabicCategory, languageAlternates } from "@/lib/ar";
 import { notFound, permanentRedirect } from "next/navigation";
 import { metaDescription } from "@/lib/seo-data";
 import { pageDescription, SITE } from "@/lib/site";
@@ -32,7 +33,11 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       (category.description
         ? metaDescription(category.description)
         : pageDescription(`${category.name}.`)),
-    alternates: { canonical: `/categories/${category.slug}` },
+    // An Arabic twin exists for the TEREA editions and ILUMA models (ADR 0120).
+    alternates:
+      category.productCount > 0 && arabicCategory(category)
+        ? languageAlternates(`/categories/${category.slug}`, "en")
+        : { canonical: `/categories/${category.slug}` },
   };
 }
 

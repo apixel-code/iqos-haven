@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { arabicCategory, languageAlternates } from "@/lib/ar";
 import {
   STORE_PAGE_SIZES,
   type StoreCategoriesResponse,
@@ -100,7 +101,7 @@ async function categoryTiles(categories: readonly Category[], cards: readonly Ca
 export const metadata: Metadata = {
   title: `IQOS ILUMA devices & TEREA sticks in the UAE · ${SITE.name}`,
   description: pageDescription("IQOS ILUMA devices and TEREA sticks."),
-  alternates: { canonical: "/" },
+  alternates: languageAlternates("/", "en"),
 };
 
 /** Shown until the Owner publishes a hero: one navy slide with the store's own words. */
