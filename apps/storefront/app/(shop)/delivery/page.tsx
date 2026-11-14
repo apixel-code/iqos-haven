@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { arabicCategory, languageAlternates } from "@/lib/ar";
 import Link from "next/link";
 import { Breadcrumbs, PageHead } from "@/components/listing";
 import { Money } from "@/components/money";
@@ -9,7 +10,7 @@ import { storeRead } from "@/lib/store/server";
 export const metadata: Metadata = {
   title: `IQOS & TEREA delivery across the UAE · ${SITE.name}`,
   description: pageDescription("Where we deliver IQOS ILUMA devices and TEREA sticks."),
-  alternates: { canonical: "/delivery" },
+  alternates: languageAlternates("/delivery", "en"),
 };
 
 /** Delivery by emirate (ADR 0118): the emirates the Owner serves, from the delivery settings. */

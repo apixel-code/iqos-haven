@@ -48,6 +48,11 @@ const RESTRICTED = [
   "/guides/orbe-halo-guide",
   "/delivery",
   "/delivery/dubai",
+  "/ar",
+  "/ar/sticks",
+  "/ar/devices",
+  "/ar/delivery",
+  "/ar/delivery/dubai",
 ];
 // Words from the product URLs above: they must never come back in a body or in metadata.
 const PRODUCT_TOKENS = /halo|orbe|grape/i;
@@ -1308,6 +1313,9 @@ try {
     "/delivery",
     "/delivery/dubai",
     "/delivery/sharjah",
+    "/ar",
+    "/ar/sticks",
+    "/ar/delivery/dubai",
     "/terms",
   ])
     check(mapOpen.includes(`<loc>${ORIGIN}${path}</loc>`), `catalogue: sitemap lists ${path}`);
@@ -1399,6 +1407,32 @@ try {
   check(
     /<script type="application\/ld\+json">[^<]*"@type":"Organization"/.test(homeOpen),
     "catalogue: the home page names the store in structured data",
+  );
+  // Arabic pages (ADR 0120): right-to-left, Arabic headings, the same facts, paired by hreflang.
+  const arHome = await get("/ar", verified);
+  const arHomeHtml = await arHome.text();
+  check(
+    arHome.status === 200 &&
+      arHomeHtml.includes('lang="ar" dir="rtl"') &&
+      arHomeHtml.includes("أعواد تيريا"),
+    "catalogue: the Arabic home renders right to left",
+  );
+  const arDubai = await (await get("/ar/delivery/dubai", verified)).text();
+  check(
+    arDubai.includes("دبي") &&
+      arDubai.includes("Synthetic area") &&
+      !arDubai.includes("Other area"),
+    "catalogue: the Arabic emirate page lists its own areas",
+  );
+  check(
+    (await get("/ar/categories/disposables", verified)).status === 404,
+    "catalogue: no Arabic page for a category without an Arabic heading",
+  );
+  const sticksEn = await (await get("/sticks", verified)).text();
+  check(
+    sticksEn.includes(`hrefLang="ar" href="${ORIGIN}/ar/sticks"`) &&
+      sticksEn.includes(`hrefLang="x-default" href="${ORIGIN}/sticks"`),
+    "catalogue: the English page names its Arabic twin (hreflang)",
   );
   const guides = await (await get("/guides", verified)).text();
   check(

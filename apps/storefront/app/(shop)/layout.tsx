@@ -133,6 +133,11 @@ export default async function ShopLayout({ children }: { children: ReactNode }) 
                   </Link>
                 </li>
                 <li>
+                  <Link href="/ar" prefetch={false} lang="ar" hrefLang="ar">
+                    العربية
+                  </Link>
+                </li>
+                <li>
                   <Link href="/help#help-contact" prefetch={false}>
                     Contact us
                   </Link>

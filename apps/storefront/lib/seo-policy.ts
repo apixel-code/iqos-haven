@@ -56,8 +56,14 @@ const CATALOGUE_PAGES: readonly string[] = [
   "/help",
   "/guides",
   "/delivery",
+  // Arabic pages (ADR 0120).
+  "/ar",
+  "/ar/sticks",
+  "/ar/devices",
+  "/ar/delivery",
 ];
-const CATALOGUE_PATH = /^\/(?:p|brands|categories|guides|delivery)\/[a-z0-9]+(?:-[a-z0-9]+)*$/;
+const CATALOGUE_PATH =
+  /^\/(?:p|brands|categories|guides|delivery|ar\/categories|ar\/delivery)\/[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const PRODUCT_PICTURE_PATH = /^\/p\/[a-z0-9]+(?:-[a-z0-9]+)*\/image$/;
 export const CATALOGUE_STATIC_PAGES = CATALOGUE_PAGES;
 export const isCataloguePath = (pathname: string) =>
