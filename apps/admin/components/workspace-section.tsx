@@ -11,6 +11,7 @@ import { InventoryManagement } from "./inventory-management";
 import { CustomerManagement } from "./customer-management";
 import { ReviewManagement } from "./review-management";
 import { ContentManagement } from "./content-management";
+import { GuideManagement } from "./guide-management";
 import { OrderManagement } from "./order-management";
 import { AnalyticsManagement } from "./analytics-management";
 import { ReportManagement } from "./report-management";
@@ -32,6 +33,7 @@ const OWN_HEAD = new Set([
   "analytics",
   "reports",
   "content",
+  "guides",
   "seo",
   "settings",
   "delivery",
@@ -93,6 +95,8 @@ export function WorkspaceSection({ sectionKey }: { sectionKey: string }) {
         <CustomerManagement permissions={session.permissions} />
       ) : sectionKey === "content" ? (
         <ContentManagement />
+      ) : sectionKey === "guides" ? (
+        <GuideManagement />
       ) : sectionKey === "reviews" ? (
         <ReviewManagement
           canOpenOrders={session.permissions.includes("orders.read")}

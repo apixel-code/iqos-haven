@@ -24,6 +24,7 @@ import { StoreModule } from "./store/store.module";
 import { SettingsModule } from "./settings/settings.module";
 import { ReviewsModule } from "./reviews/reviews.module";
 import { ContentModule } from "./content/content.module";
+import { GuidesModule } from "./guides/guides.module";
 import { requestId } from "./http/request-id";
 @Module({})
 export class AppModule {
@@ -75,6 +76,7 @@ export class AppModule {
         StoreModule,
         ReviewsModule,
         ContentModule,
+        GuidesModule,
         ReliabilityModule,
         HealthModule,
         ...testModules,

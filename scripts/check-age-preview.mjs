@@ -44,6 +44,8 @@ const RESTRICTED = [
   "/cart",
   "/wishlist",
   "/compare",
+  "/guides",
+  "/guides/orbe-halo-guide",
 ];
 // Words from the product URLs above: they must never come back in a body or in metadata.
 const PRODUCT_TOKENS = /halo|orbe|grape/i;
@@ -260,6 +262,28 @@ const stub = createHttpServer((request, response) => {
             nextCursor: "bmV4dC1wYWdl",
           },
     );
+  // Guides (ADR 0117): one published guide whose words must stay behind the gate like a product.
+  if (url.pathname === "/v1/store/guides")
+    return send(200, {
+      items: [
+        {
+          slug: "orbe-halo-guide",
+          title: "Orbe Halo guide",
+          summary: "Which Orbe Halo flavour to choose.",
+          publishedAt: "2026-11-14T08:00:00.000Z",
+          updatedAt: "2026-11-14T08:00:00.000Z",
+        },
+      ],
+    });
+  if (url.pathname === "/v1/store/guides/orbe-halo-guide")
+    return send(200, {
+      slug: "orbe-halo-guide",
+      title: "Orbe Halo guide",
+      summary: "Which Orbe Halo flavour to choose.",
+      body: "## Grape\n\nOrbe Halo **Grape Ice** is sweet. See [all sticks](/sticks).",
+      publishedAt: "2026-11-14T08:00:00.000Z",
+      updatedAt: "2026-11-14T08:00:00.000Z",
+    });
   // The product under its current slug, and under a former one (the API resolves old slugs).
   if (["/v1/store/products/orbe-halo-7k", "/v1/store/products/old-halo"].includes(url.pathname))
     return send(200, DETAIL);
@@ -1254,6 +1278,8 @@ try {
     "/categories/disposables",
     "/p/orbe-halo-grape",
     "/p/orbe-second-page",
+    "/guides",
+    "/guides/orbe-halo-guide",
     "/terms",
   ])
     check(mapOpen.includes(`<loc>${ORIGIN}${path}</loc>`), `catalogue: sitemap lists ${path}`);
@@ -1288,6 +1314,26 @@ try {
   check(
     /noindex/.test(cart.headers.get("x-robots-tag") ?? ""),
     "catalogue: the cart stays noindex",
+  );
+  // Guides (ADR 0117): indexable, with Article data, and the text rendered without markup leaks.
+  const guide = await get("/guides/orbe-halo-guide", verified);
+  const guideHtml = await guide.text();
+  check(guide.status === 200, "catalogue: a guide page renders", String(guide.status));
+  check(
+    !/noindex/.test(guide.headers.get("x-robots-tag") ?? ""),
+    "catalogue: guide page indexable",
+  );
+  check(
+    /<script type="application\/ld\+json">[^<]*"@type":"Article"/.test(guideHtml) &&
+      guideHtml.includes("<strong>Grape Ice</strong>") &&
+      guideHtml.includes('href="/sticks"') &&
+      !guideHtml.includes("**Grape"),
+    "catalogue: guide page shows its formatted text and Article data",
+  );
+  const guides = await (await get("/guides", verified)).text();
+  check(
+    guides.includes('href="/guides/orbe-halo-guide"') && guides.includes("Orbe Halo guide"),
+    "catalogue: the guides page lists the guide",
   );
   // The product's stable picture address: a redirect to the current storage link, behind the gate.
   check(

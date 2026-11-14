@@ -25,6 +25,7 @@ describe("event catalogue", () => {
         "coupon.updated",
         "catalog.changed",
         "content.published",
+        "guide.updated",
         "inventory.low",
         "media.uploaded",
         "order.cancelled",

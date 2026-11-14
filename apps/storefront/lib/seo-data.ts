@@ -83,5 +83,27 @@ export function breadcrumbJsonLd(
   };
 }
 
+/** schema.org Article for a guide (ADR 0117). The store is both author and publisher. */
+export function guideJsonLd(
+  guide: { slug: string; title: string; summary: string; publishedAt: string; updatedAt: string },
+  origin: string,
+  siteName: string,
+) {
+  const url = new URL(`/guides/${guide.slug}`, origin).toString();
+  const store = { "@type": "Organization", name: siteName, url: new URL("/", origin).toString() };
+  return {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    headline: guide.title,
+    description: guide.summary,
+    url,
+    mainEntityOfPage: url,
+    datePublished: guide.publishedAt,
+    dateModified: guide.updatedAt,
+    author: store,
+    publisher: store,
+  };
+}
+
 /** JSON for a `<script type="application/ld+json">`: `<` is escaped so text can never end the element. */
 export const jsonLdText = (data: unknown) => JSON.stringify(data).replace(/</g, "\\u003c");

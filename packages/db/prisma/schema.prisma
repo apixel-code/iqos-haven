@@ -157,6 +157,7 @@ model StaffUser {
   settingsUpdates      Setting[]
   deliveryAreaUpdates  DeliveryArea[]
   couponUpdates        Coupon[]
+  guideUpdates         Guide[]
   notificationReceipts NotificationReceipt[]
   ordersCreated        Order[]                 @relation("OrderCreatedBy")
   ordersCollected      Order[]                 @relation("OrderCollectedBy")
@@ -297,6 +298,26 @@ model Coupon {
   redemptions       CouponRedemption[]
 
   @@map("coupons")
+}
+
+/// A guide (ADR 0117): an article shown under /guides. Never deleted; hidden instead.
+model Guide {
+  id          String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  slug        String    @unique @db.VarChar(120)
+  title       String    @db.VarChar(120)
+  summary     String    @db.VarChar(300)
+  body        String
+  published   Boolean   @default(false)
+  publishedAt DateTime? @map("published_at") @db.Timestamptz(6)
+  version     Int       @default(1)
+  updatedBy   String    @map("updated_by") @db.Uuid
+  updater     StaffUser @relation(fields: [updatedBy], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  createdAt   DateTime  @default(dbgenerated("statement_timestamp()")) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime  @default(dbgenerated("statement_timestamp()")) @map("updated_at") @db.Timestamptz(6)
+
+  @@index([publishedAt(sort: Desc), id(sort: Desc)], map: "guides_published")
+  @@index([updatedBy], map: "guides_updated_by")
+  @@map("guides")
 }
 
 /// One historical coupon use; an order has at most one unreleased use at a time.

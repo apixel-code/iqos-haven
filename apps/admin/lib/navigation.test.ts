@@ -25,7 +25,7 @@ describe("permission-derived navigation", () => {
     expect(visibleSections(["delivery.manage"]).map((s) => s.key)).toEqual(["delivery"]);
     expect(visibleSections(["coupons.manage"]).map((s) => s.key)).toEqual(["discounts"]);
     expect(visibleSections(["reviews.moderate"]).map((s) => s.key)).toEqual(["reviews"]);
-    expect(visibleSections(["content.manage"]).map((s) => s.key)).toEqual(["content"]);
+    expect(visibleSections(["content.manage"]).map((s) => s.key)).toEqual(["content", "guides"]);
     expect(visibleSections(["owner", "*"])).toEqual([]);
     expect(visibleSections([])).toEqual([]);
   });

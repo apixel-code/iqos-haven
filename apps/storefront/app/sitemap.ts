@@ -10,7 +10,7 @@ import { createStoreApi, type ShopperContext } from "@/lib/store/api";
 /**
  * Public sitemap (architecture §9, ADRs 0079 and 0114). Closed: an empty list. Public pages:
  * the policy pages. Whole catalogue: also the shop pages, every brand and category with
- * products, and every published product. The catalogue is read from the API with a ticket
+ * products, every published product and every published guide (ADR 0117). The catalogue is read from the API with a ticket
  * minted for this one request; the requester's address is passed on, so the API's per-address
  * read limit applies to whoever asks for the sitemap.
  */
@@ -32,9 +32,14 @@ async function cataloguePaths(): Promise<string[]> {
     clientIp: ip && isIP(ip) ? ip : null,
   };
   const api = createStoreApi({ baseUrl: storefrontEnv().API_INTERNAL_URL });
-  const [brands, categories] = await Promise.all([api.brands(shopper), api.categories(shopper)]);
+  const [brands, categories, guides] = await Promise.all([
+    api.brands(shopper),
+    api.categories(shopper),
+    api.guides(shopper),
+  ]);
   const paths = [
     ...CATALOGUE_STATIC_PAGES,
+    ...guides.items.map((guide) => `/guides/${guide.slug}`),
     ...brands.items.filter((b) => b.productCount > 0).map((b) => `/brands/${b.slug}`),
     ...categories.items.filter((c) => c.productCount > 0).map((c) => `/categories/${c.slug}`),
   ];
