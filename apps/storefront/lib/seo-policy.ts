@@ -41,7 +41,8 @@ export function forgetSeoPolicy(): void {
 
 /**
  * Catalogue pages offered to search engines under the `catalogue` policy (ADR 0114): the shop's
- * listing pages, brand, category and product pages, and a product's stable picture address.
+ * listing pages, brand, category and product pages, a product's stable picture address, and the
+ * guides (ADR 0117).
  * Exact lower-case paths only. Cart, checkout, search, saved lists and order pages are never
  * offered.
  */
@@ -53,8 +54,9 @@ const CATALOGUE_PAGES: readonly string[] = [
   "/brands",
   "/offers",
   "/help",
+  "/guides",
 ];
-const CATALOGUE_PATH = /^\/(?:p|brands|categories)\/[a-z0-9]+(?:-[a-z0-9]+)*$/;
+const CATALOGUE_PATH = /^\/(?:p|brands|categories|guides)\/[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const PRODUCT_PICTURE_PATH = /^\/p\/[a-z0-9]+(?:-[a-z0-9]+)*\/image$/;
 export const CATALOGUE_STATIC_PAGES = CATALOGUE_PAGES;
 export const isCataloguePath = (pathname: string) =>

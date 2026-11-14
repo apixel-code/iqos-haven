@@ -17,6 +17,7 @@ const HELP_LINKS = [
   { href: "/track", label: "Track your order" },
   { href: "/help#help-delivery", label: "Delivery information" },
   { href: "/help#help-faq", label: "FAQ" },
+  { href: "/guides", label: "Guides" },
   { href: "/help#help-contact", label: "Contact" },
   ...POLICY_PAGES.map((page) => ({ href: page.path, label: page.title })),
 ];

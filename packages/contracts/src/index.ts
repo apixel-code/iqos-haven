@@ -80,6 +80,8 @@ export const CONFLICT_CODES = [
   "CONTENT_REFERENCES",
   /** A review link that is unknown, replaced, expired, or no longer covers the product (step 94). */
   "REVIEW_PROOF_INVALID",
+  /** A published guide keeps its link: the slug cannot change once it has been published. */
+  "GUIDE_SLUG_LOCKED",
 ] as const;
 export type ConflictCode = (typeof CONFLICT_CODES)[number];
 /** 403 code of a store route reached without a valid age ticket (step 55). */
@@ -128,3 +130,4 @@ export * from "./analytics";
 export * from "./dashboard";
 export * from "./reports";
 export * from "./seo";
+export * from "./guides";

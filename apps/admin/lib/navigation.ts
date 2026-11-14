@@ -67,6 +67,13 @@ export const sections = [
     sub: "Edit the main home page sections. Changes go live when you save.",
   },
   {
+    key: "guides",
+    label: "Guides",
+    permission: "content.manage",
+    group: "Management",
+    sub: "Articles for the store's Guides page.",
+  },
+  {
     key: "settings",
     label: "Settings",
     permission: "settings.manage",
@@ -126,6 +133,7 @@ export const NAV: ReadonlyArray<{ group: string | null; items: readonly NavItem[
     group: "Storefront",
     items: [
       { key: "content", label: "Storefront Content", icon: "layout" },
+      { key: "guides", label: "Guides", icon: "book" },
       { key: "seo", label: "SEO", icon: "globe" },
     ],
   },

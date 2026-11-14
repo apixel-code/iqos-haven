@@ -71,6 +71,14 @@ export const EVENT_CATALOGUE = {
     consumers: [],
     plannedConsumers: {},
   }),
+  "guide.updated": define({
+    schemaVersion: 1,
+    aggregateType: "guide",
+    payload: z.strictObject({ guideId: id }),
+    // ADR 0117. Store reads of guides are not cached, so nothing needs to react yet.
+    consumers: [],
+    plannedConsumers: {},
+  }),
   "seo.policy_updated": define({
     schemaVersion: 1,
     aggregateType: "setting",
