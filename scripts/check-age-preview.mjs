@@ -249,7 +249,23 @@ const stub = createHttpServer((request, response) => {
     return send(
       200,
       url.searchParams.has("cursor")
-        ? { items: [card("Orbe Second Page")], nextCursor: null }
+        ? {
+            items: [
+              card("Orbe Second Page", {
+                image: {
+                  alt: "Orbe Second Page",
+                  width: 800,
+                  height: 800,
+                  urls: {
+                    thumb: "https://media.preview-check.test/second-thumb.webp",
+                    medium: "https://media.preview-check.test/second-medium.webp",
+                    large: "https://media.preview-check.test/second-large.webp",
+                  },
+                },
+              }),
+            ],
+            nextCursor: null,
+          }
         : {
             items: [
               card("Orbe Halo Grape", {
@@ -1284,6 +1300,13 @@ try {
   ])
     check(mapOpen.includes(`<loc>${ORIGIN}${path}</loc>`), `catalogue: sitemap lists ${path}`);
   check(!mapOpen.includes("empty-brand"), "catalogue: sitemap skips a brand without products");
+  // Pictures: a product with one names its stable address, never a signed storage link.
+  check(
+    mapOpen.includes(`<image:loc>${ORIGIN}/p/orbe-second-page/image</image:loc>`) &&
+      !mapOpen.includes("orbe-halo-grape/image") &&
+      !mapOpen.includes("media.preview-check.test"),
+    "catalogue: sitemap names product pictures by their stable address",
+  );
   check(!/\/(cart|checkout|search)</.test(mapOpen), "catalogue: sitemap lists no shopper page");
   // A crawler's name from an address that is not a search engine's is gated like anyone else.
   for (const agent of ["googlebot", "bingbot"]) {
