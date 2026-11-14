@@ -35,6 +35,7 @@ export async function ListingPage({
   head,
   emptyBody,
   search = false,
+  after,
 }: {
   path: string;
   searchParams: SearchParams;
@@ -45,6 +46,8 @@ export async function ListingPage({
   emptyBody: string;
   /** The search page: keeps the term, counts the search, offers WhatsApp on no results. */
   search?: boolean;
+  /** Shown under the product list, such as links to the guides (ADR 0119). */
+  after?: ReactNode;
 }) {
   const chosen = parseSearch(await searchParams);
   // What the shopper chose: no term on a listing, no category from the address bar, and nothing
@@ -183,6 +186,7 @@ export async function ListingPage({
           </>
         )}
       </ShopLayout>
+      {after}
     </>
   );
 }

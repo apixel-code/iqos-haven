@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { TYPE_PAGES } from "@/lib/store/listing";
 import { pageDescription, SITE } from "@/lib/site";
+import { RelatedGuides } from "@/components/related-guides";
 import { ListingPage } from "../listing-page";
 
 const PAGE = TYPE_PAGES.device;
@@ -23,6 +24,7 @@ export default function DevicesPage({
       trail={[{ label: "Home", href: "/" }, { label: PAGE.title }]}
       head={{ title: PAGE.title, lead: PAGE.lead }}
       emptyBody="Products will appear here as soon as they are available."
+      after={<RelatedGuides topic="iqos" />}
     />
   );
 }

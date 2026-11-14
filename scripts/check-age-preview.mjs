@@ -291,6 +291,13 @@ const stub = createHttpServer((request, response) => {
           publishedAt: "2026-11-14T08:00:00.000Z",
           updatedAt: "2026-11-14T08:00:00.000Z",
         },
+        {
+          slug: "terea-flavour-guide",
+          title: "Synthetic TEREA guide",
+          summary: "Choosing a synthetic flavour.",
+          publishedAt: "2026-11-13T08:00:00.000Z",
+          updatedAt: "2026-11-13T08:00:00.000Z",
+        },
       ],
     });
   if (url.pathname === "/v1/store/guides/orbe-halo-guide")
@@ -1373,6 +1380,25 @@ try {
     (await get("/delivery/fujairah", verified)).status === 404 &&
       (await get("/delivery/atlantis", verified)).status === 404,
     "catalogue: no page for an emirate not served or unknown",
+  );
+  // ADR 0119: catalogue pages link to the guides on their topic; the home names the store.
+  check(
+    !(await (await get("/categories/disposables", verified)).text()).includes('id="guides-'),
+    "catalogue: a category without a guide topic shows no guide box",
+  );
+  const sticksPage = await (await get("/sticks", verified)).text();
+  check(
+    sticksPage.includes('id="guides-terea-h"') &&
+      sticksPage.includes('href="/guides/terea-flavour-guide"') &&
+      !/id="guides-terea-h"[\s\S]*href="\/guides\/orbe-halo-guide"[\s\S]*<\/section>/.test(
+        sticksPage,
+      ),
+    "catalogue: the sticks page links the TEREA guides only",
+  );
+  const homeOpen = await (await get("/", verified)).text();
+  check(
+    /<script type="application\/ld\+json">[^<]*"@type":"Organization"/.test(homeOpen),
+    "catalogue: the home page names the store in structured data",
   );
   const guides = await (await get("/guides", verified)).text();
   check(
