@@ -30,5 +30,5 @@ Apixel told the client that sources disagree on UAE rules for promoting and sell
 - The gate reads the public indexing policy for every request (held 60 seconds per process), and does two DNS lookups the first time a crawler-named address appears.
 - There is no CDN, so the crawler is verified in the storefront gate, not at an edge. The storefront is reachable only through the gateway. If a CDN is added, the address header must be re-established first.
 - Crawler responses are `private, no-store` like every gated response.
-- Not built: verified link-preview fetchers, product pictures in the sitemap, Arabic pages, and `seo` fields for brands and categories in the store API.
+- Not built at first: verified link-preview fetchers and Arabic pages. Added later: `seo` fields for brands and categories (ADR 0116), guides (ADR 0117), and product pictures in the sitemap (2026-11-14: each product with a picture names its stable `/p/<slug>/image` address as `<image:loc>`).
 - Turning the policy back to `closed` or `public_pages` closes everything again within a minute.
