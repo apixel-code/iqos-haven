@@ -40,6 +40,15 @@ const storeImageSchema = z.strictObject({
 });
 export type StoreImage = z.infer<typeof storeImageSchema>;
 
+/**
+ * Page title and description the Owner chose for search engines, if any. Sent to verified
+ * shoppers (and verified search crawlers) only, like the rest of the store reads.
+ */
+export const storeSeoSchema = z.strictObject({
+  title: z.string().nullable(),
+  description: z.string().nullable(),
+});
+
 export const storeBrandsResponseSchema = z.strictObject({
   items: z
     .array(
@@ -47,6 +56,7 @@ export const storeBrandsResponseSchema = z.strictObject({
         name: z.string(),
         slug: z.string(),
         description: z.string(),
+        seo: storeSeoSchema,
         /** Products a shopper can see under this brand. */
         productCount: z.number().int().min(0),
         /** Earlier slugs that now redirect here (step 101): the page sends them to `slug`. */
@@ -65,6 +75,9 @@ export const storeCategoriesResponseSchema = z.strictObject({
       z.strictObject({
         name: z.string(),
         slug: z.string(),
+        /** The category's text, shown under the heading on its page. Empty when none is set. */
+        description: z.string(),
+        seo: storeSeoSchema,
         productCount: z.number().int().min(0),
         /** Earlier slugs that now redirect here (step 101). */
         formerSlugs: z.array(z.string()).max(20),
@@ -133,7 +146,7 @@ export const storeProductResponseSchema = z.strictObject({
   description: z.string(),
   specs: productSpecsSchema,
   /** Page title/description chosen by the Owner, if any. Only for verified shoppers. */
-  seo: z.strictObject({ title: z.string().nullable(), description: z.string().nullable() }),
+  seo: storeSeoSchema,
   options: z
     .array(z.strictObject({ name: z.string(), values: z.array(z.string()).max(100) }))
     .max(8),

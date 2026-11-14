@@ -153,7 +153,8 @@ export class StoreCatalogService {
         (await listStoreBrands(this.db)).map(async (row) => ({
           name: row.name,
           slug: row.slug,
-          description: row.description ?? "",
+          description: row.description,
+          seo: { title: row.seo.title ?? null, description: row.seo.description ?? null },
           productCount: row.productCount,
           formerSlugs: row.formerSlugs,
           logo: row.image ? await this.image(row.image) : null,
@@ -168,6 +169,8 @@ export class StoreCatalogService {
         (await listStoreCategories(this.db)).map(async (row) => ({
           name: row.name,
           slug: row.slug,
+          description: row.description,
+          seo: { title: row.seo.title ?? null, description: row.seo.description ?? null },
           productCount: row.productCount,
           formerSlugs: row.formerSlugs,
           image: row.image ? await this.image(row.image) : null,

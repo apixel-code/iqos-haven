@@ -34,7 +34,9 @@ export const PRODUCT_FROM = Prisma.sql`
 export interface StoreParentRow {
   name: string;
   slug: string;
-  description?: string;
+  description: string;
+  /** The Owner's page title/description; a key that was never set is absent. */
+  seo: { title?: string | null; description?: string | null };
   productCount: number;
   /** Earlier slugs that redirect to this parent (step 101), newest first, at most 20. */
   formerSlugs: string[];
@@ -54,7 +56,7 @@ const FORMER_SLUGS = (fk: "brand_id" | "category_id") => Prisma.sql`
 
 export async function listStoreBrands(db: Database): Promise<StoreParentRow[]> {
   return db.$queryRaw<StoreParentRow[]>(Prisma.sql`
-    SELECT x.name, x.slug, x.description,
+    SELECT x.name, x.slug, x.description, x.seo,
       (SELECT count(*)::int ${PRODUCT_FROM} WHERE p.brand_id=x.id AND ${VISIBLE_PRODUCT})
         AS "productCount", ${FORMER_SLUGS("brand_id")}, ${PARENT_IMAGE("logo_asset_id")} AS image
     FROM brands x WHERE x.active AND x.deleted_at IS NULL
@@ -63,7 +65,7 @@ export async function listStoreBrands(db: Database): Promise<StoreParentRow[]> {
 
 export async function listStoreCategories(db: Database): Promise<StoreParentRow[]> {
   return db.$queryRaw<StoreParentRow[]>(Prisma.sql`
-    SELECT x.name, x.slug,
+    SELECT x.name, x.slug, x.description, x.seo,
       (SELECT count(*)::int ${PRODUCT_FROM} WHERE p.category_id=x.id AND ${VISIBLE_PRODUCT})
         AS "productCount", ${FORMER_SLUGS("category_id")},
       ${PARENT_IMAGE("image_asset_id")} AS image

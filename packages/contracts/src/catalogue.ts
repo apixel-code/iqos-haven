@@ -88,10 +88,14 @@ export type BrandStateRequest = z.infer<typeof brandStateRequestSchema>;
 export type BrandResponse = z.infer<typeof brandResponseSchema>;
 export type BrandsQuery = z.input<typeof brandsQuerySchema>;
 
-/** Categories mirror brands without a description; their media is an image (step 48–50). */
+/**
+ * Categories mirror brands; their media is an image (step 48–50). The description (ADR 0116) is
+ * the text under the heading on the category's store page.
+ */
 export const categoryCreateRequestSchema = z.strictObject({
   name,
   slug: catalogueSlugSchema,
+  description: description.default(""),
   active: z.boolean(),
   sortOrder: sortOrder.default(0),
   seo: catalogueSeoSchema.optional(),
@@ -101,6 +105,8 @@ export const categoryUpdateRequestSchema = z.strictObject({
   version,
   name,
   slug: catalogueSlugSchema,
+  /** Omitted means unchanged (callers written before ADR 0116 never send it). */
+  description: description.optional(),
   active: z.boolean(),
   sortOrder,
   seo: catalogueSeoSchema.optional(),
@@ -108,7 +114,7 @@ export const categoryUpdateRequestSchema = z.strictObject({
 });
 export const categoryStateRequestSchema = brandStateRequestSchema;
 export const categoryResponseSchema = brandResponseSchema
-  .omit({ description: true, logoAssetId: true })
+  .omit({ logoAssetId: true })
   .extend({ imageAssetId: z.uuid().nullable() });
 export const categoriesQuerySchema = brandsQuerySchema;
 export const categoryParamsSchema = brandParamsSchema;

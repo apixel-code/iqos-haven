@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { notFound, permanentRedirect } from "next/navigation";
+import { metaDescription } from "@/lib/seo-data";
 import { pageDescription, SITE } from "@/lib/site";
 import { storeRead } from "@/lib/store/server";
 import { ListingPage } from "../../listing-page";
@@ -24,8 +25,12 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const category = await categoryOf((await params).slug);
   if (!category) return { title: SITE.name };
   return {
-    title: `${category.name} · ${SITE.name}`,
-    description: pageDescription(`${category.name}.`),
+    title: `${category.seo.title ?? category.name} · ${SITE.name}`,
+    description:
+      category.seo.description ??
+      (category.description
+        ? metaDescription(category.description)
+        : pageDescription(`${category.name}.`)),
     alternates: { canonical: `/categories/${category.slug}` },
   };
 }
@@ -58,10 +63,15 @@ export default async function CategoryPage({ params, searchParams }: Props) {
               height={category.image.height}
               className="size-24 rounded-lg object-cover"
             />
-            <h1 className="text-4xl font-semibold tracking-tight">{category.name}</h1>
+            <div className="min-w-0 flex-1 basis-64">
+              <h1 className="text-4xl font-semibold tracking-tight">{category.name}</h1>
+              {category.description && (
+                <p className="mt-2 max-w-prose text-ink-2">{category.description}</p>
+              )}
+            </div>
           </header>
         ) : (
-          { title: category.name }
+          { title: category.name, lead: category.description || undefined }
         )
       }
       emptyBody="This category has no products available right now."

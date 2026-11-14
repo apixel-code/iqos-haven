@@ -131,11 +131,48 @@ describe("category administration through the real API and PostgreSQL", () => {
     await pool.end();
   });
 
+  it("keeps a category's page text: set on create or edit, unchanged when an edit leaves it out (ADR 0116)", async () => {
+    const category = await create({ description: "TEREA sticks made for Japan." }, cookies.staff);
+    expect(category.description).toBe("TEREA sticks made for Japan.");
+    // A caller written before the text existed sends no description: the text stays.
+    const untouched = await json(
+      await call(
+        "/" + category.id,
+        "PATCH",
+        { ...editable(category), sortOrder: 4 },
+        cookies.staff,
+      ),
+    );
+    expect(untouched).toMatchObject({ description: "TEREA sticks made for Japan.", sortOrder: 4 });
+    const edited = await json(
+      await call(
+        "/" + category.id,
+        "PATCH",
+        { ...editable(untouched), description: "New text." },
+        cookies.staff,
+      ),
+    );
+    expect(edited.description).toBe("New text.");
+    const cleared = await json(
+      await call(
+        "/" + category.id,
+        "PATCH",
+        { ...editable(edited), description: "" },
+        cookies.staff,
+      ),
+    );
+    expect(cleared.description).toBe("");
+  });
+
   it("lets Staff create and edit categories with atomic audit and catalog.changed", async () => {
     const category = await create({}, cookies.staff);
-    expect(category).toMatchObject({ version: 1, imageAssetId: null, publishedProductCount: 0 });
+    expect(category).toMatchObject({
+      version: 1,
+      imageAssetId: null,
+      publishedProductCount: 0,
+      description: "",
+    });
     expect(category).not.toHaveProperty("seo");
-    expect(category).not.toHaveProperty("description");
     const response = await call(
       "/" + category.id,
       "PATCH",
@@ -179,7 +216,7 @@ describe("category administration through the real API and PostgreSQL", () => {
     for (const body of [
       { name: "", slug: slug(), active: true },
       { name: "Bad", slug: "Bad Slug", active: true },
-      { name: "Described", slug: slug(), active: true, description: "not a category field" },
+      { name: "Described", slug: slug(), active: true, description: "x".repeat(10_001) },
       { name: "Image", slug: slug(), active: true, imageKey: "media/x.webp" },
     ])
       expect((await call("", "POST", body)).status).toBe(400);

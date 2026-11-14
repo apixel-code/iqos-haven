@@ -113,6 +113,7 @@ const CATALOGUE = {
         name: "Orbe",
         slug: "orbe",
         description: "Synthetic brand story.",
+        seo: { title: "Orbe pods for search", description: "Synthetic brand search text." },
         productCount: 2,
         formerSlugs: ["orbe-old"],
         logo: {
@@ -130,6 +131,7 @@ const CATALOGUE = {
         name: "Empty Brand",
         slug: "empty-brand",
         description: "",
+        seo: { title: null, description: null },
         productCount: 0,
         formerSlugs: [],
         logo: null,
@@ -141,6 +143,8 @@ const CATALOGUE = {
       {
         name: "Disposables",
         slug: "disposables",
+        description: "Synthetic category story.",
+        seo: { title: "Disposables for search", description: null },
         productCount: 2,
         formerSlugs: ["disposables-old"],
         image: null,
@@ -625,11 +629,20 @@ try {
   );
   check(
     brandPage.includes("Synthetic brand story.") &&
-      brandPage.includes("<title>Orbe · Iqos Haven</title>"),
-    "brand page shows its header and title",
+      brandPage.includes("<title>Orbe pods for search · Iqos Haven</title>") &&
+      brandPage.includes('<meta name="description" content="Synthetic brand search text."/>'),
+    "brand page shows its header and the Owner's search title and description",
   );
   await page("/brands/unknown-brand", 404);
-  check((await page("/categories/disposables")).includes("Disposables"), "category page renders");
+  const categoryPage = await page("/categories/disposables");
+  check(categoryPage.includes("Disposables"), "category page renders");
+  check(
+    categoryPage.includes("<title>Disposables for search · Iqos Haven</title>") &&
+      // No search description set: the category's own text is used.
+      categoryPage.includes('<meta name="description" content="Synthetic category story."/>') &&
+      categoryPage.includes('<p class="muted">Synthetic category story.</p>'),
+    "category page shows its text and the Owner's search title",
+  );
   await page("/categories/unknown-category", 404);
   for (const html of [shop, brandsPage, brandPage])
     check(

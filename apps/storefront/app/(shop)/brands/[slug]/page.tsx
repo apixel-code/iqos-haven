@@ -26,10 +26,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const brand = await brandOf((await params).slug);
   if (!brand) return { title: SITE.name };
   return {
-    title: `${brand.name} · ${SITE.name}`,
-    description: brand.description
-      ? metaDescription(brand.description)
-      : pageDescription(`${brand.name}.`),
+    title: `${brand.seo.title ?? brand.name} · ${SITE.name}`,
+    description:
+      brand.seo.description ??
+      (brand.description ? metaDescription(brand.description) : pageDescription(`${brand.name}.`)),
     alternates: { canonical: `/brands/${brand.slug}` },
   };
 }

@@ -381,6 +381,8 @@ model Category {
   /// A ready catalogue image (parity G-A7, ADR 0091).
   imageAssetId String?        @map("image_asset_id") @db.Uuid
   image        MediaAsset?    @relation("CategoryImage", fields: [imageAssetId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  /// Shown under the heading on the category's store page (ADR 0116).
+  description  String         @default("")
   active       Boolean        @default(false)
   sortOrder    Int            @default(0) @map("sort_order")
   seo          Json           @default("{}")

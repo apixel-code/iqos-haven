@@ -862,6 +862,40 @@ describe("gated store catalogue reads (real API, PostgreSQL, Ed25519 ticket)", (
     expect(await unverified.text()).not.toContain("Synthetic Corniche");
   });
 
+  it("gives brand and category pages their text and the Owner's search title and description", async () => {
+    const b = await parent("brand", "Seo Brand", {
+      description: "Brand story.",
+      seo: { title: "Seo Brand in the UAE", description: "Brand search text." },
+    });
+    const c = await parent("category", "Seo Category", {
+      description: "Category story.",
+      seo: { title: "Seo Category in Dubai" },
+    });
+    const plain = await parent("category", "Plain Category");
+    for (const categoryId of [c.id, plain.id]) await product({ brandId: b.id, categoryId });
+    await cache.invalidate();
+
+    const brands = await json<StoreBrandsResponse>("/brands");
+    expect(brands.items.find((item) => item.slug === b.slug)).toMatchObject({
+      description: "Brand story.",
+      seo: { title: "Seo Brand in the UAE", description: "Brand search text." },
+    });
+    const categories = await json<StoreCategoriesResponse>("/categories");
+    expect(categories.items.find((item) => item.slug === c.slug)).toMatchObject({
+      description: "Category story.",
+      // A key the Owner never set is null, not missing.
+      seo: { title: "Seo Category in Dubai", description: null },
+    });
+    expect(categories.items.find((item) => item.slug === plain.slug)).toMatchObject({
+      description: "",
+      seo: { title: null, description: null },
+    });
+    // Like every store read, none of it without the age ticket.
+    const unverified = await get("/categories", {});
+    expect(unverified.status).toBe(403);
+    expect(await unverified.text()).not.toContain("Seo Category");
+  });
+
   it("limits reads per client address", async () => {
     const headers = { cookie, "x-ih-client-ip": "203.0.113.200" };
     const statuses: number[] = [];

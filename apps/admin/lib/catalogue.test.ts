@@ -76,14 +76,15 @@ describe("brand form commands", () => {
       ).toThrow(FormValidationError);
   });
 
-  it("builds category commands without a description", () => {
+  it("builds category commands with their page text (ADR 0116)", () => {
     const command = categoryCreateCommand(
-      data({ name: "Disposables", slug: "disposables", description: "ignored", active: "on" }),
+      data({ name: "Disposables", slug: "disposables", description: "Page text", active: "on" }),
       false,
     );
     expect(command).toEqual({
       name: "Disposables",
       slug: "disposables",
+      description: "Page text",
       active: true,
       sortOrder: 0,
     });
