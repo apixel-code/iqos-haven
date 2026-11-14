@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import { isIP } from "node:net";
 import { AGE_COOKIE, signAgeTicket } from "@ih/platform/age-ticket";
 import { ageGate } from "@/lib/age/runtime";
+import { servedEmirates } from "@/lib/emirates";
 import { storefrontEnv } from "@/lib/env";
 import { CATALOGUE_STATIC_PAGES, INDEXABLE_PATHS, readSeoPolicy } from "@/lib/seo-policy";
 import { createStoreApi, type ShopperContext } from "@/lib/store/api";
@@ -38,14 +39,16 @@ async function catalogueEntries(): Promise<Array<string | Entry>> {
     clientIp: ip && isIP(ip) ? ip : null,
   };
   const api = createStoreApi({ baseUrl: storefrontEnv().API_INTERNAL_URL });
-  const [brands, categories, guides] = await Promise.all([
+  const [brands, categories, guides, delivery] = await Promise.all([
     api.brands(shopper),
     api.categories(shopper),
     api.guides(shopper),
+    api.delivery(shopper),
   ]);
   const paths: Array<string | Entry> = [
     ...CATALOGUE_STATIC_PAGES,
     ...guides.items.map((guide) => `/guides/${guide.slug}`),
+    ...servedEmirates(delivery).map((place) => `/delivery/${place.slug}`),
     ...brands.items.filter((b) => b.productCount > 0).map((b) => `/brands/${b.slug}`),
     ...categories.items.filter((c) => c.productCount > 0).map((c) => `/categories/${c.slug}`),
   ];

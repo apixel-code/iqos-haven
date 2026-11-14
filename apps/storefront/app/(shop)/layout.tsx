@@ -123,6 +123,11 @@ export default async function ShopLayout({ children }: { children: ReactNode }) 
                   </Link>
                 </li>
                 <li>
+                  <Link href="/delivery" prefetch={false}>
+                    Delivery by emirate
+                  </Link>
+                </li>
+                <li>
                   <Link href="/guides" prefetch={false}>
                     Guides
                   </Link>
