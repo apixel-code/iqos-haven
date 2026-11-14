@@ -14,6 +14,10 @@ import {
   ProductSection,
 } from "@/components/home-sections";
 import { RecentlyViewed } from "@/components/recently-viewed";
+import { JsonLd } from "@/components/json-ld";
+import { ageGate } from "@/lib/age/runtime";
+import { storeJsonLd } from "@/lib/seo-data";
+import { readSeoPolicy } from "@/lib/seo-policy";
 import { pageDescription, SITE } from "@/lib/site";
 import { TYPE_PAGES } from "@/lib/store/listing";
 import { storeHome, storeRead } from "@/lib/store/server";
@@ -154,8 +158,14 @@ export default async function HomePage() {
   const brandPhotos = Object.fromEntries(
     shownBrands.map((brand) => [brand.slug, photo((card) => card.brand.slug === brand.slug)]),
   );
+  // Structured data only while the Owner offers the catalogue (ADRs 0114, 0119).
+  const offered = (await readSeoPolicy()).indexing === "catalogue";
   return (
     <>
+      {offered &&
+        storeJsonLd(ageGate().runtime.origins[0]!, SITE.name).map((data) => (
+          <JsonLd key={data["@type"]} data={data} />
+        ))}
       <HeroCarousel slides={content.heroSlides.length ? content.heroSlides : [DEFAULT_SLIDE]} />
       <HomeCategories tiles={tiles} />
       <ProductSection

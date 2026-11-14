@@ -3,6 +3,7 @@ import { notFound, permanentRedirect } from "next/navigation";
 import { metaDescription } from "@/lib/seo-data";
 import { pageDescription, SITE } from "@/lib/site";
 import { storeRead } from "@/lib/store/server";
+import { guideTopicOf, RelatedGuides } from "@/components/related-guides";
 import { ListingPage } from "../../listing-page";
 
 type Props = {
@@ -39,6 +40,7 @@ export default async function BrandPage({ params, searchParams }: Props) {
   const brand = await brandOf(slug);
   if (!brand) notFound();
   if (brand.slug !== slug) permanentRedirect(`/brands/${brand.slug}`);
+  const topic = guideTopicOf(brand.slug);
   return (
     <ListingPage
       path={`/brands/${brand.slug}`}
@@ -80,6 +82,7 @@ export default async function BrandPage({ params, searchParams }: Props) {
         </header>
       }
       emptyBody="This brand has no products available right now."
+      after={topic && <RelatedGuides topic={topic} />}
     />
   );
 }

@@ -5,6 +5,7 @@ import { BuyBox } from "@/components/buy-box";
 import { ProductReviews, RatingLink } from "@/components/product-reviews";
 import { CompareToggle } from "@/components/compare-toggle";
 import { RecentlyViewed, RecordView } from "@/components/recently-viewed";
+import { RelatedGuides } from "@/components/related-guides";
 import { SaveButton } from "@/components/save-button";
 import { FlavourProfiles } from "@/components/flavour-profiles";
 import { Gallery } from "@/components/gallery";
@@ -267,6 +268,8 @@ export default async function ProductPage({ params }: Props) {
         </div>
       )}
       <ProductReviews rating={product.rating} reviews={product.reviews} />
+      {product.type === "sticks" && <RelatedGuides topic="terea" />}
+      {product.type === "device" && <RelatedGuides topic="iqos" />}
       <RecordView slug={product.slug} />
       {more.length > 0 && (
         <section className="sec" aria-labelledby="rel-h">

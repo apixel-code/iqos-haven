@@ -83,6 +83,22 @@ export function breadcrumbJsonLd(
   };
 }
 
+/** schema.org Organization and WebSite for the home page (ADR 0119): the store's name, address and logo. */
+export function storeJsonLd(origin: string, siteName: string) {
+  const url = new URL("/", origin).toString();
+  return [
+    {
+      "@context": "https://schema.org",
+      "@type": "Organization",
+      name: siteName,
+      url,
+      logo: new URL("/icon.png", origin).toString(),
+      areaServed: { "@type": "Country", name: "United Arab Emirates" },
+    },
+    { "@context": "https://schema.org", "@type": "WebSite", name: siteName, url },
+  ];
+}
+
 /** schema.org Article for a guide (ADR 0117). The store is both author and publisher. */
 export function guideJsonLd(
   guide: { slug: string; title: string; summary: string; publishedAt: string; updatedAt: string },

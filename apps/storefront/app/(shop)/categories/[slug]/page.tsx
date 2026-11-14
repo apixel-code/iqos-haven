@@ -3,6 +3,7 @@ import { notFound, permanentRedirect } from "next/navigation";
 import { metaDescription } from "@/lib/seo-data";
 import { pageDescription, SITE } from "@/lib/site";
 import { storeRead } from "@/lib/store/server";
+import { guideTopicOf, RelatedGuides } from "@/components/related-guides";
 import { ListingPage } from "../../listing-page";
 
 type Props = {
@@ -41,6 +42,7 @@ export default async function CategoryPage({ params, searchParams }: Props) {
   const category = await categoryOf(slug);
   if (!category) notFound();
   if (category.slug !== slug) permanentRedirect(`/categories/${category.slug}`);
+  const topic = guideTopicOf(category.slug);
   return (
     <ListingPage
       path={`/categories/${category.slug}`}
@@ -75,6 +77,7 @@ export default async function CategoryPage({ params, searchParams }: Props) {
         )
       }
       emptyBody="This category has no products available right now."
+      after={topic && <RelatedGuides topic={topic} />}
     />
   );
 }
