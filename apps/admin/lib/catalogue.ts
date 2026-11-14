@@ -77,6 +77,7 @@ export function categoryCreateCommand(data: FormData, includeSeo: boolean): Cate
   return validate(categoryCreateRequestSchema, {
     name: text(data, "name"),
     slug: text(data, "slug"),
+    description: text(data, "description"),
     active: data.get("active") === "on",
     sortOrder: sortOrder(data),
     ...(includeSeo ? { seo: seo(data) } : {}),
@@ -92,6 +93,7 @@ export function categoryUpdateCommand(
     version: category.version,
     name: text(data, "name"),
     slug: text(data, "slug"),
+    description: text(data, "description"),
     active: data.get("active") === "on",
     sortOrder: sortOrder(data),
     ...(includeSeo ? { seo: seo(data) } : {}),

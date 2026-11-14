@@ -72,7 +72,7 @@ const KINDS: Record<"brand" | "category", KindConfig> = {
     sub: "Shown in the store menu and filters, in display order.",
     empty: "Create a category to group products in the store.",
     icon: "folder",
-    description: false,
+    description: true,
     imageLabel: "Image",
     page: categoriesResponseSchema as ResponseContract<Page>,
     row: categoryResponseSchema as ResponseContract<Parent>,

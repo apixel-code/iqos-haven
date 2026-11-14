@@ -88,7 +88,7 @@ const KINDS = {
     table: Prisma.raw("categories"),
     fk: Prisma.raw("category_id"),
     media: Prisma.raw("image_asset_id"),
-    description: false,
+    description: true,
   },
 } as const;
 
@@ -112,7 +112,6 @@ function selectRows(kind: Kind, where: Prisma.Sql, tail: Prisma.Sql = Prisma.emp
   const k = KINDS[kind];
   return Prisma.sql`
     SELECT t.id, t.name, t.slug,
-      -- Categories have no description column; '' keeps one row shape (never returned for them).
       ${k.description ? Prisma.sql`t.description` : Prisma.sql`''`} AS description,
       t.${k.media} AS media, t.active, t.sort_order AS "sortOrder", t.seo, t.version,
       t.deleted_at AS "deletedAt", t.created_at AS "createdAt", t.updated_at AS "updatedAt",
@@ -159,7 +158,11 @@ function response<K extends Kind>(kind: K, row: ParentRow): ResponseOf[K] {
           description: row.description,
           logoAssetId: row.media,
         })
-      : categoryResponseSchema.parse({ ...common, imageAssetId: row.media })
+      : categoryResponseSchema.parse({
+          ...common,
+          description: row.description,
+          imageAssetId: row.media,
+        })
   ) as ResponseOf[K];
 }
 
@@ -282,7 +285,8 @@ async function lockParent(tx: Tx, kind: Kind, id: string, version: number) {
 interface ParentWrite {
   name: string;
   slug: string;
-  description?: string;
+  /** Undefined on a category update that leaves the text as it is (ADR 0116). */
+  description?: string | undefined;
   active: boolean;
   sortOrder: number;
   seo?: { title: string | null; description: string | null } | undefined;
@@ -350,7 +354,8 @@ async function update<K extends Kind>(
       // A new slug makes the old one a redirect: the Owner's (SEO and redirects, step 101).
       if (row.slug !== command.slug && !(await canWriteSeo(tx, actor)))
         throw new CatalogueForbiddenError();
-      const description = k.description ? (command.description ?? "") : "";
+      // A category update may leave the text out: unchanged (ADR 0116).
+      const description = k.description ? (command.description ?? row.description) : "";
       const seoChanged =
         command.seo !== undefined && !isDeepStrictEqual(storedSeo(row.seo), command.seo);
       const imageChanged = command.image !== undefined && command.image !== row.media;

@@ -253,7 +253,15 @@ describe("catalogue client", () => {
   };
   const brands = {
     items: [
-      { name: "Orbe", slug: "orbe", description: "", productCount: 2, formerSlugs: [], logo: null },
+      {
+        name: "Orbe",
+        slug: "orbe",
+        description: "",
+        seo: { title: null, description: null },
+        productCount: 2,
+        formerSlugs: [],
+        logo: null,
+      },
     ],
   };
   function api(respond: (url: URL, init: RequestInit) => Response | Promise<Response>) {
