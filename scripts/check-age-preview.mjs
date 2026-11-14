@@ -46,6 +46,8 @@ const RESTRICTED = [
   "/compare",
   "/guides",
   "/guides/orbe-halo-guide",
+  "/delivery",
+  "/delivery/dubai",
 ];
 // Words from the product URLs above: they must never come back in a body or in metadata.
 const PRODUCT_TOKENS = /halo|orbe|grape/i;
@@ -1280,6 +1282,9 @@ try {
     "/p/orbe-second-page",
     "/guides",
     "/guides/orbe-halo-guide",
+    "/delivery",
+    "/delivery/dubai",
+    "/delivery/sharjah",
     "/terms",
   ])
     check(mapOpen.includes(`<loc>${ORIGIN}${path}</loc>`), `catalogue: sitemap lists ${path}`);
@@ -1329,6 +1334,22 @@ try {
       guideHtml.includes('href="/sticks"') &&
       !guideHtml.includes("**Grape"),
     "catalogue: guide page shows its formatted text and Article data",
+  );
+  // Delivery by emirate (ADR 0118): only emirates with an active area, facts from the settings.
+  check(!mapOpen.includes("/delivery/fujairah"), "catalogue: sitemap skips an emirate not served");
+  const dubai = await get("/delivery/dubai", verified);
+  const dubaiHtml = await dubai.text();
+  check(
+    dubai.status === 200 &&
+      dubaiHtml.includes("Synthetic area") &&
+      dubaiHtml.includes("Synthetic delivery time") &&
+      !dubaiHtml.includes("Other area"),
+    "catalogue: an emirate page lists its own areas and the delivery time",
+  );
+  check(
+    (await get("/delivery/fujairah", verified)).status === 404 &&
+      (await get("/delivery/atlantis", verified)).status === 404,
+    "catalogue: no page for an emirate not served or unknown",
   );
   const guides = await (await get("/guides", verified)).text();
   check(
