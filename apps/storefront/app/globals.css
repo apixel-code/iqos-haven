@@ -37,3 +37,33 @@ body {
     padding-bottom: calc(72px + env(safe-area-inset-bottom));
   }
 }
+
+/* Guides (ADR 0117): one readable column with room above each section. */
+.guide-prose {
+  max-width: none;
+  font-size: 16px;
+  line-height: 1.7;
+  gap: 16px;
+}
+.guide-prose h2 {
+  margin-top: 20px;
+  scroll-margin-top: 96px;
+}
+.guide-prose h3 {
+  margin-top: 6px;
+}
+.guide-prose ul {
+  list-style: disc;
+}
+.guide-prose ol {
+  margin: 0;
+  padding-left: 22px;
+  list-style: decimal;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.guide-prose a {
+  color: var(--ink);
+  text-underline-offset: 3px;
+}
