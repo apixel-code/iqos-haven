@@ -11,20 +11,33 @@ export type GuideTopic = "terea" | "iqos";
  * a new guide joins the right pages when it is published and a hidden one drops out. A failed
  * read shows nothing: the page around it must never fail because of this box.
  */
-export async function RelatedGuides({ topic, limit = 3 }: { topic: GuideTopic; limit?: number }) {
+export async function RelatedGuides({
+  topic,
+  limit = 3,
+  exclude,
+  title = "Guides",
+}: {
+  topic: GuideTopic;
+  limit?: number;
+  /** The guide being read, left out of its own list. */
+  exclude?: string;
+  title?: string;
+}) {
   let guides;
   try {
     guides = (await storeRead((api, shopper) => api.guides(shopper))).items;
   } catch {
     return null;
   }
-  const shown = guides.filter((guide) => guide.slug.startsWith(`${topic}-`)).slice(0, limit);
+  const shown = guides
+    .filter((guide) => guide.slug.startsWith(`${topic}-`) && guide.slug !== exclude)
+    .slice(0, limit);
   if (!shown.length) return null;
   return (
     <section className="sec" aria-labelledby={`guides-${topic}-h`}>
       <SectionHead
         id={`guides-${topic}-h`}
-        title="Guides"
+        title={title}
         sub={topic === "terea" ? "Choosing a TEREA flavour" : "Choosing an IQOS ILUMA"}
         more={{ label: "All guides", href: "/guides" }}
       />

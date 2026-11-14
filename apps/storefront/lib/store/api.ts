@@ -5,6 +5,7 @@ import {
   storeCategoriesResponseSchema,
   storeDeliveryResponseSchema,
   storeGuideResponseSchema,
+  storeProductCardsResponseSchema,
   storeGuidesResponseSchema,
   storeHomeResponseSchema,
   storeInfoResponseSchema,
@@ -15,6 +16,7 @@ import {
   type StoreCategoriesResponse,
   type StoreDeliveryResponse,
   type StoreGuideResponse,
+  type StoreProductCardsResponse,
   type StoreGuidesResponse,
   type StoreHomeResponse,
   type StoreInfoResponse,
@@ -145,6 +147,15 @@ export function createStoreApi(options: { baseUrl: string; fetch?: typeof fetch 
     /** Published guides, newest first (ADR 0117). */
     guides: (shopper: ShopperContext): Promise<StoreGuidesResponse> =>
       required(call(shopper, "/guides", storeGuidesResponseSchema)),
+    /** Cards for up to 24 product slugs, in the order asked; unavailable ones are left out. */
+    productCards: (
+      shopper: ShopperContext,
+      slugs: readonly string[],
+    ): Promise<StoreProductCardsResponse> => {
+      const query = new URLSearchParams();
+      for (const slug of slugs) query.append("slug", slug);
+      return required(call(shopper, `/product-cards?${query}`, storeProductCardsResponseSchema));
+    },
     /** Null when no published guide has this slug. */
     guide: (shopper: ShopperContext, slug: string): Promise<StoreGuideResponse | null> =>
       call(shopper, `/guides/${encodeURIComponent(slug)}`, storeGuideResponseSchema),
