@@ -143,8 +143,12 @@ describe("anonymous browsing events through the real API and PostgreSQL", () => 
     // Searches are never linked to the browser's other events.
     for (const row of rows)
       expect(row.anonymousId).toBe(row.type === "search" ? null : anonymousId);
-    // What was stored besides the random IDs (a UUID can contain "971" by chance).
-    const text = JSON.stringify(rows.map((row) => [row.type, row.payload]));
+    // What was stored besides the random IDs: they are masked first, because a UUID can
+    // contain "971" or "4567" by chance (a flaky failure on 2026-11-15).
+    const text = JSON.stringify(rows.map((row) => [row.type, row.payload])).replace(
+      /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g,
+      "<id>",
+    );
     for (const personal of ["971", "4567", "198.51.100", "cookie"])
       expect(text).not.toContain(personal);
   });
