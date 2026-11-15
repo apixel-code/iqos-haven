@@ -17,7 +17,17 @@ const BADGE_CLASS = {
  * (its link covers the card), the short spec line, the price "from" the lowest option and the
  * quick-add button. A sold-out product stays listed, dimmed, without the button.
  */
-export function ProductCard({ product }: { product: StoreProductCard }) {
+export function ProductCard({
+  product,
+  priority = "lazy",
+}: {
+  product: StoreProductCard;
+  /**
+   * How the picture loads: "high" for the first cards a phone shows above the fold (the page's
+   * largest picture), "eager" for the rest of the first row, "lazy" below it.
+   */
+  priority?: "high" | "eager" | "lazy";
+}) {
   const badges = cardBadges(product);
   const onSale = badges.some((badge) => badge.kind === "sale");
   const meta = cardMeta(product);
@@ -37,7 +47,8 @@ export function ProductCard({ product }: { product: StoreProductCard }) {
             alt=""
             width={product.image.width}
             height={product.image.height}
-            loading="lazy"
+            loading={priority === "lazy" ? "lazy" : "eager"}
+            fetchPriority={priority === "high" ? "high" : "auto"}
             decoding="async"
           />
         ) : (
@@ -90,9 +101,10 @@ export function ProductCard({ product }: { product: StoreProductCard }) {
 export function ProductGrid({ products }: { products: readonly StoreProductCard[] }) {
   return (
     <ul className="pgrid">
-      {products.map((product) => (
+      {products.map((product, at) => (
         <li key={product.slug}>
-          <ProductCard product={product} />
+          {/* The first row is above the fold: two on phones, four on wide screens. */}
+          <ProductCard product={product} priority={at < 2 ? "high" : at < 4 ? "eager" : "lazy"} />
         </li>
       ))}
     </ul>
