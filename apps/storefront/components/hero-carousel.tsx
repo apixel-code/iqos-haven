@@ -1,5 +1,6 @@
 "use client";
 
+import { srcSetOf } from "@/lib/image";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { StoreHomeResponse } from "@ih/contracts";
@@ -141,10 +142,14 @@ export function HeroCarousel({ slides }: { slides: readonly Slide[] }) {
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
                           src={slide.image.urls.large}
+                          srcSet={srcSetOf(slide.image)}
+                          sizes="(max-width: 719px) 90vw, 45vw"
                           alt={slide.image.alt}
                           width={slide.image.width}
                           height={slide.image.height}
                           decoding="async"
+                          // Only the first slide is needed at once; the others load when near.
+                          loading={at === 0 ? "eager" : "lazy"}
                           fetchPriority={at === 0 ? "high" : "auto"}
                         />
                       </div>
@@ -328,7 +333,8 @@ function SlidePicture({
       {slide.mobileImage && (
         <source
           media="(max-width: 719px)"
-          srcSet={slide.mobileImage.urls.large}
+          srcSet={srcSetOf(slide.mobileImage)}
+          sizes="100vw"
           width={slide.mobileImage.width}
           height={slide.mobileImage.height}
         />
@@ -336,10 +342,14 @@ function SlidePicture({
       {/* Signed link to a sanitized content image; the optimizer is not used (inside <picture>). */}
       <img
         src={image.urls.large}
+        srcSet={srcSetOf(image)}
+        sizes="100vw"
         alt={image.alt}
         width={image.width}
         height={image.height}
-        decoding="async"
+        decoding={at === 0 ? "sync" : "async"}
+        // Only the first slide is needed at once; the others load when near.
+        loading={at === 0 ? "eager" : "lazy"}
         fetchPriority={at === 0 ? "high" : "auto"}
       />
     </picture>
