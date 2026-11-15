@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { srcSetOf } from "@/lib/image";
 import type { StoreProductCard } from "@ih/contracts";
 import { Dirham } from "@/components/money";
 import { cardBadges, cardMeta, displayAmount } from "@/lib/store/listing";
@@ -31,6 +32,8 @@ export function ProductCard({ product }: { product: StoreProductCard }) {
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={product.image.urls.medium}
+            srcSet={srcSetOf(product.image)}
+            sizes="(max-width: 719px) 50vw, (max-width: 1039px) 33vw, 25vw"
             alt=""
             width={product.image.width}
             height={product.image.height}

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { srcSetOf } from "@/lib/image";
 import type { ReactNode } from "react";
 import type {
   StoreBrandsResponse,
@@ -17,6 +18,8 @@ function ContentImage({ image }: { image: StoreImage }) {
     // eslint-disable-next-line @next/next/no-img-element
     <img
       src={image.urls.large}
+      srcSet={srcSetOf(image)}
+      sizes="(max-width: 719px) 100vw, 50vw"
       alt={image.alt}
       width={image.width}
       height={image.height}

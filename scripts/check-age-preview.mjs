@@ -1042,7 +1042,7 @@ try {
     ])
       check(curated.includes(text), `home shows published content "${text}"`);
     check(
-      /<source media="\(max-width: 719px\)" srcSet="https:\/\/media\.preview-check\.test\/banner-phone\.webp"/i.test(
+      /<source media="\(max-width: 719px\)" srcSet="[^"]*https:\/\/media\.preview-check\.test\/banner-phone\.webp \d+w/i.test(
         curated,
       ) &&
         /class="hb-banner"[^>]*href="\/shop"|href="\/shop"[^>]*class="hb-banner"/.test(curated) &&
@@ -1053,7 +1053,7 @@ try {
     check(
       /class="hb-slide s-photo photo-dark"/.test(curated) &&
         /<h2 class="hb-title">Synthetic second slide<\/h2>/.test(curated) &&
-        /srcSet="https:\/\/media\.preview-check\.test\/photo-phone\.webp"/.test(curated) &&
+        /srcSet="[^"]*https:\/\/media\.preview-check\.test\/photo-phone\.webp \d+w/.test(curated) &&
         curated.includes("photo-wide.webp") &&
         /href="\/shop"[^>]*>Synthetic photo button/.test(curated),
       "a photo slide shows its words and button over its wide and phone pictures (ADR 0108)",

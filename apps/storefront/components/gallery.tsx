@@ -1,5 +1,6 @@
 "use client";
 
+import { srcSetOf } from "@/lib/image";
 import { useCallback, useEffect, useRef, useState, type MouseEvent } from "react";
 import type { StoreImage, StoreProductResponse } from "@ih/contracts";
 import { Icon } from "@/components/icons";
@@ -80,10 +81,13 @@ export function Gallery({
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={image.urls.large}
+              srcSet={srcSetOf(image)}
+              sizes="(max-width: 899px) 100vw, 50vw"
               alt={image.alt || (images.length > 1 ? `${name}, image ${position + 1}` : name)}
               width={image.width}
               height={image.height}
               loading={position === 0 ? "eager" : "lazy"}
+              fetchPriority={position === 0 ? "high" : "auto"}
               draggable={false}
             />
           </div>
